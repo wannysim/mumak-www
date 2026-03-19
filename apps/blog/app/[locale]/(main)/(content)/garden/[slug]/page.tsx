@@ -24,6 +24,7 @@ import {
 import { Link, locales, type Locale } from '@/src/shared/config/i18n';
 import { formatDateForLocale } from '@/src/shared/lib/date';
 import { createGardenResolver, transformWikilinks } from '@/src/shared/lib/wikilink';
+import { LinkedNotesSection } from '@/src/widgets/linked-notes-section';
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
@@ -83,12 +84,6 @@ const statusVariants: Record<NoteStatus, 'default' | 'secondary' | 'outline'> = 
   budding: 'secondary',
   evergreen: 'default',
 };
-
-const directionIcons = {
-  bidirectional: '↔',
-  outgoing: '→',
-  incoming: '←',
-} as const;
 
 export default async function NotePage({ params }: NotePageProps) {
   const { locale, slug } = await params;
@@ -160,29 +155,11 @@ export default async function NotePage({ params }: NotePageProps) {
         </div>
       </article>
 
-      {linkedNotes.length > 0 && (
-        <section className="mt-12 pt-8 border-t border-border">
-          <h2 className="text-lg font-semibold mb-4">
-            {t.linkedNotes} ({linkedNotes.length})
-          </h2>
-          <ul className="space-y-2">
-            {linkedNotes.map(linkedNote => (
-              <li key={linkedNote.slug} className="flex items-center gap-2">
-                <span
-                  className="text-muted-foreground text-sm w-5 text-center"
-                  title={t.linkDirection[linkedNote.direction]}
-                >
-                  {directionIcons[linkedNote.direction]}
-                </span>
-                <Link href={`/garden/${linkedNote.slug}`} className="text-primary hover:underline underline-offset-4">
-                  {linkedNote.title}
-                </Link>
-                <span className="text-xs text-muted-foreground">{t.linkDirection[linkedNote.direction]}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <LinkedNotesSection
+        linkedNotes={linkedNotes}
+        linkedNotesLabel={t.linkedNotes}
+        linkDirectionLabels={t.linkDirection}
+      />
 
       <nav className="mt-8 pt-8 border-t border-border">
         <Link href="/garden" className="text-sm font-medium hover:underline">

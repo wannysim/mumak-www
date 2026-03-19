@@ -1,0 +1,393 @@
+---
+title: 'Will Design Systems Disappear in the AI Era?'
+date: '2026-03-11'
+description: 'I tried to capture how collaboration is changing now that Figma, design systems, and AI are starting to overlap'
+tags: ['design', 'ai', 'figma', 'workflow']
+draft: true
+---
+
+Lately, I often feel that the gap between the production speed of developers using multi-agent workflows and the production speed of designers is growing wider.
+
+There was always a difference in tempo between the two.
+But once AI entered the picture, that gap became much more obvious.
+
+Developers can now build quite a lot almost immediately.
+Even with only rough requirements,
+if you give enough context to a tool like Cursor and go back and forth a few times, you can get a working screen surprisingly fast.
+
+Honestly, that is still a little shocking.
+Things that used to feel like "we won't know until we wire it up"
+can now actually be wired up right away.
+Often with decent dummy data and interactions already attached.
+
+Sometimes the result arrives before I can even fully imagine it.
+In a good way,
+and sometimes in a slightly scary way too.
+
+Design, on the other hand, still requires a lot of judgment.
+And that makes perfect sense.
+A good screen is not just a pretty screen.
+It has to consider information architecture, interaction, context, and consistency all at once.
+
+And to be honest, I do not think this means designers are slow.
+If anything, it is the opposite.
+Design is the kind of work that is hard to settle quickly.
+You have to look at far more things at the same time than people assume.
+
+That is where the real issue begins.
+Development has become insanely fast because of AI,
+but design does not accelerate in the same simple way.
+So the back-and-forth between the two starts to feel awkward.
+Development is already far ahead,
+while design is still in the middle of judging what is right.
+
+That made me more curious.
+Could we use the Figma our designers work in more actively inside this new AI-driven flow?
+
+Figma Make?
+Code Connect?
+MCP?
+Or more fundamentally, just doing a much better job of organizing layout, components, and variables?
+
+Something our design lead said stayed with me.
+
+> A thought I keep having when I look at AI:
+> instead of the old sequence of perfect planning -> perfect design -> perfect development,
+> maybe we move to three cycles of planning 30 -> development 30 -> design 30.
+> Maybe even the idea of a design system itself could disappear.
+> AI is producing UI faster than teams can build systems.
+
+When I first heard that,
+I found it quite persuasive.
+
+Especially for 0-to-1 problems.
+Instead of trying to begin with perfect planning and perfect design,
+it may be much more realistic to set a rough direction and move through quick cycles.
+
+That rhythm feels natural when you work with AI.
+You make something first,
+then fix it immediately,
+then change it again.
+This flow works better than I expected.
+
+These days, I often feel it is better to get a draft out quickly and look at it together
+than to spend too long imagining the final result in your head.
+One look is often faster than a long explanation,
+and clicking through something real teaches you more than polishing a static mockup for hours.
+
+Still, there is something unsettling here.
+If everything keeps getting faster,
+when exactly does design become most effective?
+And what role should Figma play in that process?
+
+The old structure of "finish the design mockup -> hand off to development"
+feels less and less suitable.
+It is too slow.
+And it cannot hold all the judgments that happen in the middle.
+
+Right now, a flow like this feels more realistic:
+"make something rough -> review it together -> revise it -> extract the pattern."
+The problem is that in this process, a team's taste and standards can disappear very easily.
+
+## But Will Design Systems Really Disappear?
+
+This is where I stop for a moment.
+
+Will the very idea of a design system actually disappear?
+My instinct is almost the opposite.
+Rather than disappearing, it may become more embedded in the background and more important than before.
+
+Figma says something similar.
+In a 2025 article, Figma described design systems as no longer just collections of reusable parts,
+but as **living frameworks that scale taste and craft** in the age of AI.
+Once speed increases, things become messy by default,
+and the system is what gives that speed direction.
+
+That point really resonated with me.
+
+AI is fast.
+But speed alone does not create good outcomes.
+Without context, it simply generates many plausible-looking UIs very quickly.
+The real question comes after that.
+Does this screen actually feel like our product?
+Does it match our team's standards?
+Does it reflect accessibility and interaction principles?
+Those are completely different questions.
+
+In the end, the faster AI becomes,
+the more necessary systems become too.
+The only difference is that the form of the system changes.
+
+If a design system used to be documentation for people,
+it now has to become context that both people and AI can read together.
+
+That is the biggest shift I feel these days.
+
+In the past, design systems sometimes felt a bit like a collection of good habits.
+Nice to have.
+Better if organized well.
+Painful without one, but still something people could patch over with shared intuition.
+
+But AI changes that.
+
+AI has no intuition.
+And it is much weaker than people expect at those "obvious" things.
+Why is the button spacing like this?
+Which variant should be used in which case?
+Why is this card clickable here but not there?
+Humans can often align roughly through context,
+but AI can barely read that kind of tacit knowledge.
+
+So systems become more important.
+More precisely, reducing tacit knowledge and increasing explicit context becomes more important.
+
+Maybe this also changes what design system teams or frontend platform teams do.
+Their work may become not only
+"organizing things for people,"
+but also
+"structuring things so AI does not misunderstand them."
+
+## Figma Is Becoming Less a Design File and More a Context Repository
+
+This is where Figma becomes especially interesting.
+
+Figma is no longer just a tool for drawing screens.
+It is getting closer to being a repository of design context that AI can reference.
+
+Figma now officially says you can [connect your design system package inside Figma Make](https://help.figma.com/hc/en-us/articles/35946832653975-Use-your-design-system-package-in-Figma-Make).
+If you take that seriously, the line between "design lives in Figma, implementation lives in code" is no longer clean.
+You can use the same production React design system for prototyping,
+and carry that flow back into real code again.
+
+And in [Figma's article about MCP](https://www.figma.com/blog/design-systems-ai-mcp/),
+they describe the design system as a lingua franca between design and AI.
+I liked that phrase too.
+
+It really does feel that way.
+
+AI cannot read context the way people do.
+Designers and developers may say, "this part is obvious,"
+but for AI, unless you connect it explicitly, that information might as well not exist.
+
+So what may matter more in the future
+is not a "beautiful Figma file,"
+but "Figma context that AI can read well."
+
+I actually think Figma's role gets bigger here.
+
+Not just as a tool for producing beautiful mockups,
+but as a place where a team's UI decisions accumulate.
+
+Which component is the default.
+Which value is a token.
+Which expression is an exception.
+Which interaction is intentional.
+If that information is scattered, it is already hard for people.
+Once AI enters the process, it becomes even more chaotic.
+
+On the other hand, if this is organized well, a lot changes.
+Designers can communicate intent with less explanation.
+Developers can lock onto implementation direction faster.
+AI does less pointless invention.
+
+Honestly, what I want is not some huge, magical automation.
+It matters less to me that AI can instantly produce brilliant screens on its own.
+What matters more is that it helps us lose less of the standards our team already knows.
+
+I mean things like these:
+
+- Are components and variants clearly organized?
+- Are variables and tokens applied consistently?
+- Are layer names and structures meaningful?
+- Are code components and Figma components connected?
+- Do we still have documentation and criteria for when to use which pattern?
+
+In the end, maybe design systems are not disappearing at all.
+Maybe they are **evolving into something more explicit, more structured, and more machine-friendly**.
+
+And this is more practical than it might sound.
+
+For example, when designers keep local components well organized in Figma,
+we can recognize much faster during implementation that "this is really the same button" or "this is just a variation of that card."
+But if everything is drawn differently every time,
+developers are more likely to treat each screen as something completely new.
+Then the right moment to abstract common pieces gets missed,
+and the number of screens grows quickly while the structure gets tangled just as fast.
+
+That may sound minor, but it is a big deal.
+In a time when AI is speeding up development,
+small inconsistencies like this turn into debt much faster than they used to.
+
+## So How Will the Workflow Change?
+
+From here on, I would call this more of a hypothesis than a conclusion.
+Still, this is how I currently see it.
+
+Perfect planning -> perfect design -> perfect development.
+That order is clearly weakening.
+
+Instead, I think a structure of shorter, more frequent loops will become the default.
+
+Planning 30.
+Development 30.
+Design 30.
+
+Run that cycle several times,
+and get closer to the right answer as you go.
+
+I think this is especially powerful in early exploration.
+When the only way to discover the problem is to actually touch something,
+holding onto text plans and static mockups for too long can be less efficient than it looks.
+
+And one strong advantage of this approach
+is that it helps us spot local components and repeated patterns earlier.
+After a few cycles,
+you start to notice, "ah, we are really repeating the same structure."
+Then frontend developers can turn that into a shared component,
+and designers can lift that pattern into the system.
+
+Compared with trying to predict all shared patterns from the very beginning,
+it may be more realistic to promote repeated structures into the system only after they emerge during exploration.
+
+I think this approach is actually more honest.
+
+The truth is, we do not start with full knowledge of every pattern.
+We just act as if we do, create a big design up front,
+and then everything changes while we build it.
+At that point, the perfect structure we made early on becomes outdated very quickly.
+
+It may be better to collide with the problem a few times,
+let repetition reveal itself,
+and then decide, "now this is mature enough to become part of the system."
+
+Of course, this requires a certain amount of courage.
+It means not locking in the right answer from the beginning.
+But it also demands stronger observation.
+You have to keep judging what is accidental repetition and what is a real pattern.
+
+That is why I think the frontend developers who matter most in the future
+will not just be the ones who implement quickly,
+but the ones who know how to pull repetition up into a system.
+The same goes for designers.
+Not just the ability to make a single screen beautiful,
+but the ability to extract repeated forms and rules from many screens.
+
+In the end, both sides have to look at it together.
+This is not a problem one side can solve alone.
+
+## The Collaboration Flow I Hope For
+
+This is the rough picture I have in mind right now.
+
+A planning draft appears.
+Instead of designers and developers each holding onto their own version of the finished result for too long,
+they share rough versions early.
+
+Designers use Figma to shape the structure, the flow,
+and the core interactions.
+Developers use AI to quickly assemble something that can actually be clicked and tested.
+
+Then both sides review it together.
+
+"This is not as good as we thought."
+"This looks much better once we see it on a real screen."
+"This button should become a shared pattern."
+"This state value should be managed as a token."
+
+A process where those conversations happen early.
+
+I honestly think we need a lot more of those conversations.
+The older way of working is often too quiet.
+Design works alone for a long time.
+Development receives the result and builds it alone.
+And the judgments in between get scattered somewhere in chat history.
+
+But in the AI era, that quiet middle stretch is too long.
+By the time you are done, another team may already have run three more experiments.
+
+So I think Figma, code, and AI
+all need to become tools for surfacing intermediate judgments quickly.
+Before they are tools for final decisions,
+they need to be tools for exposing ideas early and revising them fast.
+
+## But This Will Not Work Everywhere
+
+That said, I do not think this approach is always right.
+
+If you already have a complex system,
+many domains and legacy constraints,
+and tightly connected requirements around accessibility, performance, and operations,
+then the story changes.
+
+In those environments, the first screen AI generates quickly
+might actually create more misunderstanding.
+It may look convincing on the surface,
+while leaving out the constraints that matter most.
+
+That is exactly why systems matter even more.
+More specifically,
+we need standards and context that keep AI from drifting too far.
+
+Here, Figma and the design system are not tools that block exploration.
+They are tools that make exploration safer.
+
+Not a brake that slows everything down,
+but a guardrail that keeps the team from wobbling too much.
+
+And I think that difference is important.
+
+If you see systems as inherently conservative,
+they can feel like the opposite of AI.
+"If we are building this fast, is the system just in the way?"
+
+But my instinct is the opposite.
+You need guardrails to move faster.
+If all you do is increase speed without standards,
+you just keep slipping.
+If something is fast but wrong over and over again, it is not truly fast.
+
+## Where I Land for Now
+
+I do not think I have the full answer yet.
+I still need to use Figma Make,
+Code Connect,
+and MCP
+much more.
+
+Even so, one thing already feels clear.
+
+Design systems will not disappear in the AI era.
+If anything, they will matter more.
+
+But they can no longer remain just static libraries or final review checklists.
+They need to become living context shared by designers,
+frontend developers,
+and AI.
+
+The best teams in the future may be
+not only the teams that are good at design
+or the teams that are good at development,
+but the teams that are good at structuring this shared context.
+
+If possible, I want to move in that direction too.
+A flow where designers and frontend developers collaborate more organically,
+where Figma and code connect more naturally,
+and where AI works as a good amplifier between them.
+
+And honestly,
+this piece is less a final conclusion and more a record of what I have been thinking about lately.
+
+Still, one thing feels certain.
+It is getting harder to think about "how to do design well" and "how to do development well" as separate questions.
+AI is moving across that boundary far too quickly.
+
+So I think I will keep sitting with this question for a while.
+
+How should we use Figma
+so that designers and developers can collaborate better?
+
+And how should we organize that context
+so that AI can make us faster
+without making us more foolish?
+
+For now, I am experimenting with that way of working little by little.

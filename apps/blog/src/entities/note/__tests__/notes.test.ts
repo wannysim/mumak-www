@@ -99,11 +99,11 @@ describe('getNote', () => {
     expect(note?.meta.parent).toBeUndefined();
   });
 
-  it('루트 디렉토리 파일의 category가 garden으로 정규화된다', () => {
+  it('resources 하위 파일의 category가 resources로 파싱된다', () => {
     const note = getNote('ko', 'movie');
 
     expect(note).not.toBeNull();
-    expect(note?.meta.category).toBe('garden');
+    expect(note?.meta.category).toBe('resources');
   });
 });
 

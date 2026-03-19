@@ -34,4 +34,24 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     await expect(sidebar).toBeVisible();
     await expect(projectsAccordion).toBeVisible();
   });
+
+  test('should keep linked notes collapsed by default and expand on toggle', async ({ page }) => {
+    await page.goto('/ko/garden/movie');
+
+    const section = page.locator('[data-linked-notes-section]');
+    await expect(section).toBeVisible();
+
+    const trigger = section.getByRole('button', { name: /연결된 노트\s*\(\d+\)/ });
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+    const linkedList = section.locator('ul.space-y-2');
+    await expect(linkedList).not.toBeVisible();
+
+    await trigger.click();
+
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(linkedList).toBeVisible();
+    await expect(section.getByRole('link', { name: '시라트 (Sirât, 2025)' })).toBeVisible();
+  });
 });
