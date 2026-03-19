@@ -42,9 +42,7 @@ function getResponse(command) {
     return buildAskResponse('데이터베이스 상태를 바꿀 수 있는 명령입니다. 의도를 다시 확인해 주세요.', normalized);
   }
 
-  if (
-    /\b(drop\s+table|truncate\s+table|delete\s+from|update\s+\w+\s+set|insert\s+into)\b/i.test(normalized)
-  ) {
+  if (/\b(drop\s+table|truncate\s+table|delete\s+from|update\s+\w+\s+set|insert\s+into)\b/i.test(normalized)) {
     return buildAskResponse('SQL write 또는 destructive query로 보입니다. 다시 확인해 주세요.', normalized);
   }
 

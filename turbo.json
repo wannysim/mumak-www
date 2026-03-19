@@ -9,16 +9,24 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**", "out/**", "*.tsbuildinfo"],
       "env": ["NEXT_PUBLIC_*", "ANALYZE"],
-      "passThroughEnv": ["NODE_ENV", "E2E_INCLUDE_DRAFT", "SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"]
+      "passThroughEnv": [
+        "NODE_ENV",
+        "E2E_INCLUDE_DRAFT",
+        "SPOTIFY_CLIENT_ID",
+        "SPOTIFY_CLIENT_SECRET",
+        "SPOTIFY_REFRESH_TOKEN"
+      ]
     },
-    "lint": {
-      "inputs": ["$TURBO_DEFAULT$", "eslint.config.js"],
+    "//#lint": {
+      "inputs": ["$TURBO_DEFAULT$", ".oxlintrc.json", ".oxlintrc.jsonc", "oxlint.config.ts", "tsconfig*.json"],
       "outputs": []
     },
-    "lint:fix": {
-      "inputs": ["$TURBO_DEFAULT$", "eslint.config.js"],
+    "//#lint:fix": {
+      "inputs": ["$TURBO_DEFAULT$", ".oxlintrc.json", ".oxlintrc.jsonc", "oxlint.config.ts", "tsconfig*.json"],
       "cache": false
     },
+    "//#quality": {},
+    "//#quality:fix": {},
     "check-types": {
       "dependsOn": ["^build", "build"],
       "inputs": ["$TURBO_DEFAULT$", "tsconfig*.json"],
@@ -28,12 +36,16 @@
       "inputs": ["$TURBO_DEFAULT$", "knip.config.ts", "**/*.{ts,tsx,js,jsx}"],
       "outputs": []
     },
-    "format": {
-      "inputs": ["$TURBO_DEFAULT$"],
+    "//#format": {
+      "inputs": ["$TURBO_DEFAULT$", ".oxfmtrc.json", ".oxfmtrc.jsonc"],
+      "outputs": []
+    },
+    "//#format:fix": {
+      "inputs": ["$TURBO_DEFAULT$", ".oxfmtrc.json", ".oxfmtrc.jsonc"],
       "cache": false
     },
-    "format:check": {
-      "inputs": ["$TURBO_DEFAULT$"],
+    "//#format:check": {
+      "inputs": ["$TURBO_DEFAULT$", ".oxfmtrc.json", ".oxfmtrc.jsonc"],
       "outputs": []
     },
     "test": {

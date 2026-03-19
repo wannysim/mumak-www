@@ -71,6 +71,7 @@ pnpm install
 ### Remote Cache 설정
 
 GitHub Secrets 필요:
+
 - `TURBO_TOKEN`: Turbo Cloud 토큰
 - `TURBO_TEAM`: 팀 이름 (Variables)
 
@@ -98,20 +99,20 @@ apps:
 
 ## 문제 해결
 
-| 문제 | 해결 |
-|------|------|
-| 캐시가 잘못됨 | `pnpm turbo run build --force` |
-| 패키지가 실행 안됨 | 해당 패키지에 스크립트 있는지 확인 |
-| 의존성 확인 | `pnpm turbo:graph` |
+| 문제                 | 해결                                                                            |
+| -------------------- | ------------------------------------------------------------------------------- |
+| 캐시가 잘못됨        | `pnpm turbo run build --force`                                                  |
+| 패키지가 실행 안됨   | 해당 패키지에 스크립트 있는지 확인                                              |
+| 의존성 확인          | `pnpm turbo:graph`                                                              |
 | E2E 시작 실패 (blog) | `pnpm turbo run build --filter=blog` 후 `pnpm turbo run test:e2e --filter=blog` |
 
 ## 태스크 설정
 
-| 태스크 유형 | outputs | cache | 예시 |
-|------------|---------|-------|------|
-| 빌드 | 산출물 경로 | true | `build` |
-| 검증 | `[]` | true | `lint`, `check-types` |
-| 수정 | 생략 | false | `lint:fix`, `format` |
+| 태스크 유형 | outputs     | cache | 예시                  |
+| ----------- | ----------- | ----- | --------------------- |
+| 빌드        | 산출물 경로 | true  | `build`               |
+| 검증        | `[]`        | true  | `lint`, `check-types` |
+| 수정        | 생략        | false | `lint:fix`, `format`  |
 
 ### 포맷 체크 주의사항
 

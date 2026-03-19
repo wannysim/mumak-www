@@ -56,8 +56,8 @@ const height = element.offsetHeight; // 여기서 강제 Layout 발생
 ```js
 // Bad: 매 반복마다 강제 reflow
 elements.forEach(el => {
-  const height = el.offsetHeight;        // read → 강제 Layout
-  el.style.height = height + 10 + 'px';  // write → 다음 read에서 또 강제 Layout
+  const height = el.offsetHeight; // read → 강제 Layout
+  el.style.height = height + 10 + 'px'; // write → 다음 read에서 또 강제 Layout
 });
 ```
 
@@ -70,7 +70,7 @@ N개의 요소에 대해 N번의 Layout이 발생한다. 요소가 100개면 100
 const heights = elements.map(el => el.offsetHeight); // read 일괄
 
 elements.forEach((el, i) => {
-  el.style.height = heights[i] + 10 + 'px';          // write 일괄
+  el.style.height = heights[i] + 10 + 'px'; // write 일괄
 });
 ```
 

@@ -5,10 +5,13 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "lint": "turbo run lint",
-    "lint:fix": "turbo run lint:fix",
-    "format": "prettier --write \"**/*.{ts,tsx,md,json,js,jsx}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,md,json,js,jsx}\"",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "quality": "pnpm lint && pnpm format:check",
+    "quality:fix": "pnpm lint:fix && pnpm format:fix",
     "check-types": "turbo run check-types",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
@@ -19,26 +22,30 @@
     "turbo:dry:json": "turbo run build test --dry-run=json",
     "turbo:graph": "turbo run build --graph",
     "turbo:clean": "turbo run clean && rm -rf node_modules .turbo",
-    "affected": "turbo run build test lint --filter=[HEAD^1]",
-    "affected:dry": "turbo run build test lint --filter=[HEAD^1] --dry-run",
+    "affected": "pnpm quality && turbo run build test --filter='[HEAD^1]'",
+    "affected:dry": "pnpm turbo run build test --filter='[HEAD^1]' --dry-run",
     "prepare": "husky",
     "version:sync": "node scripts/sync-versions.mjs",
     "version:check": "node scripts/sync-versions.mjs --check"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.0",
-    "eslint": "^9.39.2",
+    "eslint-plugin-turbo": "^2.8.16",
     "husky": "^9.0.11",
-    "knip": "^5.85.0",
+    "knip": "^5.86.0",
     "lint-staged": "^16.3.3",
-    "prettier": "^3.8.1",
+    "oxfmt": "^0.38.0",
+    "oxlint": "^1.53.0",
     "turbo": "^2.8.15",
     "typescript": "^5.9.3"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
-      "turbo run lint:fix --",
-      "turbo run format --"
+    "*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}": [
+      "oxlint --fix",
+      "oxfmt"
+    ],
+    "*.{md,mdx,json,jsonc,json5,yaml,yml,css,scss,less,html}": [
+      "oxfmt"
     ]
   },
   "engines": {

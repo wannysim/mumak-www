@@ -56,8 +56,8 @@ Once is fine. The problem is when this happens inside a loop.
 ```js
 // Bad: forced reflow on every iteration
 elements.forEach(el => {
-  const height = el.offsetHeight;        // read → forces Layout
-  el.style.height = height + 10 + 'px';  // write → next read forces Layout again
+  const height = el.offsetHeight; // read → forces Layout
+  el.style.height = height + 10 + 'px'; // write → next read forces Layout again
 });
 ```
 
@@ -70,7 +70,7 @@ N elements means N layout calculations. 100 elements? 100 reflows.
 const heights = elements.map(el => el.offsetHeight); // batch read
 
 elements.forEach((el, i) => {
-  el.style.height = heights[i] + 10 + 'px';          // batch write
+  el.style.height = heights[i] + 10 + 'px'; // batch write
 });
 ```
 

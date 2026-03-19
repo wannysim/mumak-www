@@ -51,7 +51,7 @@ describe('buildGardenGraphData', () => {
 
     const tagNodes = result.nodes.filter(n => n.type === 'tag');
     expect(tagNodes).toHaveLength(2);
-    expect(tagNodes.map(t => t.name).sort()).toEqual(['javascript', 'react']);
+    expect(tagNodes.map(t => t.name)).toEqual(expect.arrayContaining(['javascript', 'react']));
 
     const tagLinks = result.links.filter(l => l.type === 'tag');
     expect(tagLinks).toHaveLength(2);

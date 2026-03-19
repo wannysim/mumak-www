@@ -206,7 +206,7 @@ export function getNotes(locale: Locale): NoteMeta[] {
       return parseNoteFile(filePath, slug, category);
     })
     .filter((note): note is NoteMeta => note !== null && isPublishable(note))
-    .sort(byMostRecentFirst);
+    .toSorted(byMostRecentFirst);
 }
 
 export function getNote(locale: Locale, slug: string): Note | null {
@@ -341,7 +341,7 @@ export function getAllNoteTags(locale: Locale): Array<{ name: string; count: num
     .flatMap(note => note.tags ?? [])
     .reduce((counts, tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1), new Map<string, number>());
 
-  return Array.from(tagCounts, ([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  return Array.from(tagCounts, ([name, count]) => ({ name, count })).toSorted((a, b) => b.count - a.count);
 }
 
 export function getOutgoingNotes(locale: Locale, slugs: string[]): NoteMeta[] {
@@ -392,7 +392,7 @@ export function buildNoteTree(notes: NoteMeta[]): NoteTreeNode[] {
     nodeMap.set(note.slug, { ...note, children: [] });
   }
 
-  for (const node of nodeMap.values()) {
+  for (const node of Array.from(nodeMap.values())) {
     if (node.parent && nodeMap.has(node.parent)) {
       nodeMap.get(node.parent)!.children.push(node);
     } else {

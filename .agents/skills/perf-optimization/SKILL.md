@@ -33,10 +33,7 @@ const ExpensiveList = memo(({ items }: Props) => {
 
 ```typescript
 // 계산 비용이 큰 값
-const sortedItems = useMemo(
-  () => items.toSorted((a, b) => a.name.localeCompare(b.name)),
-  [items]
-);
+const sortedItems = useMemo(() => items.toSorted((a, b) => a.name.localeCompare(b.name)), [items]);
 
 // 자식에게 전달하는 콜백
 const handleClick = useCallback((id: string) => {
@@ -102,7 +99,7 @@ const HeavyChart = dynamic(() => import('./HeavyChart'), {
 // app/posts/page.tsx (Server Component)
 export default async function PostsPage() {
   const posts = await fetchPosts(); // 서버에서 직접 호출
-  
+
   return <PostList posts={posts} />;
 }
 ```
@@ -126,7 +123,7 @@ export const LikeButton = ({ postId }: Props) => {
 <ClientComponent data={hugeObject} />
 
 // Good: 필요한 필드만 전달
-<ClientComponent 
+<ClientComponent
   id={hugeObject.id}
   title={hugeObject.title}
 />
@@ -135,16 +132,19 @@ export const LikeButton = ({ postId }: Props) => {
 ## 체크리스트
 
 ### 렌더링
+
 - [ ] 불필요한 리렌더링이 발생하지 않는가?
 - [ ] 인라인 객체/함수가 최소화되었는가?
 - [ ] memo/useMemo/useCallback이 적절히 사용되었는가?
 
 ### Next.js
+
 - [ ] LCP 이미지에만 priority를 사용하는가?
 - [ ] 무거운 컴포넌트가 dynamic import 되었는가?
 - [ ] next/font로 폰트가 최적화되었는가?
 
 ### RSC
+
 - [ ] 데이터 페칭이 서버 컴포넌트에서 이루어지는가?
 - [ ] 'use client'가 필요한 곳에만 사용되는가?
 - [ ] 클라이언트로 전달되는 props 크기가 최소화되었는가?

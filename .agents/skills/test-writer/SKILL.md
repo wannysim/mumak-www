@@ -9,12 +9,12 @@ description: Jest, Vitest, Playwright를 활용한 테스트 작성 가이드입
 
 ## 테스트 도구 선택
 
-| 앱 | 단위/통합 테스트 | E2E 테스트 |
-|----|-----------------|-----------|
-| mumak-next | Jest | Playwright |
-| mumak-react | Vitest | Playwright |
-| blog | Jest | Playwright |
-| packages/ui | Vitest | - |
+| 앱          | 단위/통합 테스트 | E2E 테스트 |
+| ----------- | ---------------- | ---------- |
+| mumak-next  | Jest             | Playwright |
+| mumak-react | Vitest           | Playwright |
+| blog        | Jest             | Playwright |
+| packages/ui | Vitest           | -          |
 
 ## 파일 위치 규칙
 
@@ -51,9 +51,9 @@ describe('Button', () => {
   it('calls onClick when clicked', async () => {
     const handleClick = vi.fn(); // or jest.fn()
     render(<Button onClick={handleClick}>Click</Button>);
-    
+
     await userEvent.click(screen.getByRole('button'));
-    
+
     expect(handleClick).toHaveBeenCalledOnce();
   });
 
@@ -73,11 +73,11 @@ import { useCounter } from './use-counter';
 describe('useCounter', () => {
   it('increments counter', () => {
     const { result } = renderHook(() => useCounter());
-    
+
     act(() => {
       result.current.increment();
     });
-    
+
     expect(result.current.count).toBe(1);
   });
 });
@@ -107,15 +107,18 @@ test.describe('Home Page', () => {
 ## 테스트 작성 원칙
 
 ### AAA 패턴
+
 - **Arrange**: 테스트 환경 설정
 - **Act**: 테스트 대상 실행
 - **Assert**: 결과 검증
 
 ### 테스트 명명
+
 - `it('동사 + 기대 결과')` 형식
 - 한글 사용 가능: `it('버튼 클릭 시 모달이 열린다')`
 
 ### 쿼리 우선순위
+
 1. `getByRole` - 접근성 기반 (권장)
 2. `getByLabelText` - 폼 요소
 3. `getByText` - 텍스트 콘텐츠

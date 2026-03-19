@@ -16,19 +16,21 @@ description: 에러와 테스트 실패의 근본 원인을 분석합니다. 버
 ## 분석 패턴
 
 ### React/Next.js 일반 에러
-| 에러 유형 | 흔한 원인 | 확인 사항 |
-|-----------|-----------|-----------|
-| Hydration mismatch | 서버/클라이언트 렌더링 불일치 | useEffect 내 클라이언트 전용 코드 이동 |
-| Cannot read property | null/undefined 접근 | optional chaining, 초기값 확인 |
-| Module not found | 잘못된 import 경로 | 상대/절대 경로, 파일 존재 확인 |
-| Invalid hook call | 조건부 훅 호출, 컴포넌트 외부 호출 | 훅 호출 규칙 준수 확인 |
+
+| 에러 유형            | 흔한 원인                          | 확인 사항                              |
+| -------------------- | ---------------------------------- | -------------------------------------- |
+| Hydration mismatch   | 서버/클라이언트 렌더링 불일치      | useEffect 내 클라이언트 전용 코드 이동 |
+| Cannot read property | null/undefined 접근                | optional chaining, 초기값 확인         |
+| Module not found     | 잘못된 import 경로                 | 상대/절대 경로, 파일 존재 확인         |
+| Invalid hook call    | 조건부 훅 호출, 컴포넌트 외부 호출 | 훅 호출 규칙 준수 확인                 |
 
 ### 테스트 실패
-| 실패 유형 | 접근 방법 |
-|-----------|-----------|
-| Assertion failed | 기대값 vs 실제값 비교, 테스트 데이터 확인 |
-| Timeout | 비동기 처리, waitFor 사용 확인 |
-| Element not found | 쿼리 선택자, 렌더링 타이밍 확인 |
+
+| 실패 유형         | 접근 방법                                 |
+| ----------------- | ----------------------------------------- |
+| Assertion failed  | 기대값 vs 실제값 비교, 테스트 데이터 확인 |
+| Timeout           | 비동기 처리, waitFor 사용 확인            |
+| Element not found | 쿼리 선택자, 렌더링 타이밍 확인           |
 
 ## 보고 형식
 
@@ -59,7 +61,7 @@ description: 에러와 테스트 실패의 근본 원인을 분석합니다. 버
 # TypeScript 타입 체크
 pnpm tsc --noEmit
 
-# ESLint 검사
+# Lint 검사
 pnpm lint
 
 # 특정 테스트 실행

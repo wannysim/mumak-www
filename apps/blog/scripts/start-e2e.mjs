@@ -16,7 +16,7 @@ const serverPath = path.join(standaloneDir, 'server.js');
 
 const isCI = process.env.CI === 'true' || process.env.CI === '1';
 const port = '3002';
-const env = { ...process.env, PORT: port };
+const env = { ...process.env, PORT: port, E2E_INCLUDE_DRAFT: process.env.E2E_INCLUDE_DRAFT ?? 'true' };
 
 // standalone 빌드가 있으면 해당 서버 사용, 없으면 next start
 const useStandalone = fs.existsSync(serverPath);

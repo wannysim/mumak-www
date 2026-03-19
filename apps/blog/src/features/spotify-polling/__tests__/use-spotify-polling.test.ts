@@ -37,7 +37,7 @@ jest.mock('swr', () => ({
     return {
       data: undefined,
       error: undefined,
-      isLoading: key ? true : false,
+      isLoading: Boolean(key),
       mutate: mockMutate,
     };
   }),

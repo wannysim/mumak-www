@@ -56,11 +56,6 @@ const config: KnipConfig = {
       project: ['**/*.{ts,tsx}'],
       ignore: ['node_modules/**', 'dist/**', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
     },
-    'packages/eslint-config': {
-      entry: ['**/*.js'],
-      project: ['**/*.js'],
-      ignore: ['node_modules/**'],
-    },
     'packages/typescript-config': {
       entry: ['**/*.json'],
       project: ['**/*.json'],
@@ -96,7 +91,6 @@ const config: KnipConfig = {
     'jsdom',
     'postcss',
     'postcss-load-config',
-    'prettier',
     'typescript',
     'vitest',
   ],

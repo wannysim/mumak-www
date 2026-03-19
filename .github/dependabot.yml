@@ -14,7 +14,6 @@ updates:
         patterns:
           - 'turbo'
           - '@turbo/*'
-          - 'eslint-plugin-turbo'
       vitest:
         patterns:
           - 'vitest'
