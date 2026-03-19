@@ -2,17 +2,17 @@
 
 Turborepo 모노레포. 공유 패키지는 `packages/`에, 앱은 `apps/`에 위치.
 
-| 패키지 | 용도 |
-|--------|------|
-| `@mumak/ui` | shadcn/ui 기반 공유 컴포넌트 |
-| `@mumak/eslint-config` | ESLint 설정 |
-| `@mumak/typescript-config` | TypeScript 설정 |
+| 패키지                     | 용도                         |
+| -------------------------- | ---------------------------- |
+| `@mumak/ui`                | shadcn/ui 기반 공유 컴포넌트 |
+| `@mumak/eslint-config`     | ESLint 설정                  |
+| `@mumak/typescript-config` | TypeScript 설정              |
 
-| 앱 | 설명 |
-|----|------|
-| `apps/mumak-next` | Next.js 15 (App Router) |
-| `apps/mumak-react` | React + Vite |
-| `apps/blog` | 블로그 |
+| 앱                 | 설명                    |
+| ------------------ | ----------------------- |
+| `apps/mumak-next`  | Next.js 15 (App Router) |
+| `apps/mumak-react` | React + Vite            |
+| `apps/blog`        | 블로그                  |
 
 ## Git Flow
 

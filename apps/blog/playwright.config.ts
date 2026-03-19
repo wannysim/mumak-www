@@ -64,6 +64,10 @@ export default defineConfig({
   webServer: {
     // Reuse is opt-in to avoid accidentally attaching to a stale local server.
     command: 'pnpm start:e2e',
+    env: {
+      ...process.env,
+      E2E_INCLUDE_DRAFT: '1',
+    },
     url: `http://localhost:${PORT}`,
     reuseExistingServer: shouldReuseExistingServer,
     timeout: 120_000,
