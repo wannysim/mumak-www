@@ -64,13 +64,13 @@
   },
   "devDependencies": {
     "@mumak/typescript-config": "workspace:*",
-    "@tailwindcss/postcss": "^4.2.1",
+    "@tailwindcss/postcss": "^4.2.2",
     "@turbo/gen": "^2.9.5",
     "@types/node": "^25.0.10",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "shadcn": "^3.8.2",
-    "tailwindcss": "^4.2.1",
+    "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3"
   }
 }
