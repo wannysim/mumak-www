@@ -4,13 +4,14 @@ import type { PostMeta } from '@/src/entities/post';
 import { buildBlogGraphData, buildGardenGraphData } from '../lib/build-graph-data';
 
 const createNote = (overrides: Partial<NoteMeta> = {}): NoteMeta => ({
-  slug: 'test-note',
-  title: 'Test Note',
-  created: '2025-01-01',
-  status: 'seedling',
-  tags: [],
-  outgoingLinks: [],
   ...overrides,
+  category: overrides.category ?? 'garden',
+  slug: overrides.slug ?? 'test-note',
+  title: overrides.title ?? 'Test Note',
+  created: overrides.created ?? '2025-01-01',
+  status: overrides.status ?? 'seedling',
+  tags: overrides.tags ?? [],
+  outgoingLinks: overrides.outgoingLinks ?? [],
 });
 
 const createPost = (overrides: Partial<PostMeta> = {}): PostMeta => ({
@@ -50,7 +51,7 @@ describe('buildGardenGraphData', () => {
 
     const tagNodes = result.nodes.filter(n => n.type === 'tag');
     expect(tagNodes).toHaveLength(2);
-    expect(tagNodes.map(t => t.name).sort()).toEqual(['javascript', 'react']);
+    expect(tagNodes.map(t => t.name)).toEqual(expect.arrayContaining(['javascript', 'react']));
 
     const tagLinks = result.links.filter(l => l.type === 'tag');
     expect(tagLinks).toHaveLength(2);

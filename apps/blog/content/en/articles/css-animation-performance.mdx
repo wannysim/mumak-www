@@ -1,21 +1,15 @@
 ---
-title: 'CSS Animation Performance: width vs transform'
+title: 'Making the Browser Do Less -- CSS Rendering Performance Deep Dive'
 date: '2026-02-06'
-description: 'How switching from width to transform: scaleX() fixed a janky mobile progress bar'
-tags: ['css', 'performance', 'animation', 'frontend']
+description: 'From fixing a janky progress bar to Layout Thrashing and modern CSS optimization'
+tags: ['css', 'performance', 'frontend']
 draft: false
 ---
 
 Had a janky progress bar on mobile. Switching from `width` to `transform: scaleX()` fixed it instantly.
+It was a one-line change, but digging into why led me to realize I needed to understand the entire browser rendering pipeline.
 
-## Why the Difference
-
-Understanding the [browser rendering pipeline](/en/garden/browser-rendering-pipeline) gives you the answer.
-
-- `width` change → **Recalculate from Layout** → Main thread blocking
-- `transform` change → **Composite only** → GPU handles it
-
-## Real Example
+## 1. One Line Makes All the Difference
 
 ```tsx
 // Before - reflow every frame
@@ -28,16 +22,155 @@ Understanding the [browser rendering pipeline](/en/garden/browser-rendering-pipe
 />
 ```
 
-The difference is dramatic for frequent animations like scroll events.
+The difference is clear in the Chrome DevTools Performance panel.
 
-## Key Takeaway
+- `width` version: Layout events repeat every frame, many dropped frames
+- `transform` version: Only Composite runs, almost no frame drops
 
-- `width`, `height` → Layout trigger → Main thread blocking
-- `transform`, `opacity` → Composite only → GPU handles it
+I wrote about why this happens in my [browser rendering pipeline](/en/garden/browser-rendering-pipeline) note.
+The gist is:
 
-Mobile has a weaker main thread, so the difference is more noticeable.
+- `width` change → **Recalculate from Layout** → Main thread blocking
+- `transform` change → **Composite only** → GPU handles it
+
+Mobile has a much weaker main thread than desktop, so the same code produces a dramatically different experience.
+
+## 2. Layout Thrashing: The Invisible Performance Killer
+
+The progress bar case was caused by picking the wrong CSS property. But there's a more common and harder-to-find problem in real-world code: **Layout Thrashing**.
+
+### Forced Synchronous Layout
+
+Browsers normally batch style changes and process them all at once.
+But if you read a layout property right after changing a style, the browser is forced to calculate layout "right now."
+
+```js
+element.style.width = '200px';
+const height = element.offsetHeight; // forces Layout here
+```
+
+Once is fine. The problem is when this happens inside a loop.
+
+### The Classic Anti-pattern
+
+```js
+// Bad: forced reflow on every iteration
+elements.forEach(el => {
+  const height = el.offsetHeight; // read → forces Layout
+  el.style.height = height + 10 + 'px'; // write → next read forces Layout again
+});
+```
+
+N elements means N layout calculations. 100 elements? 100 reflows.
+
+### Fix: Read-then-Write Batching
+
+```js
+// Good: batch reads first, then writes
+const heights = elements.map(el => el.offsetHeight); // batch read
+
+elements.forEach((el, i) => {
+  el.style.height = heights[i] + 10 + 'px'; // batch write
+});
+```
+
+Separating reads from writes significantly reduces the number of layouts.
+
+For extra safety, you can defer writes to the next frame with `requestAnimationFrame`.
+
+```js
+const heights = elements.map(el => el.offsetHeight);
+
+requestAnimationFrame(() => {
+  elements.forEach((el, i) => {
+    el.style.height = heights[i] + 10 + 'px';
+  });
+});
+```
+
+### How to Detect It
+
+In the DevTools Performance panel, if you see purple **Layout** blocks repeating at short intervals, suspect Layout Thrashing.
+The warning "Forced reflow is a likely performance bottleneck" confirms it.
+
+## 3. Hinting the Browser with Modern CSS
+
+Beyond choosing the right CSS properties and fixing JS patterns, modern CSS lets you tell the browser "you can handle this area like this."
+
+### content-visibility: auto
+
+Skips rendering entirely for elements outside the viewport.
+
+```css
+.feed-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
+}
+```
+
+The browser skips Layout and Paint for `.feed-item` when it's off-screen.
+It only renders when the element scrolls into the viewport.
+
+`contain-intrinsic-size` tells the browser the expected size before rendering.
+Without it, the scrollbar jumps around unpredictably.
+
+This can dramatically reduce initial rendering time for long lists and feed-style UIs.
+Chrome team benchmarks have shown up to 7x reduction in rendering time.
+
+### CSS Containment (contain)
+
+The underlying property behind `content-visibility`.
+It limits how far rendering changes inside an element can propagate outward.
+
+```css
+.card {
+  contain: layout paint;
+}
+```
+
+- `contain: layout` → Internal layout changes don't affect the outside
+- `contain: paint` → Internal painting doesn't bleed beyond element boundaries
+- `contain: strict` → Isolates size + layout + style + paint entirely (use with caution)
+
+Effective for UIs with many independent regions: infinite scroll lists, card grids, dashboard widgets.
+
+**Caveat**: `contain: size` makes the element ignore its children's size and can collapse to 0x0.
+You must explicitly set dimensions, or the layout will break.
+
+### will-change, Used Correctly
+
+`will-change` tells the browser "this property is about to change" so it can optimize ahead of time.
+
+```css
+.animating {
+  will-change: transform;
+}
+```
+
+But overusing it backfires.
+Elements with `will-change` get promoted to a separate compositor layer, which consumes GPU memory.
+Applying `will-change: transform` to every element causes layer explosion and potential memory issues.
+
+The rules are simple:
+
+- Apply **right before** the animation starts, **remove when it ends**
+- Only keep it permanently on elements that are always animating (like a progress bar)
+- Never apply it "just in case"
+
+## Practical Checklist
+
+- [ ] Using `transform` and `opacity` instead of `width`, `height`, `top`, `left` for animations?
+- [ ] Separating layout property reads from style writes inside loops?
+- [ ] No repeating Layout blocks in DevTools Performance panel?
+- [ ] Applied `content-visibility: auto` to long lists?
+- [ ] Using `will-change` only on necessary elements, only when needed?
+- [ ] Applied `contain` to independent UI regions?
+- [ ] Tested on mobile (CPU 4x throttle)?
 
 ## Resources
 
-- [CSS Triggers](https://csstriggers.com/) - Check which properties trigger which steps
-- Use `will-change` to hint the browser about upcoming changes
+- [Browser Rendering Pipeline](/en/garden/browser-rendering-pipeline) -- Background for this article
+- [CSS Triggers](https://csstriggers.com/) -- Check which properties trigger Layout/Paint/Composite
+- [content-visibility: the new CSS property that boosts your rendering performance](https://web.dev/articles/content-visibility) -- web.dev
+- [CSS Containment](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_containment) -- MDN
+- [Avoid large, complex layouts and layout thrashing](https://web.dev/articles/avoid-large-complex-layouts-and-layout-thrashing) -- web.dev

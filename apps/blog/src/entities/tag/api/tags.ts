@@ -23,7 +23,7 @@ export function getAllTags(locale: Locale): TagInfo[] {
       count,
       slug: encodeURIComponent(name),
     }))
-    .sort((a, b) => b.count - a.count);
+    .toSorted((a, b) => b.count - a.count);
 }
 
 export function getPostsByTag(locale: Locale, tag: string): PostMeta[] {

@@ -82,6 +82,30 @@
     "description": "성장하는 생각들",
     "noteCount": "{count}개의 노트",
     "empty": "아직 노트가 없습니다",
+    "intro": {
+      "line1": "환영합니다! 이곳은 제 디지털 가든입니다.",
+      "line2": "이 가든은 PARA(Projects, Areas, Resources, Archives) 구조를 통해 제 생각과 지식을 정리하고 공유하는 공간입니다.",
+      "line3": "좌측 사이드바를 통해 각각의 카테고리별로 작성된 글들을 탐색할 수 있습니다."
+    },
+    "categories": {
+      "title": "카테고리 설명",
+      "projects": {
+        "label": "Projects (프로젝트)",
+        "description": "명확한 목표와 기한이 있는 현재 진행 중인 작업들입니다."
+      },
+      "areas": {
+        "label": "Areas (영역)",
+        "description": "지속적으로 신경 쓰고 관리해야 하는 책임 영역입니다."
+      },
+      "resources": {
+        "label": "Resources (자원)",
+        "description": "미래에 유용할 수 있는 관심사나 참조할 만한 정보들입니다."
+      },
+      "archives": {
+        "label": "Archives (보관함)",
+        "description": "완료되었거나 더 이상 활성화되지 않은 위의 세 가지 항목들의 보관소입니다."
+      }
+    },
     "linkedNotes": "연결된 노트",
     "linkDirection": {
       "outgoing": "이 노트가 참조",
@@ -101,6 +125,9 @@
       "noteCount": "{count}개의 노트",
       "tagTitle": "#{tag}",
       "tagDescription": "{tag} 태그가 포함된 노트"
+    },
+    "sidebar": {
+      "openTree": "트리 열기"
     }
   },
   "graph": {

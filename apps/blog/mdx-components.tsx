@@ -1,15 +1,60 @@
 import type { MDXComponents } from 'mdx/types';
 import Image from 'next/image';
 import Link from 'next/link';
+import { isValidElement, type ReactNode } from 'react';
 
 import { SocialLinks } from '@/src/widgets/footer';
-import { BrokenWikiLink, WikiLink } from '@/src/shared/ui';
+import { BrokenWikiEmbed, BrokenWikiLink, WikiEmbed, WikiLink } from '@/src/shared/ui';
+import { normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
+
+function extractText(node: ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node);
+  }
+
+  if (Array.isArray(node)) {
+    return node.map(extractText).join('');
+  }
+
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    return extractText(node.props.children);
+  }
+
+  return '';
+}
 
 export const mdxComponents: MDXComponents = {
   // Override default elements with custom styling
-  h1: ({ children }) => <h1 className="text-3xl font-bold mt-8 mb-4">{children}</h1>,
-  h2: ({ children }) => <h2 className="text-2xl font-semibold mt-6 mb-3">{children}</h2>,
-  h3: ({ children }) => <h3 className="text-xl font-semibold mt-4 mb-2">{children}</h3>,
+  h1: ({ children }) => (
+    <h1 id={normalizeHeadingToAnchor(extractText(children))} className="text-3xl font-bold mt-8 mb-4">
+      {children}
+    </h1>
+  ),
+  h2: ({ children }) => (
+    <h2 id={normalizeHeadingToAnchor(extractText(children))} className="text-2xl font-semibold mt-6 mb-3">
+      {children}
+    </h2>
+  ),
+  h3: ({ children }) => (
+    <h3 id={normalizeHeadingToAnchor(extractText(children))} className="text-xl font-semibold mt-4 mb-2">
+      {children}
+    </h3>
+  ),
+  h4: ({ children }) => (
+    <h4 id={normalizeHeadingToAnchor(extractText(children))} className="text-lg font-semibold mt-4 mb-2">
+      {children}
+    </h4>
+  ),
+  h5: ({ children }) => (
+    <h5 id={normalizeHeadingToAnchor(extractText(children))} className="text-base font-semibold mt-4 mb-2">
+      {children}
+    </h5>
+  ),
+  h6: ({ children }) => (
+    <h6 id={normalizeHeadingToAnchor(extractText(children))} className="text-sm font-semibold mt-4 mb-2">
+      {children}
+    </h6>
+  ),
   p: ({ children }) => <p className="my-4 leading-relaxed">{children}</p>,
   a: ({ href, children }) => (
     <Link href={href || '#'} className="text-primary underline underline-offset-4 hover:text-primary/80">
@@ -53,6 +98,8 @@ export const mdxComponents: MDXComponents = {
   // Garden wikilink components
   WikiLink,
   BrokenWikiLink,
+  WikiEmbed,
+  BrokenWikiEmbed,
 };
 
 // For @next/mdx compatibility (if needed in the future)

@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 3002;
 const isCI = !!process.env.CI;
+const shouldReuseExistingServer =
+  process.env.PLAYWRIGHT_REUSE_SERVER === 'true' || process.env.PLAYWRIGHT_REUSE_SERVER === '1';
 
 /**
  * @see https://playwright.dev/docs/test-configuration
@@ -14,8 +16,8 @@ export default defineConfig({
   forbidOnly: isCI,
   /* Retry on CI only */
   retries: isCI ? 2 : 0,
-  /* Use more workers in CI for parallel execution within each browser */
-  workers: isCI ? 2 : '50%',
+  /* Keep CI stable by reducing parallelism per browser job */
+  workers: isCI ? 1 : '50%',
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: isCI ? [['html'], ['github']] : 'list',
   /* Global timeout - reduce for faster feedback */
@@ -58,12 +60,16 @@ export default defineConfig({
         },
       ],
 
-  /* Run your local dev server before starting the tests */
+  /* Start the built E2E server for both local and CI runs */
   webServer: {
-    // CI uses pre-built output (next start), local uses dev server
-    command: isCI ? 'pnpm start:e2e' : 'pnpm dev',
+    // Reuse is opt-in to avoid accidentally attaching to a stale local server.
+    command: 'pnpm start:e2e',
+    env: {
+      ...process.env,
+      E2E_INCLUDE_DRAFT: '1',
+    },
     url: `http://localhost:${PORT}`,
-    reuseExistingServer: !isCI,
+    reuseExistingServer: shouldReuseExistingServer,
     timeout: 120_000,
   },
 });

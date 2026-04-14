@@ -17,6 +17,7 @@ export function generateStaticParams() {
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
+const ENABLE_VERCEL_ANALYTICS = process.env.NODE_ENV === 'production' && process.env.VERCEL === '1';
 
 export const metadata: Metadata = {
   title: {
@@ -75,7 +76,7 @@ async function LocaleContent({ params, children }: { params: Promise<{ locale: s
       <JsonLdScript data={websiteJsonLd} />
       <JsonLdScript data={siteNavigationJsonLd} />
       {children}
-      <VercelAnalytics />
+      {ENABLE_VERCEL_ANALYTICS ? <VercelAnalytics /> : null}
     </IntlProvider>
   );
 }

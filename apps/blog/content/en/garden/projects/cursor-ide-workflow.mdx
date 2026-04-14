@@ -1,0 +1,262 @@
+---
+title: 'Notes on Cursor IDE Core Features'
+created: '2026-03-09'
+updated: '2026-03-09'
+status: 'seedling'
+tags: ['cursor', 'ai', 'developer', 'workflow', 'tooling']
+---
+
+These days, I no longer see Cursor IDE as just "an editor where AI writes code for me."
+
+It feels closer to a **work environment made of multiple layers of control and execution**.
+
+At first, I only used chat and autocomplete.
+But the more I used it, the more I realized I could add rules on top of it, teach it skills, delegate work to subagents, block risky behavior with hooks, and connect it to the outside world through MCP.
+
+This note is my attempt to organize those features in one place.
+It is less of a finished guide and more of a record of **how I currently understand the layers inside Cursor**.
+
+## The Big Picture
+
+This is roughly how I think about it:
+
+- **Plugins** - packages that bundle everything together for distribution
+- **Rules** - persistent standards the AI keeps referring to
+- **Skills** - executable knowledge that teaches how to perform specific tasks
+- **Subagents** - helper workers the main agent can delegate to
+- **Hooks** - control points inserted into the agent loop
+- **MCP** - the bridge to external tools and data
+
+In other words, Cursor is not simply "one model doing everything."
+It makes more sense to see it as a structure where **guidance, workflow, delegation, control, and external connectivity** overlap.
+
+## 1. Plugins
+
+[Official docs](https://cursor.com/docs/plugins)
+
+Plugins are the unit that bundles rules, skills, agents, commands, MCP servers, and hooks into something distributable.
+
+So while it is useful to understand each feature individually, at the team level, Plugins sit at the outermost layer.
+They let you package not only personal preferences, but also the idea of **"this is how our team wants to work with AI."**
+
+That part is what I find interesting.
+When I hear "IDE plugin," I usually think of syntax highlighting or some lint extension.
+But Cursor plugins also package **what context AI receives, what tools it can use, and what rules it should follow**.
+
+Two details from the docs stood out to me in particular:
+
+- Plugins are distributed through Git repositories.
+- Marketplace plugins are open source and manually reviewed.
+
+So the direction here seems to be not only convenience, but also **transparency and inspectability**.
+
+To me, Plugins are less of a feature I touch every day,
+and more of a **top-level packaging layer** that groups `Rules + Skills + MCP + Hooks` for a team.
+
+## 2. Rules
+
+[Official docs](https://cursor.com/docs/rules)
+
+Rules are persistent standards injected into the agent.
+
+In simple terms, they keep telling the AI:
+"we prefer this structure, we follow these conventions, and we handle these files this way."
+
+Even in this project, that kind of guidance already appears in many places:
+
+- import path conventions
+- component export patterns
+- test file naming
+- git and PR writing conventions
+- database access policies
+
+If a human has to explain those things in every prompt, they will be forgotten very quickly.
+That is why I see Rules as the layer that **injects a team's fundamentals and habits into AI**.
+
+The docs split Rules into several scopes:
+
+- Project Rules - `.cursor/rules` inside the repository
+- User Rules - my personal global settings
+- Team Rules - organization-wide rules
+- `AGENTS.md` - a simpler instruction file
+
+That distinction also matters.
+Instead of putting everything into one place, it helps separate **what belongs to project convention and what belongs to personal preference**.
+
+To me, Rules are less about "making AI smarter"
+and more about **preventing AI from repeating the same mistakes over and over**.
+
+## 3. Skills
+
+[Official docs](https://cursor.com/docs/skills)
+
+Skills are packages that teach the agent how to perform a specific task.
+
+The important point is that this is not just a prompt.
+According to the docs, a skill can include not only `SKILL.md`, but also `scripts/`, `references/`, and `assets/`.
+
+So it goes beyond "think this way in this situation."
+It can also encode: **"for this task, read this document, run this script, and follow this sequence."**
+
+That is why I separate Rules and Skills like this:
+
+- **Rules** - standards that should always apply
+- **Skills** - ways to carry out specific tasks
+
+For example:
+
+- starting development from a Jira ticket
+- generating a changelog
+- checking only the affected scope in Turborepo
+- following a specific deployment flow
+
+Those are less like conventions and more like **repeatable workflows**.
+That makes them a better fit for Skills than for Rules.
+
+One part of the docs I liked is that Skills load progressively only when needed.
+That design clearly tries to protect the context window.
+
+When using AI tools, the "put everything into one giant prompt" approach reaches its limit very quickly.
+Skills feel like an attempt to split that problem into files, references, and execution flow.
+
+## 4. Subagents
+
+[Official docs](https://cursor.com/docs/subagents)
+
+Subagents are helper workers that the main agent can delegate tasks to.
+
+The reason I care about this concept is not mainly speed, but **context isolation**.
+Long codebase searches, verbose terminal output, and browser-control results can pollute the main conversation very quickly.
+
+Subagents handle that heavy work outside the main thread of thought,
+then return only the summary back to the parent agent.
+
+In practice, that makes a meaningful difference:
+
+- searching through the entire codebase
+- analyzing long test failure logs
+- using a dedicated verifier after implementation
+- running separate tasks in parallel
+
+The docs also explain why built-in subagents like `Explore`, `Bash`, and `Browser` exist.
+In the end, they all share one trait:
+**their intermediate output is noisy**.
+
+So to me, Subagents are less like "smarter assistants"
+and more like a device for **protecting the main workflow by separating context**.
+
+If Rules and Skills answer "what standards apply?" and "how should this be done?",
+then Subagents answer "who should handle this piece of work?"
+
+## 5. Hooks
+
+[Official docs](https://cursor.com/docs/hooks)
+
+Hooks feel like one of the most powerful features, and also one of the ones that should be handled most carefully.
+
+This is not a feature that simply gives AI more power.
+It is a feature that **creates points where a human can intervene inside the agent loop**.
+
+According to the docs, Hooks can run at many stages:
+
+- before and after a session
+- before prompt submission
+- before reading files / after editing files
+- before and after shell execution
+- before and after MCP execution
+- at subagent start and stop
+
+In other words, they do more than just observe the agent.
+They can block, modify, inject context, or trigger automatic post-processing.
+
+Why that matters is pretty clear:
+
+- blocking dangerous shell commands
+- gating sensitive actions like SQL writes
+- scanning for secrets or PII
+- running formatters after file edits
+- requiring approval before certain MCP calls
+
+In that sense, Hooks are both a way to **increase autonomy** and a way to **control autonomy**.
+
+The more we trust AI to act on our behalf,
+the more we probably need constraints and guardrails like this.
+
+## 6. MCP
+
+[Official docs](https://cursor.com/docs/mcp)
+
+MCP is the standard protocol that connects Cursor to the outside world.
+
+It goes beyond reading a few local files.
+It allows Cursor to connect to external systems like Jira, Figma, GitHub, databases, browsers, and deployment platforms.
+
+From this point on, Cursor starts to feel less like a simple IDE
+and more like a **work hub built around my local codebase**.
+
+Even the example servers listed in the docs show how broad the range is:
+
+- GitHub
+- Figma
+- Atlassian
+- Playwright
+- databases, cloud tools, and observability tools
+
+The important part is that MCP is not just a bag of API calls.
+According to the docs, MCP servers can expose `Tools`, `Prompts`, and `Resources`.
+That means the agent does not merely "reference" external systems.
+It can **read, ask, and act through an interface designed for those systems**.
+
+In my own workflow, that maps to things like:
+
+- reading a Jira ticket to understand the task context
+- checking Figma before implementing UI
+- inspecting GitHub state
+- querying a database schema
+- validating real behavior through Playwright or browser-related tools
+
+That is why MCP does not feel like an add-on to me.
+It feels like the **core layer that extends AI context beyond the codebase itself**.
+
+## So When Should I Use What?
+
+This is how I currently separate them in my head:
+
+- if it should apply continuously across the project, use `Rules`
+- if you want to make a task repeatable as a workflow, use `Skills`
+- if you want to isolate long research or verification from the main flow, use `Subagents`
+- if you need to control risky behavior or add automatic post-processing, use `Hooks`
+- if you need real access to external tools and systems, use `MCP`
+- if you want to distribute all of that as a package to a team, use `Plugins`
+
+Seen this way, each piece has a fairly distinct role.
+
+For example, imagine a workflow like:
+"read a Jira ticket, implement according to our team rules, then verify the result through tests."
+
+- the Jira connection is `MCP`
+- the team coding standards are `Rules`
+- the ticket-driven workflow is `Skills`
+- the dedicated verifier is `Subagents`
+- the command restrictions and post-processing are `Hooks`
+- the whole bundle distributed to the team is `Plugins`
+
+These features do not really compete with one another.
+They **interlock across different layers**.
+
+## Where I Stand Right Now
+
+I still have not used all of these features deeply enough.
+Especially with Hooks and Plugins, I feel I understand the possibilities more than I have fully internalized them in practice.
+
+Even so, one thing feels clear to me right now.
+
+The core of Cursor is not only the strength of the model itself,
+but **what context that model stands on, what rules surround it, what tools it connects to, and where it is being controlled**.
+
+Using AI tools well seems less like writing one good prompt,
+and more like gradually designing **the work environment itself** through these layers.
+
+This note is only a draft of that design.
+
+Related notes: [[pkm|PKM]], [[what-is-digital-garden|What is a Digital Garden]], and [How I Survive in the AI Era](/en/blog/essay/ai-survival).

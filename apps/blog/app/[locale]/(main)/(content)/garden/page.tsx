@@ -3,8 +3,6 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { getNotes } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
-import { GardenNav } from '@/src/widgets/garden-nav';
-import { NoteCard } from '@/src/widgets/note-card';
 
 interface GardenPageProps {
   params: Promise<{ locale: string }>;
@@ -30,13 +28,6 @@ export default async function GardenPage({ params }: GardenPageProps) {
 
   const notes = getNotes(locale as Locale);
   const t = await getTranslations('garden');
-  const tCommon = await getTranslations('common');
-
-  const statusLabels = {
-    seedling: t('status.seedling'),
-    budding: t('status.budding'),
-    evergreen: t('status.evergreen'),
-  };
 
   return (
     <div className="space-y-8">
@@ -45,14 +36,28 @@ export default async function GardenPage({ params }: GardenPageProps) {
         <p className="text-muted-foreground">{t('noteCount', { count: notes.length })}</p>
       </header>
 
-      <GardenNav allLabel={tCommon('all')} statusLabels={statusLabels} tagsLabel={tCommon('tags')} />
+      <section className="prose dark:prose-invert max-w-none">
+        <p>
+          {t('intro.line1')} <br />
+          {t('intro.line2')} <br />
+          {t('intro.line3')}
+        </p>
 
-      <section className="space-y-4">
-        {notes.length === 0 ? (
-          <p className="text-muted-foreground">{t('empty')}</p>
-        ) : (
-          notes.map(note => <NoteCard key={note.slug} note={note} locale={locale} />)
-        )}
+        <h3 className="text-xl font-semibold mt-8 mb-4">{t('categories.title')}</h3>
+        <ul className="space-y-4">
+          <li>
+            <strong>{t('categories.projects.label')}</strong>: {t('categories.projects.description')}
+          </li>
+          <li>
+            <strong>{t('categories.areas.label')}</strong>: {t('categories.areas.description')}
+          </li>
+          <li>
+            <strong>{t('categories.resources.label')}</strong>: {t('categories.resources.description')}
+          </li>
+          <li>
+            <strong>{t('categories.archives.label')}</strong>: {t('categories.archives.description')}
+          </li>
+        </ul>
       </section>
     </div>
   );

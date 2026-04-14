@@ -1,4 +1,5 @@
 export {
+  buildNoteTree,
   getAllNoteSlugs,
   getAllNoteTags,
   getBacklinks,
@@ -6,10 +7,23 @@ export {
   getLinkDirection,
   getMergedLinkedNotes,
   getNote,
+  getNoteAnchorIndex,
+  getNoteEmbedPreview,
   getNotes,
   getNotesByStatus,
   getNotesByTag,
   getOutgoingNotes,
+  hasBlockAnchor,
+  hasHeadingAnchor,
 } from './api/notes';
 
-export type { LinkDirection, LinkedNote, Note, NoteMeta, NoteStatus } from './api/notes';
+export type {
+  LinkDirection,
+  LinkedNote,
+  Note,
+  NoteAnchorIndex,
+  NoteEmbedPreview,
+  NoteMeta,
+  NoteStatus,
+  NoteTreeNode,
+} from './api/notes';

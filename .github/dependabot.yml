@@ -5,7 +5,7 @@ updates:
     directory: '/'
     target-branch: 'develop'
     schedule:
-      interval: 'weekly'
+      interval: 'monthly'
       day: 'wednesday'
       time: '09:00'
       timezone: 'Asia/Seoul'
@@ -14,7 +14,6 @@ updates:
         patterns:
           - 'turbo'
           - '@turbo/*'
-          - 'eslint-plugin-turbo'
       vitest:
         patterns:
           - 'vitest'
@@ -52,7 +51,7 @@ updates:
     directory: '/'
     target-branch: 'develop'
     schedule:
-      interval: 'weekly'
+      interval: 'monthly'
       day: 'wednesday'
       time: '09:00'
       timezone: 'Asia/Seoul'

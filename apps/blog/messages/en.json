@@ -82,6 +82,30 @@
     "description": "Growing thoughts and ideas",
     "noteCount": "{count} notes",
     "empty": "No notes yet",
+    "intro": {
+      "line1": "Welcome! This is my digital garden.",
+      "line2": "This garden uses the PARA (Projects, Areas, Resources, Archives) structure to organize and share my thoughts and knowledge.",
+      "line3": "Use the sidebar to explore notes by each category."
+    },
+    "categories": {
+      "title": "Category Guide",
+      "projects": {
+        "label": "Projects",
+        "description": "Active efforts with clear goals and deadlines."
+      },
+      "areas": {
+        "label": "Areas",
+        "description": "Ongoing responsibilities that require continuous care."
+      },
+      "resources": {
+        "label": "Resources",
+        "description": "Topics and references that may be useful later."
+      },
+      "archives": {
+        "label": "Archives",
+        "description": "Items from the other categories that are completed or inactive."
+      }
+    },
     "linkedNotes": "Linked Notes",
     "linkDirection": {
       "outgoing": "This note references",
@@ -101,6 +125,9 @@
       "noteCount": "{count} notes",
       "tagTitle": "#{tag}",
       "tagDescription": "Notes tagged with {tag}"
+    },
+    "sidebar": {
+      "openTree": "Open tree"
     }
   },
   "graph": {

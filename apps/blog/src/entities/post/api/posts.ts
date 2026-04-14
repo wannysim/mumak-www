@@ -116,7 +116,7 @@ export function getPosts(locale: Locale, category?: string): PostMeta[] {
   }
 
   // Sort by date (newest first)
-  return posts.sort((a, b) => {
+  return posts.toSorted((a, b) => {
     return new Date(b.date).getTime() - new Date(a.date).getTime();
   });
 }

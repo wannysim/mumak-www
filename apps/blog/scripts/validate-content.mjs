@@ -41,7 +41,7 @@ function arraysHaveSameElements(a, b) {
   if (!Array.isArray(a) || !Array.isArray(b)) return false;
   if (a.length !== b.length) return false;
 
-  const sorted = arr => [...arr].sort();
+  const sorted = arr => [...arr].toSorted();
   return sorted(a).every((val, idx) => val === sorted(b)[idx]);
 }
 
@@ -99,7 +99,7 @@ function generateSummary(errors, warnings, commonFiles) {
     lines.push('<details>');
     lines.push(`<summary>📁 Validated files (${commonFiles.length})</summary>\n`);
 
-    for (const file of commonFiles.sort()) {
+    for (const file of commonFiles.toSorted()) {
       lines.push(`- \`${file}\``);
     }
 

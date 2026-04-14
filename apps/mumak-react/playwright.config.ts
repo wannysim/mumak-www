@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 3001;
 const isCI = !!process.env.CI;
+const shouldReuseExistingServer =
+  process.env.PLAYWRIGHT_REUSE_SERVER === 'true' || process.env.PLAYWRIGHT_REUSE_SERVER === '1';
 
 /**
  * @see https://playwright.dev/docs/test-configuration
@@ -58,12 +60,12 @@ export default defineConfig({
         },
       ],
 
-  /* Run your local dev server before starting the tests */
+  /* Start the built E2E server for both local and CI runs */
   webServer: {
-    // CI uses pre-built output (vite preview), local uses dev server
-    command: isCI ? 'pnpm preview:e2e' : 'pnpm dev',
+    // Reuse is opt-in to avoid accidentally attaching to a stale local server.
+    command: 'pnpm preview:e2e',
     url: `http://localhost:${PORT}`,
-    reuseExistingServer: !isCI,
+    reuseExistingServer: shouldReuseExistingServer,
     timeout: 120_000,
   },
 });

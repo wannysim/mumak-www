@@ -27,6 +27,7 @@ concurrency:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  E2E_INCLUDE_DRAFT: 'true'  # draft 노트(advanced-wikilink-playground 등)를 E2E 테스트용으로 포함
 
 jobs:
   # Step 1: Detect which apps have changed
@@ -82,7 +83,7 @@ jobs:
     timeout-minutes: 20
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.58.0-noble
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
       options: --user 1001
     strategy:
       fail-fast: false
@@ -97,9 +98,12 @@ jobs:
 
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
+        with:
+          save-cache: ${{ matrix.browser == 'chromium' && 'true' || 'false' }}
 
       - name: Restore Turbo cache
-        uses: actions/cache@v5
+        id: turbo-cache
+        uses: actions/cache/restore@v5
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-e2e-${{ matrix.app }}-${{ github.sha }}
@@ -108,14 +112,18 @@ jobs:
             ${{ runner.os }}-turbo-e2e-
             ${{ runner.os }}-turbo-
 
-      - name: Build app
-        run: pnpm turbo run build --filter=${{ matrix.app }}
-
       - name: Run E2E tests
         run: pnpm turbo run test:e2e --filter=${{ matrix.app }} -- --project=${{ matrix.browser }}
 
+      - name: Save Turbo cache
+        if: success() && matrix.browser == 'chromium' && steps.turbo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: .turbo
+          key: ${{ steps.turbo-cache.outputs.cache-primary-key }}
+
       - name: Upload test results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report-${{ matrix.app }}-${{ matrix.browser }}

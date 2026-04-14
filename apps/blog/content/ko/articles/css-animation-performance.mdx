@@ -1,21 +1,15 @@
 ---
-title: 'CSS 애니메이션 성능: width vs transform'
+title: '브라우저를 덜 일하게 만드는 법 -- CSS 렌더링 성능 심화'
 date: '2026-02-06'
-description: 'width에서 transform: scaleX()로 바꿔 모바일 프로그레스 바 버벅거림을 해결한 경험'
-tags: ['css', 'performance', 'animation', 'frontend']
+description: 'progress bar 버벅거림 해결에서 시작해, Layout Thrashing과 모던 CSS 최적화까지'
+tags: ['css', 'performance', 'frontend']
 draft: false
 ---
 
-모바일에서 progress bar가 버벅거리는 문제를 겪었다. `width`를 `transform: scaleX()`로 바꾸니 바로 해결됐다.
+모바일에서 progress bar가 버벅거렸다. `width`를 `transform: scaleX()`로 바꾸니 바로 해결됐다.
+한 줄짜리 수정이었지만, 이 경험을 파고들수록 브라우저가 화면을 그리는 구조 전체를 이해해야 한다는 걸 깨달았다.
 
-## 왜 차이가 나는가
-
-[브라우저 렌더링 파이프라인](/ko/garden/browser-rendering-pipeline)을 이해하면 답이 나온다.
-
-- `width` 변경 → **Layout부터 다시 계산** → 메인 스레드 블로킹
-- `transform` 변경 → **Composite만 실행** → GPU가 처리
-
-## 실제 사례
+## 1. 한 줄의 차이
 
 ```tsx
 // Before - 매 프레임마다 reflow 발생
@@ -28,16 +22,155 @@ draft: false
 />
 ```
 
-스크롤 이벤트처럼 빈번하게 발생하는 애니메이션에서 차이가 극명하다.
+Chrome DevTools Performance 패널로 비교해보면 차이가 명확하다.
 
-## 핵심
+- `width` 버전: Layout 이벤트가 프레임마다 반복, dropped frames 다수 발생
+- `transform` 버전: Composite만 실행, 프레임 드롭 거의 없음
 
-- `width`, `height` → Layout 트리거 → 메인 스레드 블로킹
-- `transform`, `opacity` → Composite only → GPU 처리
+왜 이런 차이가 나는지는 [브라우저 렌더링 파이프라인](/ko/garden/browser-rendering-pipeline)에 정리해두었다.
+핵심만 짚으면 이렇다:
 
-모바일은 메인 스레드가 더 약하기 때문에 체감 차이가 크다.
+- `width` 변경 → **Layout부터 다시 계산** → 메인 스레드 블로킹
+- `transform` 변경 → **Composite만 실행** → GPU가 처리
+
+모바일은 메인 스레드가 데스크톱보다 훨씬 약하기 때문에, 같은 코드라도 체감 차이가 극명하다.
+
+## 2. Layout Thrashing: 보이지 않는 성능 킬러
+
+progress bar 사례는 "잘못된 CSS 속성 선택"이 원인이었다. 하지만 실무에서 더 흔하고, 더 찾기 어려운 문제가 있다. **Layout Thrashing**이다.
+
+### Forced Synchronous Layout
+
+브라우저는 원래 스타일 변경을 모아두었다가 한 번에 처리한다(batch).
+그런데 스타일을 변경한 직후 레이아웃 속성을 읽으면, 브라우저는 "지금 당장" 레이아웃을 계산해야 한다.
+
+```js
+element.style.width = '200px';
+const height = element.offsetHeight; // 여기서 강제 Layout 발생
+```
+
+이게 한 번이면 괜찮다. 문제는 루프 안에서 반복될 때다.
+
+### 전형적인 안티패턴
+
+```js
+// Bad: 매 반복마다 강제 reflow
+elements.forEach(el => {
+  const height = el.offsetHeight; // read → 강제 Layout
+  el.style.height = height + 10 + 'px'; // write → 다음 read에서 또 강제 Layout
+});
+```
+
+N개의 요소에 대해 N번의 Layout이 발생한다. 요소가 100개면 100번의 reflow다.
+
+### 해결: Read-then-Write 배치
+
+```js
+// Good: read를 먼저 모아두고, write는 나중에
+const heights = elements.map(el => el.offsetHeight); // read 일괄
+
+elements.forEach((el, i) => {
+  el.style.height = heights[i] + 10 + 'px'; // write 일괄
+});
+```
+
+read와 write를 분리하면 Layout 횟수가 크게 줄어든다.
+
+더 안전하게 가려면 `requestAnimationFrame`으로 write를 다음 프레임으로 미룰 수 있다.
+
+```js
+const heights = elements.map(el => el.offsetHeight);
+
+requestAnimationFrame(() => {
+  elements.forEach((el, i) => {
+    el.style.height = heights[i] + 10 + 'px';
+  });
+});
+```
+
+### 탐지 방법
+
+DevTools Performance 패널에서 보라색 **Layout** 블록이 짧은 간격으로 반복되면 Layout Thrashing을 의심해야 한다.
+"Forced reflow is a likely performance bottleneck" 경고가 뜨면 확실하다.
+
+## 3. 모던 CSS로 브라우저에게 힌트 주기
+
+CSS 속성 선택과 JS 패턴 개선 외에, 브라우저에게 "이 영역은 이렇게 처리해도 돼"라고 힌트를 줄 수 있는 모던 CSS 기능들이 있다.
+
+### content-visibility: auto
+
+뷰포트 밖에 있는 요소의 렌더링을 통째로 건너뛰게 한다.
+
+```css
+.feed-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
+}
+```
+
+브라우저는 `.feed-item`이 뷰포트 밖에 있으면 Layout, Paint를 건너뛴다.
+스크롤해서 뷰포트에 들어올 때 비로소 렌더링한다.
+
+`contain-intrinsic-size`는 렌더링 전 요소의 예상 크기를 알려주는 역할이다.
+이걸 빼면 스크롤바가 들쑥날쑥해지는 문제가 생긴다.
+
+긴 목록이나 피드 형태의 UI에서 초기 렌더링 시간을 크게 줄일 수 있다.
+Chrome 팀의 벤치마크에서는 초기 렌더링 시간이 최대 7배까지 줄어든 사례도 있다.
+
+### CSS Containment (contain)
+
+`content-visibility`의 기반이 되는 속성이다.
+특정 요소의 렌더링 영향 범위를 제한하여, 해당 요소 내부 변경이 외부로 전파되지 않게 한다.
+
+```css
+.card {
+  contain: layout paint;
+}
+```
+
+- `contain: layout` → 내부 레이아웃 변경이 외부에 영향을 주지 않음
+- `contain: paint` → 내부 Paint가 요소 경계 밖으로 번지지 않음
+- `contain: strict` → size + layout + style + paint 전부 격리 (주의 필요)
+
+무한 스크롤 리스트, 카드 그리드, 대시보드 위젯처럼 서로 독립적인 영역이 많은 UI에서 효과적이다.
+
+**주의할 점**: `contain: size`를 사용하면 요소가 자식의 크기를 무시하고 0x0으로 축소될 수 있다.
+명시적으로 크기를 지정하지 않으면 레이아웃이 깨진다.
+
+### will-change, 올바르게 쓰기
+
+`will-change`는 브라우저에게 "이 속성이 곧 바뀔 거야"라고 알려서 미리 최적화하게 하는 속성이다.
+
+```css
+.animating {
+  will-change: transform;
+}
+```
+
+그런데 남용하면 오히려 역효과다.
+`will-change`를 선언한 요소는 별도의 compositor layer로 승격되는데, 이건 GPU 메모리를 먹는다.
+모든 요소에 `will-change: transform`을 걸면 레이어가 폭발적으로 늘어나서 메모리 부족이 생길 수 있다.
+
+원칙은 간단하다:
+
+- 애니메이션 **시작 직전**에 적용하고, **끝나면 제거**한다
+- 항상 애니메이션되는 요소(progress bar 등)에만 상시 적용한다
+- "혹시 모르니까"라는 이유로 걸지 않는다
+
+## 실전 체크리스트
+
+- [ ] 애니메이션에 `width`, `height`, `top`, `left` 대신 `transform`, `opacity`를 사용하고 있는가?
+- [ ] 루프 안에서 레이아웃 속성 읽기와 스타일 쓰기를 분리했는가?
+- [ ] DevTools Performance 패널에서 반복되는 Layout 블록이 없는가?
+- [ ] 긴 리스트에 `content-visibility: auto`를 적용했는가?
+- [ ] `will-change`를 필요한 요소에만, 필요한 시점에만 사용하고 있는가?
+- [ ] `contain`을 독립적인 UI 영역에 적용했는가?
+- [ ] 모바일 환경(CPU 4x throttle)에서 테스트했는가?
 
 ## 참고
 
-- [CSS Triggers](https://csstriggers.com/) - 어떤 속성이 어떤 단계를 트리거하는지 확인
-- `will-change` 속성으로 브라우저에게 힌트를 줄 수 있다
+- [브라우저 렌더링 파이프라인](/ko/garden/browser-rendering-pipeline) -- 이 글의 배경 지식
+- [CSS Triggers](https://csstriggers.com/) -- 속성별 Layout/Paint/Composite 트리거 확인
+- [content-visibility: the new CSS property that boosts your rendering performance](https://web.dev/articles/content-visibility) -- web.dev
+- [CSS Containment](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_containment) -- MDN
+- [Avoid large, complex layouts and layout thrashing](https://web.dev/articles/avoid-large-complex-layouts-and-layout-thrashing) -- web.dev

@@ -1,4 +1,4 @@
-import { extractWikilinkSlugs, hasWikilinks, parseWikilinks } from '../parser';
+import { extractWikilinkSlugs, hasWikilinks, parseWikilinkTarget, parseWikilinks } from '../parser';
 
 describe('parseWikilinks', () => {
   it('기본 위키링크 [[slug]]를 파싱한다', () => {
@@ -8,8 +8,13 @@ describe('parseWikilinks', () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
       slug: 'test-note',
+      heading: undefined,
+      blockId: undefined,
+      isInternal: false,
+      target: 'test-note',
       label: 'test-note',
       raw: '[[test-note]]',
+      isEmbed: false,
     });
   });
 
@@ -20,8 +25,13 @@ describe('parseWikilinks', () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
       slug: 'ai-survival',
+      heading: undefined,
+      blockId: undefined,
+      isInternal: false,
+      target: 'ai-survival',
       label: 'AI 시대 생존법',
       raw: '[[ai-survival|AI 시대 생존법]]',
+      isEmbed: false,
     });
   });
 
@@ -44,11 +54,62 @@ describe('parseWikilinks', () => {
     expect(result[1]?.label).toBe('레이블');
   });
 
+  it('헤딩/블록/임베드 링크를 파싱한다', () => {
+    const content = '![[note-a#Section 1]] [[note-b^block-id]] [[#local heading]] [[^local-block]]';
+    const result = parseWikilinks(content);
+
+    expect(result).toHaveLength(4);
+    expect(result[0]).toMatchObject({
+      slug: 'note-a',
+      heading: 'Section 1',
+      blockId: undefined,
+      isEmbed: true,
+    });
+    expect(result[1]).toMatchObject({
+      slug: 'note-b',
+      heading: undefined,
+      blockId: 'block-id',
+      isEmbed: false,
+    });
+    expect(result[2]).toMatchObject({
+      slug: '',
+      heading: 'local heading',
+      isInternal: true,
+    });
+    expect(result[3]).toMatchObject({
+      slug: '',
+      blockId: 'local-block',
+      isInternal: true,
+    });
+  });
+
   it('위키링크가 없으면 빈 배열을 반환한다', () => {
     const content = '일반 텍스트입니다.';
     const result = parseWikilinks(content);
 
     expect(result).toEqual([]);
+  });
+});
+
+describe('parseWikilinkTarget', () => {
+  it('note#heading을 분해한다', () => {
+    expect(parseWikilinkTarget('note#heading')).toEqual({
+      slug: 'note',
+      heading: 'heading',
+      blockId: undefined,
+      isInternal: false,
+      target: 'note#heading',
+    });
+  });
+
+  it('note^block을 분해한다', () => {
+    expect(parseWikilinkTarget('note^block')).toEqual({
+      slug: 'note',
+      heading: undefined,
+      blockId: 'block',
+      isInternal: false,
+      target: 'note^block',
+    });
   });
 });
 

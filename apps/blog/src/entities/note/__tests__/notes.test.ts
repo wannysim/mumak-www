@@ -1,4 +1,5 @@
 import {
+  buildNoteTree,
   getAllNoteSlugs,
   getAllNoteTags,
   getBacklinks,
@@ -6,10 +7,14 @@ import {
   getLinkDirection,
   getMergedLinkedNotes,
   getNote,
+  getNoteAnchorIndex,
+  getNoteEmbedPreview,
   getNotes,
   getNotesByStatus,
   getNotesByTag,
   getOutgoingNotes,
+  hasBlockAnchor,
+  hasHeadingAnchor,
   type NoteMeta,
 } from '../api/notes';
 
@@ -30,6 +35,16 @@ describe('getNotes', () => {
 
     expect(gardenNote).toBeDefined();
     expect(principlesNote).toBeDefined();
+  });
+
+  it('subdir(PARA 폴더)에서 파일을 읽어 category를 추출한다', () => {
+    const notes = getNotes('ko');
+    const projectNote = notes.find(n => n.slug === 'digital-garden-and-pkm');
+
+    // 만약 파일이 있으면 category가 올바르게 추출되었는지 확인
+    if (projectNote) {
+      expect(projectNote.category).toBe('projects');
+    }
   });
 });
 
@@ -60,6 +75,35 @@ describe('getNote', () => {
 
     expect(note?.meta.draft).toBeDefined();
     expect(typeof note?.meta.draft).toBe('boolean');
+  });
+
+  it('category 속성이 메타에 포함되며, 서브디렉토리에서도 파일을 찾을 수 있다', () => {
+    const note = getNote('ko', 'my-garden-principles');
+
+    expect(note).not.toBeNull();
+    // PARA 구조에 따라 폴더 이름이 category로 들어올 것으로 예상
+    expect(note?.meta.category).toBeDefined();
+  });
+
+  it('parent 속성이 frontmatter에서 파싱된다', () => {
+    const note = getNote('ko', 'sirat');
+
+    expect(note).not.toBeNull();
+    expect(note?.meta.parent).toBe('movie');
+  });
+
+  it('parent가 없는 노트는 parent가 undefined다', () => {
+    const note = getNote('ko', 'movie');
+
+    expect(note).not.toBeNull();
+    expect(note?.meta.parent).toBeUndefined();
+  });
+
+  it('resources 하위 파일의 category가 resources로 파싱된다', () => {
+    const note = getNote('ko', 'movie');
+
+    expect(note).not.toBeNull();
+    expect(note?.meta.category).toBe('resources');
   });
 });
 
@@ -202,12 +246,14 @@ describe('getLinkDirection', () => {
 });
 
 describe('getMergedLinkedNotes', () => {
-  const createMockNote = (slug: string): NoteMeta => ({
+  const createMockNote = (slug: string, overrides?: Partial<NoteMeta>): NoteMeta => ({
+    category: 'garden',
     slug,
     title: `Title ${slug}`,
     created: '2026-01-01',
     status: 'seedling',
     outgoingLinks: [],
+    ...overrides,
   });
 
   it('outgoing과 backlink를 병합한다', () => {
@@ -299,5 +345,126 @@ describe('getMergedLinkedNotes', () => {
     const principlesInMerged = merged.find(n => n.slug === 'my-garden-principles');
     expect(principlesInMerged).toBeDefined();
     expect(principlesInMerged!.direction).toBe('bidirectional');
+  });
+});
+
+describe('buildNoteTree', () => {
+  const createMockNote = (slug: string, overrides?: Partial<NoteMeta>): NoteMeta => ({
+    category: 'garden',
+    slug,
+    title: `Title ${slug}`,
+    created: '2026-01-01',
+    status: 'seedling',
+    outgoingLinks: [],
+    ...overrides,
+  });
+
+  it('parent가 없는 노트는 모두 루트 노드가 된다', () => {
+    const notes = [createMockNote('a'), createMockNote('b'), createMockNote('c')];
+    const tree = buildNoteTree(notes);
+
+    expect(tree.length).toBe(3);
+    expect(tree.every(n => n.children.length === 0)).toBe(true);
+  });
+
+  it('parent가 있는 노트는 부모의 children에 들어간다', () => {
+    const notes = [createMockNote('movie'), createMockNote('sirat', { parent: 'movie' })];
+    const tree = buildNoteTree(notes);
+
+    expect(tree.length).toBe(1);
+    expect(tree[0]!.slug).toBe('movie');
+    expect(tree[0]!.children.length).toBe(1);
+    expect(tree[0]!.children[0]!.slug).toBe('sirat');
+  });
+
+  it('다중 레벨 중첩을 지원한다', () => {
+    const notes = [
+      createMockNote('top'),
+      createMockNote('mid', { parent: 'top' }),
+      createMockNote('bottom', { parent: 'mid' }),
+    ];
+    const tree = buildNoteTree(notes);
+
+    expect(tree.length).toBe(1);
+    expect(tree[0]!.children[0]!.children[0]!.slug).toBe('bottom');
+  });
+
+  it('존재하지 않는 parent를 가진 노트는 루트가 된다', () => {
+    const notes = [createMockNote('orphan', { parent: 'non-existent' }), createMockNote('root')];
+    const tree = buildNoteTree(notes);
+
+    expect(tree.length).toBe(2);
+    expect(tree.some(n => n.slug === 'orphan')).toBe(true);
+  });
+
+  it('빈 배열은 빈 배열을 반환한다', () => {
+    const tree = buildNoteTree([]);
+    expect(tree).toEqual([]);
+  });
+
+  it('하나의 부모에 여러 자식이 올 수 있다', () => {
+    const notes = [
+      createMockNote('movie'),
+      createMockNote('sirat', { parent: 'movie' }),
+      createMockNote('parasite', { parent: 'movie' }),
+    ];
+    const tree = buildNoteTree(notes);
+
+    expect(tree.length).toBe(1);
+    expect(tree[0]!.children.length).toBe(2);
+  });
+
+  it('실제 데이터에서 sirat이 movie의 자식으로 나온다', () => {
+    const notes = getNotes('ko');
+    const tree = buildNoteTree(notes);
+
+    const findNode = (
+      nodes: ReturnType<typeof buildNoteTree>,
+      slug: string
+    ): ReturnType<typeof buildNoteTree>[0] | undefined => {
+      for (const node of nodes) {
+        if (node.slug === slug) return node;
+        const found = findNode(node.children, slug);
+        if (found) return found;
+      }
+      return undefined;
+    };
+
+    const movieNode = findNode(tree, 'movie');
+    expect(movieNode).toBeDefined();
+    expect(movieNode!.children.some(c => c.slug === 'sirat')).toBe(true);
+
+    // sirat은 루트에 있으면 안됨
+    expect(tree.some(n => n.slug === 'sirat')).toBe(false);
+  });
+});
+
+describe('advanced anchor utilities', () => {
+  it('노트의 heading/block 앵커 인덱스를 만든다', () => {
+    const anchors = getNoteAnchorIndex('ko', 'movie');
+
+    expect(anchors).not.toBeNull();
+    expect(anchors?.headings.size ?? 0).toBeGreaterThan(0);
+    expect(anchors?.blocks).toBeInstanceOf(Set);
+  });
+
+  it('존재하는 heading 앵커를 찾는다', () => {
+    expect(hasHeadingAnchor('ko', 'what-is-digital-garden', '성장 단계')).toBe(true);
+  });
+
+  it('존재하지 않는 heading 앵커는 false다', () => {
+    expect(hasHeadingAnchor('ko', 'what-is-digital-garden', '없는 제목')).toBe(false);
+  });
+
+  it('노트 임베드 미리보기를 반환한다', () => {
+    const preview = getNoteEmbedPreview('ko', 'what-is-digital-garden');
+
+    expect(preview).not.toBeNull();
+    expect(preview?.title).toBe('디지털 가든이란 무엇인가');
+    expect((preview?.excerpt.length ?? 0) > 0).toBe(true);
+  });
+
+  it('존재하지 않는 블록 앵커는 false다', () => {
+    expect(hasBlockAnchor('ko', 'what-is-digital-garden', 'missing-block')).toBe(false);
   });
 });

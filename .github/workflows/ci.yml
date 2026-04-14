@@ -6,16 +6,22 @@ on:
     paths:
       - "apps/**"
       - "packages/**"
+      - "package.json"
       - "pnpm-lock.yaml"
       - "turbo.json"
+      - ".oxlintrc.json"
+      - ".oxfmtrc.jsonc"
       - ".github/**"
   push:
     branches: [main, develop]
     paths:
       - "apps/**"
       - "packages/**"
+      - "package.json"
       - "pnpm-lock.yaml"
       - "turbo.json"
+      - ".oxlintrc.json"
+      - ".oxfmtrc.jsonc"
       - ".github/**"
   workflow_dispatch:
     inputs:
@@ -77,10 +83,40 @@ jobs:
         with:
           scopes: ${{ needs.detect-scopes.outputs.scopes }}
 
-  # Step 3: Validate each app (lint, type-check, test, build)
+  # Step 3: Run workspace-level quality checks (root tasks)
+  quality:
+    name: Quality (root)
+    needs: [detect-scopes]
+    if: needs.detect-scopes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Restore Turbo cache
+        uses: actions/cache@v5
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-quality-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-quality-
+            ${{ runner.os }}-turbo-
+
+      - name: Lint
+        run: pnpm turbo run lint
+
+      - name: Format Check
+        run: pnpm turbo run format:check
+
+  # Step 4: Validate each app (type-check, test, build)
   validate:
     name: Validate (${{ matrix.app }})
-    needs: [detect-scopes, prepare-matrix]
+    needs: [detect-scopes, prepare-matrix, quality]
     if: needs.detect-scopes.outputs.has_changes == 'true' && needs.prepare-matrix.outputs.count != '0'
     runs-on: ubuntu-latest
     strategy:
@@ -105,14 +141,8 @@ jobs:
             ${{ runner.os }}-turbo-${{ matrix.app }}-
             ${{ runner.os }}-turbo-
 
-      - name: Lint
-        run: pnpm turbo run lint --filter=${{ matrix.app }}
-
       - name: Type Check
         run: pnpm turbo run check-types --filter=${{ matrix.app }}
-
-      - name: Format Check
-        run: pnpm turbo run format:check --filter=${{ matrix.app }}
 
       - name: Test
         run: pnpm turbo run test:ci --filter=${{ matrix.app }}
@@ -126,11 +156,11 @@ jobs:
       - name: Build
         run: pnpm turbo run build --filter=${{ matrix.app }}
 
-  # Step 4: Upload coverage (after all validations)
+  # Step 5: Upload coverage (after all validations)
   coverage:
     name: Upload Coverage
-    needs: [detect-scopes, validate]
-    if: needs.detect-scopes.outputs.has_changes == 'true' && always() && needs.validate.result == 'success'
+    needs: [detect-scopes, quality, validate]
+    if: needs.detect-scopes.outputs.has_changes == 'true' && always() && needs.quality.result == 'success' && needs.validate.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -145,14 +175,14 @@ jobs:
         run: pnpm turbo run test:ci --filter=[HEAD~1]...
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   # Summary job for branch protection
   ci-success:
     name: CI Success
-    needs: [detect-scopes, validate]
+    needs: [detect-scopes, quality, validate]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -163,10 +193,13 @@ jobs:
             exit 0
           fi
 
-          if [ "${{ needs.validate.result }}" == "success" ]; then
+          if [ "${{ needs.quality.result }}" == "success" ] && [ "${{ needs.validate.result }}" == "success" ]; then
             echo "All validations passed"
             exit 0
-          elif [ "${{ needs.validate.result }}" == "skipped" ]; then
+          elif [ "${{ needs.quality.result }}" == "success" ] && [ "${{ needs.validate.result }}" == "skipped" ]; then
+            echo "Quality passed, validations skipped (no apps to validate)"
+            exit 0
+          elif [ "${{ needs.quality.result }}" == "skipped" ] && [ "${{ needs.validate.result }}" == "skipped" ]; then
             echo "Validations skipped (no apps to validate)"
             exit 0
           else
