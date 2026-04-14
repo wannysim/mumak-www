@@ -24,8 +24,8 @@
   },
   "dependencies": {
     "@mumak/ui": "workspace:*",
-    "@vercel/analytics": "^1.6.1",
-    "@vercel/speed-insights": "^1.3.1",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "gray-matter": "^4.0.3",
     "lucide-react": "^0.577.0",
     "next": "^16.2.0",
