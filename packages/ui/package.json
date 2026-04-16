@@ -11,6 +11,11 @@
     "./hooks/*": "./src/hooks/*.ts"
   },
   "scripts": {
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt .",
+    "format:check": "oxfmt --check .",
     "clean": "rm -rf node_modules/.cache"
   },
   "dependencies": {

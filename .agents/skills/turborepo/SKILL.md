@@ -118,3 +118,14 @@ apps:
 
 - `turbo run format:check --filter=<app>`를 사용하려면 각 앱 `package.json`에 `format:check` 스크립트가 있어야 합니다.
 - 스크립트가 없으면 Turbo가 해당 앱 태스크를 실행하지 못해 검증 공백이 생길 수 있습니다.
+
+## Lint / Format 구조 (oxc)
+
+각 앱/패키지는 자체 `lint`, `format:check` 스크립트를 갖고, root는 `scripts/`, `.cursor/`, `.agents/` 등 패키지 외부 파일을 lint/format합니다.
+
+- `pnpm lint` → `turbo run lint lint:root` (전 패키지 + root, 병렬 + 캐시)
+- `pnpm format:check` → `turbo run format:check format:root:check`
+- `pnpm quality` → lint + format:check 모두 turbo로 오케스트레이션
+- `pnpm turbo run lint --filter=blog` → 특정 앱만 lint (캐시 활용)
+
+각 앱은 `.oxlintrc.json`을 갖고 root config를 `extends` 합니다 (jest/vitest 같은 앱별 플러그인 분리 목적). oxlint의 `extends`는 `plugins`를 merge하지 않으므로 각 앱 config에 plugins를 명시적으로 선언해야 합니다.

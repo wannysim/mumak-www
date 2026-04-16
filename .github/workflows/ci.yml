@@ -108,10 +108,10 @@ jobs:
             ${{ runner.os }}-turbo-
 
       - name: Lint
-        run: pnpm turbo run lint
+        run: pnpm lint
 
       - name: Format Check
-        run: pnpm turbo run format:check
+        run: pnpm format:check
 
   # Step 4: Validate each app (type-check, test, build)
   validate:

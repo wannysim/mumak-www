@@ -17,16 +17,66 @@
         "SPOTIFY_REFRESH_TOKEN"
       ]
     },
-    "//#lint": {
-      "inputs": ["$TURBO_DEFAULT$", ".oxlintrc.json", ".oxlintrc.jsonc", "oxlint.config.ts", "tsconfig*.json"],
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"],
       "outputs": []
     },
-    "//#lint:fix": {
-      "inputs": ["$TURBO_DEFAULT$", ".oxlintrc.json", ".oxlintrc.jsonc", "oxlint.config.ts", "tsconfig*.json"],
+    "lint:fix": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"],
       "cache": false
     },
-    "//#quality": {},
-    "//#quality:fix": {},
+    "//#lint:root": {
+      "inputs": [
+        "scripts/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+        ".cursor/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+        ".agents/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+        "*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+        ".oxlintrc.json"
+      ],
+      "outputs": []
+    },
+    "//#lint:root:fix": {
+      "inputs": [
+        "scripts/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+        ".cursor/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+        ".agents/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+        "*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+        ".oxlintrc.json"
+      ],
+      "cache": false
+    },
+    "format": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxfmtrc.jsonc"],
+      "outputs": []
+    },
+    "format:fix": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxfmtrc.jsonc"],
+      "cache": false
+    },
+    "format:check": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxfmtrc.jsonc"],
+      "outputs": []
+    },
+    "//#format:root:check": {
+      "inputs": [
+        "scripts/**",
+        ".cursor/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,jsonc,json5,yaml,yml,md,mdx}",
+        ".agents/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,jsonc,json5,yaml,yml,md,mdx}",
+        "*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,jsonc,json5,yaml,yml,md,mdx,css,scss,less,html}",
+        ".oxfmtrc.jsonc"
+      ],
+      "outputs": []
+    },
+    "//#format:root:fix": {
+      "inputs": [
+        "scripts/**",
+        ".cursor/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,jsonc,json5,yaml,yml,md,mdx}",
+        ".agents/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,jsonc,json5,yaml,yml,md,mdx}",
+        "*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,jsonc,json5,yaml,yml,md,mdx,css,scss,less,html}",
+        ".oxfmtrc.jsonc"
+      ],
+      "cache": false
+    },
     "check-types": {
       "dependsOn": ["^build", "build"],
       "inputs": ["$TURBO_DEFAULT$", "tsconfig*.json"],
@@ -34,18 +84,6 @@
     },
     "knip": {
       "inputs": ["$TURBO_DEFAULT$", "knip.config.ts", "**/*.{ts,tsx,js,jsx}"],
-      "outputs": []
-    },
-    "//#format": {
-      "inputs": ["$TURBO_DEFAULT$", ".oxfmtrc.json", ".oxfmtrc.jsonc"],
-      "outputs": []
-    },
-    "//#format:fix": {
-      "inputs": ["$TURBO_DEFAULT$", ".oxfmtrc.json", ".oxfmtrc.jsonc"],
-      "cache": false
-    },
-    "//#format:check": {
-      "inputs": ["$TURBO_DEFAULT$", ".oxfmtrc.json", ".oxfmtrc.jsonc"],
       "outputs": []
     },
     "test": {
