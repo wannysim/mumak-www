@@ -112,15 +112,16 @@ jobs:
         with:
           save-cache: ${{ matrix.browser == 'chromium' && 'true' || 'false' }}
 
+      # ci.yml의 validate job과 동일한 cache key prefix 사용 → 같은 SHA의 build
+      # 결과를 공유받아 e2e의 build 단계가 캐시 히트로 빠르게 통과한다.
       - name: Restore Turbo cache
         id: turbo-cache
         uses: actions/cache/restore@v5
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-e2e-${{ matrix.app }}-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-${{ matrix.app }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-turbo-e2e-${{ matrix.app }}-
-            ${{ runner.os }}-turbo-e2e-
+            ${{ runner.os }}-turbo-${{ matrix.app }}-
             ${{ runner.os }}-turbo-
 
       - name: Run E2E tests
