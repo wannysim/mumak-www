@@ -60,8 +60,8 @@ importers:
         specifier: ^4.9.1
         version: 4.9.1(next@16.2.0(@babel/core@7.29.0)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
       next-mdx-remote-client:
-        specifier: ^2.1.9
-        version: 2.1.9(@types/react@19.2.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(unified@11.0.5)
+        specifier: ^2.1.10
+        version: 2.1.10(@types/react@19.2.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(unified@11.0.5)
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -5569,8 +5569,8 @@ packages:
       typescript:
         optional: true
 
-  next-mdx-remote-client@2.1.9:
-    resolution: {integrity: sha512-2NuWJO2GykxOecI7xbS3AfjOn8qXnfTZ7rN2cUCWiDFC1w2hsm3mssiUFRCk3sBcI7AvDnyTZfUvDDhgZSzoCg==}
+  next-mdx-remote-client@2.1.10:
+    resolution: {integrity: sha512-wpLjRYyvOJRewb/PLwID0qbi7RGDiwg6QpTKcM36OnjJ2WIU9nOg0xRs3Q7WgfPteDlFx+zZkJHJ6WrvmIulEg==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
       react: '>= 19.1.0'
@@ -6069,8 +6069,8 @@ packages:
   remark-gfm@4.0.1:
     resolution: {integrity: sha512-1quofZ2RQ9EWdeN34S79+KExV1764+wCUGop5CPL1WGdD0ocPpu91lzPGbwWMECpEpd42kJGQwzRfyov9j4yNg==}
 
-  remark-mdx-remove-esm@1.2.3:
-    resolution: {integrity: sha512-n6r36SaE+7cno7pmshWbGzYolDVLxJm5EKuw67+q4SPQT6kelNJHyZAiFYYtOB0axh+/1xF4BC57Ec3jncAGXQ==}
+  remark-mdx-remove-esm@1.3.1:
+    resolution: {integrity: sha512-POa8abdiuicD2e+zQkclxzJa5JEGLtV8XIOFVvisnGuw4l4xd6dfQozedwqR8JTeXQmxLebvYhlbwHoQP9RWkw==}
     peerDependencies:
       unified: ^11
 
@@ -6569,10 +6569,6 @@ packages:
   type-fest@0.21.3:
     resolution: {integrity: sha512-t0rzBq87m3fVcduHDUFhKmyyX+9eo6WQjZvf51Ea/M0Q7+T374Jp1aUiyUl0GKxp8M/OETVHSDvmkyPgvX+X2w==}
     engines: {node: '>=10'}
-
-  type-fest@5.4.4:
-    resolution: {integrity: sha512-JnTrzGu+zPV3aXIUhnyWJj4z/wigMsdYajGLIYakqyOW1nPllzXEJee0QQbHj+CTIQtXGlAjuK0UY+2xTyjVAw==}
-    engines: {node: '>=20'}
 
   type-fest@5.5.0:
     resolution: {integrity: sha512-PlBfpQwiUvGViBNX84Yxwjsdhd1TUlXr6zjX7eoirtCPIr08NAmxwa+fcYBTeRQxHo9YC9wwF3m9i700sHma8g==}
@@ -12255,14 +12251,14 @@ snapshots:
     transitivePeerDependencies:
       - '@swc/helpers'
 
-  next-mdx-remote-client@2.1.9(@types/react@19.2.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(unified@11.0.5):
+  next-mdx-remote-client@2.1.10(@types/react@19.2.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(unified@11.0.5):
     dependencies:
       '@babel/code-frame': 7.29.0
       '@mdx-js/mdx': 3.1.1
       '@mdx-js/react': 3.1.1(@types/react@19.2.11)(react@19.2.4)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-      remark-mdx-remove-esm: 1.2.3(unified@11.0.5)
+      remark-mdx-remove-esm: 1.3.1(unified@11.0.5)
       serialize-error: 13.0.1
       vfile: 6.0.3
       vfile-matter: 5.0.1
@@ -12854,7 +12850,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  remark-mdx-remove-esm@1.2.3(unified@11.0.5):
+  remark-mdx-remove-esm@1.3.1(unified@11.0.5):
     dependencies:
       '@types/mdast': 4.0.4
       mdast-util-mdxjs-esm: 2.0.1
@@ -12991,7 +12987,7 @@ snapshots:
   serialize-error@13.0.1:
     dependencies:
       non-error: 0.1.0
-      type-fest: 5.4.4
+      type-fest: 5.5.0
 
   serve-static@2.2.1:
     dependencies:
@@ -13446,10 +13442,6 @@ snapshots:
   type-detect@4.0.8: {}
 
   type-fest@0.21.3: {}
-
-  type-fest@5.4.4:
-    dependencies:
-      tagged-tag: 1.0.0
 
   type-fest@5.5.0:
     dependencies:
