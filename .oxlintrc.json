@@ -30,7 +30,6 @@
   ],
   "rules": {
     "react/react-in-jsx-scope": "off",
-    "react/prop-types": "off",
     "eslint/no-shadow": "off",
     "jest/no-conditional-expect": "off",
     "unicorn/consistent-function-scoping": "off",

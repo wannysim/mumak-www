@@ -1,9 +1,16 @@
 {
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "oxc.oxc-vscode",
+  "oxc.enable.oxfmt": true,
+  "oxc.enable.oxlint": true,
+  "oxc.configPath": ".oxlintrc.json",
+  "oxc.fmt.configPath": ".oxfmtrc.jsonc",
   "editor.codeActionsOnSave": {
+    "source.fixAll.oxc": "always",
     "source.organizeImports": "explicit"
   },
+  "eslint.enable": false,
+  "prettier.enable": false,
   "typescript.preferences.importModuleSpecifier": "relative",
   "typescript.suggest.autoImports": true,
   "typescript.updateImportsOnFileMove.enabled": "always",
