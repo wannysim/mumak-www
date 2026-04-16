@@ -159,11 +159,8 @@ describe('themeMetaSync', () => {
     expect(metaTag.getAttribute('content')).toBe('#ffffff');
 
     document.documentElement.classList.add('dark');
-    const themeObserver = observers[0];
-    themeObserver?.['callback' as keyof MutationObserver](
-      [] as unknown as MutationRecord[],
-      themeObserver as unknown as MutationObserver
-    );
+    const themeObserver = observers[0] as unknown as { callback: MutationCallback } | undefined;
+    themeObserver?.callback([], themeObserver as unknown as MutationObserver);
 
     expect(metaTag.getAttribute('content')).toBe('#000000');
   });

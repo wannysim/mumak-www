@@ -14,12 +14,12 @@ export function themeMetaSync(colors: { light: string; dark: string }) {
     const metaTags = document.querySelectorAll('meta[name="theme-color"]');
     if (!metaTags.length) return;
 
-    for (const metaTag of metaTags) {
+    metaTags.forEach(metaTag => {
       // content가 다를 때만 업데이트 (불필요한 변경 방지)
       if (metaTag.getAttribute('content') !== expectedColor) {
         metaTag.setAttribute('content', expectedColor);
       }
-    }
+    });
   };
 
   // html 요소의 클래스 변경 감지 (next-themes가 dark/light 클래스 토글)
