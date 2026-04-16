@@ -31,14 +31,17 @@ const customJestConfig = {
     // 외부 서비스 래퍼 제외 (GA 등)
     '!src/app/analytics/**',
   ],
-  // coverageThreshold: {
-  //   global: {
-  //     branches: 60,
-  //     functions: 60,
-  //     lines: 60,
-  //     statements: 60,
-  //   },
-  // },
+  // 회귀 방지용 baseline. 현재 수치(77/65/73/79)에서 약간의 여유를 둔 값.
+  // branches는 보강 여지가 남아있어 다른 항목보다 보수적으로 설정.
+  // 추후 보강 후 70%로 동기화 권장.
+  coverageThreshold: {
+    global: {
+      branches: 60,
+      functions: 70,
+      lines: 70,
+      statements: 70,
+    },
+  },
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
