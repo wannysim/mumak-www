@@ -7,12 +7,22 @@ on:
       - "apps/**"
       - "packages/**"
       - "pnpm-lock.yaml"
+      - "turbo.json"
+      - ".nvmrc"
+      - ".github/workflows/e2e.yml"
+      - ".github/actions/**"
+      - ".github/app-config/**"
   push:
     branches: [main, develop]
     paths:
       - "apps/**"
       - "packages/**"
       - "pnpm-lock.yaml"
+      - "turbo.json"
+      - ".nvmrc"
+      - ".github/workflows/e2e.yml"
+      - ".github/actions/**"
+      - ".github/app-config/**"
   workflow_dispatch:
     inputs:
       scopes:

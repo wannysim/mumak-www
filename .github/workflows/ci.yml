@@ -6,23 +6,31 @@ on:
     paths:
       - "apps/**"
       - "packages/**"
+      - "scripts/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "turbo.json"
-      - ".oxlintrc.json"
+      - "**/.oxlintrc.json"
       - ".oxfmtrc.jsonc"
-      - ".github/**"
+      - ".nvmrc"
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - ".github/app-config/**"
   push:
     branches: [main, develop]
     paths:
       - "apps/**"
       - "packages/**"
+      - "scripts/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "turbo.json"
-      - ".oxlintrc.json"
+      - "**/.oxlintrc.json"
       - ".oxfmtrc.jsonc"
-      - ".github/**"
+      - ".nvmrc"
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - ".github/app-config/**"
   workflow_dispatch:
     inputs:
       scopes:
