@@ -47,7 +47,5 @@
     "playwright-report/**",
     "**/next-env.d.ts",
     "pnpm-lock.yaml",
-    // shadcn 컴포넌트 다운로드 원본을 유지하기 위해 packages/ui는 포맷 대상에서 제외
-    "packages/ui/**",
   ],
 }
