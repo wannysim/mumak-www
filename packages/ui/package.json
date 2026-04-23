@@ -13,9 +13,9 @@
   "scripts": {
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
-    "format": "oxfmt --check .",
-    "format:fix": "oxfmt .",
-    "format:check": "oxfmt --check .",
+    "format": "oxfmt --check . --no-error-on-unmatched-pattern",
+    "format:fix": "oxfmt . --no-error-on-unmatched-pattern",
+    "format:check": "oxfmt --check . --no-error-on-unmatched-pattern",
     "clean": "rm -rf node_modules/.cache"
   },
   "dependencies": {

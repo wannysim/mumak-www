@@ -13,6 +13,25 @@
   "singleQuote": true,
   "tabWidth": 2,
   "trailingComma": "es5",
+  // Import 정렬: .cursor/rules/import-patterns.mdc 규칙을 자동 강제
+  // 1) 외부 → 2) @mumak/* → 3) @/ 내부 → 4) 상대경로 → 5) CSS/스타일
+  "sortImports": {
+    "internalPattern": ["@/"],
+    "customGroups": [
+      { "groupName": "monorepo-style", "elementNamePattern": ["@mumak/**/*.css", "@mumak/**/*.scss"] },
+      { "groupName": "monorepo", "elementNamePattern": ["@mumak/**"] },
+    ],
+    "groups": [
+      ["external", "builtin", "type-external", "type-builtin", "wildcard-external", "default-external"],
+      "monorepo",
+      ["internal", "type-internal"],
+      ["parent", "sibling", "index", "type-parent", "type-sibling", "type-index"],
+      ["style", "side_effect_style", "monorepo-style"],
+      "side_effect",
+      "type-import",
+      "unknown",
+    ],
+  },
   // Tailwind v4 + shadcn/ui 사용. class 정렬은 일괄 normalize 후 활성화 권장 (현재 비활성).
   // "sortTailwindcss": true,
   "ignorePatterns": [
@@ -28,5 +47,7 @@
     "playwright-report/**",
     "**/next-env.d.ts",
     "pnpm-lock.yaml",
+    // shadcn 컴포넌트 다운로드 원본을 유지하기 위해 packages/ui는 포맷 대상에서 제외
+    "packages/ui/**",
   ],
 }
