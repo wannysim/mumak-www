@@ -1,3 +1,27 @@
+## Agent Navigation
+
+이 저장소의 AI 에이전트는 상황에 맞는 지시를 다음 위치에서 참조한다.
+
+| 위치                                         | 역할                                                      |
+| -------------------------------------------- | --------------------------------------------------------- |
+| `.cursor/rules/*.mdc`                        | Cursor 전용 자동 적용 규칙 (`alwaysApply` / `globs` 기반) |
+| `.cursor/agents/*.md`                        | 프로젝트 특화 서브에이전트 (`debugger`, `verifier`)       |
+| `.agents/skills/*/SKILL.md`                  | 프로젝트 공유 스킬 (Cursor · Claude Code 모두 로드)       |
+| `.cursor/hooks.json`, `.cursor/hooks/*.mjs`  | edit-reminder, shell-guard 훅                             |
+| `.cursor/mcp.json`                           | 프로젝트용 MCP 서버 설정                                  |
+| `~/.ai-skills/skills`, `~/.ai-skills/agents` | 개발자 개인 user-level 자산 (전 프로젝트 공통)            |
+
+자주 쓰이는 스킬:
+
+- `ci-preflight` — `check-types → lint → format:check → test:ci` 로컬 검증 순서
+- `turborepo` — Turborepo 필터 문법, 캐시 관리
+- `shadcn` — shadcn/ui 컴포넌트 설치·커스터마이즈
+- `react-component-generator` — 새 컴포넌트 스캐폴딩
+- `test-writer` — Jest·Vitest·Playwright 테스트 작성
+- `release` — Git Flow 기반 버전 관리
+
+동일 이름의 스킬이 user와 project 양쪽에 있을 때는 **project 버전이 우선** 적용된다.
+
 ## 프로젝트 구조
 
 Turborepo 모노레포. 공유 패키지는 `packages/`에, 앱은 `apps/`에 위치.
