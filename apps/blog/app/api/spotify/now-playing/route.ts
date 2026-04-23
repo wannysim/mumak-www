@@ -1,5 +1,6 @@
-import { getNowPlaying, type NowPlaying } from '@/src/entities/spotify';
 import { NextResponse } from 'next/server';
+
+import { getNowPlaying, type NowPlaying } from '@/src/entities/spotify';
 
 export interface NowPlayingResponse {
   data: NowPlaying | null;

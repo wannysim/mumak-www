@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import { MDXContent, MDXContentSkeleton } from '../ui/mdx-content';
+
+import '@testing-library/jest-dom';
 
 const mockMDXRemote = jest.fn(({ source }: { source: string }) => <div data-testid="mdx-remote">{source}</div>);
 

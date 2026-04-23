@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { render } from '@testing-library/react';
 
 import { FooterSkeleton } from '../ui/footer-skeleton';
+
+import '@testing-library/jest-dom';
 
 describe('FooterSkeleton', () => {
   it('renders footer element with border', () => {

@@ -1,10 +1,11 @@
+import type { PostMeta } from '@/src/entities/post';
+
 import {
   generateBlogPostingJsonLd,
   generateBreadcrumbJsonLd,
   generateSiteNavigationJsonLd,
   generateWebSiteJsonLd,
 } from '../json-ld';
-import type { PostMeta } from '@/src/entities/post';
 
 describe('json-ld', () => {
   describe('generateWebSiteJsonLd', () => {

@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import { HeaderSpacer, SmartHeader } from '../ui/smart-header';
+
+import '@testing-library/jest-dom';
 
 // Mock useScrollDirection hook
 const mockUseScrollDirection = jest.fn();

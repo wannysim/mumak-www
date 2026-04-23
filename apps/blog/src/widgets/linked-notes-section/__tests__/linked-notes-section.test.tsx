@@ -1,9 +1,11 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import type { LinkedNote } from '@/src/entities/note';
+
 import { LinkedNotesSection } from '../ui/linked-notes-section';
+
+import '@testing-library/jest-dom';
 
 jest.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (

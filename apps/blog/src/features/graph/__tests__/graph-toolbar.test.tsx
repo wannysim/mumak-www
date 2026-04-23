@@ -1,8 +1,9 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { GraphToolbar } from '../ui/graph-toolbar';
+
+import '@testing-library/jest-dom';
 
 const mockBack = jest.fn();
 const mockPush = jest.fn();

@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import { Navigation } from '../ui/navigation';
+
+import '@testing-library/jest-dom';
 
 // Mock next-intl/server
 jest.mock('next-intl/server', () => ({

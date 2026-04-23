@@ -1,8 +1,10 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import type { Category } from '@/src/entities/post';
+
 import { BlogNav } from '../ui/blog-nav';
+
+import '@testing-library/jest-dom';
 
 const mockUsePathname = jest.fn(() => '/blog');
 

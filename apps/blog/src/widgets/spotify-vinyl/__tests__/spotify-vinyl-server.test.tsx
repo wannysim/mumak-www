@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import type { NowPlaying } from '@/src/entities/spotify';
+
+import '@testing-library/jest-dom';
 
 // next/cache mock (cacheLife 등 서버 전용 API)
 jest.mock('next/cache', () => ({

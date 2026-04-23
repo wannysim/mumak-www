@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 import type { NowPlaying } from '@/src/entities/spotify';
+
+import '@testing-library/jest-dom';
 
 jest.mock('next/image', () => ({
   __esModule: true,

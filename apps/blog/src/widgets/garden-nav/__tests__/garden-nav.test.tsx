@@ -1,8 +1,10 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import type { NoteStatus } from '@/src/entities/note';
+
 import { GardenNav } from '../ui/garden-nav';
+
+import '@testing-library/jest-dom';
 
 const mockUsePathname = jest.fn(() => '/garden');
 

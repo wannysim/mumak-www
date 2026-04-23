@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { act, render, screen } from '@testing-library/react';
 
 import type { NowPlaying } from '@/src/entities/spotify';
+
+import '@testing-library/jest-dom';
 
 const mockUseSpotifyPolling = jest.fn();
 

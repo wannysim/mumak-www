@@ -5,8 +5,8 @@ import { notFound } from 'next/navigation';
 
 import { mdxComponents } from '@/mdx-components';
 import { getPage } from '@/src/entities/post';
-import { mdxOptions } from '@/src/shared/config/mdx';
 import { type Locale } from '@/src/shared/config/i18n';
+import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
 
 interface NowPageProps {

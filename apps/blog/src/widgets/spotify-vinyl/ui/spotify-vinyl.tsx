@@ -1,10 +1,10 @@
 'use client';
 
+import Image from 'next/image';
+import Link from 'next/link';
 import { memo, useState } from 'react';
 
 import { cn } from '@mumak/ui/lib/utils';
-import Image from 'next/image';
-import Link from 'next/link';
 
 import type { NowPlaying } from '@/src/entities/spotify';
 

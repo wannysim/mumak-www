@@ -1,8 +1,9 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { ThemeSwitcher } from '../ui/theme-switcher';
+
+import '@testing-library/jest-dom';
 
 const setTheme = jest.fn();
 const mockThemeState = {

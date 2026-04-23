@@ -1,7 +1,6 @@
+import { ImageResponse } from 'next/og';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-
-import { ImageResponse } from 'next/og';
 
 import { getAllPostSlugs, getPost, isValidCategory } from '@/src/entities/post';
 import { locales, type Locale } from '@/src/shared/config/i18n';

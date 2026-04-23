@@ -3,9 +3,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { isValidElement, type ReactNode } from 'react';
 
-import { SocialLinks } from '@/src/widgets/footer';
-import { BrokenWikiEmbed, BrokenWikiLink, WikiEmbed, WikiLink } from '@/src/shared/ui';
 import { normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
+import { BrokenWikiEmbed, BrokenWikiLink, WikiEmbed, WikiLink } from '@/src/shared/ui';
+import { SocialLinks } from '@/src/widgets/footer';
 
 function extractText(node: ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') {

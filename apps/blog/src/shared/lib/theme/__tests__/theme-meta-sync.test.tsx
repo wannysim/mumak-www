@@ -1,8 +1,9 @@
-import '@testing-library/jest-dom';
 import { render } from '@testing-library/react';
 
 import { themeColors } from '../theme-config';
 import { ThemeMetaSyncScript, themeMetaSync } from '../theme-meta-sync';
+
+import '@testing-library/jest-dom';
 
 describe('ThemeMetaSyncScript', () => {
   it('should render a script tag', () => {

@@ -1,8 +1,9 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { GraphTabs } from '../ui/graph-tabs';
+
+import '@testing-library/jest-dom';
 
 const mockReplace = jest.fn();
 const mockSearchParams = new URLSearchParams();

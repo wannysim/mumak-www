@@ -1,9 +1,10 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { GraphControls } from '../ui/graph-controls';
 import type { GraphData } from '../model/types';
+import { GraphControls } from '../ui/graph-controls';
+
+import '@testing-library/jest-dom';
 
 const mockData: GraphData = {
   nodes: [

@@ -1,8 +1,10 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import type { NoteMeta } from '@/src/entities/note';
+
 import { NoteCard } from '../ui/note-card';
+
+import '@testing-library/jest-dom';
 
 jest.mock('next-intl/server', () => ({
   getTranslations: jest.fn(async () => (key: string) => {

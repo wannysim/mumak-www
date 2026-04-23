@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import { ReadingProgress } from '../ui/reading-progress';
+
+import '@testing-library/jest-dom';
 
 const mockUseScrollProgress = jest.fn(() => 0);
 
