@@ -92,11 +92,29 @@ jobs:
         with:
           scopes: ${{ needs.detect-scopes.outputs.scopes }}
 
-  # Step 3: Lint/format root-only files (scripts/, .cursor/, .agents/)
+  # Step 3: Warm the pnpm store cache once before any matrix job runs.
+  # Parallel matrix jobs using the same pnpm-lock hash would otherwise race on
+  # `actions/cache/save` and surface "Unable to reserve cache" warnings. Keeping
+  # a single writer here lets all downstream jobs restore-only.
+  warm-pnpm-cache:
+    name: Warm pnpm cache
+    needs: [detect-scopes]
+    if: needs.detect-scopes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js and pnpm (save cache)
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          save-cache: "true"
+
+  # Step 4: Lint/format root-only files (scripts/, .cursor/, .ai/)
   # Runs in parallel with the per-app validate matrix.
   root-quality:
     name: Quality (root only)
-    needs: [detect-scopes]
+    needs: [detect-scopes, warm-pnpm-cache]
     if: needs.detect-scopes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -105,6 +123,8 @@ jobs:
 
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
+        with:
+          save-cache: "false"
 
       - name: Restore Turbo cache
         uses: actions/cache@v5
@@ -121,10 +141,10 @@ jobs:
       - name: Format Check (root files)
         run: pnpm turbo run format:root:check
 
-  # Step 4: Validate each app — lint, format, types, test, build (parallel matrix)
+  # Step 5: Validate each app — lint, format, types, test, build (parallel matrix)
   validate:
     name: Validate (${{ matrix.app }})
-    needs: [detect-scopes, prepare-matrix]
+    needs: [detect-scopes, prepare-matrix, warm-pnpm-cache]
     if: needs.detect-scopes.outputs.has_changes == 'true' && needs.prepare-matrix.outputs.count != '0'
     runs-on: ubuntu-latest
     strategy:
@@ -139,6 +159,8 @@ jobs:
 
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
+        with:
+          save-cache: "false"
 
       - name: Restore Turbo cache
         uses: actions/cache@v5
@@ -179,7 +201,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Step 5: Aggregate coverage from validate artifacts and upload to Codecov
+  # Step 6: Aggregate coverage from validate artifacts and upload to Codecov
   # Avoids the previous duplicate test:ci execution.
   coverage:
     name: Upload Coverage
@@ -191,7 +213,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download coverage artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           pattern: coverage-*
           path: coverage-artifacts
@@ -205,7 +227,7 @@ jobs:
   # Summary job for branch protection
   ci-success:
     name: CI Success
-    needs: [detect-scopes, root-quality, validate]
+    needs: [detect-scopes, warm-pnpm-cache, root-quality, validate]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -214,6 +236,13 @@ jobs:
           if [ "${{ needs.detect-scopes.outputs.has_changes }}" != "true" ]; then
             echo "No relevant changes detected - CI passed"
             exit 0
+          fi
+
+          # If the warm-up job failed, downstream jobs are skipped. That must
+          # not be misread as "no apps to validate" and silently pass CI.
+          if [ "${{ needs.warm-pnpm-cache.result }}" != "success" ]; then
+            echo "warm-pnpm-cache did not succeed (result: ${{ needs.warm-pnpm-cache.result }})"
+            exit 1
           fi
 
           if [ "${{ needs.root-quality.result }}" == "success" ] && [ "${{ needs.validate.result }}" == "success" ]; then

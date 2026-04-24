@@ -25,6 +25,8 @@ jobs:
 
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
+        with:
+          save-cache: "false"
 
       - name: Validate content
-        run: pnpm --filter=blog validate:content -- --summary >> $GITHUB_STEP_SUMMARY
+        run: pnpm --filter=blog validate:content -- --summary >> "$GITHUB_STEP_SUMMARY"
