@@ -20,13 +20,13 @@ Cursor는 이 중 다음을 자동으로 읽는다.
 
 하나의 규칙을 두 곳(`.cursor/rules/` + `AGENTS.md`)에 중복해서 두면 반드시 드리프트가 생긴다. 그래서 저장소는 **AI provider에 중립적인 표준(`AGENTS.md`)을 단일 소스로 삼고**, Cursor 전용 기능만 이 디렉터리에 남긴다.
 
-| 자산           | 위치                          | 비고                                                        |
-| -------------- | ----------------------------- | ----------------------------------------------------------- |
-| 공통 규칙      | `AGENTS.md` (루트 + nested)   | Cursor · Codex · Claude Code · Aider · Zed 등이 동일하게 읽음 |
-| 스킬           | `.ai/skills/*/SKILL.md`       | Cursor 2.4+ / Claude Code / Codex 공통 포맷                 |
-| 서브에이전트   | `.ai/agents/*.md`             | Cursor · Claude Code 공통 포맷                              |
-| Cursor 전용 훅 | `.cursor/hooks*`              | 다른 provider에 대응 표준 없음                              |
-| Cursor MCP     | `.cursor/mcp.json`            | Claude Code는 별도 `.mcp.json` 사용                         |
+| 자산           | 위치                        | 비고                                                          |
+| -------------- | --------------------------- | ------------------------------------------------------------- |
+| 공통 규칙      | `AGENTS.md` (루트 + nested) | Cursor · Codex · Claude Code · Aider · Zed 등이 동일하게 읽음 |
+| 스킬           | `.ai/skills/*/SKILL.md`     | Cursor 2.4+ / Claude Code / Codex 공통 포맷                   |
+| 서브에이전트   | `.ai/agents/*.md`           | Cursor · Claude Code 공통 포맷                                |
+| Cursor 전용 훅 | `.cursor/hooks*`            | 다른 provider에 대응 표준 없음                                |
+| Cursor MCP     | `.cursor/mcp.json`          | Claude Code는 별도 `.mcp.json` 사용                           |
 
 `.cursor/rules/`는 의도적으로 두지 않는다. 과거에 존재하던 `.mdc` 파일들은 모두 `AGENTS.md`(루트 또는 nested)로 이전되었다.
 

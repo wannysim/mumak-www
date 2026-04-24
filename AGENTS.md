@@ -10,20 +10,20 @@
 
 ## 리포지토리 자산 구조
 
-| 위치                                          | 역할                                                                   | 공유 대상                        |
-| --------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------- |
-| `AGENTS.md` (루트 · 현재 파일)                | 모든 에이전트 공통 규칙                                                | Cursor, Codex, Aider, Zed, …     |
-| `apps/*/AGENTS.md`, `packages/*/AGENTS.md`    | 해당 패키지/앱에 국한된 규칙 (nested)                                  | 동일. 가장 가까운 파일이 우선    |
-| `CLAUDE.md` (루트)                            | `@AGENTS.md` 한 줄 어댑터 + Claude Code 전용 섹션                      | Claude Code                      |
-| `.ai/skills/*/SKILL.md`                       | 프로젝트 공유 스킬 (실체)                                              | Cursor · Codex · Claude Code     |
-| `.ai/agents/*.md`                             | 프로젝트 특화 서브에이전트 (실체)                                      | Cursor · Claude Code             |
-| `.cursor/skills → ../.ai/skills` (symlink)    | Cursor가 스킬을 읽는 경로                                              | Cursor                           |
-| `.cursor/agents → ../.ai/agents` (symlink)    | Cursor가 서브에이전트를 읽는 경로                                      | Cursor                           |
-| `.claude/skills → ../.ai/skills` (symlink)    | Claude Code가 Agent Skills를 읽는 경로                                 | Claude Code                      |
-| `.claude/agents → ../.ai/agents` (symlink)    | Claude Code가 서브에이전트를 읽는 경로                                 | Claude Code                      |
-| `.cursor/hooks.json`, `.cursor/hooks/*.mjs`   | edit-reminder / shell-guard 훅 (Cursor 전용 기능, 대응 표준 없음)      | Cursor                           |
-| `.cursor/mcp.json`                            | Cursor MCP 서버 설정                                                   | Cursor                           |
-| `~/.ai-skills/{skills,agents}`                | 개발자 개인 user-level 자산 (전 프로젝트 공통)                         | Cursor · Codex · Claude Code     |
+| 위치                                        | 역할                                                              | 공유 대상                     |
+| ------------------------------------------- | ----------------------------------------------------------------- | ----------------------------- |
+| `AGENTS.md` (루트 · 현재 파일)              | 모든 에이전트 공통 규칙                                           | Cursor, Codex, Aider, Zed, …  |
+| `apps/*/AGENTS.md`, `packages/*/AGENTS.md`  | 해당 패키지/앱에 국한된 규칙 (nested)                             | 동일. 가장 가까운 파일이 우선 |
+| `CLAUDE.md` (루트)                          | `@AGENTS.md` 한 줄 어댑터 + Claude Code 전용 섹션                 | Claude Code                   |
+| `.ai/skills/*/SKILL.md`                     | 프로젝트 공유 스킬 (실체)                                         | Cursor · Codex · Claude Code  |
+| `.ai/agents/*.md`                           | 프로젝트 특화 서브에이전트 (실체)                                 | Cursor · Claude Code          |
+| `.cursor/skills → ../.ai/skills` (symlink)  | Cursor가 스킬을 읽는 경로                                         | Cursor                        |
+| `.cursor/agents → ../.ai/agents` (symlink)  | Cursor가 서브에이전트를 읽는 경로                                 | Cursor                        |
+| `.claude/skills → ../.ai/skills` (symlink)  | Claude Code가 Agent Skills를 읽는 경로                            | Claude Code                   |
+| `.claude/agents → ../.ai/agents` (symlink)  | Claude Code가 서브에이전트를 읽는 경로                            | Claude Code                   |
+| `.cursor/hooks.json`, `.cursor/hooks/*.mjs` | edit-reminder / shell-guard 훅 (Cursor 전용 기능, 대응 표준 없음) | Cursor                        |
+| `.cursor/mcp.json`                          | Cursor MCP 서버 설정                                              | Cursor                        |
+| `~/.ai-skills/{skills,agents}`              | 개발자 개인 user-level 자산 (전 프로젝트 공통)                    | Cursor · Codex · Claude Code  |
 
 ### 규칙
 
