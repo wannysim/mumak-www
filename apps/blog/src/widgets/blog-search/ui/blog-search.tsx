@@ -42,7 +42,6 @@ export function BlogSearch({ posts, categoryLabels, triggerClassName }: BlogSear
         href: `/blog/${post.category}/${post.slug}`,
         searchKeywords: `${post.description} ${post.tags.join(' ')}`,
         icon: FileText,
-        hint: categoryLabels[post.category] ?? post.category,
       })),
     }));
   }, [posts, categoryLabels]);
