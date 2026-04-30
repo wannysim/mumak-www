@@ -5,11 +5,20 @@ test.describe('Navigation', () => {
     // SmartHeader만 선택하는 locator (data-visible 속성으로 구분)
     const getSmartHeader = (page: import('@playwright/test').Page) => page.locator('header[data-visible]');
 
-    // 스크롤 및 상태 변경 대기를 위한 헬퍼 함수
+    // 스크롤 및 상태 변경 대기를 위한 헬퍼 함수.
+    // WebKit은 window.scrollTo 후 scroll 이벤트가 즉시 디스패치되지 않을 수 있어
+    // (1) documentElement.scrollTop도 함께 세팅하고 (2) scroll 이벤트를 명시 dispatch한 뒤
+    // (3) rAF를 두 번 기다려 스크롤 핸들러의 ticking 가드(rAF로 등록된 상태 업데이트)가
+    // 실제로 적용될 때까지 대기시킨다. 이 패턴은 chromium/firefox에서도 안전하다.
     const scrollTo = async (page: import('@playwright/test').Page, y: number) => {
-      await page.evaluate(scrollY => {
+      await page.evaluate(async scrollY => {
         window.scrollTo({ top: scrollY, behavior: 'instant' });
+        document.documentElement.scrollTop = scrollY;
+        if (document.body) {
+          document.body.scrollTop = scrollY;
+        }
         window.dispatchEvent(new Event('scroll'));
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       }, y);
     };
 
@@ -43,8 +52,11 @@ test.describe('Navigation', () => {
       await expect(header).toHaveAttribute('data-visible', 'false');
     });
 
-    test('should show header when scrolling up', async ({ page, browserName }) => {
-      test.skip(browserName === 'webkit', 'WebKit scroll + rAF timing is inconsistent in test environment');
+    test('should show header when scrolling up', async ({ page }) => {
+      // WebKit에서 과거에 rAF 타이밍 차이로 flake가 있었으나, scrollTo 헬퍼가 double-rAF로
+      // 대기하도록 보강된 뒤로는 이 테스트는 webkit에서도 통과해야 한다. 만약 다시 flake가
+      // 보고되면 이 위에 `test.skip(browserName === 'webkit', ...)` 한 줄로 되돌리고 사유를
+      // 함께 적자.
       await page.goto('/ko/blog/essay/retrospect-2025');
 
       const header = getSmartHeader(page);
@@ -62,8 +74,8 @@ test.describe('Navigation', () => {
       await expect(header).toHaveAttribute('data-visible', 'true');
     });
 
-    test('should always show header at top of page', async ({ page, browserName }) => {
-      test.skip(browserName === 'webkit', 'WebKit scroll + rAF timing is inconsistent in test environment');
+    test('should always show header at top of page', async ({ page }) => {
+      // 위 테스트와 같은 이유로 webkit skip을 제거. flake 발생 시 동일하게 한 줄 재추가.
       await page.goto('/ko/blog/essay/retrospect-2025');
 
       const header = getSmartHeader(page);
@@ -121,8 +133,8 @@ test.describe('Navigation', () => {
       await expect(header).toHaveAttribute('data-visible', 'true');
     });
 
-    test('should work on tablet viewport', async ({ page, browserName }) => {
-      test.skip(browserName === 'webkit', 'WebKit scroll + rAF timing is inconsistent in test environment');
+    test('should work on tablet viewport', async ({ page }) => {
+      // 위 테스트와 같은 이유로 webkit skip을 제거. flake 발생 시 동일하게 한 줄 재추가.
       await page.setViewportSize({ width: 768, height: 1024 });
       await page.goto('/ko/blog/essay/retrospect-2025');
 
@@ -182,9 +194,13 @@ test.describe('Navigation', () => {
   });
 
   test.describe('Accessibility', () => {
-    // webkit에서는 Tab 키 동작이 다르므로 chromium, firefox에서만 테스트
+    // WebKit(Safari)은 macOS의 "Full Keyboard Access" 시스템 설정이 켜져 있어야만
+    // Tab 키로 링크 등 비-텍스트 요소에 포커스를 옮긴다. 헤드리스 환경에서는 이 시스템
+    // 설정을 토글할 수 없어 Tab 동작 자체가 호스트마다 달라진다(Linux CI vs macOS CI).
+    // 환경 의존이라 webkit 프로젝트에서는 의도적으로 skip하며, 키보드 접근성 자체는
+    // chromium/firefox 두 브라우저 커버리지로 충분.
     test('should show skip to content link on tab', async ({ page, browserName }) => {
-      test.skip(browserName === 'webkit', 'WebKit Tab key navigation requires system preferences enabled');
+      test.skip(browserName === 'webkit', 'WebKit Tab nav requires macOS Full Keyboard Access (env-dependent)');
 
       await page.goto('/ko');
 
@@ -196,7 +212,7 @@ test.describe('Navigation', () => {
     });
 
     test('should skip to main content when skip link is clicked', async ({ page, browserName }) => {
-      test.skip(browserName === 'webkit', 'WebKit Tab key navigation requires system preferences enabled');
+      test.skip(browserName === 'webkit', 'WebKit Tab nav requires macOS Full Keyboard Access (env-dependent)');
 
       await page.goto('/ko');
 
