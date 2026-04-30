@@ -32,6 +32,20 @@ jest.mock('@mumak/ui/components/skeleton', () => ({
   ),
 }));
 
+// Bypass the real useSpotifyPolling (SWR-backed) inside SpotifyVinylClient so
+// SWR's async store updates don't fire outside act in this RSC-style test.
+jest.mock('@/src/features/spotify-polling', () => ({
+  useSpotifyPolling: ({ initialData }: { initialData: NowPlaying | null }) => ({
+    data: initialData,
+    previousData: null,
+    isLoading: false,
+    error: undefined,
+    hasTrackChanged: false,
+    hasPlayStateChanged: false,
+    resetChangeState: jest.fn(),
+  }),
+}));
+
 const mockGetNowPlayingDirect = jest.fn<Promise<NowPlaying | null>, []>();
 
 jest.mock('@/src/entities/spotify', () => ({

@@ -91,3 +91,18 @@ global.IntersectionObserver = jest.fn().mockImplementation(() => ({
   unobserve: jest.fn(),
   disconnect: jest.fn(),
 }));
+
+// jsdom does not implement HTMLCanvasElement.getContext, so any code that
+// probes for WebGL/2D context (graph-canvas WebGL detection, etc.) leaks a
+// console.error from jsdom's VirtualConsole. Returning null lets the
+// production fallback path execute cleanly. Some test suites (RSS feed
+// generation, etc.) run in node — guard so we don't ReferenceError there.
+if (typeof HTMLCanvasElement !== 'undefined') {
+  HTMLCanvasElement.prototype.getContext = jest.fn(() => null) as unknown as HTMLCanvasElement['getContext'];
+}
+
+// jsdom does not implement Element.scrollIntoView either; cmdk's CommandItem
+// uses it on the highlighted option to keep it visible.
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = jest.fn();
+}
