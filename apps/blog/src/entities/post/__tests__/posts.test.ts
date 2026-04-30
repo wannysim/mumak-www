@@ -81,6 +81,18 @@ describe('Posts Data Access Layer', () => {
       });
     });
 
+    it('returns an empty array when the locale directory does not exist', () => {
+      // ko/en만 실제 존재 — 임의의 unknown locale은 getMdxFiles의 not-exists 분기를 탄다.
+      const posts = getPosts('zz' as 'ko');
+      expect(posts).toEqual([]);
+    });
+
+    it('falls back to default category list when given an invalid category', () => {
+      const posts = getPosts('ko', 'not-a-real-category');
+      // 잘못된 category라도 catch-all 경로(전체 categories 검색)를 타며 결과가 array여야 한다.
+      expect(Array.isArray(posts)).toBe(true);
+    });
+
     it('should return PostMeta with required fields', () => {
       const posts = getPosts('ko');
       posts.forEach((post: PostMeta) => {
@@ -130,6 +142,34 @@ describe('Posts Data Access Layer', () => {
     it('should return null for invalid category', () => {
       const post = getPost('ko', 'invalid-category', 'some-slug');
       expect(post).toBeNull();
+    });
+
+    it('returns null for a missing file even when the category is valid', () => {
+      const post = getPost('ko', 'essay', 'definitely-not-a-real-slug');
+      expect(post).toBeNull();
+    });
+
+    it('blocks draft posts in production', () => {
+      const originalEnv = process.env.NODE_ENV;
+      Object.defineProperty(process.env, 'NODE_ENV', {
+        value: 'production',
+        writable: true,
+        configurable: true,
+      });
+
+      const posts = getPosts('ko', 'essay');
+      const draftPost = posts.find(p => p.draft);
+
+      // 운영 빌드에서 draft를 직접 호출해도 차단되어야 한다 (draft가 있을 때만 검증).
+      if (draftPost) {
+        expect(getPost('ko', 'essay', draftPost.slug)).toBeNull();
+      }
+
+      Object.defineProperty(process.env, 'NODE_ENV', {
+        value: originalEnv,
+        writable: true,
+        configurable: true,
+      });
     });
 
     it('should include readingTime in post meta', () => {

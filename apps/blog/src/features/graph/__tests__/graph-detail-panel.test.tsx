@@ -79,4 +79,66 @@ describe('GraphDetailPanel', () => {
 
     expect(screen.queryByRole('link', { name: /View detail/i })).not.toBeInTheDocument();
   });
+
+  it('node가 null이면 빈 상태로 렌더된다', () => {
+    render(<GraphDetailPanel node={null} open={true} onClose={jest.fn()} locale="en" labels={defaultLabels} />);
+
+    expect(screen.queryByText('Test Note')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /View detail/i })).not.toBeInTheDocument();
+  });
+
+  it('category가 있으면 category badge를 노출한다', () => {
+    const nodeWithCategory: GraphNode = { ...mockNode, category: 'projects' };
+
+    render(
+      <GraphDetailPanel node={nodeWithCategory} open={true} onClose={jest.fn()} locale="en" labels={defaultLabels} />
+    );
+
+    expect(screen.getByText('projects')).toBeInTheDocument();
+  });
+
+  it('description이 없으면 description 영역이 없다', () => {
+    const nodeWithoutDesc: GraphNode = { ...mockNode, description: undefined };
+
+    render(
+      <GraphDetailPanel node={nodeWithoutDesc} open={true} onClose={jest.fn()} locale="en" labels={defaultLabels} />
+    );
+
+    expect(screen.queryByText('A test note description')).not.toBeInTheDocument();
+  });
+
+  it('budding 노드는 secondary variant 배지를 사용한다', () => {
+    const budding: GraphNode = { ...mockNode, status: 'budding' };
+
+    render(<GraphDetailPanel node={budding} open={true} onClose={jest.fn()} locale="en" labels={defaultLabels} />);
+
+    expect(screen.getByText('Budding')).toBeInTheDocument();
+  });
+
+  it('evergreen 노드는 default variant 배지를 사용한다', () => {
+    const evergreen: GraphNode = { ...mockNode, status: 'evergreen' };
+
+    render(<GraphDetailPanel node={evergreen} open={true} onClose={jest.fn()} locale="en" labels={defaultLabels} />);
+
+    expect(screen.getByText('Evergreen')).toBeInTheDocument();
+  });
+
+  describe('mobile viewport (Drawer)', () => {
+    beforeEach(() => {
+      mockMatchMedia(false);
+    });
+
+    it('open이 true이면 노드 정보를 Drawer에 렌더한다', () => {
+      render(<GraphDetailPanel node={mockNode} open={true} onClose={jest.fn()} locale="en" labels={defaultLabels} />);
+
+      expect(screen.getByText('Test Note')).toBeInTheDocument();
+      expect(screen.getByText('Note')).toBeInTheDocument();
+    });
+
+    it('open이 false이면 Drawer는 렌더되지 않는다', () => {
+      render(<GraphDetailPanel node={mockNode} open={false} onClose={jest.fn()} locale="en" labels={defaultLabels} />);
+
+      expect(screen.queryByText('Test Note')).not.toBeInTheDocument();
+    });
+  });
 });

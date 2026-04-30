@@ -5,8 +5,15 @@ const createJestConfig = nextJest({
   dir: './',
 });
 
+// In CI we add the github-actions reporter so failing tests surface as
+// PR-line annotations. Locally we keep the default reporter for clean output.
+const reporters = process.env.GITHUB_ACTIONS === 'true' ? ['default', 'github-actions'] : ['default'];
+
 // Add any custom config to be passed to Jest
 const customJestConfig = {
+  reporters,
+  // CI step summary가 coverage-summary.json을 jq로 파싱하므로 json-summary 리포트 추가.
+  coverageReporters: ['json', 'lcov', 'text', 'clover', 'json-summary'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   testEnvironment: 'jsdom',
   moduleNameMapper: {
@@ -31,15 +38,14 @@ const customJestConfig = {
     // 외부 서비스 래퍼 제외 (GA 등)
     '!src/app/analytics/**',
   ],
-  // 회귀 방지용 baseline. 현재 수치(77/65/73/79)에서 약간의 여유를 둔 값.
-  // branches는 보강 여지가 남아있어 다른 항목보다 보수적으로 설정.
-  // 추후 보강 후 70%로 동기화 권장.
+  // 회귀 방지용 baseline. 커버리지 실측치는 86/73/82/88 — 각 지표 4~5%pt 버퍼.
+  // 실측이 다시 오르면 threshold도 함께 올려 회귀선을 좁혀가는 정책.
   coverageThreshold: {
     global: {
-      branches: 60,
-      functions: 70,
-      lines: 70,
-      statements: 70,
+      branches: 70,
+      functions: 78,
+      lines: 83,
+      statements: 83,
     },
   },
 };
