@@ -127,7 +127,13 @@
       "tagDescription": "{tag} 태그가 포함된 노트"
     },
     "sidebar": {
-      "openTree": "트리 열기"
+      "title": "PARA 가든",
+      "openTree": "둘러보기",
+      "searchPlaceholder": "노트 검색…",
+      "searchAria": "노트 검색",
+      "searchTitle": "노트 검색",
+      "searchDescription": "모든 PARA 카테고리에서 노트를 찾습니다",
+      "searchEmpty": "일치하는 노트가 없습니다"
     }
   },
   "graph": {

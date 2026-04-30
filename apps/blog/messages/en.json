@@ -127,7 +127,13 @@
       "tagDescription": "Notes tagged with {tag}"
     },
     "sidebar": {
-      "openTree": "Open tree"
+      "title": "PARA Garden",
+      "openTree": "Browse",
+      "searchPlaceholder": "Search notes…",
+      "searchAria": "Search notes",
+      "searchTitle": "Search notes",
+      "searchDescription": "Find a note across all PARA categories",
+      "searchEmpty": "No notes found"
     }
   },
   "graph": {

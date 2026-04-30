@@ -1,168 +1,329 @@
 'use client';
 
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, FileText, FolderTree, SearchIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import * as React from 'react';
 
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@mumak/ui/components/accordion';
 import { Badge } from '@mumak/ui/components/badge';
 import { Button } from '@mumak/ui/components/button';
-import { ScrollArea } from '@mumak/ui/components/scroll-area';
-import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@mumak/ui/components/sheet';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@mumak/ui/components/collapsible';
+import {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@mumak/ui/components/command';
+import { Kbd, KbdGroup } from '@mumak/ui/components/kbd';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@mumak/ui/components/sheet';
 import { cn } from '@mumak/ui/lib/utils';
 
-import { Link, usePathname } from '@/src/shared/config/i18n';
+import { Link, usePathname, useRouter } from '@/src/shared/config/i18n';
 
-export interface SidebarTreeNode {
+interface SidebarTreeNode {
   slug: string;
   title: string;
   children: SidebarTreeNode[];
 }
 
-interface GardenSidebarProps {
-  categories: {
-    key: string;
-    label: string;
-    noteCount: number;
-    tree: SidebarTreeNode[];
-  }[];
+interface Category {
+  key: string;
+  label: string;
+  noteCount: number;
+  tree: SidebarTreeNode[];
 }
 
-function NoteTreeItem({
-  node,
-  pathname,
-  depth = 0,
-  closeOnSelect = false,
-}: {
-  node: SidebarTreeNode;
-  pathname: string;
-  depth?: number;
-  closeOnSelect?: boolean;
-}) {
-  const isActive = pathname === `/garden/${node.slug}`;
-  const hasChildren = node.children.length > 0;
-  const isChildActive = hasChildren && hasActiveDescendant(node, pathname);
-  const [isOpen, setIsOpen] = useState(isChildActive);
+interface GardenSidebarProps {
+  categories: Category[];
+}
 
-  return (
-    <li>
-      <div className="flex items-center" style={{ paddingLeft: `${depth * 12}px` }}>
-        {hasChildren ? (
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="-m-2.5 p-2.5 md:m-0 md:p-0.5 rounded hover:bg-muted/80 transition-colors shrink-0"
-            aria-label={isOpen ? 'Collapse' : 'Expand'}
-          >
-            <ChevronRight
-              className={cn('size-3.5 text-muted-foreground transition-transform', isOpen && 'rotate-90')}
-            />
-          </button>
-        ) : (
-          <span className="w-4.5 shrink-0" />
-        )}
-        {closeOnSelect ? (
-          <SheetClose asChild>
-            <Link
-              href={`/garden/${node.slug}`}
-              className={cn(
-                'block flex-1 rounded-md px-1.5 py-1.5 text-sm transition-colors',
-                isActive
-                  ? 'bg-muted font-medium text-foreground'
-                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-              )}
-            >
-              {node.title}
-            </Link>
-          </SheetClose>
-        ) : (
-          <Link
-            href={`/garden/${node.slug}`}
-            className={cn(
-              'block flex-1 rounded-md px-1.5 py-1.5 text-sm transition-colors',
-              isActive
-                ? 'bg-muted font-medium text-foreground'
-                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-            )}
-          >
-            {node.title}
-          </Link>
-        )}
-      </div>
-      {hasChildren && isOpen && (
-        <ul className="flex flex-col gap-0.5 mt-0.5">
-          {node.children.map(child => (
-            <NoteTreeItem
-              key={child.slug}
-              node={child}
-              pathname={pathname}
-              depth={depth + 1}
-              closeOnSelect={closeOnSelect}
-            />
-          ))}
-        </ul>
-      )}
-    </li>
-  );
+function flattenTree(nodes: SidebarTreeNode[]): { slug: string; title: string }[] {
+  return nodes.flatMap(node => [{ slug: node.slug, title: node.title }, ...flattenTree(node.children)]);
 }
 
 function hasActiveDescendant(node: SidebarTreeNode, pathname: string): boolean {
   return node.children.some(child => pathname === `/garden/${child.slug}` || hasActiveDescendant(child, pathname));
 }
 
-export function GardenSidebar({ categories }: GardenSidebarProps) {
-  const pathname = usePathname();
-  const t = useTranslations('garden.sidebar');
+function NoteTreeItem({
+  node,
+  pathname,
+  depth,
+  onNavigate,
+}: {
+  node: SidebarTreeNode;
+  pathname: string;
+  depth: number;
+  onNavigate?: () => void;
+}) {
+  const isActive = pathname === `/garden/${node.slug}`;
+  const hasChildren = node.children.length > 0;
+  const isAncestorOfActive = hasChildren && hasActiveDescendant(node, pathname);
+  const [open, setOpen] = React.useState(isAncestorOfActive);
 
-  const visibleCategories = categories.filter(category => category.noteCount > 0);
-  const defaultValues = visibleCategories.map(category => category.key);
+  React.useEffect(() => {
+    if (isAncestorOfActive) setOpen(true);
+  }, [isAncestorOfActive]);
 
-  const renderTree = (closeOnSelect = false) => (
-    <ScrollArea className="w-full pr-4 h-[42svh] md:h-[70svh] overflow-hidden">
-      <Accordion type="multiple" defaultValue={defaultValues} className="w-full">
-        {visibleCategories.map(category => (
-          <AccordionItem key={category.key} value={category.key}>
-            <AccordionTrigger className="text-sm py-3 font-semibold hover:no-underline">
-              <div className="flex items-center gap-2">
-                {category.label}
-                <Badge variant="secondary" className="font-normal rounded-sm py-0 h-5 px-1.5">
-                  {category.noteCount}
-                </Badge>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <ul className="flex flex-col gap-0.5 mt-1">
-                {category.tree.map(node => (
-                  <NoteTreeItem key={node.slug} node={node} pathname={pathname} closeOnSelect={closeOnSelect} />
-                ))}
-              </ul>
-            </AccordionContent>
-          </AccordionItem>
-        ))}
-      </Accordion>
-    </ScrollArea>
+  const link = (
+    <Link
+      href={`/garden/${node.slug}`}
+      onClick={onNavigate}
+      aria-current={isActive ? 'page' : undefined}
+      className={cn(
+        'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors min-w-0',
+        'text-sidebar-foreground/85',
+        'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+        isActive && 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+      )}
+    >
+      <span className="truncate">{node.title}</span>
+    </Link>
   );
 
+  const row = (
+    <div className="flex items-center gap-0.5" style={{ paddingLeft: `${depth * 12}px` }}>
+      {hasChildren ? (
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            aria-label={open ? 'Collapse' : 'Expand'}
+            className={cn(
+              'inline-flex size-5 shrink-0 items-center justify-center rounded transition-colors',
+              'text-sidebar-foreground/60',
+              'hover:bg-sidebar-border/60 hover:text-sidebar-foreground',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring'
+            )}
+          >
+            <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
+          </button>
+        </CollapsibleTrigger>
+      ) : (
+        <span className="size-5 shrink-0" aria-hidden />
+      )}
+      {link}
+    </div>
+  );
+
+  if (!hasChildren) {
+    return <li>{row}</li>;
+  }
+
   return (
-    <aside className="w-full shrink-0 md:w-64">
-      <div className="md:sticky md:top-24">
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold tracking-tight">PARA Garden</h2>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button type="button" variant="outline" size="sm" className="md:hidden">
-                {t('openTree')}
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="h-[56svh] rounded-t-2xl px-4 pb-4 pt-2">
-              <SheetHeader className="px-0 pb-2 pt-1">
-                <SheetTitle className="text-base">PARA Garden</SheetTitle>
-              </SheetHeader>
-              {renderTree(true)}
-            </SheetContent>
-          </Sheet>
+    <Collapsible open={open} onOpenChange={setOpen} asChild>
+      <li>
+        {row}
+        <CollapsibleContent>
+          <ul className="flex flex-col">
+            {node.children.map(child => (
+              <NoteTreeItem
+                key={child.slug}
+                node={child}
+                pathname={pathname}
+                depth={depth + 1}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </ul>
+        </CollapsibleContent>
+      </li>
+    </Collapsible>
+  );
+}
+
+function SearchTrigger({
+  onClick,
+  placeholder,
+  showShortcut = true,
+}: {
+  onClick: () => void;
+  placeholder: string;
+  showShortcut?: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      onClick={onClick}
+      className="w-full justify-between gap-2 px-3 font-normal text-muted-foreground hover:text-foreground"
+    >
+      <span className="inline-flex items-center gap-2">
+        <SearchIcon className="size-4" />
+        <span className="truncate text-sm">{placeholder}</span>
+      </span>
+      {showShortcut && (
+        <KbdGroup className="hidden md:inline-flex">
+          <Kbd>⌘</Kbd>
+          <Kbd>K</Kbd>
+        </KbdGroup>
+      )}
+    </Button>
+  );
+}
+
+function TreeContent({
+  visibleCategories,
+  pathname,
+  onNavigate,
+}: {
+  visibleCategories: Category[];
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav aria-label="Garden notes" className="flex flex-col gap-4">
+      {visibleCategories.map(category => (
+        <section key={category.key} className="flex flex-col gap-1">
+          <header className="flex items-center justify-between gap-2 px-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
+              {category.label}
+            </span>
+            <Badge variant="secondary" className="h-5 rounded-sm px-1.5 py-0 font-normal">
+              {category.noteCount}
+            </Badge>
+          </header>
+          <ul className="flex flex-col">
+            {category.tree.map(node => (
+              <NoteTreeItem key={node.slug} node={node} pathname={pathname} depth={0} onNavigate={onNavigate} />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </nav>
+  );
+}
+
+export function GardenSidebar({ categories }: GardenSidebarProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const t = useTranslations('garden.sidebar');
+
+  const visibleCategories = React.useMemo(() => categories.filter(c => c.noteCount > 0), [categories]);
+
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        setSearchOpen(prev => !prev);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
+  const handleSelectNote = (slug: string) => {
+    setSearchOpen(false);
+    setSheetOpen(false);
+    router.push(`/garden/${slug}`);
+  };
+
+  const openSearchFromSheet = () => {
+    setSheetOpen(false);
+    setSearchOpen(true);
+  };
+
+  return (
+    <>
+      <aside className="w-full shrink-0 md:w-64">
+        <div className="hidden md:flex md:flex-col md:gap-3 md:sticky md:top-20 md:max-h-[calc(100svh-7rem)]">
+          <h2 className="flex items-center gap-2 px-1 text-base font-semibold tracking-tight">
+            <FolderTree className="size-4 text-muted-foreground" />
+            {t('title')}
+          </h2>
+          <SearchTrigger onClick={() => setSearchOpen(true)} placeholder={t('searchPlaceholder')} />
+          <div className="-mr-2 flex-1 overflow-y-auto overscroll-contain pr-2">
+            <TreeContent visibleCategories={visibleCategories} pathname={pathname} />
+          </div>
         </div>
-        <div className="hidden md:block">{renderTree()}</div>
-      </div>
-    </aside>
+
+        <div className="flex items-center justify-between gap-2 md:hidden">
+          <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+            <FolderTree className="size-4 text-muted-foreground" />
+            {t('title')}
+          </h2>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={() => setSearchOpen(true)}
+              aria-label={t('searchAria')}
+            >
+              <SearchIcon />
+            </Button>
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+              <SheetTrigger asChild>
+                <Button type="button" variant="outline" size="sm">
+                  {t('openTree')}
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="flex w-[88vw] max-w-sm flex-col gap-0 px-4 pt-4 pb-4">
+                <SheetHeader className="px-0 pb-3">
+                  <SheetTitle className="flex items-center gap-2 text-base">
+                    <FolderTree className="size-4 text-muted-foreground" />
+                    {t('title')}
+                  </SheetTitle>
+                  <SheetDescription className="sr-only">{t('searchDescription')}</SheetDescription>
+                </SheetHeader>
+                <SearchTrigger
+                  onClick={openSearchFromSheet}
+                  placeholder={t('searchPlaceholder')}
+                  showShortcut={false}
+                />
+                <div className="-mr-2 mt-3 flex-1 overflow-y-auto overscroll-contain pr-2">
+                  <TreeContent
+                    visibleCategories={visibleCategories}
+                    pathname={pathname}
+                    onNavigate={() => setSheetOpen(false)}
+                  />
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+      </aside>
+
+      <CommandDialog
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        title={t('searchTitle')}
+        description={t('searchDescription')}
+      >
+        <Command>
+          <CommandInput placeholder={t('searchPlaceholder')} />
+          <CommandList>
+            <CommandEmpty>{t('searchEmpty')}</CommandEmpty>
+            {visibleCategories.map(category => (
+              <CommandGroup key={category.key} heading={category.label}>
+                {flattenTree(category.tree).map(note => (
+                  <CommandItem
+                    key={`${category.key}/${note.slug}`}
+                    value={`${note.title} ${category.label} ${note.slug}`}
+                    onSelect={() => handleSelectNote(note.slug)}
+                  >
+                    <FileText className="size-4 text-muted-foreground" />
+                    <span className="truncate">{note.title}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </CommandDialog>
+    </>
   );
 }
