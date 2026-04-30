@@ -5,8 +5,15 @@ const createJestConfig = nextJest({
   dir: './',
 });
 
+// In CI we add the github-actions reporter so failing tests surface as
+// PR-line annotations. Locally we keep the default reporter for clean output.
+const reporters = process.env.GITHUB_ACTIONS === 'true' ? ['default', 'github-actions'] : ['default'];
+
 // Add any custom config to be passed to Jest
 const customJestConfig = {
+  reporters,
+  // CI step summary가 coverage-summary.json을 jq로 파싱하므로 json-summary 리포트 추가.
+  coverageReporters: ['json', 'lcov', 'text', 'clover', 'json-summary'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   testEnvironment: 'jsdom',
   moduleNameMapper: {
