@@ -139,4 +139,15 @@ describe('useTheme', () => {
     expect(localStorage.getItem('vite-ui-theme')).toBe('dark');
     expect(result.current.theme).toBe('dark');
   });
+
+  it('falls back to the noop initialState when used outside a provider', () => {
+    const { result } = renderHook(() => useTheme());
+
+    expect(result.current.theme).toBe('system');
+    expect(typeof result.current.setTheme).toBe('function');
+
+    // initialState.setTheme is a noop — calling it does not throw and does not persist.
+    expect(() => result.current.setTheme('dark')).not.toThrow();
+    expect(localStorage.getItem('vite-ui-theme')).toBeNull();
+  });
 });
