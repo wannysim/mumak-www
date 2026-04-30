@@ -1,0 +1,52 @@
+---
+title: '색과 다이내믹 레인지'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'camera-and-video'
+tags: ['camera', 'photography', 'lightroom', 'color', 'dynamic-range']
+---
+
+촬영의 절반은 셔터 누르기, 나머지 절반은 **빛이 담아낸 정보를 어떻게 해석할 것인가**다. Lightroom 보정의 거의 모든 작업이 이 영역에 들어간다.
+
+## 토픽 구조
+
+### 색을 다루는 도구
+
+- [[white-balance|화이트밸런스와 색온도]] — Temperature/Tint, 캘빈 슬라이더의 함정
+- [[hsl-and-color-mixer|HSL과 색 믹서]] — Hue/Saturation/Luminance로 색을 분리해서 만지기
+
+### 톤(밝기 분포)을 다루는 도구
+
+- [[dynamic-range|다이내믹 레인지]] — 하이라이트·섀도우·화이트·블랙의 차이
+- [[histogram|히스토그램]] — 보정의 진단 도구, Expose to the Right
+- [[tone-curve|톤 커브]] — 슬라이더로 안 되는 미세 조정
+
+### 토대가 되는 파일 형식
+
+- [[raw-vs-jpeg|RAW vs JPEG와 비트뎁스]] — 보정 여유는 결국 정보량의 문제
+
+## Lightroom 보정 순서 — 일반적인 흐름
+
+본인은 "어두운 영역 → 그림자" 순으로 시작한다고 했지만, 전체적으로는 **거시 → 미시** 흐름을 권한다.
+
+1. **WB (Temperature / Tint)** — 색의 기준점 잡기
+2. **Exposure** — 전체 밝기
+3. **Highlights / Shadows / Whites / Blacks** — 톤 영역별 회수
+4. **Tone Curve** — 슬라이더로 부족한 부분 미세 조정
+5. **HSL / Color Mixer** — 특정 색만 따로
+6. **Sharpening / Noise Reduction** — 디테일
+7. **Crop / Spot Removal** — 마무리
+
+> **원칙**: 큰 결정을 먼저, 작은 결정을 나중에. WB가 안 맞은 상태에서 HSL을 만지면 다시 다 흔들린다.
+
+## 자주 헷갈리는 지점
+
+- **Lightroom의 K 슬라이더는 물리 캘빈과 반대로 움직인다.** [[white-balance]] 참조.
+- **하이라이트와 화이트는 다르다.** [[dynamic-range]] 참조.
+- **JPEG의 보정 한계는 비트뎁스가 정한다.** [[raw-vs-jpeg]] 참조.
+- **S 커브는 대비만 만드는 게 아니라 채도도 같이 올린다.** [[tone-curve]] 참조.
+
+## 관련
+
+- [[exposure-triangle]] — 촬영 단계의 빛 통제
+- [[camera-and-video]] — 전체 허브
