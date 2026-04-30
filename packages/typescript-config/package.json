@@ -5,5 +5,10 @@
   "license": "MIT",
   "publishConfig": {
     "access": "public"
+  },
+  "scripts": {
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt .",
+    "format:check": "oxfmt --check ."
   }
 }

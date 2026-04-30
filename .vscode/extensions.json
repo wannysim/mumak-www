@@ -9,5 +9,9 @@
     "yzhang.markdown-all-in-one",
     "ms-vscode.vscode-git-graph",
     "eamodio.gitlens"
+  ],
+  "unwantedRecommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode"
   ]
 }

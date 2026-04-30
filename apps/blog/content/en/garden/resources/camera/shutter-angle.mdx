@@ -1,0 +1,73 @@
+---
+title: 'Shutter Angle'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'frame-rate-and-shutter-angle'
+tags: ['camera', 'video', 'shutter', 'cinematography']
+---
+
+Expressing shutter in **degrees (°) instead of fractions (1/50s)** for video. Standard language on film sets.
+
+## Rotating disc analogy
+
+Film cameras used a **rotating disc shutter** with a cutout on part of it. Light only reached the film while the cutout was passing in front of it.
+
+```
+       ┌───┐
+      ╱     ╲
+     │  ●●● │     ← Half (180°) of the disc is the cutout.
+     │       │       As the camera rotates once,
+      ╲     ╱        light hits the film for half that time.
+       └───┘
+```
+
+- **180° open** = exposed for **half** of one frame's duration
+- **360° open** = exposed for the **full** frame duration (theoretical maximum)
+- **90° open** = exposed for **1/4** of one frame's duration
+
+## Conversion to fractions
+
+> **Shutter speed = 1 / (fps × 360 / shutter angle)**
+>
+> Or: **Shutter angle = (shutter speed × fps × 360) °**
+
+| fps | 180° shutter → speed |
+| --- | -------------------- |
+| 24  | 1/48 (≈ 1/50)        |
+| 25  | 1/50                 |
+| 30  | 1/60                 |
+| 60  | 1/120                |
+| 120 | 1/240                |
+
+## Why degrees, not fractions
+
+One reason matters most.
+
+> **"180°" guarantees the same look at any frame rate.**
+
+At 24fps, 180° = 1/50. Bump to 60fps. Keep 1/50 and you'd be at 360° — far too much motion blur. **At 60fps, 180° is 1/120.**
+
+In fractions you recompute every time fps changes. **In degrees you say "stay at 180°" and you're done.** That's why cinema cameras (ARRI, RED, Sony Venice) ship with shutter expressed in degrees as a built-in option.
+
+## How different angles look
+
+| Angle    | Look                             | Used for                                    |
+| -------- | -------------------------------- | ------------------------------------------- |
+| 360°     | Maximum motion blur, hazy flow   | Dream sequences, meditative tones           |
+| **180°** | **Natural (the standard)**       | **Almost all cinema**                       |
+| 90°      | Choppy, sharp motion             | Battle scenes (Saving Private Ryan), action |
+| 45°      | Frames almost frozen, photo-like | Special effects shots                       |
+
+The classic 90° example is the **Normandy beach landing in _Saving Private Ryan_**. Shorter exposure removes motion blur, **each frame becomes photo-sharp**, and the chaos of explosion and gunfire gets that nerve-jangling feel.
+
+## Summary
+
+- Shutter angle and shutter speed are **the same thing in different notation**.
+- Sets use degrees because they're **fps-independent**.
+- 180° became standard because, since the [[frame-rate|24fps]] era, that amount of motion blur looked **most natural to the human eye**.
+
+## Related
+
+- [[frame-rate-and-shutter-angle]] — Parent note
+- [[shutter-speed]] — Shutter as time
+- [[frame-rate]]

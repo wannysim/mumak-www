@@ -136,14 +136,16 @@ pnpm affected:dry
 
 프로젝트를 열면 다음 확장 프로그램이 권장됩니다:
 
-- Prettier
-- ESLint
+- Oxc
 - TypeScript
 - Tailwind CSS IntelliSense
 
+이 프로젝트는 에디터에서 `ESLint`/`Prettier` 대신 `oxc.oxc-vscode` 확장을 사용합니다.
+워크스페이스 설정에서 Oxc를 기본 formatter와 lint fixer로 사용하도록 맞춰져 있습니다.
+
 ### 자동 포맷팅
 
-저장 시 자동으로 코드가 포맷팅됩니다.
+저장 시 `oxc.oxc-vscode`가 포맷을 수행하고, Oxc lint fix와 import 정리가 함께 적용됩니다.
 
 ## 📦 패키지 관리
 

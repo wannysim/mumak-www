@@ -1,0 +1,87 @@
+---
+title: 'Dynamic Range'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'color-and-dynamic-range'
+tags: ['camera', 'lightroom', 'dynamic-range', 'sensor']
+---
+
+The **brightness range a scene contains, from darkest to brightest**. Measured in [[exposure-triangle|stops]].
+
+## Analogy: tonal zones
+
+Imagine slicing a scene from black to white into 11 zones.
+
+```
+0    1    2    3    4    5    6    7    8    9    10
+██   ██   ██   █▓   ▓▓   ▓░   ░░   ░░   ▓░   ██   ██
+black  ─────── middle (18% gray) ─────── white
+```
+
+- **0**: pure black, no detail
+- **5**: 18% gray (the metering reference)
+- **10**: pure white, no detail
+
+> **Wide dynamic range = many zones between 0 and 10 captured without losing detail.**
+
+The human eye spans about 20 stops, full-frame sensors 12–15 stops, JPEG output 6–8 stops. That gap is why **what your eye saw often feels diminished in the photo**.
+
+## The backlit portrait scenario
+
+The classic "subject is silhouetted against a bright sky":
+
+- Background sky: 9–10 (very bright)
+- Face in shadow: 1–2
+- What a single frame captures: ~12 stops
+
+→ To save both, **JPEG won't recover it**, but **RAW gives you about ±2–3 stops of recovery latitude**. That's the strength of RAW.
+
+## Lightroom's four tone sliders — what each one touches
+
+| Slider         | Region of effect                | When to reach for it                          |
+| -------------- | ------------------------------- | --------------------------------------------- |
+| **Blacks**     | The darkest end-point           | Depth of black, faded looks                   |
+| **Shadows**    | The dark band as a whole        | Lifting a face that fell into shadow          |
+| **Exposure**   | Whole image around the midtones | Image generally dark or generally bright      |
+| **Highlights** | The bright band as a whole      | Saving sky, taming face hot-spots             |
+| **Whites**     | The brightest end-point         | White intensity, pushing right up to clipping |
+
+```
+┌────────────────────────────────────────────────────┐
+│ Blacks │ Shadows │ Exposure │ Highlights │ Whites  │
+│  0–1   │   1–3   │   3–7    │    7–9     │  9–10   │
+└────────────────────────────────────────────────────┘
+   darkest ─────────────────────────────── brightest
+```
+
+Key distinctions:
+
+- **Shadows ≠ Blacks**: Shadows is **broad**, Blacks is **only the end-point**. For a faded look (lifting black to gray), use Blacks +. For shadow detail recovery, use Shadows +.
+- **Highlights ≠ Whites**: Same idea. To recover detail in a clipped white shirt, Highlights -. To intensify the white point of the image, Whites +.
+
+## Workflow tip
+
+You said you start with darks → shadows. A more general progression:
+
+1. **Exposure first** for midtones (so the histogram isn't lopsided)
+2. **Highlights / Shadows** to pull both ends back (detail recovery)
+3. **Whites / Blacks** to set the end-points (push the histogram all the way to the edges)
+4. **Tone Curve** for fine-tuning if needed — see [[tone-curve]].
+
+Going out of order means each slider undoes a bit of the previous one — twice the work.
+
+## Why RAW gives you so much room
+
+When DR exceeds what a single image can hold, **RAW preserves the full 12–14 stops the sensor recorded** for you to pull from in post. JPEG is already compressed to about 8 stops — once it's gone, it's gone. See [[raw-vs-jpeg]].
+
+## The video equivalent — Log
+
+Log profiles in video (S-Log3, V-Log, C-Log, etc.) play the same role RAW plays for stills. They record a flat, gray-looking signal so color can be applied later. Only meaningful when paired with sufficient bit depth (10-bit or higher).
+
+## Related
+
+- [[color-and-dynamic-range]] — Parent note
+- [[histogram]]
+- [[raw-vs-jpeg]]
+- [[tone-curve]]
+- [[exposure-triangle]] — Capture-stage exposure determines post-stage latitude

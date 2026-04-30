@@ -1,6 +1,8 @@
-import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
+
 import Page from '../app/page';
+
+import '@testing-library/jest-dom';
 
 // Mock the UI components
 jest.mock('@mumak/ui/components/button', () => ({

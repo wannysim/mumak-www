@@ -1,0 +1,53 @@
+---
+title: 'ISO'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'exposure-triangle'
+tags: ['camera', 'photography', 'iso', 'sensor']
+---
+
+**Sensitivity** to light. More precisely, on digital cameras ISO is **how much the captured signal gets amplified**.
+
+- Low ISO (100, 200): little amplification → clean, but needs lots of light
+- High ISO (3200, 12800): heavy amplification → shoots in the dark, but **noise/grain** gets amplified too
+
+## The trap of the word "sensitivity"
+
+In the film era, ISO really was the chemical sensitivity of the film. On digital, **the sensor's physical sensitivity is fixed**; the question is how much **gain** to apply during signal processing.
+
+> Which is why **shooting at high ISO ≈ shooting at low ISO and pushing exposure in post** (on ISO-invariant sensors).
+
+## Why noise appears
+
+Amplifying a signal also amplifies **noise**. In dark scenes the original signal is small, so the SNR (signal-to-noise ratio) gets noticeably worse when boosted.
+
+## Base ISO
+
+The **native sensitivity at which the sensor performs cleanest**. Usually ISO 100 or 200.
+
+- Dynamic range is widest at base ISO.
+- Anything below it (e.g., ISO 50) is often "extended ISO" → tends to clip highlights instead of helping.
+
+## Dual Native ISO
+
+Some cameras have **two native sensitivities** built into the sensor circuit. Above a threshold, the second circuit kicks in and **noise drops again**.
+
+| Camera         | Native ISO 1 | Native ISO 2 |
+| -------------- | ------------ | ------------ |
+| Sony FX3 / FX6 | 800          | 12800        |
+| Panasonic GH5s | 400          | 2500         |
+| Canon C70      | 800          | 4000         |
+
+→ On these cameras you get the counterintuitive result that **ISO 12800 can be cleaner than ISO 6400**. If your camera has dual native, lean into the second base.
+
+## Practical heuristics
+
+- **Bright scenes**: lock to base ISO.
+- **Low-light stills**: push shutter to handheld limit, open aperture, and only then raise ISO.
+- **Low-light video**: shutter is locked, so → open aperture → jump ISO to native 2.
+
+## Related
+
+- [[exposure-triangle]] — Parent note
+- [[aperture]]
+- [[shutter-speed]]

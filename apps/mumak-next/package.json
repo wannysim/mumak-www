@@ -1,6 +1,6 @@
 {
   "name": "mumak-next",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +8,11 @@
     "build": "next build",
     "start": "next start --port 3000",
     "start:e2e": "next start --port 3000",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt .",
+    "format:check": "oxfmt --check .",
     "check-types": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",

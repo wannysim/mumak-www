@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import { NavLinks } from '../ui/nav-links';
+
+import '@testing-library/jest-dom';
 
 const mockUsePathname = jest.fn(() => '/');
 

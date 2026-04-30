@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { getCategories, getPosts, isValidCategory, type Category } from '@/src/entities/post';
 import { locales, type Locale } from '@/src/shared/config/i18n';
 import { BlogNav } from '@/src/widgets/blog-nav';
+import { BlogSearch, type BlogSearchPost } from '@/src/widgets/blog-search';
 import { PostCard } from '@/src/widgets/post-card';
 
 interface BlogCategoryPageProps {
@@ -44,6 +45,7 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
   const tCommon = await getTranslations('common');
 
   const posts = getPosts(locale as Locale, category as Category);
+  const allPosts = getPosts(locale as Locale);
   const categories = getCategories();
 
   const categoryLabels = categories.reduce(
@@ -54,6 +56,14 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
     {} as Record<Category, string>
   );
 
+  const searchPosts: BlogSearchPost[] = allPosts.map(post => ({
+    title: post.title,
+    description: post.description,
+    category: post.category,
+    slug: post.slug,
+    tags: post.tags ?? [],
+  }));
+
   return (
     <div className="space-y-8">
       <header>
@@ -61,7 +71,10 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
         <p className="text-muted-foreground">{t(`${category}.description`)}</p>
       </header>
 
-      <BlogNav allLabel={tCommon('all')} categoryLabels={categoryLabels} tagsLabel={tCommon('tags')} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <BlogNav allLabel={tCommon('all')} categoryLabels={categoryLabels} tagsLabel={tCommon('tags')} />
+        <BlogSearch posts={searchPosts} categoryLabels={categoryLabels} triggerClassName="sm:w-72" />
+      </div>
 
       <section className="space-y-6">
         {posts.length === 0 ? (

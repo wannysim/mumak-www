@@ -1,0 +1,68 @@
+# Codecov 설정
+# - 변동 없는 PR에는 코멘트 안 달리도록 (require_changes: true)
+# - 새/변경된 라인은 80%+ 커버리지 권장 (patch.target)
+# - 앱별 flag로 PR 코멘트가 분리되어 가독성 향상
+# 참고: https://docs.codecov.com/docs/codecov-yaml
+
+codecov:
+  require_ci_to_pass: true
+  notify:
+    wait_for_ci: true
+
+coverage:
+  precision: 2
+  round: down
+  range: '70...90'
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        if_ci_failed: error
+    patch:
+      default:
+        target: 80%
+        threshold: 0%
+        if_ci_failed: error
+
+comment:
+  layout: 'header, diff, flags, files, footer'
+  behavior: default
+  require_changes: true
+  require_base: false
+  require_head: true
+
+# 앱별 커버리지를 분리해 PR 코멘트와 status를 독립 추적
+flag_management:
+  default_rules:
+    carryforward: true
+    statuses:
+      - type: project
+        target: auto
+        threshold: 1%
+  individual_flags:
+    - name: blog
+      paths:
+        - apps/blog/src/
+    - name: mumak-next
+      paths:
+        - apps/mumak-next/components/
+    - name: mumak-react
+      paths:
+        - apps/mumak-react/src/
+
+# 커버리지 측정에서 제외할 경로 (테스트 파일, 설정, 외부 래퍼 등)
+ignore:
+  - '**/__tests__/**'
+  - '**/*.d.ts'
+  - '**/*.test.{ts,tsx,js,jsx}'
+  - '**/*.spec.{ts,tsx,js,jsx}'
+  - 'apps/blog/app/**'
+  - 'apps/blog/src/shared/config/**'
+  - 'apps/blog/src/app/analytics/**'
+  - 'apps/mumak-next/app/**'
+  - 'apps/mumak-next/components/providers.tsx'
+  - 'apps/mumak-react/src/main.tsx'
+  - 'apps/mumak-react/src/test/**'
+  - '**/scripts/**'
+  - 'packages/ui/**'

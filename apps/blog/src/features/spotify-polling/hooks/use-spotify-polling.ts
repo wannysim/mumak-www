@@ -1,6 +1,7 @@
-import type { NowPlaying } from '@/src/entities/spotify';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
+
+import type { NowPlaying } from '@/src/entities/spotify';
 
 interface NowPlayingResponse {
   data: NowPlaying | null;

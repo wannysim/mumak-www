@@ -1,7 +1,9 @@
-import { Providers } from '@/components/providers';
-import '@mumak/ui/globals.css';
 import localFont from 'next/font/local';
 import * as React from 'react';
+
+import { Providers } from '@/components/providers';
+
+import '@mumak/ui/globals.css';
 
 const pretendard = localFont({
   src: '../public/assets/fonts/PretendardVariable.woff2',

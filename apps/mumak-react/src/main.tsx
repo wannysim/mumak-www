@@ -1,10 +1,12 @@
-import { ThemeProvider } from '@/components/theme-provider';
-import '@mumak/ui/globals.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import './index.css';
+
+import { ThemeProvider } from '@/components/theme-provider';
 
 import App from './app';
+
+import '@mumak/ui/globals.css';
+import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

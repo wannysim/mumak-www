@@ -1,11 +1,16 @@
 {
   "name": "mumak-react",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --port 3001",
     "build": "tsc -b && vite build",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt .",
+    "format:check": "oxfmt --check .",
     "check-types": "tsc --noEmit",
     "preview": "vite preview --port 3001",
     "preview:e2e": "vite preview --port 3001",

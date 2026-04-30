@@ -1,0 +1,62 @@
+---
+title: 'Crop Factor and 35mm Equivalence'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'lens-basics'
+tags: ['camera', 'sensor', 'crop-factor', 'full-frame']
+---
+
+The same focal length **gives a narrower angle on a smaller sensor**, because the smaller sensor is effectively **cropping out the center** of the full-frame image.
+
+## The mental picture
+
+```
+┌────────────────────────┐  ← What full-frame sees
+│   ┌────────────┐       │
+│   │  APS-C     │       │  ← Smaller sensor sees only the center
+│   │ ┌──────┐   │       │
+│   │ │ m43  │   │       │
+│   │ └──────┘   │       │
+│   └────────────┘       │
+└────────────────────────┘
+```
+
+Same 50mm lens on different sensors:
+
+| Sensor            | Crop factor | Angle equivalent (FF) |
+| ----------------- | ----------- | --------------------- |
+| Full-frame        | 1.0×        | 50mm                  |
+| APS-C (Sony/Fuji) | 1.5×        | **75mm equivalent**   |
+| APS-C (Canon)     | 1.6×        | 80mm equivalent       |
+| Micro 4/3         | 2.0×        | **100mm equivalent**  |
+
+## What "35mm equivalent" means
+
+A way to **compare different sensor systems by translating focal length to a full-frame (35mm film) reference**.
+
+> Actual focal length × crop factor = 35mm-equivalent focal length
+
+A 25mm prime on a crop body → "35mm equivalent 50mm" → same angle of view as a 50mm on full-frame.
+
+When a spec sheet says "**equivalent 24–72mm**," this is what it means.
+
+## Common misconceptions
+
+- **Crop only narrows the angle — it doesn't turn the lens into a real telephoto.** Putting a 200mm lens on APS-C frames like a 300mm equivalent, but the cost is **resolution (fewer pixels)**. [[perspective-compression|Perspective compression]] is determined by distance, so at the same distance compression is identical.
+- **DoF needs to be converted too.** To compare at matched angle of view, multiply aperture by crop factor too. APS-C f/1.8 ≈ full-frame f/2.7 in background blur.
+
+## If you've only used full-frame
+
+You've been living at crop factor 1.0×, so this concept rarely shows up. But when you read specs for:
+
+- Cinema cameras (Super 35 ≈ 1.5×)
+- Action cameras / drones
+- Smartphones (sensors smaller than m4/3)
+
+…you need the equivalence to compare them apples-to-apples.
+
+## Related
+
+- [[lens-basics]] — Parent note
+- [[focal-length]]
+- [[depth-of-field]]

@@ -4,6 +4,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getCategories, getPosts, type Category } from '@/src/entities/post';
 import { type Locale } from '@/src/shared/config/i18n';
 import { BlogNav } from '@/src/widgets/blog-nav';
+import { BlogSearch, type BlogSearchPost } from '@/src/widgets/blog-search';
 import { PostCard } from '@/src/widgets/post-card';
 
 interface BlogPageProps {
@@ -38,6 +39,14 @@ export default async function BlogPage({ params }: BlogPageProps) {
     {} as Record<Category, string>
   );
 
+  const searchPosts: BlogSearchPost[] = posts.map(post => ({
+    title: post.title,
+    description: post.description,
+    category: post.category,
+    slug: post.slug,
+    tags: post.tags ?? [],
+  }));
+
   return (
     <div className="space-y-8">
       <header>
@@ -45,7 +54,10 @@ export default async function BlogPage({ params }: BlogPageProps) {
         <p className="text-muted-foreground">{t('description')}</p>
       </header>
 
-      <BlogNav allLabel={tCommon('all')} categoryLabels={categoryLabels} tagsLabel={tCommon('tags')} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <BlogNav allLabel={tCommon('all')} categoryLabels={categoryLabels} tagsLabel={tCommon('tags')} />
+        <BlogSearch posts={searchPosts} categoryLabels={categoryLabels} triggerClassName="sm:w-72" />
+      </div>
 
       <section className="space-y-6">
         {posts.length === 0 ? (

@@ -98,4 +98,38 @@ describe('PostTags', () => {
 
     expect(mockPush).toHaveBeenCalledWith('/blog/tags/thought');
   });
+
+  describe('linkable=false', () => {
+    it('does not navigate when tag is clicked', async () => {
+      const user = userEvent.setup();
+      render(<PostTags tags={['thought']} linkable={false} />);
+
+      await user.click(screen.getByText('#thought'));
+
+      expect(mockPush).not.toHaveBeenCalled();
+    });
+
+    it('does not apply pointer/hover classes', () => {
+      render(<PostTags tags={['thought']} linkable={false} />);
+
+      const badge = screen.getByText('#thought');
+      expect(badge.className).not.toMatch(/cursor-pointer/);
+      expect(badge.className).not.toMatch(/hover:bg-primary/);
+    });
+
+    it('does not stop propagation since no handler is attached', async () => {
+      const user = userEvent.setup();
+      const parentClickHandler = jest.fn();
+
+      render(
+        <div onClick={parentClickHandler}>
+          <PostTags tags={['thought']} linkable={false} />
+        </div>
+      );
+
+      await user.click(screen.getByText('#thought'));
+
+      expect(parentClickHandler).toHaveBeenCalled();
+    });
+  });
 });

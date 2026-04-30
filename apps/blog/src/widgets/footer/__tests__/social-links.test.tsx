@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import { SocialLinks } from '../ui/social-links';
+
+import '@testing-library/jest-dom';
 
 // Mock @mumak/ui components
 jest.mock('@mumak/ui/components/button', () => ({

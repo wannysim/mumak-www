@@ -1,8 +1,9 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import { DEFAULT_THEME, THEME_STORAGE_KEY } from '../theme-config';
 import { ThemeProvider } from '../theme-provider';
+
+import '@testing-library/jest-dom';
 
 // Mock next-themes
 jest.mock('next-themes', () => ({

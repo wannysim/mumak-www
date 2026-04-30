@@ -1,0 +1,85 @@
+---
+title: 'White Balance and Color Temperature'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'color-and-dynamic-range'
+tags: ['camera', 'lightroom', 'white-balance', 'color-temperature']
+---
+
+Making **white in the photo look like real white**. The act of neutralizing the color of the light source.
+
+## Color temperature (K) has two faces
+
+### Physical color temperature
+
+Black-body radiation: heat an object up and it emits **red → orange → yellow → white → blue** as it gets hotter.
+
+| Light source       | Temperature (K) | Apparent color |
+| ------------------ | --------------- | -------------- |
+| Candle flame       | ~1800K          | Deep orange    |
+| Incandescent bulb  | ~3000K          | Warm           |
+| Fluorescent (cool) | ~4000K          | Neutral        |
+| Noon sunlight      | ~5500K          | White          |
+| Overcast           | ~6500K          | Slightly blue  |
+| Shade / blue hour  | ~8000–10000K    | Blue           |
+
+So far so good: **higher K = cooler (bluer) light**.
+
+### 🔴 Lightroom's slider runs the other way
+
+> **Pulling Lightroom's Temperature slider to the right (higher K) makes the photo _warmer_.**
+
+The reason: the slider is **the value you're declaring for the source light's temperature**. When you tell Lightroom "this photo was lit at 6500K," it applies a **warming correction to cancel out the blueness**.
+
+```
+Actual light       Lightroom's correction      Result
+─────────────      ──────────────────────      ───────
+3000K (warm)    → slider 3000K → cool correction  → image looks neutral
+5500K (neutral) → slider 5500K → almost no correction → image looks neutral
+8000K (cool)    → slider 8000K → warm correction → image looks neutral
+```
+
+In short: **physical K↑ = cooler light**, **slider K↑ = warmer result**. That's the real reason it feels backwards.
+
+## Tint — the green ↔ magenta axis
+
+Color temperature only covers the red↔blue axis. Real-world light isn't purely on that axis — fluorescents and LEDs introduce green casts, and twilight pulls magenta.
+
+> **Tint = correction along the green-magenta axis.**
+> Slider left (green) ↔ right (magenta).
+
+Common tint directions per source:
+
+| Source            | Correction direction                   |
+| ----------------- | -------------------------------------- |
+| Fluorescent       | **Toward magenta** (cancel green)      |
+| Sunrise / sunset  | Slightly toward green (cancel magenta) |
+| Blue hour / shade | Slightly toward magenta                |
+| Cheap LED         | Case by case — usually magenta         |
+
+Tint is hard because **it's harder to perceive a face leaning subtly green or magenta** than it is to see a color shift on the warm-cool axis. Tricks:
+
+- Anchor on shots that include a white sheet or wall.
+- If skin looks yellow-green, push tint toward magenta.
+- For mixed sun-and-shade photos, **prioritize the face and accept the background drifts**.
+
+## The trap of shooting AWB
+
+Your workflow (AWB + RAW). Upside: you don't think about it at the shutter. Downsides:
+
+- **WB drifts subtly between consecutive frames.** Even within the same scene, every shot can come out at a slightly different K.
+- **Strong-colored subjects pull AWB off.** A dominant red outfit makes the camera think "the scene is too red" and shifts toward cyan, which makes the face look bluish.
+
+Fix: pin WB on one shot in Lightroom and **Sync to the rest** of that scene's batch. Once per scene cluster.
+
+## Lightroom's WB picker (eyedropper)
+
+Click on something in the image that **should be neutral gray** and Lightroom auto-balances. Good targets in portraits: the **whites of eyes, gray shirts, gray pavement**.
+
+Click on a colored area (skin, leaves, clothing) and Lightroom will try to drive that color to gray, wrecking the whole image.
+
+## Related
+
+- [[color-and-dynamic-range]] — Parent note
+- [[hsl-and-color-mixer]]
+- [[raw-vs-jpeg]] — Why RAW is so flexible for WB changes

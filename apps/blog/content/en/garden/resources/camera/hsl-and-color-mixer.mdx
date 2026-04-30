@@ -1,0 +1,80 @@
+---
+title: 'HSL and Color Mixer'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'color-and-dynamic-range'
+tags: ['camera', 'lightroom', 'hsl', 'color']
+---
+
+A panel that splits color into **8 channels** (Red / Orange / Yellow / Green / Aqua / Blue / Purple / Magenta) so each can be edited separately. Start here if you've never properly used it.
+
+## Three sliders per channel
+
+Each channel gets three sliders.
+
+| Slider         | What it touches          | Practical effect                           |
+| -------------- | ------------------------ | ------------------------------------------ |
+| **Hue**        | The tone of that color   | Shift red toward orange, or toward magenta |
+| **Saturation** | Intensity                | Toward gray ↔ toward vivid                 |
+| **Luminance**  | Brightness of that color | That color brighter or darker              |
+
+> Key idea: **adjust one color without touching the others.**
+
+## The four moves you'll reach for most
+
+### 1. Skin — the Orange channel
+
+For most skin tones, **skin lives in the Orange channel** (with some Red).
+
+- **Orange Saturation -10**: pulls skin saturation back for **a more natural tone**. Reduces the over-flushed / over-makeup feel.
+- **Orange Luminance +10**: brightens skin for a **clean, healthy look**. Blemishes feel less prominent.
+- **Orange Hue slightly -**: pulls overly yellow skin **toward pink**.
+
+Just learning this one move changes portrait edits.
+
+### 2. Sky — Blue / Aqua channels
+
+- **Blue Saturation +**: deeper blue.
+- **Blue Luminance -**: darker, richer sky (better contrast against clouds).
+- **Aqua too?** Korean skies often contain **Aqua mixed with pure Blue**, so it's worth touching both.
+
+### 3. Foliage / grass — Yellow / Green channels
+
+- When the camera renders leaves too yellow, **Green Hue -** (cooler green).
+- **Yellow Saturation -** to mute browning grass; **Yellow Luminance +** to lift autumn leaves.
+
+### 4. Clothing / objects
+
+A red outfit shifted slightly **toward magenta** (Red Hue -) can read more refined, and **slight Saturation -** lets it sit better with the rest of the palette.
+
+## Building a signature tone
+
+Pick one or two channels you tend to touch and a personal look starts to form.
+
+| Look concept          | Common moves                                                      |
+| --------------------- | ----------------------------------------------------------------- |
+| Clean / everyday      | Orange Lum +, Yellow Sat -, Blue Lum -                            |
+| Vintage / film        | Orange Sat -, Green Hue +, Yellow Hue +                           |
+| Cinematic / rich      | Blue Sat +, Orange Sat +, teal & orange curves (→ [[tone-curve]]) |
+| Minimal / desaturated | Overall Sat -10 to -15, fine adjustments via Luminance only       |
+
+## Targeted Adjustment Tool (TAT)
+
+The **little circle icon** at the top-left of the panel. Click it, then click and **drag on a point in the photo** — Lightroom auto-detects the channel and moves its slider.
+
+- Drag up on a face → Orange Luminance rises automatically
+- Drag down on a sky → Blue Luminance falls (darker sky)
+
+A way to work HSL **by eye, without memorizing channels**. The fastest entry point for someone learning HSL.
+
+## Common pitfalls
+
+- **Don't push too hard.** Almost every effect lives within ±10. Beyond ±50 colors break or mask edges become visible.
+- **Saturation and Vibrance differ.** Vibrance only lifts already-low-saturation colors — it protects skin tones in portraits.
+- **Do HSL after [[white-balance|white balance]].** Touch HSL on a wrong WB and everything will need redoing.
+
+## Related
+
+- [[color-and-dynamic-range]] — Parent note
+- [[white-balance]]
+- [[tone-curve]] — RGB curves for finer color grading

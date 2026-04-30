@@ -5,12 +5,12 @@ import { Suspense } from 'react';
 
 import { mdxComponents } from '@/mdx-components';
 import { generateBlogPostingJsonLd, generateBreadcrumbJsonLd, JsonLdScript } from '@/src/app/seo';
-import { mdxOptions } from '@/src/shared/config/mdx';
 import { getAllPostSlugs, getPost, isValidCategory } from '@/src/entities/post';
 import { Link, locales, type Locale } from '@/src/shared/config/i18n';
+import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
-import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
+import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
 

@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import { NavigationSkeleton } from '../ui/navigation-skeleton';
+
+import '@testing-library/jest-dom';
 
 describe('NavigationSkeleton', () => {
   it('renders nav element', () => {

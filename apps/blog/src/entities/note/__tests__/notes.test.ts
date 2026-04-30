@@ -456,6 +456,10 @@ describe('advanced anchor utilities', () => {
     expect(hasHeadingAnchor('ko', 'what-is-digital-garden', '없는 제목')).toBe(false);
   });
 
+  it('존재하지 않는 노트의 anchor index는 null', () => {
+    expect(getNoteAnchorIndex('ko', 'totally-missing-note')).toBeNull();
+  });
+
   it('노트 임베드 미리보기를 반환한다', () => {
     const preview = getNoteEmbedPreview('ko', 'what-is-digital-garden');
 
@@ -464,7 +468,30 @@ describe('advanced anchor utilities', () => {
     expect((preview?.excerpt.length ?? 0) > 0).toBe(true);
   });
 
+  it('존재하지 않는 노트의 embed preview는 null', () => {
+    expect(getNoteEmbedPreview('ko', 'totally-missing-note')).toBeNull();
+  });
+
+  it('heading 옵션으로 해당 섹션 발췌를 반환한다', () => {
+    const preview = getNoteEmbedPreview('ko', 'what-is-digital-garden', { heading: '성장 단계' });
+
+    expect(preview).not.toBeNull();
+    expect(preview?.title).toBe('디지털 가든이란 무엇인가');
+  });
+
+  it('존재하지 않는 heading은 embed preview가 null', () => {
+    expect(getNoteEmbedPreview('ko', 'what-is-digital-garden', { heading: '없는 섹션' })).toBeNull();
+  });
+
+  it('존재하지 않는 blockId는 embed preview가 null', () => {
+    expect(getNoteEmbedPreview('ko', 'what-is-digital-garden', { blockId: 'missing-block' })).toBeNull();
+  });
+
   it('존재하지 않는 블록 앵커는 false다', () => {
     expect(hasBlockAnchor('ko', 'what-is-digital-garden', 'missing-block')).toBe(false);
+  });
+
+  it('존재하지 않는 노트의 hasBlockAnchor는 false', () => {
+    expect(hasBlockAnchor('ko', 'totally-missing-note', 'any-block')).toBe(false);
   });
 });

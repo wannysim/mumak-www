@@ -1,9 +1,9 @@
-import '@mumak/ui/globals.css';
-import './prism.css';
-
 import localFont from 'next/font/local';
 
 import { ThemeMetaSyncScript, ThemeProvider } from '@/src/shared/lib/theme';
+
+import '@mumak/ui/globals.css';
+import './prism.css';
 
 const pretendard = localFont({
   src: '../public/assets/fonts/PretendardVariable.woff2',

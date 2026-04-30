@@ -2,9 +2,8 @@ import fs from 'fs';
 import matter from 'gray-matter';
 import path from 'path';
 
-import { extractWikilinkSlugs, normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
-
 import type { Locale } from '@/src/shared/config/i18n';
+import { extractWikilinkSlugs, normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
 
 export type NoteStatus = 'seedling' | 'budding' | 'evergreen';
 

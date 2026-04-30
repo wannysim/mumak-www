@@ -1,0 +1,122 @@
+---
+title: 'Tone Curve'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'color-and-dynamic-range'
+tags: ['camera', 'lightroom', 'tone-curve', 'color-grading']
+---
+
+A graph that maps **input brightness to output brightness**. The core tool for **fine-grained regional adjustments** and **building a signature look** — things sliders can't quite do.
+
+## Reading the graph
+
+```
+output
+↑ 1.0  ┌────────┐
+       │       ╱
+       │      ╱   ← how you bend this line is everything
+       │     ╱
+  0.5  │    ╱
+       │   ╱
+       │  ╱
+       │ ╱
+  0.0  └─────────→ input
+       0    0.5   1.0
+       (dark)   (bright)
+```
+
+- **X-axis (input)**: brightness in the original image
+- **Y-axis (output)**: brightness after editing
+- **Default straight line**: "exactly as captured." Bend it and tones change.
+
+Pull a point upward → the input brightness at that x position **becomes brighter**. Pull down → darker.
+
+## Thinking in four regions
+
+Lightroom's tone curve splits into named zones:
+
+```
+0 ──── 25 ──── 50 ──── 75 ──── 100
+ Blacks   Shadows   Lights   Highlights
+   ↑        ↑        ↑          ↑
+ black-end  dark    bright    white-end
+            mids    mids
+```
+
+Almost the same as the slider set Blacks/Shadows/Highlights/Whites, but **with the curve you choose where the boundaries fall**.
+
+## The S-curve — the one you reach for often
+
+```
+output
+↑ 1.0  ┌──────╱─┐
+       │     ╱ ←─── brights pushed brighter
+       │   ╱
+  0.5  │ ╱   ← midtones unchanged
+       │╱
+       ╱   ←─── darks pushed darker
+  0.0  └─────────→ input
+```
+
+- Lower the dark end, raise the bright end → **contrast up**.
+- This is the move you reach for when you say "make it pop."
+
+### 🔴 The S-curve's side effect — saturation
+
+S-curves **don't only raise contrast** — they raise **color saturation** as well. As tones intensify, reds and blues intensify with them.
+
+If you don't want that:
+
+- Pull saturation back slightly in HSL/Color Mixer, or
+- Use the **Parametric Curve** (4 region sliders) for a softer touch instead of a Point Curve, or
+- Use the **Lab/HSL Curve** to touch only luminance (Lightroom Classic option)
+
+## The faded look (lifted blacks)
+
+```
+output
+↑ 1.0  ┌────────┐
+       │      ╱
+       │    ╱
+       │  ╱
+  0.2  │╱     ←─── black starting point lifted from 0 to 0.2
+  0.0  └─────────→ input
+```
+
+Lifting the black output value from 0 to ~0.15–0.25 turns black into a **muted gray** for that **filmic feel**. Signature look of early Instagram filters.
+
+## RGB channel curves — the entrance to color grading
+
+The technique you've used now and then. The most powerful tool here.
+
+Pulling per-channel curves lets you **inject color into specific tonal regions**:
+
+| Move                     | Effect                                      |
+| ------------------------ | ------------------------------------------- |
+| Red curve, dark end ↑    | Adds red to shadows → warm shadows          |
+| Red curve, dark end ↓    | Adds cyan to shadows → cool shadows         |
+| Blue curve, bright end ↑ | Adds blue to highlights → cool highlights   |
+| Blue curve, bright end ↓ | Adds yellow to highlights → warm highlights |
+
+**Teal & Orange** (the most common cinematic look):
+
+- Blue curve, dark end ↑ (blue/cyan in shadows)
+- Red curve, bright end ↑ (orange in highlights)
+
+## Difference from the Color Grading panel
+
+Lightroom's newer **Color Grading** panel (formerly Split Toning) gives you a GUI for part of what RGB curves can do. Faster, but RGB curves have higher precision.
+
+> **Quick work = Color Grading; precision work = RGB tone curves.**
+
+## Practical tips
+
+- Start with the **Parametric Curve** (4 region sliders) until it feels comfortable, then move to the **Point Curve**.
+- Don't place **more than 3–5 points**. More than that gets unnatural and risks banding.
+- For RGB channel curves, **only nudge the ends slightly**. Even 0.05 makes a clear difference.
+
+## Related
+
+- [[color-and-dynamic-range]] — Parent note
+- [[dynamic-range]] — Compared to the slider four
+- [[hsl-and-color-mixer]]

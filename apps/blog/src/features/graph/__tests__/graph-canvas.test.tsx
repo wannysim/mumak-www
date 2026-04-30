@@ -1,8 +1,9 @@
-import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 
-import { GraphCanvas } from '../ui/graph-canvas';
 import type { GraphData } from '../model/types';
+import { GraphCanvas } from '../ui/graph-canvas';
+
+import '@testing-library/jest-dom';
 
 jest.mock('next-themes', () => ({
   useTheme: () => ({ resolvedTheme: 'light' }),

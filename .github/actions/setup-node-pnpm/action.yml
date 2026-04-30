@@ -1,11 +1,11 @@
 name: "Setup Node.js and pnpm"
-description: "Setup Node.js, pnpm, and install dependencies with caching"
+description: "Setup Node.js (from .nvmrc), pnpm, and install dependencies with caching"
 
 inputs:
-  node-version:
-    description: "Node.js version"
+  node-version-file:
+    description: "Path to file containing Node.js version (e.g. .nvmrc, package.json)"
     required: false
-    default: "24.11.1"
+    default: ".nvmrc"
   install-deps:
     description: "Whether to install dependencies"
     required: false
@@ -26,11 +26,11 @@ runs:
     - name: Setup Node.js
       uses: actions/setup-node@v6
       with:
-        node-version: ${{ inputs.node-version }}
+        node-version-file: ${{ inputs.node-version-file }}
         package-manager-cache: false
 
     - name: Setup pnpm
-      uses: pnpm/action-setup@v4
+      uses: pnpm/action-setup@v5
 
     - name: Get pnpm store directory
       id: pnpm-store
@@ -39,7 +39,7 @@ runs:
 
     - name: Restore pnpm cache
       id: pnpm-cache
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       with:
         path: ${{ steps.pnpm-store.outputs.path }}
         key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -53,7 +53,7 @@ runs:
 
     - name: Save pnpm cache
       if: inputs.save-cache == 'true' && steps.pnpm-cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: ${{ steps.pnpm-store.outputs.path }}
         key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}

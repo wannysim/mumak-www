@@ -70,7 +70,7 @@ export default async function TagPage({ params }: TagPageProps) {
 
       <BlogNav allLabel={tCommon('all')} categoryLabels={categoryLabels} tagsLabel={tCommon('tags')} />
 
-      <TagCloud tags={allTags.slice(0, 10)} activeTag={decodedTag} showCount />
+      <TagCloud tags={allTags} activeTag={decodedTag} showCount />
 
       <section className="space-y-6">
         {posts.length === 0 ? (

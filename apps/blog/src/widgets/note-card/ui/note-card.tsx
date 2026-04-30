@@ -1,10 +1,10 @@
-import { Badge } from '@mumak/ui/components/badge';
 import { getTranslations } from 'next-intl/server';
+
+import { Badge } from '@mumak/ui/components/badge';
 
 import { type NoteMeta, type NoteStatus } from '@/src/entities/note';
 import { Link } from '@/src/shared/config/i18n';
 import { formatDateForLocale } from '@/src/shared/lib/date';
-
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 
 interface NoteCardProps {

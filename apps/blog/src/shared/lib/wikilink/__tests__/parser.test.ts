@@ -111,6 +111,33 @@ describe('parseWikilinkTarget', () => {
       target: 'note^block',
     });
   });
+
+  it('note#^block 패턴은 # 분기 + ^ 접두사로 blockId로 인식한다', () => {
+    expect(parseWikilinkTarget('note#^block-id')).toEqual({
+      slug: 'note',
+      heading: undefined,
+      blockId: 'block-id',
+      isInternal: false,
+      target: 'note#^block-id',
+    });
+  });
+
+  it('heading에 # 문자가 포함되면 첫 # 이후 전체를 heading으로 본다', () => {
+    expect(parseWikilinkTarget('note#sub#sub')).toMatchObject({
+      slug: 'note',
+      heading: 'sub#sub',
+    });
+  });
+
+  it('빈 문자열을 안전하게 처리한다', () => {
+    expect(parseWikilinkTarget('')).toEqual({
+      slug: '',
+      heading: undefined,
+      blockId: undefined,
+      isInternal: false,
+      target: '',
+    });
+  });
 });
 
 describe('extractWikilinkSlugs', () => {

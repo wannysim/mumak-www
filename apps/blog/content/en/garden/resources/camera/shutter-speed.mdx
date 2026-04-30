@@ -1,0 +1,50 @@
+---
+title: 'Shutter Speed'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'exposure-triangle'
+tags: ['camera', 'photography', 'video', 'shutter']
+---
+
+The **duration the sensor is exposed to light**. Measured in seconds (usually as fractions). 1/1000s = 1 ms of light.
+
+## Why shorter means darker
+
+Light accumulates over time. 1/1000s lets light hit the sensor for a window roughly **33× shorter** than 1/30s (≈ 5 stops). Same aperture and ISO, the 1/1000 frame will be much darker.
+
+## Side effect: motion blur
+
+- **Fast (1/1000)**: motion frozen — sports, water droplets
+- **Slow (1/30, 1/15)**: motion streaks — waterfalls, night, intentional blur
+
+## Why video can't use shutter freely
+
+Video needs **consistent motion blur across consecutive frames** to look natural. Convention:
+
+> **Shutter speed = 1 / (fps × 2)**
+> (24fps → 1/48 ≈ **1/50**, 30fps → 1/60, 60fps → 1/125)
+
+This is the **180° shutter rule**. In film cameras, the shutter was a rotating disc; if half (180°) was open, the formula above falls out.
+
+Stick to this and motion blur looks the most natural. Faster shutter looks staccato; slower looks too smeared.
+
+→ In video, **lock the shutter** and adjust exposure with [[aperture]], [[iso|ISO]], or ND filters.
+
+### Different from the "180-degree rule" in film
+
+> The **180° line rule** in cinematography is an **editing/composition rule**, unrelated to shutter.
+> It says the camera shouldn't cross an imaginary axis between two subjects, so spatial direction stays consistent across cuts.
+>
+> The shutter's 180° (shutter angle) and the line rule share a number but are completely different things.
+
+## Handheld heuristic (stills)
+
+> **Shutter speed ≥ 1 / focal length**
+
+A 50mm lens needs ≥ 1/50s before camera shake shows up. With IBIS/OIS, you gain 2–3 stops. On crop bodies, use the equivalent focal length.
+
+## Related
+
+- [[exposure-triangle]] — Parent note
+- [[aperture]]
+- [[iso]]

@@ -1,8 +1,9 @@
-import '@testing-library/jest-dom';
 import { act, renderHook } from '@testing-library/react';
 import useSWR from 'swr';
 
 import type { NowPlaying } from '@/src/entities/spotify';
+
+import '@testing-library/jest-dom';
 
 // Mock fetch for fetcher tests
 const mockFetch = jest.fn();

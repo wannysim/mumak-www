@@ -7,8 +7,6 @@ import { Badge } from '@mumak/ui/components/badge';
 
 import { mdxComponents } from '@/mdx-components';
 import { generateBreadcrumbJsonLd, JsonLdScript } from '@/src/app/seo';
-import { mdxOptions } from '@/src/shared/config/mdx';
-import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
 import {
   getAllNoteSlugs,
   getBacklinks,
@@ -22,9 +20,11 @@ import {
   type NoteStatus,
 } from '@/src/entities/note';
 import { Link, locales, type Locale } from '@/src/shared/config/i18n';
+import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
 import { createGardenResolver, transformWikilinks } from '@/src/shared/lib/wikilink';
 import { LinkedNotesSection } from '@/src/widgets/linked-notes-section';
+import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';

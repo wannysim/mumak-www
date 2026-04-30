@@ -1,9 +1,8 @@
 'use client';
 
+import { MonitorIcon } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
-import { MonitorIcon } from 'lucide-react';
 
 import { Skeleton } from '@mumak/ui/components/skeleton';
 

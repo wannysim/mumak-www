@@ -1,7 +1,8 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import type { NowPlaying } from '@/src/entities/spotify';
+
+import '@testing-library/jest-dom';
 
 // next/cache mock (cacheLife 등 서버 전용 API)
 jest.mock('next/cache', () => ({
@@ -29,6 +30,20 @@ jest.mock('@mumak/ui/components/skeleton', () => ({
   Skeleton: ({ className }: { className: string }) => (
     <div data-slot="skeleton" className={`animate-pulse ${className}`} />
   ),
+}));
+
+// Bypass the real useSpotifyPolling (SWR-backed) inside SpotifyVinylClient so
+// SWR's async store updates don't fire outside act in this RSC-style test.
+jest.mock('@/src/features/spotify-polling', () => ({
+  useSpotifyPolling: ({ initialData }: { initialData: NowPlaying | null }) => ({
+    data: initialData,
+    previousData: null,
+    isLoading: false,
+    error: undefined,
+    hasTrackChanged: false,
+    hasPlayStateChanged: false,
+    resetChangeState: jest.fn(),
+  }),
 }));
 
 const mockGetNowPlayingDirect = jest.fn<Promise<NowPlaying | null>, []>();

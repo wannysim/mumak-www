@@ -1,0 +1,62 @@
+---
+title: 'Slow Motion'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'frame-rate-and-shutter-angle'
+tags: ['camera', 'video', 'slow-motion', 'high-frame-rate']
+---
+
+**Capture fast, play slow.** That's the whole idea.
+
+## The principle
+
+Leave the **playback fps** unchanged on the timeline; **raise the capture fps**. The same event gets recorded across more frames, so on a 24/30fps timeline it plays back proportionally slower.
+
+> **Slow-motion ratio = capture fps ÷ playback fps**
+
+| Capture fps | 24fps timeline | 30fps timeline |
+| ----------- | -------------- | -------------- |
+| 60          | 2.5× slow      | 2× slow        |
+| 120         | **5× slow**    | 4× slow        |
+| 240         | 10× slow       | 8× slow        |
+| 1000        | ~42× slow      | ~33× slow      |
+
+## Lowering fps for slow-mo? — No
+
+Easy to confuse.
+
+- **Capture at lower fps** → time gaps between frames widen → fast motion turns into a **stuttering time-lapse**.
+- **Capture at higher fps** → finer time slices → playback unrolls slowly.
+
+Slow motion is **about slicing time finer**.
+
+## The shutter rule applies to "capture fps"
+
+The [[shutter-angle|180° rule]] still holds for slow-mo, but **recompute it against the capture fps**.
+
+| Capture fps | 180° shutter speed |
+| ----------- | ------------------ |
+| 60          | 1/120              |
+| 120         | 1/240              |
+| 240         | 1/480              |
+
+→ **Higher fps capture = faster shutter = more light required.** That's why slow-mo usually needs to happen in **bright environments**. It's also why indoor slow-mo is hard to expose properly.
+
+## Common mistakes
+
+1. **Leaving shutter alone while raising fps** — Shooting 60fps with 1/50 shutter is **effectively impossible** (shutter angle would exceed 360°), and the camera will silently shorten it. The look ends up off.
+2. **Wrong timeline fps** — Putting a 120fps clip on a 120fps timeline gives **no slow motion**. The timeline should be 24/30, only the clip 120.
+3. **Not enough motion blur** — Slow-mo with very fast shutter looks **unnaturally jittery** because each frame is too crisp. Unless that's the point, keep the angle near 180°.
+
+## Practical examples
+
+- **120fps + 24fps timeline** — the most common 5× slow-mo. Good for human movement, water droplets, sports.
+- **240fps** — claps, fast hand gestures, splashes.
+- **1000fps+** (specialized gear) — bullets, balloon pops, advertising.
+
+## Related
+
+- [[frame-rate-and-shutter-angle]] — Parent note
+- [[frame-rate]]
+- [[shutter-angle]]
+- [[shutter-speed]]

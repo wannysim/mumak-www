@@ -1,8 +1,10 @@
-import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 
 import type { PostMeta } from '@/src/entities/post';
+
 import { PostCard } from '../ui/post-card';
+
+import '@testing-library/jest-dom';
 
 // Mock next-intl/server
 jest.mock('next-intl/server', () => ({
