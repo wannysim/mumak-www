@@ -75,6 +75,20 @@ test.describe('Tags Feature', () => {
       expect(count).toBeGreaterThan(0);
     });
 
+    test('should show the full tag list (parity with /blog/tags index)', async ({ page }) => {
+      const tagLinkLocator = (p: typeof page) =>
+        p.locator('a[href*="/blog/tags/"]').filter({ hasNot: p.locator('nav') });
+
+      await page.goto('/ko/blog/tags');
+      const indexCount = await tagLinkLocator(page).count();
+      expect(indexCount).toBeGreaterThan(0);
+
+      await page.goto('/ko/blog/tags/thought');
+      const detailCount = await tagLinkLocator(page).count();
+
+      expect(detailCount).toBe(indexCount);
+    });
+
     test('should display posts with the selected tag', async ({ page }) => {
       await page.goto('/ko/blog/tags/thought');
 
