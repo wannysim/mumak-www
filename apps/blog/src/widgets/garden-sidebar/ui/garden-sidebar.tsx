@@ -8,16 +8,6 @@ import { Badge } from '@mumak/ui/components/badge';
 import { Button } from '@mumak/ui/components/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@mumak/ui/components/collapsible';
 import {
-  Command,
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@mumak/ui/components/command';
-import { Kbd, KbdGroup } from '@mumak/ui/components/kbd';
-import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -27,7 +17,9 @@ import {
 } from '@mumak/ui/components/sheet';
 import { cn } from '@mumak/ui/lib/utils';
 
-import { Link, usePathname, useRouter } from '@/src/shared/config/i18n';
+import { Link, usePathname } from '@/src/shared/config/i18n';
+import { useSearchPaletteShortcut } from '@/src/shared/hooks';
+import { SearchPalette, SearchTrigger, type SearchPaletteGroup } from '@/src/shared/ui';
 
 interface SidebarTreeNode {
   slug: string;
@@ -141,37 +133,6 @@ function NoteTreeItem({
   );
 }
 
-function SearchTrigger({
-  onClick,
-  placeholder,
-  showShortcut = true,
-}: {
-  onClick: () => void;
-  placeholder: string;
-  showShortcut?: boolean;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="lg"
-      onClick={onClick}
-      className="w-full justify-between gap-2 px-3 font-normal text-muted-foreground hover:text-foreground"
-    >
-      <span className="inline-flex items-center gap-2">
-        <SearchIcon className="size-4" />
-        <span className="truncate text-sm">{placeholder}</span>
-      </span>
-      {showShortcut && (
-        <KbdGroup className="hidden md:inline-flex">
-          <Kbd>⌘</Kbd>
-          <Kbd>K</Kbd>
-        </KbdGroup>
-      )}
-    </Button>
-  );
-}
-
 function TreeContent({
   visibleCategories,
   pathname,
@@ -206,7 +167,6 @@ function TreeContent({
 
 export function GardenSidebar({ categories }: GardenSidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const t = useTranslations('garden.sidebar');
 
   const visibleCategories = React.useMemo(() => categories.filter(c => c.noteCount > 0), [categories]);
@@ -214,22 +174,22 @@ export function GardenSidebar({ categories }: GardenSidebarProps) {
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [sheetOpen, setSheetOpen] = React.useState(false);
 
-  React.useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        setSearchOpen(prev => !prev);
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, []);
+  useSearchPaletteShortcut(setSearchOpen);
 
-  const handleSelectNote = (slug: string) => {
-    setSearchOpen(false);
-    setSheetOpen(false);
-    router.push(`/garden/${slug}`);
-  };
+  const searchGroups = React.useMemo<SearchPaletteGroup[]>(
+    () =>
+      visibleCategories.map(category => ({
+        key: category.key,
+        label: category.label,
+        items: flattenTree(category.tree).map(note => ({
+          id: note.slug,
+          label: note.title,
+          href: `/garden/${note.slug}`,
+          icon: FileText,
+        })),
+      })),
+    [visibleCategories]
+  );
 
   const openSearchFromSheet = () => {
     setSheetOpen(false);
@@ -297,33 +257,18 @@ export function GardenSidebar({ categories }: GardenSidebarProps) {
         </div>
       </aside>
 
-      <CommandDialog
+      <SearchPalette
         open={searchOpen}
         onOpenChange={setSearchOpen}
+        groups={searchGroups}
+        placeholder={t('searchPlaceholder')}
+        emptyText={t('searchEmpty')}
         title={t('searchTitle')}
         description={t('searchDescription')}
-      >
-        <Command>
-          <CommandInput placeholder={t('searchPlaceholder')} />
-          <CommandList>
-            <CommandEmpty>{t('searchEmpty')}</CommandEmpty>
-            {visibleCategories.map(category => (
-              <CommandGroup key={category.key} heading={category.label}>
-                {flattenTree(category.tree).map(note => (
-                  <CommandItem
-                    key={`${category.key}/${note.slug}`}
-                    value={`${note.title} ${category.label} ${note.slug}`}
-                    onSelect={() => handleSelectNote(note.slug)}
-                  >
-                    <FileText className="size-4 text-muted-foreground" />
-                    <span className="truncate">{note.title}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ))}
-          </CommandList>
-        </Command>
-      </CommandDialog>
+        onSelect={() => {
+          setSheetOpen(false);
+        }}
+      />
     </>
   );
 }

@@ -28,7 +28,14 @@
     "title": "블로그",
     "description": "생각과 기록을 담는 공간",
     "allPosts": "전체 글",
-    "postsCount": "{count}개의 글"
+    "postsCount": "{count}개의 글",
+    "search": {
+      "title": "글 검색",
+      "description": "모든 블로그 카테고리에서 글을 찾습니다",
+      "placeholder": "글 검색…",
+      "empty": "일치하는 글이 없습니다",
+      "aria": "글 검색"
+    }
   },
   "category": {
     "essay": {

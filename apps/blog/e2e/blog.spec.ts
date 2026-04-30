@@ -113,6 +113,56 @@ test.describe('Blog - Category and Post Pages', () => {
     });
   });
 
+  test.describe('Blog Search Palette', () => {
+    test('should open the palette by clicking the search trigger and navigate', async ({ page }) => {
+      await page.goto('/ko/blog');
+
+      const trigger = page.getByRole('button', { name: '글 검색', exact: true });
+      await expect(trigger).toBeVisible();
+
+      await trigger.click();
+
+      const dialog = page.getByRole('dialog', { name: '글 검색' });
+      await expect(dialog).toBeVisible();
+
+      const input = dialog.getByPlaceholder('글 검색…');
+      await input.fill('나는 글 쓰는');
+
+      const result = dialog.getByRole('option', { name: /나는 글 쓰는 걸 좋아한다/ });
+      await expect(result).toBeVisible();
+
+      await Promise.all([page.waitForURL(/\/ko\/blog\/essay\/first/), result.click()]);
+
+      await expect(dialog).not.toBeVisible();
+      await expect(page.getByRole('heading', { level: 1, name: '나는 글 쓰는 걸 좋아한다' })).toBeVisible();
+    });
+
+    test('should open the palette via Cmd/Ctrl+K shortcut', async ({ page }) => {
+      await page.goto('/en/blog');
+
+      // Wait for the trigger so the keydown listener is mounted.
+      await expect(page.getByRole('button', { name: 'Search posts', exact: true })).toBeVisible();
+
+      await page.locator('body').click();
+      await page.evaluate(() => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+      });
+
+      await expect(page.getByRole('dialog', { name: 'Search posts' })).toBeVisible();
+    });
+
+    test('should also be available on a category page', async ({ page }) => {
+      await page.goto('/ko/blog/essay');
+
+      const trigger = page.getByRole('button', { name: '글 검색', exact: true });
+      await expect(trigger).toBeVisible();
+
+      await trigger.click();
+
+      await expect(page.getByRole('dialog', { name: '글 검색' })).toBeVisible();
+    });
+  });
+
   test.describe('Legacy URL Redirects', () => {
     test('should redirect old category URL to new blog URL', async ({ page }) => {
       await page.goto('/ko/essay');

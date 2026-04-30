@@ -28,7 +28,14 @@
     "title": "Blog",
     "description": "A space for thoughts and records",
     "allPosts": "All Posts",
-    "postsCount": "{count} posts"
+    "postsCount": "{count} posts",
+    "search": {
+      "title": "Search posts",
+      "description": "Find a post across all blog categories",
+      "placeholder": "Search posts…",
+      "empty": "No posts found",
+      "aria": "Search posts"
+    }
   },
   "category": {
     "essay": {
