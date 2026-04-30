@@ -1,0 +1,111 @@
+---
+title: 'Histogram'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'color-and-dynamic-range'
+tags: ['camera', 'lightroom', 'histogram', 'exposure']
+---
+
+A **graph of brightness distribution** in a photo. The little chart in Lightroom's top-right. On the camera LCD too, it's the most reliable indicator for RAW exposure.
+
+## Reading the graph
+
+```
+pixel count
+↑
+│       ╭──╮
+│     ╭─╯  ╰─╮
+│   ╭─╯       ╰╮
+│ ╭─╯           ╰─╮
+└─┴───────────────┴───→ brightness
+  0                255
+  black            white
+```
+
+- **X-axis**: dark (0) ↔ bright (255)
+- **Y-axis**: number of pixels at that brightness
+- **Where peaks sit**: where the image's tones cluster
+
+## Four regions ↔ four sliders
+
+The four sliders in [[dynamic-range]] map one-to-one onto histogram regions.
+
+```
+┌──────────────────────────────────────────────────┐
+│ Blacks │ Shadows │ ★ Mid ★ │ Highlights │ Whites │
+│  0–10  │  10–30  │  30–70  │   70–90    │ 90–100 │
+└──────────────────────────────────────────────────┘
+   left edge ───────────────────────────── right edge
+```
+
+Hovering the cursor over Lightroom's histogram **highlights each region and shows you which slider corresponds to it**. Learning this one feature alone tightens up editing.
+
+## Clipping warnings
+
+The **little triangles** at the upper corners of the histogram.
+
+- **Left triangle lit (blue)**: clipping in blacks. Pixels lost into pure black.
+- **Right triangle lit (red)**: clipping in whites. Pixels blown to pure white.
+
+**Click a triangle** and the clipped pixels get **highlighted as a colored overlay** on the image, so you can see exactly where it died.
+
+> **Shortcut J**: toggle the clipping overlay. You'll press it constantly while editing.
+
+## Is there a "good" histogram shape?
+
+**No fixed answer.** A dark scene rightly has its peaks toward the left; a snowy landscape rightly has them on the right.
+
+But as guidelines:
+
+- **Reach the edges without clipping** — if the histogram is collapsed in the middle and never touches the edges, the photo feels flat. Letting both ends just barely reach the edges adds richness.
+- **Watch for peaks pasted against the wall** — if a peak is jammed against the right edge (highlight clipping), there's no data left to recover.
+
+## Expose to the Right — RAW capture strategy
+
+> **When shooting RAW, push exposure to just shy of clipping.**
+
+Why: digital sensors **allocate more steps to the bright zones**. Lifting from shadows brings noise with it, but pulling down from highlights is nearly lossless.
+
+```
+Tonal steps a sensor records (14-bit basis)
+Brightest stop:  8192 steps  ←─── information-dense
+Next stop:       4096 steps
+Next:            2048 steps
+Next:            1024 steps
+Darkest stop:      64 steps  ←─── information-poor (noise dominates)
+```
+
+→ **Capture slightly bright (just before clipping)** → **bring it down in post**.
+You end up with cleaner shadows.
+
+This only matters in RAW + post. JPEG output gives you no such benefit.
+
+## RGB-separated histogram
+
+Lightroom's histogram by default overlays the red/green/blue channels. Click to view them separately.
+
+- **Only red clipping** → a too-intense sunset, or skin pushed too red
+- **Blue piled at the dark end** → low blue in shadows → image leans warm
+- **All three peak at the same spot** → image leans toward neutral gray
+
+## Why the camera's LCD histogram isn't fully accurate
+
+The histogram on your camera at capture is based on the **JPEG preview**, not the RAW.
+
+- Things that look clipped in JPEG can still hold detail in RAW (about a 1-stop margin).
+- A mild clipping warning on the LCD is often recoverable in RAW.
+- Trust the **RAW histogram in Lightroom** for the final word.
+
+## A practical edit order with the histogram
+
+1. **Open the histogram**, set Exposure so peaks land roughly where you want them
+2. **Check the clipping triangles** — if red/blue are lit, hit J to see where
+3. **Highlights / Shadows** to recover both ends
+4. **Whites / Blacks** to define the end-points (touch the walls just barely)
+5. With tone in place, move on to color: [[white-balance|WB]], [[hsl-and-color-mixer|HSL]], [[tone-curve|curve]]
+
+## Related
+
+- [[color-and-dynamic-range]] — Parent note
+- [[dynamic-range]] — The four-slider regions
+- [[raw-vs-jpeg]] — Why "expose to the right" is a RAW-only strategy

@@ -1,0 +1,52 @@
+---
+title: 'Color and Dynamic Range'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'camera-and-video'
+tags: ['camera', 'photography', 'lightroom', 'color', 'dynamic-range']
+---
+
+Half of photography is pressing the shutter; the other half is **how to interpret the information light recorded**. Almost everything Lightroom does lives in this territory.
+
+## Topic structure
+
+### Tools for working with color
+
+- [[white-balance]] — Temperature/Tint, the trap of the Kelvin slider
+- [[hsl-and-color-mixer]] — Hue/Saturation/Luminance, color split into 8 channels
+
+### Tools for working with tone (brightness distribution)
+
+- [[dynamic-range]] — Differences between Highlights, Shadows, Whites, Blacks
+- [[histogram]] — The diagnostic tool, expose to the right
+- [[tone-curve]] — Fine control beyond what sliders give you
+
+### The format underneath everything
+
+- [[raw-vs-jpeg]] — Editing latitude is, fundamentally, an information question
+
+## A general Lightroom edit order
+
+You said you start from "darks → shadows," but the broader pattern goes **macro → micro**.
+
+1. **WB (Temperature / Tint)** — set the color baseline
+2. **Exposure** — overall brightness
+3. **Highlights / Shadows / Whites / Blacks** — recover by tonal region
+4. **Tone Curve** — fine-tune what sliders couldn't
+5. **HSL / Color Mixer** — isolate specific colors
+6. **Sharpening / Noise Reduction** — detail
+7. **Crop / Spot Removal** — final cleanup
+
+> **Principle**: big decisions first, small ones later. If WB is off and you start tweaking HSL, everything will need redoing.
+
+## Easy points of confusion
+
+- **Lightroom's K slider runs opposite to physical Kelvin.** See [[white-balance]].
+- **Highlights and Whites are not the same thing.** See [[dynamic-range]].
+- **JPEG's editing limit is set by bit depth.** See [[raw-vs-jpeg]].
+- **An S-curve also raises saturation, not just contrast.** See [[tone-curve]].
+
+## Related
+
+- [[exposure-triangle]] — Light controlled at capture
+- [[camera-and-video]] — Topic hub

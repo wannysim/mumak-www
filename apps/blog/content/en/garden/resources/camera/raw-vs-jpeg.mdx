@@ -1,0 +1,79 @@
+---
+title: 'RAW vs JPEG and Bit Depth'
+created: '2026-04-30'
+status: 'seedling'
+parent: 'color-and-dynamic-range'
+tags: ['camera', 'lightroom', 'raw', 'jpeg', 'bit-depth']
+---
+
+Same shutter press, but **the amount of information saved differs by tens of times depending on format**.
+
+## Side-by-side
+
+|                    | RAW                       | JPEG                          |
+| ------------------ | ------------------------- | ----------------------------- |
+| Bit depth          | 12 / 14 / 16 bit          | **8 bit (fixed)**             |
+| Steps per channel  | 4096 / 16384 / 65536      | **256**                       |
+| White balance      | Freely changeable in post | Baked in (lossy to change)    |
+| Color space        | Sensor's native gamut     | Compressed to sRGB / AdobeRGB |
+| File size          | 20–100 MB                 | 2–10 MB                       |
+| Lightroom response | Sliders work strongly     | Sliders weak                  |
+
+## Bit depth — steps of color
+
+8-bit = **2⁸ = 256 steps** per channel.
+14-bit = **2¹⁴ = 16,384 steps** per channel.
+
+Combined across RGB:
+
+- 8-bit: 256³ ≈ **16.7 million colors**
+- 14-bit: 16,384³ ≈ **4.4 trillion colors**
+
+256 sounds plenty until you start editing. **The moment you push, the difference explodes.**
+
+## Why JPEG dies in post — banding
+
+A JPEG gradient lives in 256 steps. Lift one band by 50% in post and **the same number of steps is now stretched across a wider range** — gaps between steps become visible.
+
+```
+JPEG original:     ▓▓▒▒░░ (6 gradient steps)
+Lifted +50%:       ▓ ▓ ▒ ▒ ░ ░ (gaps between steps)
+                     ↑ this is why you see stripes in skies
+```
+
+The "JPEG shadows/highlights wouldn't recover" experience you've had is exactly this. 8-bit can survive one mild edit; push hard and it crumbles.
+
+## 12-bit vs 14-bit RAW
+
+The option you've seen in camera menus.
+
+- **High ISO / low light**: 14-bit wins. More steps in the dark zones → smoother results after noise reduction.
+- **Burst rate**: 14-bit files are larger and fill the buffer faster. Sports shooters sometimes drop to 12-bit.
+- **Compressed RAW**: options like Sony's "Lossless Compressed RAW" preserve 14-bit while shrinking files. Almost always the right choice.
+
+## What exactly RAW preserves
+
+JPEG is **the camera's finished interpretation**. RAW is **the signal the sensor saw**.
+
+- White balance is **not baked in** — it travels as metadata → freely changeable in post
+- Picture profile / color science → also metadata, freely changeable
+- Exposure (the actual amount of light) → set at capture, can't be changed
+- Shutter, aperture, ISO → also fixed at capture
+
+→ **Exposure and ISO are decisions you make at capture. Color and tone, with RAW, are almost all post-able.**
+
+## "RAW means I don't need to edit" — a misconception
+
+RAW is **flat, with no color science applied**. The pretty image on the camera LCD is the JPEG preview. Open RAW in Lightroom and you may see something more muted at first. **The value of RAW only comes through after editing.**
+
+## Practical recommendations
+
+- **Always shoot RAW** (or RAW + JPEG)
+- On Sony, use **Lossless Compressed RAW**; Canon, **CRAW**; Nikon, **Compressed RAW**. Same quality, half the size.
+- For situations where you must produce JPEG immediately (instant social uploads), still consider **RAW + JPEG simultaneously**. If a shot turns out great, the RAW is your insurance.
+
+## Related
+
+- [[color-and-dynamic-range]] — Parent note
+- [[dynamic-range]]
+- [[white-balance]] — Why RAW is so flexible for WB changes
