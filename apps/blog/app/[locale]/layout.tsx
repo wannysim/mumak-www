@@ -19,6 +19,9 @@ export function generateStaticParams() {
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
 const ENABLE_VERCEL_ANALYTICS = process.env.NODE_ENV === 'production' && process.env.VERCEL === '1';
 
+const GSC_TOKEN = process.env.NEXT_PUBLIC_GSC_TOKEN;
+const NAVER_TOKEN = process.env.NEXT_PUBLIC_NAVER_TOKEN;
+
 export const metadata: Metadata = {
   title: {
     template: '%s | Wan Sim',
@@ -50,6 +53,14 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
+  ...(GSC_TOKEN || NAVER_TOKEN
+    ? {
+        verification: {
+          ...(GSC_TOKEN ? { google: GSC_TOKEN } : {}),
+          ...(NAVER_TOKEN ? { other: { 'naver-site-verification': NAVER_TOKEN } } : {}),
+        },
+      }
+    : {}),
 };
 
 interface LocaleLayoutProps {

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
+import { buildAlternates } from '@/src/app/seo';
 import { getAllNoteTags, getNotesByTag } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
 import { GardenNav } from '@/src/widgets/garden-nav';
@@ -27,6 +28,7 @@ export async function generateMetadata({ params }: GardenTagPageProps): Promise<
   return {
     title: t('tagTitle', { tag: decodedTag }),
     description: t('tagDescription', { tag: decodedTag }),
+    alternates: buildAlternates({ locale, path: `/garden/tags/${tag}` }),
   };
 }
 

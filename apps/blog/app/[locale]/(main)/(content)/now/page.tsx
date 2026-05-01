@@ -4,6 +4,7 @@ import { MDXRemote } from 'next-mdx-remote-client/rsc';
 import { notFound } from 'next/navigation';
 
 import { mdxComponents } from '@/mdx-components';
+import { buildAlternates } from '@/src/app/seo';
 import { getPage } from '@/src/entities/post';
 import { type Locale } from '@/src/shared/config/i18n';
 import { mdxOptions } from '@/src/shared/config/mdx';
@@ -21,6 +22,7 @@ export async function generateMetadata({ params }: NowPageProps): Promise<Metada
   return {
     title: page?.meta.title ?? t('title'),
     description: page?.meta.description ?? t('description'),
+    alternates: buildAlternates({ locale, path: '/now' }),
   };
 }
 

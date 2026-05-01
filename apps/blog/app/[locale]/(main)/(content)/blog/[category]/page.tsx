@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
+import { buildAlternates } from '@/src/app/seo';
 import { getCategories, getPosts, isValidCategory, type Category } from '@/src/entities/post';
 import { locales, type Locale } from '@/src/shared/config/i18n';
 import { BlogNav } from '@/src/widgets/blog-nav';
@@ -29,6 +30,7 @@ export async function generateMetadata({ params }: BlogCategoryPageProps): Promi
   return {
     title: t(`${category}.title`),
     description: t(`${category}.description`),
+    alternates: buildAlternates({ locale, path: `/blog/${category}` }),
   };
 }
 

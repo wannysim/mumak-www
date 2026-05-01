@@ -1,4 +1,6 @@
+import { getLocale } from 'next-intl/server';
 import localFont from 'next/font/local';
+import { Suspense } from 'react';
 
 import { ThemeMetaSyncScript, ThemeProvider } from '@/src/shared/lib/theme';
 
@@ -15,9 +17,11 @@ const pretendard = localFont({
 
 export { themeViewport as viewport } from '@/src/shared/lib/theme';
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+async function LocalizedRoot({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+
   return (
-    <html suppressHydrationWarning className={pretendard.variable}>
+    <html lang={locale} suppressHydrationWarning className={pretendard.variable}>
       <head>
         <ThemeMetaSyncScript />
       </head>
@@ -25,5 +29,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
+  );
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense>
+      <LocalizedRoot>{children}</LocalizedRoot>
+    </Suspense>
   );
 }

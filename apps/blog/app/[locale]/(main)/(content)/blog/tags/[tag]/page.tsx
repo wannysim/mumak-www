@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
+import { buildAlternates } from '@/src/app/seo';
 import { getCategories, type Category } from '@/src/entities/post';
 import { getAllTags, getPostsByTag, isValidTag } from '@/src/entities/tag';
 import { locales, type Locale } from '@/src/shared/config/i18n';
@@ -33,6 +34,7 @@ export async function generateMetadata({ params }: TagPageProps): Promise<Metada
   return {
     title: t('tagTitle', { tag: decodedTag }),
     description: t('tagDescription', { tag: decodedTag }),
+    alternates: buildAlternates({ locale, path: `/blog/tags/${tag}` }),
   };
 }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
+import { buildAlternates } from '@/src/app/seo';
 import { getCategories, type Category } from '@/src/entities/post';
 import { getAllTags } from '@/src/entities/tag';
 import { type Locale } from '@/src/shared/config/i18n';
@@ -18,6 +19,7 @@ export async function generateMetadata({ params }: TagsPageProps): Promise<Metad
   return {
     title: t('title'),
     description: t('metaDescription'),
+    alternates: buildAlternates({ locale, path: '/blog/tags' }),
   };
 }
 

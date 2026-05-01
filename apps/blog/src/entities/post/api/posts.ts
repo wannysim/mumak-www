@@ -8,6 +8,7 @@ export interface PostMeta {
   slug: string;
   title: string;
   date: string;
+  updated?: string;
   description: string;
   category: string;
   tags?: string[];
@@ -70,6 +71,16 @@ function calculateReadingTime(content: string): number {
   return Math.max(1, Math.ceil(koreanMinutes + englishMinutes));
 }
 
+export function calculateWordCount(content: string): number {
+  const text = content.replace(/```[\s\S]*?```/g, '').replace(/`[^`]*`/g, '');
+  const koreanChars = (text.match(/[가-힣]/g) || []).length;
+  const words = text
+    .replace(/[가-힣]/g, '')
+    .split(/\s+/)
+    .filter(Boolean).length;
+  return koreanChars + words;
+}
+
 function parsePostFile(filePath: string, slug: string, category: string): PostMeta | null {
   try {
     const fileContent = fs.readFileSync(filePath, 'utf-8');
@@ -79,6 +90,7 @@ function parsePostFile(filePath: string, slug: string, category: string): PostMe
       slug,
       title: data.title || 'Untitled',
       date: data.date || '1970-01-01',
+      updated: data.updated,
       description: data.description || '',
       category,
       tags: data.tags || [],
@@ -149,6 +161,7 @@ export function getPost(locale: Locale, category: string, slug: string): Post | 
       slug,
       title: data.title || 'Untitled',
       date: data.date || '1970-01-01',
+      updated: data.updated,
       description: data.description || '',
       category,
       tags: data.tags || [],

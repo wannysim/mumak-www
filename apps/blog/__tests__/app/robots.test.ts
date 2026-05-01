@@ -51,4 +51,45 @@ describe('robots', () => {
     // BASE_URL은 모듈 로드 시점에 결정되므로 기본값 또는 환경 변수 값 중 하나
     expect(result.sitemap).toMatch(/^https:\/\/(wannysim\.com|.+)\/sitemap\.xml$/);
   });
+
+  it('should declare host', () => {
+    const result = robots();
+
+    expect(result.host).toMatch(/^https?:\/\/.+/);
+  });
+
+  describe('AI bot policy', () => {
+    function findAiTrainingRule(result: ReturnType<typeof robots>) {
+      const rules = Array.isArray(result.rules) ? result.rules : [result.rules];
+      return rules.find(rule => {
+        const ua = rule.userAgent;
+        const list = Array.isArray(ua) ? ua : [ua];
+        return list.includes('GPTBot');
+      });
+    }
+
+    it('should disallow training-only LLM crawlers', () => {
+      const trainingRule = findAiTrainingRule(robots());
+
+      expect(trainingRule).toBeDefined();
+      expect(trainingRule?.disallow).toBe('/');
+
+      const ua = trainingRule?.userAgent;
+      const list = Array.isArray(ua) ? ua : [ua];
+      expect(list).toEqual(expect.arrayContaining(['GPTBot', 'anthropic-ai', 'ClaudeBot', 'Google-Extended', 'CCBot']));
+    });
+
+    it('should leave answer/search bots covered by the default allow rule', () => {
+      const result = robots();
+      const rules = Array.isArray(result.rules) ? result.rules : [result.rules];
+      const flatten = (ua: string | string[] | undefined) => (Array.isArray(ua) ? ua : ua ? [ua] : []);
+      const explicitlyDisallowed = rules
+        .filter(rule => rule.disallow === '/' || (Array.isArray(rule.disallow) && rule.disallow.includes('/')))
+        .flatMap(rule => flatten(rule.userAgent));
+
+      for (const bot of ['OAI-SearchBot', 'ChatGPT-User', 'PerplexityBot', 'Perplexity-User', 'Claude-User']) {
+        expect(explicitlyDisallowed).not.toContain(bot);
+      }
+    });
+  });
 });

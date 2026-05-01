@@ -4,8 +4,8 @@ import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { mdxComponents } from '@/mdx-components';
-import { generateBlogPostingJsonLd, generateBreadcrumbJsonLd, JsonLdScript } from '@/src/app/seo';
-import { getAllPostSlugs, getPost, isValidCategory } from '@/src/entities/post';
+import { buildAlternates, generateBlogPostingJsonLd, generateBreadcrumbJsonLd, JsonLdScript } from '@/src/app/seo';
+import { calculateWordCount, getAllPostSlugs, getPost, isValidCategory } from '@/src/entities/post';
 import { Link, locales, type Locale } from '@/src/shared/config/i18n';
 import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
@@ -53,9 +53,32 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
     return { title: 'Not Found' };
   }
 
+  const url = `${BASE_URL}/${locale}/blog/${category}/${slug}`;
+  const ogLocale = locale === 'ko' ? 'ko_KR' : 'en_US';
+  const ogAlternateLocale = locale === 'ko' ? 'en_US' : 'ko_KR';
+
   return {
     title: post.meta.title,
     description: post.meta.description,
+    alternates: buildAlternates({ locale, path: `/blog/${category}/${slug}` }),
+    openGraph: {
+      type: 'article',
+      url,
+      title: post.meta.title,
+      description: post.meta.description,
+      siteName: 'Wan Sim',
+      locale: ogLocale,
+      alternateLocale: [ogAlternateLocale],
+      publishedTime: post.meta.date,
+      modifiedTime: post.meta.updated ?? post.meta.date,
+      authors: [`${BASE_URL}/${locale}/about`],
+      ...(post.meta.tags && post.meta.tags.length > 0 ? { tags: post.meta.tags } : {}),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.meta.title,
+      description: post.meta.description,
+    },
   };
 }
 
@@ -82,6 +105,7 @@ export default async function PostPage({ params }: PostPageProps) {
     post: post.meta,
     locale,
     category,
+    wordCount: calculateWordCount(post.content),
   });
 
   const breadcrumbJsonLd = generateBreadcrumbJsonLd({

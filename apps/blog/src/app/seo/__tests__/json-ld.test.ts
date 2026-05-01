@@ -1,8 +1,10 @@
+import type { NoteMeta } from '@/src/entities/note';
 import type { PostMeta } from '@/src/entities/post';
 
 import {
   generateBlogPostingJsonLd,
   generateBreadcrumbJsonLd,
+  generateGardenNoteJsonLd,
   generateSiteNavigationJsonLd,
   generateWebSiteJsonLd,
 } from '../json-ld';
@@ -101,36 +103,74 @@ describe('json-ld', () => {
       expect(result.dateModified).toBe('2024-01-15');
       expect(result.url).toContain('/ko/blog/articles/test-post');
       expect(result.inLanguage).toBe('ko-KR');
+      expect(result.articleSection).toBe('articles');
     });
 
-    it('should generate correct URL for English locale', () => {
+    it('should use updated date as dateModified when provided', () => {
+      const result = generateBlogPostingJsonLd({
+        post: { ...mockPost, updated: '2024-06-20' },
+        locale: 'ko',
+        category: 'articles',
+      });
+
+      expect(result.datePublished).toBe('2024-01-15');
+      expect(result.dateModified).toBe('2024-06-20');
+    });
+
+    it('should include keywords from tags when present', () => {
+      const result = generateBlogPostingJsonLd({
+        post: { ...mockPost, tags: ['react', 'next-js'] },
+        locale: 'ko',
+        category: 'articles',
+      });
+
+      expect(result.keywords).toBe('react, next-js');
+    });
+
+    it('should omit keywords when tags are empty', () => {
+      const result = generateBlogPostingJsonLd({
+        post: { ...mockPost, tags: [] },
+        locale: 'ko',
+        category: 'articles',
+      });
+
+      expect(result.keywords).toBeUndefined();
+    });
+
+    it('should include OG image URL', () => {
       const result = generateBlogPostingJsonLd({
         post: mockPost,
         locale: 'en',
         category: 'essay',
       });
 
-      expect(result.url).toContain('/en/blog/essay/test-post');
-      expect(result.inLanguage).toBe('en-US');
+      expect(result.image).toEqual([expect.stringContaining('/en/blog/essay/test-post/opengraph-image')]);
     });
 
-    it('should include author and publisher info', () => {
+    it('should include wordCount when provided', () => {
+      const result = generateBlogPostingJsonLd({
+        post: mockPost,
+        locale: 'ko',
+        category: 'articles',
+        wordCount: 1234,
+      });
+
+      expect(result.wordCount).toBe(1234);
+    });
+
+    it('should reference author by @id and publisher reuses the same entity', () => {
       const result = generateBlogPostingJsonLd({
         post: mockPost,
         locale: 'ko',
         category: 'articles',
       });
 
-      expect(result.author).toEqual({
+      expect(result.author).toMatchObject({
         '@type': 'Person',
+        '@id': expect.stringContaining('/#author'),
         name: 'Wan Sim',
-        url: expect.any(String),
       });
-      expect(result.publisher).toEqual({
-        '@type': 'Person',
-        name: 'Wan Sim',
-        url: expect.any(String),
-      });
+      expect(result.publisher).toEqual({ '@id': expect.stringContaining('/#author') });
     });
 
     it('should include mainEntityOfPage', () => {
@@ -143,6 +183,97 @@ describe('json-ld', () => {
       expect(result.mainEntityOfPage).toEqual({
         '@type': 'WebPage',
         '@id': expect.stringContaining('/ko/blog/articles/test-post'),
+      });
+    });
+  });
+
+  describe('generateGardenNoteJsonLd', () => {
+    const mockNote: NoteMeta = {
+      slug: 'mind-and-machines',
+      title: 'Mind and Machines',
+      created: '2025-03-01',
+      status: 'budding',
+      category: 'garden',
+      tags: ['philosophy', 'ai'],
+      outgoingLinks: ['phenomenology', 'free-will'],
+    };
+
+    it('should generate Article schema with description, dates and language', () => {
+      const result = generateGardenNoteJsonLd({
+        note: mockNote,
+        locale: 'en',
+        description: 'A note about how minds relate to machines.',
+      });
+
+      expect(result['@context']).toBe('https://schema.org');
+      expect(result['@type']).toBe('Article');
+      expect(result.headline).toBe('Mind and Machines');
+      expect(result.description).toBe('A note about how minds relate to machines.');
+      expect(result.datePublished).toBe('2025-03-01');
+      expect(result.dateModified).toBe('2025-03-01');
+      expect(result.url).toContain('/en/garden/mind-and-machines');
+      expect(result.inLanguage).toBe('en-US');
+      expect(result.articleSection).toBe('Digital Garden');
+      expect(result.keywords).toBe('philosophy, ai');
+    });
+
+    it('should use updated as dateModified when provided', () => {
+      const result = generateGardenNoteJsonLd({
+        note: { ...mockNote, updated: '2025-09-10' },
+        locale: 'en',
+        description: 'desc',
+      });
+
+      expect(result.dateModified).toBe('2025-09-10');
+    });
+
+    it('should map outgoingNotes to mentions and backlinks to citation', () => {
+      const result = generateGardenNoteJsonLd({
+        note: mockNote,
+        locale: 'ko',
+        description: 'desc',
+        outgoingNotes: [{ slug: 'phenomenology', title: '현상학' }],
+        backlinks: [{ slug: 'meta-cognition', title: '메타인지' }],
+      });
+
+      expect(result.mentions).toEqual([
+        expect.objectContaining({
+          '@type': 'Article',
+          url: expect.stringContaining('/ko/garden/phenomenology'),
+          name: '현상학',
+        }),
+      ]);
+      expect(result.citation).toEqual([
+        expect.objectContaining({
+          '@type': 'Article',
+          url: expect.stringContaining('/ko/garden/meta-cognition'),
+          name: '메타인지',
+        }),
+      ]);
+    });
+
+    it('should omit mentions and citation when empty', () => {
+      const result = generateGardenNoteJsonLd({
+        note: mockNote,
+        locale: 'ko',
+        description: 'desc',
+      });
+
+      expect(result.mentions).toBeUndefined();
+      expect(result.citation).toBeUndefined();
+    });
+
+    it('should declare isPartOf the Digital Garden series', () => {
+      const result = generateGardenNoteJsonLd({
+        note: mockNote,
+        locale: 'en',
+        description: 'desc',
+      });
+
+      expect(result.isPartOf).toEqual({
+        '@type': 'CreativeWorkSeries',
+        name: 'Digital Garden',
+        url: expect.stringContaining('/en/garden'),
       });
     });
   });

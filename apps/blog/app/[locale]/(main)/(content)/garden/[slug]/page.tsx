@@ -6,7 +6,7 @@ import { Suspense } from 'react';
 import { Badge } from '@mumak/ui/components/badge';
 
 import { mdxComponents } from '@/mdx-components';
-import { generateBreadcrumbJsonLd, JsonLdScript } from '@/src/app/seo';
+import { buildAlternates, generateBreadcrumbJsonLd, generateGardenNoteJsonLd, JsonLdScript } from '@/src/app/seo';
 import {
   getAllNoteSlugs,
   getBacklinks,
@@ -19,6 +19,7 @@ import {
   getOutgoingNotes,
   type NoteStatus,
 } from '@/src/entities/note';
+import { calculateWordCount } from '@/src/entities/post';
 import { Link, locales, type Locale } from '@/src/shared/config/i18n';
 import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
@@ -65,6 +66,11 @@ export function generateStaticParams() {
   });
 }
 
+function getNoteDescription(locale: Locale, slug: string, fallbackTitle: string): string {
+  const preview = getNoteEmbedPreview(locale, slug);
+  return preview?.excerpt ?? `${fallbackTitle} - Digital Garden`;
+}
+
 export async function generateMetadata({ params }: NotePageProps): Promise<Metadata> {
   const { locale, slug } = await params;
   const note = getNote(locale as Locale, slug);
@@ -73,9 +79,33 @@ export async function generateMetadata({ params }: NotePageProps): Promise<Metad
     return { title: 'Not Found' };
   }
 
+  const description = getNoteDescription(locale as Locale, slug, note.meta.title);
+  const url = `${BASE_URL}/${locale}/garden/${slug}`;
+  const ogLocale = locale === 'ko' ? 'ko_KR' : 'en_US';
+  const ogAlternateLocale = locale === 'ko' ? 'en_US' : 'ko_KR';
+
   return {
     title: note.meta.title,
-    description: `${note.meta.title} - Digital Garden`,
+    description,
+    alternates: buildAlternates({ locale, path: `/garden/${slug}` }),
+    openGraph: {
+      type: 'article',
+      url,
+      title: note.meta.title,
+      description,
+      siteName: 'Wan Sim',
+      locale: ogLocale,
+      alternateLocale: [ogAlternateLocale],
+      publishedTime: note.meta.created,
+      modifiedTime: note.meta.updated ?? note.meta.created,
+      authors: [`${BASE_URL}/${locale}/about`],
+      ...(note.meta.tags && note.meta.tags.length > 0 ? { tags: note.meta.tags } : {}),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: note.meta.title,
+      description,
+    },
   };
 }
 
@@ -121,8 +151,18 @@ export default async function NotePage({ params }: NotePageProps) {
     ],
   });
 
+  const noteJsonLd = generateGardenNoteJsonLd({
+    note: note.meta,
+    locale,
+    description: getNoteDescription(locale as Locale, slug, note.meta.title),
+    outgoingNotes,
+    backlinks,
+    wordCount: calculateWordCount(note.content),
+  });
+
   return (
     <div className="max-w-3xl mx-auto">
+      <JsonLdScript data={noteJsonLd} />
       <JsonLdScript data={breadcrumbJsonLd} />
       <article>
         <header className="mb-8">

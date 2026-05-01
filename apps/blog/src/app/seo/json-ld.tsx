@@ -1,6 +1,29 @@
+import type { NoteMeta, NoteStatus } from '@/src/entities/note';
 import type { PostMeta } from '@/src/entities/post';
+import { socialLinks } from '@/src/entities/social';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
+
+const AUTHOR_SAME_AS = socialLinks.map(link => link.url);
+
+const AUTHOR_KNOWS_ABOUT = [
+  'Frontend Engineering',
+  'React',
+  'Next.js',
+  'TypeScript',
+  'Software Architecture',
+  'Web Performance',
+];
+
+const AUTHOR_PERSON = {
+  '@type': 'Person' as const,
+  '@id': `${BASE_URL}/#author`,
+  name: 'Wan Sim',
+  url: BASE_URL,
+  jobTitle: 'Software Engineer',
+  knowsAbout: AUTHOR_KNOWS_ABOUT,
+  ...(AUTHOR_SAME_AS.length > 0 ? { sameAs: AUTHOR_SAME_AS } : {}),
+};
 
 interface WebSiteJsonLdParams {
   locale: string;
@@ -15,12 +38,7 @@ export function generateWebSiteJsonLd({ locale }: WebSiteJsonLdParams) {
     url: `${BASE_URL}/${locale}`,
     description: locale === 'ko' ? '생각과 기록을 위한 공간' : 'A space for thoughts and records',
     inLanguage: locale === 'ko' ? 'ko-KR' : 'en-US',
-    author: {
-      '@type': 'Person',
-      '@id': `${BASE_URL}/#author`,
-      name: 'Wan Sim',
-      url: BASE_URL,
-    },
+    author: AUTHOR_PERSON,
     publisher: {
       '@id': `${BASE_URL}/#author`,
     },
@@ -87,35 +105,129 @@ export function generateBreadcrumbJsonLd({ items }: BreadcrumbJsonLdParams) {
   };
 }
 
+function localeToLanguageTag(locale: string) {
+  return locale === 'ko' ? 'ko-KR' : 'en-US';
+}
+
 interface BlogPostingJsonLdParams {
   post: PostMeta;
   locale: string;
   category: string;
+  wordCount?: number;
 }
 
-export function generateBlogPostingJsonLd({ post, locale, category }: BlogPostingJsonLdParams) {
+export function generateBlogPostingJsonLd({ post, locale, category, wordCount }: BlogPostingJsonLdParams) {
+  const url = `${BASE_URL}/${locale}/blog/${category}/${post.slug}`;
+  const datePublished = post.date;
+  const dateModified = post.updated ?? post.date;
+
   return {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
     headline: post.title,
     description: post.description,
-    datePublished: post.date,
-    dateModified: post.date,
-    url: `${BASE_URL}/${locale}/blog/${category}/${post.slug}`,
-    inLanguage: locale === 'ko' ? 'ko-KR' : 'en-US',
+    datePublished,
+    dateModified,
+    url,
+    inLanguage: localeToLanguageTag(locale),
+    image: [`${url}/opengraph-image`],
+    ...(post.tags && post.tags.length > 0 ? { keywords: post.tags.join(', ') } : {}),
+    articleSection: category,
+    ...(typeof wordCount === 'number' ? { wordCount } : {}),
     author: {
       '@type': 'Person',
+      '@id': `${BASE_URL}/#author`,
       name: 'Wan Sim',
       url: BASE_URL,
     },
     publisher: {
-      '@type': 'Person',
-      name: 'Wan Sim',
-      url: BASE_URL,
+      '@id': `${BASE_URL}/#author`,
     },
     mainEntityOfPage: {
       '@type': 'WebPage',
-      '@id': `${BASE_URL}/${locale}/blog/${category}/${post.slug}`,
+      '@id': url,
+    },
+  };
+}
+
+interface GardenNoteJsonLdParams {
+  note: NoteMeta;
+  locale: string;
+  description: string;
+  outgoingNotes?: Array<{ slug: string; title: string }>;
+  backlinks?: Array<{ slug: string; title: string }>;
+  wordCount?: number;
+}
+
+const STATUS_DESCRIPTION: Record<NoteStatus, string> = {
+  seedling: 'Early-stage seed: rough idea, notes still forming.',
+  budding: 'Developing: ideas taking shape, partially refined.',
+  evergreen: 'Mature: well-formed, refined and stable.',
+};
+
+export function generateGardenNoteJsonLd({
+  note,
+  locale,
+  description,
+  outgoingNotes = [],
+  backlinks = [],
+  wordCount,
+}: GardenNoteJsonLdParams) {
+  const url = `${BASE_URL}/${locale}/garden/${note.slug}`;
+  const datePublished = note.created;
+  const dateModified = note.updated ?? note.created;
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: note.title,
+    description,
+    datePublished,
+    dateModified,
+    url,
+    inLanguage: localeToLanguageTag(locale),
+    image: [`${url}/opengraph-image`],
+    about: STATUS_DESCRIPTION[note.status],
+    ...(note.tags && note.tags.length > 0 ? { keywords: note.tags.join(', ') } : {}),
+    articleSection: 'Digital Garden',
+    ...(typeof wordCount === 'number' ? { wordCount } : {}),
+    ...(outgoingNotes.length > 0
+      ? {
+          mentions: outgoingNotes.map(target => ({
+            '@type': 'Article',
+            '@id': `${BASE_URL}/${locale}/garden/${target.slug}`,
+            url: `${BASE_URL}/${locale}/garden/${target.slug}`,
+            name: target.title,
+          })),
+        }
+      : {}),
+    ...(backlinks.length > 0
+      ? {
+          citation: backlinks.map(source => ({
+            '@type': 'Article',
+            '@id': `${BASE_URL}/${locale}/garden/${source.slug}`,
+            url: `${BASE_URL}/${locale}/garden/${source.slug}`,
+            name: source.title,
+          })),
+        }
+      : {}),
+    isPartOf: {
+      '@type': 'CreativeWorkSeries',
+      name: 'Digital Garden',
+      url: `${BASE_URL}/${locale}/garden`,
+    },
+    author: {
+      '@type': 'Person',
+      '@id': `${BASE_URL}/#author`,
+      name: 'Wan Sim',
+      url: BASE_URL,
+    },
+    publisher: {
+      '@id': `${BASE_URL}/#author`,
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': url,
     },
   };
 }

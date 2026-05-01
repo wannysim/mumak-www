@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
+import { buildAlternates } from '@/src/app/seo';
 import { SocialLinks } from '@/src/widgets/footer';
 
 interface AboutPageProps {
@@ -14,6 +15,7 @@ export async function generateMetadata({ params }: AboutPageProps): Promise<Meta
   return {
     title: t('title'),
     description: t('description'),
+    alternates: buildAlternates({ locale, path: '/about' }),
   };
 }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
+import { buildAlternates } from '@/src/app/seo';
 import { getPosts, isValidCategory } from '@/src/entities/post';
 import { type Locale } from '@/src/shared/config/i18n';
 import { PostCard } from '@/src/widgets/post-card';
@@ -19,6 +20,7 @@ export async function generateMetadata({ params }: HomePageProps): Promise<Metad
   return {
     title: t('title'),
     description: t('description'),
+    alternates: buildAlternates({ locale, path: '' }),
   };
 }
 

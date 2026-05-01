@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
+import { buildAlternates } from '@/src/app/seo';
 import { getNotesByStatus, type NoteStatus } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
 import { GardenNav } from '@/src/widgets/garden-nav';
@@ -29,6 +30,7 @@ export async function generateMetadata({ params }: GardenStatusPageProps): Promi
   return {
     title: `${t(`status.${status}`)} - ${t('title')}`,
     description: t('description'),
+    alternates: buildAlternates({ locale, path: `/garden/status/${status}` }),
   };
 }
 
