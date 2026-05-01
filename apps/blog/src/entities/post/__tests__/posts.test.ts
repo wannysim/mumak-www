@@ -1,4 +1,5 @@
 import {
+  calculateWordCount,
   getAllPostSlugs,
   getCategories,
   getPage,
@@ -278,6 +279,46 @@ describe('Posts Data Access Layer', () => {
         expect(typeof page.meta.title).toBe('string');
         expect(typeof page.meta.description).toBe('string');
       }
+    });
+  });
+
+  describe('calculateWordCount', () => {
+    it('should count plain English words', () => {
+      expect(calculateWordCount('one two three four five')).toBe(5);
+    });
+
+    it('should count each Korean character as one unit', () => {
+      // 5자 한글
+      expect(calculateWordCount('안녕하세요')).toBe(5);
+    });
+
+    it('should sum Korean characters and English words for mixed text', () => {
+      // '안녕' (2자) + 3 영단어
+      expect(calculateWordCount('안녕 hello world from React')).toBe(2 + 4);
+    });
+
+    it('should ignore fenced code blocks', () => {
+      const content = `intro paragraph here
+\`\`\`ts
+const skipped = 'this should not count at all';
+\`\`\`
+outro paragraph here`;
+      const result = calculateWordCount(content);
+      // 'intro paragraph here outro paragraph here' = 6 단어
+      expect(result).toBe(6);
+    });
+
+    it('should strip inline code spans entirely', () => {
+      // 'see the' (2) + 'function' (1) = 3 — `helperFn`는 코드라 제외
+      expect(calculateWordCount('see the `helperFn` function')).toBe(3);
+    });
+
+    it('should return 0 for empty content', () => {
+      expect(calculateWordCount('')).toBe(0);
+    });
+
+    it('should not count whitespace-only content', () => {
+      expect(calculateWordCount('   \n\n   \t  ')).toBe(0);
     });
   });
 });
