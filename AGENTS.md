@@ -54,16 +54,18 @@
 
 Turborepo 기반 모노레포. 공유 패키지는 `packages/`, 앱은 `apps/`에 위치.
 
-| 패키지                     | 용도                         |
-| -------------------------- | ---------------------------- |
-| `@mumak/ui`                | shadcn/ui 기반 공유 컴포넌트 |
-| `@mumak/typescript-config` | TypeScript 설정              |
+| 패키지                     | 용도                                             |
+| -------------------------- | ------------------------------------------------ |
+| `@mumak/ui`                | shadcn/ui 기반 공유 컴포넌트 (웹 전용)           |
+| `@mumak/shared`            | 플랫폼 무관 공유 로직 (hooks, utils, types, api) |
+| `@mumak/typescript-config` | TypeScript 설정                                  |
 
-| 앱                 | 설명                    |
-| ------------------ | ----------------------- |
-| `apps/mumak-next`  | Next.js 15 (App Router) |
-| `apps/mumak-react` | React + Vite            |
-| `apps/blog`        | 블로그 (FSD + MDX)      |
+| 앱                  | 설명                              |
+| ------------------- | --------------------------------- |
+| `apps/mumak-next`   | Next.js 15 (App Router)           |
+| `apps/mumak-react`  | React + Vite                      |
+| `apps/blog`         | 블로그 (FSD + MDX)                |
+| `apps/mumak-native` | Expo (React Native + expo-router) |
 
 각 앱/패키지의 세부 규칙은 해당 디렉터리의 `AGENTS.md`를 참조.
 

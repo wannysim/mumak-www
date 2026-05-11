@@ -18,3 +18,7 @@ apps:
   - app: mumak-react
     type: vite
     hasE2E: true
+
+  - app: mumak-native
+    type: expo
+    hasE2E: false

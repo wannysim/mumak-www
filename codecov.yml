@@ -50,6 +50,9 @@ flag_management:
     - name: mumak-react
       paths:
         - apps/mumak-react/src/
+    - name: mumak-native
+      paths:
+        - apps/mumak-native/
 
 # 커버리지 측정에서 제외할 경로 (테스트 파일, 설정, 외부 래퍼 등)
 ignore:
@@ -64,5 +67,7 @@ ignore:
   - 'apps/mumak-next/components/providers.tsx'
   - 'apps/mumak-react/src/main.tsx'
   - 'apps/mumak-react/src/test/**'
+  - 'apps/mumak-native/app/**'
+  - 'apps/mumak-native/scripts/**'
   - '**/scripts/**'
   - 'packages/ui/**'

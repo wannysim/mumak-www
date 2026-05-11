@@ -272,6 +272,15 @@ jobs:
           flags: mumak-react
           fail_ci_if_error: false
 
+      - name: Upload mumak-native coverage to Codecov
+        if: hashFiles('coverage-artifacts/coverage-mumak-native/lcov.info') != ''
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-artifacts/coverage-mumak-native/lcov.info
+          flags: mumak-native
+          fail_ci_if_error: false
+
   # Summary job for branch protection
   ci-success:
     name: CI Success
