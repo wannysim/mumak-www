@@ -1,50 +1,61 @@
-# Welcome to your Expo app 👋
+# Mumak Native
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo SDK 54 + expo-router 기반 모바일 앱.
 
-## Get started
+## 주요 기능
 
-1. Install dependencies
+- **파일 기반 라우팅**: expo-router (typed routes)
+- **다크모드**: `useColorScheme` + `constants/theme.ts` 색 팔레트
+- **공유 로직**: `@mumak/shared` (web 앱과 hooks/utils/types/api 공유)
 
-   ```bash
-   npm install
-   ```
+## 기술 스택
 
-2. Start the app
+| 구분      | 기술                                             |
+| --------- | ------------------------------------------------ |
+| Framework | Expo SDK 54 (React Native 0.81)                  |
+| Routing   | expo-router (typed)                              |
+| Animation | react-native-reanimated 4                        |
+| Build     | EAS Build (CI 외부)                              |
+| Unit Test | Jest + jest-expo + @testing-library/react-native |
+| 공유 로직 | @mumak/shared                                    |
 
-   ```bash
-   npx expo start
-   ```
+## 개발 환경
 
-In the output, you'll find options to open the app in a
+- Node.js 24.11+
+- pnpm
+- iOS: Xcode 16+
+- Android: Android Studio + JDK 17+
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## 실행
 
 ```bash
-npm run reset-project
+# 의존성 설치 (워크스페이스 루트에서)
+pnpm install
+
+# Expo dev server
+pnpm --filter mumak-native dev
+
+# 시뮬레이터로 바로 띄우기
+pnpm --filter mumak-native ios
+pnpm --filter mumak-native android
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Expo Go 앱이 있으면 dev server의 QR을 찍어 디바이스에서 바로 테스트 가능.
 
-## Learn more
+## 검증
 
-To learn more about developing your project with Expo, look at the following resources:
+CI와 동일한 순서:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+pnpm --filter mumak-native lint
+pnpm --filter mumak-native format:check
+pnpm --filter mumak-native check-types
+pnpm --filter mumak-native test:ci   # 현재 --passWithNoTests, AGENTS.md → 테스트 섹션 참조
+pnpm --filter mumak-native build     # 명시적 no-op (네이티브 바이너리는 EAS)
+```
 
-## Join the community
+자세한 컨벤션은 [`AGENTS.md`](./AGENTS.md) 참조.
 
-Join our community of developers creating universal apps.
+## 배포
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+네이티브 바이너리 빌드는 EAS Build의 영역. CI는 lint / format / check-types / test 검증만 한다. TestFlight·Play Internal Testing 도입 시점에 `eas.json` + GitHub Actions workflow 추가 예정.
