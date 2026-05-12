@@ -11,6 +11,10 @@
 [![codecov](https://codecov.io/github/wannysim/mumak-www/graph/badge.svg?token=QA0BJSHKID)](https://codecov.io/github/wannysim/mumak-www)
 ![Vercel Deploy](https://deploy-badge.vercel.app/vercel/mumak-www-blog?logo=next.js&name=wannysim.com)
 
+## `apps/mumak-native`
+
+Expo SDK 54 + expo-router 기반 모바일 앱. 네이티브 바이너리 빌드는 EAS Build에 위임하고, CI는 lint / format / check-types / test 검증만 수행합니다. 자세한 내용은 [`apps/mumak-native/README.md`](./apps/mumak-native/README.md).
+
 ## 🚀 시작하기
 
 ### 필수 요구사항
@@ -33,6 +37,7 @@ pnpm dev
 # 특정 앱만 실행
 pnpm dev --filter=mumak-next
 pnpm dev --filter=mumak-react
+pnpm dev --filter=mumak-native   # Expo dev server
 ```
 
 ## 📁 프로젝트 구조
@@ -40,10 +45,13 @@ pnpm dev --filter=mumak-react
 ```md
 mumak-www/
 ├── apps/ # 애플리케이션들
+│ ├── blog/ # Next.js 기반 개인 블로그 (FSD + MDX)
 │ ├── mumak-next/ # Next.js 애플리케이션
-│ └── mumak-react/ # Vite + React 애플리케이션
+│ ├── mumak-react/ # Vite + React 애플리케이션
+│ └── mumak-native/ # Expo (React Native + expo-router)
 ├── packages/ # 공유 패키지들
-│ ├── ui/ # shadcn/ui 기반 UI 컴포넌트 라이브러리
+│ ├── ui/ # shadcn/ui 기반 UI 컴포넌트 (웹 전용)
+│ ├── shared/ # 플랫폼 무관 공유 로직 (hooks, utils, types, api)
 │ └── typescript-config/ # TypeScript 설정
 └── turbo.json # Turborepo 설정
 ```
@@ -239,6 +247,6 @@ import { Button } from '@mumak/ui/components/button';
 ```yaml
 apps:
   - app: new-app-name
-    type: next # or vite, node
-    hasE2E: true # E2E 테스트 포함 여부
+    type: next # or vite, expo, node
+    hasE2E: true # E2E 테스트 포함 여부 (false면 e2e 워크플로우에서 자동 제외)
 ```
