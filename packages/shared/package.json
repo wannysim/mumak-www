@@ -1,0 +1,29 @@
+{
+  "name": "@mumak/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./hooks/*": "./src/hooks/*.ts",
+    "./utils/*": "./src/utils/*.ts",
+    "./types/*": "./src/types/*.ts",
+    "./api/*": "./src/api/*.ts"
+  },
+  "scripts": {
+    "lint": "oxlint --no-error-on-unmatched-pattern .",
+    "lint:fix": "oxlint --fix --no-error-on-unmatched-pattern .",
+    "format": "oxfmt --check --no-error-on-unmatched-pattern .",
+    "format:check": "oxfmt --check --no-error-on-unmatched-pattern .",
+    "format:fix": "oxfmt --no-error-on-unmatched-pattern .",
+    "clean": "rm -rf node_modules/.cache"
+  },
+  "devDependencies": {
+    "@mumak/typescript-config": "workspace:*",
+    "@types/react": "^19.2.10",
+    "react": "^19.2.4",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "react": ">=19.0.0"
+  }
+}

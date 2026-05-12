@@ -2,7 +2,7 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
   "globalDependencies": ["package.json", "pnpm-lock.yaml", "turbo.json", ".env*"],
-  "globalEnv": ["NODE_ENV", "CI", "VERCEL"],
+  "globalEnv": ["NODE_ENV", "CI", "VERCEL", "EXPO_OS"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

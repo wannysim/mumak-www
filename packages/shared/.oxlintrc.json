@@ -1,0 +1,14 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "extends": ["../../.oxlintrc.json"],
+  "plugins": ["eslint", "typescript", "oxc", "unicorn", "react"],
+  "overrides": [
+    {
+      "files": ["**/*.{test,spec}.{ts,tsx,js,jsx}", "**/__tests__/**/*.{ts,tsx,js,jsx}"],
+      "plugins": ["eslint", "typescript", "oxc", "unicorn", "react", "jest"],
+      "rules": {
+        "jest/no-conditional-expect": "off"
+      }
+    }
+  ]
+}
