@@ -52,7 +52,6 @@ flag_management:
         - apps/mumak-react/src/
     - name: mumak-native
       paths:
-        - apps/mumak-native/app/
         - apps/mumak-native/components/
         - apps/mumak-native/hooks/
         - apps/mumak-native/constants/
