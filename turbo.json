@@ -17,6 +17,9 @@
         "SPOTIFY_REFRESH_TOKEN"
       ]
     },
+    "mumak-native#build": {
+      "outputs": []
+    },
     "lint": {
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"],
       "outputs": []
