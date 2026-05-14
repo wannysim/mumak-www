@@ -1,4 +1,3 @@
-
 ## 교토 여행 조사 작업 체크리스트 (자동 첨부)
 
 - [x] 맛집 후보 조사: restaurants.json (apps/blog/content/ko/garden/projects/data/restaurants.json) 생성/초안 작성
