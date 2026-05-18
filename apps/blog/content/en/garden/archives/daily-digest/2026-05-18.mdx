@@ -1,0 +1,67 @@
+---
+title: '2026-05-18 GeekNews Weekly: Preparing for Local AI'
+created: '2026-05-18'
+updated: '2026-05-18'
+status: 'budding'
+tags: ['daily-digest', 'geek-news', 'local-ai', 'ai', 'developer-tools']
+draft: false
+---
+
+## Source
+
+- URL: https://news.hada.io/weekly/202620
+- Title: [GN#358] Preparing for Local AI
+- Published: 2026-05-18
+
+## One-line summary
+
+A GeekNews weekly digest arguing that local AI is no longer just an experiment — it is becoming a practical choice for both developer tools and product features.
+
+## Key takeaways
+
+- Coding agents such as Claude Code, Codex, and Cursor are now part of everyday development, so the real question is no longer whether to use AI, but _what to delegate to which model_.
+- Rising costs, security concerns, data egress, and token usage make local AI increasingly relevant.
+- antirez from Redis released `DwarfStar 4`, a native C inference engine optimized for Apple Metal and focused on a single model, which can plug into Claude Code-like workflows via an OpenAI/Anthropic-compatible HTTP API.
+- Even on a relatively normal machine like an M4 with 24GB RAM, local models can be useful when tasks are broken down step by step.
+- Local AI is strongest at structured support work: summarization, classification, extraction, rewriting, and normalization.
+- For app features, local AI can reduce network, cost, and outage dependencies, making a feature feel closer to a pure function.
+
+## Why it matters
+
+The piece frames local AI not as a hobby project, but as a real design choice that can change product architecture and day-to-day workflows — especially for services that care about cost or privacy.
+
+## Follow-up notes
+
+- It is worth identifying which of my own repetitive tasks could run on a local model.
+- Local AI pairs well with back-office tooling, note taking, and link digestion.
+- Related notes: [[my-garden-principles|Garden operating principles]], [[pkm|PKM]]
+
+---
+
+## whichllm: Finding the best local LLM for my hardware
+
+- URL: https://news.hada.io/topic?id=29613
+- Title: whichllm - 내 하드웨어에서 실제로 돌아가고 최고 성능을 내는 로컬 LLM 찾기
+- Published: 2026-05-18
+
+### One-line summary
+
+A CLI tool that recommends the _best-performing local LLM for your machine_ based on real benchmarks and hardware awareness.
+
+### Key takeaways
+
+- It auto-detects GPU/CPU/RAM and ranks HuggingFace models for the current system.
+- The goal is not simply the largest model, but the **best model that actually performs well**.
+- It merges scores from LiveBench, Artificial Analysis, Aider, vision, Arena, and Open LLM Leaderboard.
+- Older benchmarks and self-reported data are discounted by confidence level.
+- Practical commands like `whichllm run`, `whichllm plan`, `whichllm upgrade`, and `whichllm snippet` are built in.
+
+### Why it matters
+
+When using local AI, the first hard question is usually: "What model should I run on this machine?" This tool automates that decision, so it complements the local-AI weekly very well.
+
+### Follow-up notes
+
+- A good entry point for testing local models.
+- Worth pairing with `ollama`, `llama.cpp`, or `LM Studio`.
+- Related notes: [[my-garden-principles|Garden operating principles]], [[pkm|PKM]]
