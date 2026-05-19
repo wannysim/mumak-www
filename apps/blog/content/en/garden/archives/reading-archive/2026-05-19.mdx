@@ -1,0 +1,121 @@
+---
+title: '2026-05-19'
+created: '2026-05-19'
+updated: '2026-05-19'
+status: 'budding'
+tags: ['daily-digest', 'geek-news', 'ai', 'workflow', 'developer-tools']
+parent: 'reading-archive'
+draft: false
+---
+
+## Source
+
+- [GN#359 AI and the compound growth of working well with AI](https://news.hada.io/topic?id=29606)
+- [GN#358 GBrain — Open-source personal knowledge base](https://news.hada.io/topic?id=28323)
+- [GN#357 Slow Down to Speed Up](https://news.hada.io/topic?id=27858)
+- [GN#356 Now let’s study with Claude Code too!](https://news.hada.io/topic?id=27156)
+
+## One-line summary
+
+A practical guide to working well with AI by _building context, encoding taste, automating validation, expanding delegation, and turning feedback into a loop_.
+
+## Key takeaways
+
+- Every session should leave behind code, docs, decisions, and notes as context for the next one.
+- Use `CLAUDE.md`, skill files, and guides to manage model behavior and workflows like code.
+- Keep an `INDEX.md` per project and add context, not just URLs, so the knowledge base stays searchable.
+- Validation should not depend only on a human at the end; tests, tools, and model cross-checks should catch issues along the way.
+- Parallel sessions, role splitting, and remote control can expand delegation and increase throughput.
+- The same pattern applies to human team collaboration, not just AI.
+
+## Notable perspective
+
+- The key to using AI well is not a single great prompt, but an _operating system_ for work.
+- Context should accumulate like an asset, and rules should live in settings rather than in repeated conversation.
+- Good AI collaboration is really about building a structure that does not need to be re-explained every time.
+
+## Why it matters
+
+This piece frames AI use as _workflow and system design_, not just tool usage. That makes it immediately relevant to recurring tasks like daily posts, blogging, and link curation.
+
+## Follow-up notes
+
+- My own daily workflow can be further automated as: _collect → summarize → structure → store_.
+- A blog archive is a perfect fit for this mindset because it keeps accumulating context over time.
+
+---
+
+## GBrain
+
+### One-line summary
+
+A personal knowledge management tool that turns distributed markdown notes into a Postgres-backed knowledge base with hybrid vector + keyword search and MCP/agent skills.
+
+### Key takeaways
+
+- It combines `pgvector` and `tsvector` with `RRF` to use semantic and keyword search together.
+- It separates `compiled truth` from `timeline`, so current best understanding and accumulated evidence stay distinct.
+- Claude Haiku is used to expand queries and deduplicate results, improving search quality.
+- It includes built-in agent skills such as `ingest`, `query`, `maintain`, `enrich`, `briefing`, `migrate`, and `install`.
+- It supports migration from Obsidian, Notion, Logseq, CSV, JSON, and more.
+
+### Why it matters
+
+The tool treats personal knowledge as _searchable infrastructure_ rather than just stored files. That fits well with workflows that keep accumulating links, notes, and blog material.
+
+### Follow-up notes
+
+- It seems like a good fit for Obsidian-style note structures.
+- The way I build daily archives lines up nicely with this kind of knowledge-base philosophy.
+
+---
+
+## Slow Down to Speed Up
+
+### One-line summary
+
+In the AI era, it matters more to think slowly about _what to build, why it matters, and when to stop_ than to execute quickly.
+
+### Key takeaways
+
+- AI makes execution faster, but it also spreads bad requirements faster.
+- `System 2`-style slow analysis matters more than `System 1`-style fast pattern matching.
+- AI is especially useful for slower thinking steps like pre-mortems, edge-case exploration, and requirement clarification.
+- Slowing down is not delay; it is time spent confirming the right direction.
+- Slow phases need timeboxing and visibility, and their outputs should be shared to build trust.
+
+### Why it matters
+
+As AI gets faster, the cost of design mistakes and wrong problem framing gets bigger too. This piece argues that knowing _when to pause and think_ matters more than merely moving quickly.
+
+### Follow-up notes
+
+- For daily posts or blog work, it helps to write the problem and success criteria first.
+- AI is often better used for pre-mortems and edge cases before it is used for coding.
+
+---
+
+## Now let’s study with Claude Code too!
+
+### One-line summary
+
+A metacognitive learning system that turns PDFs or codebases into notes, quizzes, and targeted review with AI help.
+
+### Key takeaways
+
+- Like Claude Code's Plan mode, the AI asks follow-up questions and helps reveal gaps in what the learner does not know.
+- The flow is: convert material into Obsidian notes, generate concept-based practice questions, and repeat only the parts that were missed.
+- The author used this approach for 2 weeks, 30 minutes a day, and passed an AWS certification exam.
+- It is useful not only for certifications, but also for onboarding onto new projects and studying technical books or papers.
+- The key is not memorization, but _surfacing unknowns quickly_.
+
+### Why it matters
+
+This piece uses AI not as an answer generator, but as a _learning diagnostic tool_. It is a practical pattern for making cram sessions smarter.
+
+### Follow-up notes
+
+- I could use a similar "quiz first" approach for topics I want to learn.
+- Obsidian notes and skill-based learning loops fit together nicely.
+
+This note is a day-by-day entry managed under [[reading-archive|Reading Archive]].
