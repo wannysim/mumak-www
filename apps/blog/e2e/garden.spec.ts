@@ -12,7 +12,7 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     await expect(tree).toBeVisible();
 
     // Categories with content render as section headers (no expand toggle).
-    await expect(tree.getByText('Projects', { exact: true })).toBeVisible();
+    await expect(tree.getByText('Resources', { exact: true })).toBeVisible();
     await expect(tree.getByText('Areas', { exact: true })).toBeVisible();
   });
 
