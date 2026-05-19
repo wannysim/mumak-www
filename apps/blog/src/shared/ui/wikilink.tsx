@@ -1,4 +1,4 @@
-import { type ComponentProps } from 'react';
+import { type ComponentProps, type ComponentPropsWithoutRef } from 'react';
 
 import { cn } from '@mumak/ui/lib/utils';
 
@@ -28,7 +28,7 @@ export function WikiLink({ href, slug, className, children, ...props }: WikiLink
   );
 }
 
-interface BrokenWikiLinkProps extends ComponentProps<'span'> {
+interface BrokenWikiLinkProps extends ComponentPropsWithoutRef<'span'> {
   slug: string;
 }
 
@@ -46,7 +46,7 @@ export function BrokenWikiLink({ slug, className, children, ...props }: BrokenWi
   );
 }
 
-function WikiEmbedContainer({ className, children, ...props }: ComponentProps<'aside'>) {
+function WikiEmbedContainer({ className, children, ...props }: ComponentPropsWithoutRef<'aside'>) {
   return (
     <aside
       className={cn('my-4 rounded-md border border-border bg-muted/30 p-4 text-sm', className)}
@@ -91,7 +91,7 @@ export function BrokenWikiEmbed({
   slug,
   className,
   ...props
-}: ComponentProps<'aside'> & {
+}: ComponentPropsWithoutRef<'aside'> & {
   slug: string;
 }) {
   return (
