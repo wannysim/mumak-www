@@ -11,6 +11,7 @@ draft: false
 ## Source
 
 - [GN#359 AI and the compound growth of working well with AI](https://news.hada.io/topic?id=29606)
+- [GN#358 GBrain — Open-source personal knowledge base](https://news.hada.io/topic?id=28323)
 
 ## One-line summary
 
@@ -39,5 +40,30 @@ This piece frames AI use as _workflow and system design_, not just tool usage. T
 
 - My own daily workflow can be further automated as: _collect → summarize → structure → store_.
 - A blog archive is a perfect fit for this mindset because it keeps accumulating context over time.
+
+---
+
+## GBrain
+
+### One-line summary
+
+A personal knowledge management tool that turns distributed markdown notes into a Postgres-backed knowledge base with hybrid vector + keyword search and MCP/agent skills.
+
+### Key takeaways
+
+- It combines `pgvector` and `tsvector` with `RRF` to use semantic and keyword search together.
+- It separates `compiled truth` from `timeline`, so current best understanding and accumulated evidence stay distinct.
+- Claude Haiku is used to expand queries and deduplicate results, improving search quality.
+- It includes built-in agent skills such as `ingest`, `query`, `maintain`, `enrich`, `briefing`, `migrate`, and `install`.
+- It supports migration from Obsidian, Notion, Logseq, CSV, JSON, and more.
+
+### Why it matters
+
+The tool treats personal knowledge as _searchable infrastructure_ rather than just stored files. That fits well with workflows that keep accumulating links, notes, and blog material.
+
+### Follow-up notes
+
+- It seems like a good fit for Obsidian-style note structures.
+- The way I build daily archives lines up nicely with this kind of knowledge-base philosophy.
 
 This note is a day-by-day entry managed under [[reading-archive|Reading Archive]].
