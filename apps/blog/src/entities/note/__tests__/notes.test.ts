@@ -37,14 +37,15 @@ describe('getNotes', () => {
     expect(principlesNote).toBeDefined();
   });
 
-  it('subdir(PARA 폴더)에서 파일을 읽어 category를 추출한다', () => {
-    const notes = getNotes('ko');
-    const projectNote = notes.find(n => n.slug === 'digital-garden-and-pkm');
+  it.each([
+    ['digital-garden-and-pkm', 'resources'],
+    ['movie', 'resources'],
+    ['neondeok', 'archives'],
+  ])('subdir(PARA 폴더)에서 %s의 category를 %s로 추출한다', (slug, expectedCategory) => {
+    const note = getNotes('ko').find(n => n.slug === slug);
 
-    // 만약 파일이 있으면 category가 올바르게 추출되었는지 확인
-    if (projectNote) {
-      expect(projectNote.category).toBe('projects');
-    }
+    expect(note).toBeDefined();
+    expect(note?.category).toBe(expectedCategory);
   });
 });
 

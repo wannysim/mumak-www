@@ -70,6 +70,12 @@ runs:
           exit 0
         fi
 
+        # tj-actions/changed-files emits a space-separated list on a single line.
+        # `grep -q "^X"` then only matches the first token — alphabetically first
+        # files would win, the rest silently slip past. Normalize to one path per
+        # line so the start-of-line anchor works for every changed file.
+        CHANGED_FILES=$(echo "$CHANGED_FILES" | tr ' ' '\n' | sed '/^$/d')
+
         echo "Changed files:"
         echo "$CHANGED_FILES" | head -20
         if [ $(echo "$CHANGED_FILES" | wc -l) -gt 20 ]; then

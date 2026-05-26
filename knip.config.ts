@@ -51,10 +51,28 @@ const config: KnipConfig = {
         'vitest',
       ],
     },
+    'apps/mumak-native': {
+      entry: [
+        'app/**/*.{ts,tsx}',
+        'components/**/*.{ts,tsx}',
+        'hooks/**/*.{ts,tsx}',
+        'constants/**/*.{ts,tsx}',
+        'metro.config.js',
+        'app.json',
+      ],
+      project: ['**/*.{ts,tsx}'],
+      ignore: ['.expo/**', 'node_modules/**', '**/*.test.{ts,tsx}', '__tests__/**', 'jest.config.*', 'scripts/**'],
+      ignoreDependencies: ['@types/jest', 'jest', 'jest-expo'],
+    },
     'packages/ui': {
       entry: ['src/**/*.{ts,tsx}', 'postcss.config.mjs'],
       project: ['**/*.{ts,tsx}'],
       ignore: ['node_modules/**', 'dist/**', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
+    },
+    'packages/shared': {
+      entry: ['src/**/*.{ts,tsx}'],
+      project: ['**/*.{ts,tsx}'],
+      ignore: ['node_modules/**', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
     },
     'packages/typescript-config': {
       entry: ['**/*.json'],

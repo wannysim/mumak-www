@@ -1,0 +1,169 @@
+---
+title: '2026-05-26'
+created: '2026-05-26'
+updated: '2026-05-26'
+status: 'budding'
+tags: ['daily-digest', 'geek-news', 'ai', 'workflow', 'developer-tools', 'mcp', 'knowledge-graph']
+parent: 'reading-archive'
+draft: false
+---
+
+## Source
+
+- [Using AI to write better code more slowly](https://nolanlawson.com/2026/05/25/using-ai-to-write-better-code-more-slowly/)
+- GeekNews summary: [AI를 사용해 더 나은 코드를 더 천천히 작성하기](https://news.hada.io/topic?id=29870)
+
+## One-line summary
+
+This post reframes AI coding as a tool for _deeper review, failure-mode analysis, bug prioritization, and codebase health_, not merely for producing more code faster.
+
+## Key takeaways
+
+- The usual AI-coding narrative gets stuck on generating low-quality code quickly.
+- But LLMs are also good at _reviewing, exploring, challenging assumptions, and finding bugs_.
+- Experiments like Mythos show that models can surface a lot of bug candidates in a codebase.
+- The hard part is not discovery itself, but deciding _what matters first_ and _what is actually a real bug_.
+- Running multiple models in parallel helps reduce hallucinations and bogus findings.
+- The optimization target shifts away from speed and toward _accuracy, verification, and learning_.
+
+## Deeper analysis
+
+### 1) The post changes the question
+
+Most people ask whether AI can help them ship faster. Lawson asks a different set of questions:
+
+- Can it help me make better decisions?
+- Can it help me understand the PR more deeply?
+- Can it help me spot the failure modes before they become incidents?
+
+That shift matters. It moves AI from a throughput tool to a judgment tool.
+
+### 2) LLMs are strong at exploration
+
+The most interesting part of the argument is that LLMs are not just code generators. They are also very good at surfacing suspicious assumptions:
+
+- missing edge cases
+- brittle logic
+- confusing comments
+- performance pitfalls
+- legacy bugs hiding in the codebase
+
+In other words, AI can function as a _review engine_, not merely an autocomplete engine.
+
+### 3) Why use multiple models
+
+The article highlights a multi-model workflow:
+
+- Claude sub-agents
+- Codex
+- Cursor Bugbot
+
+The idea is simple: different models catch different things, and their overlap helps reduce false positives. That ensemble effect is the real trick. The value is not that any one model is perfect, but that their combined output makes human review sharper and less biased.
+
+### 4) Slower AI coding is about quality, not velocity
+
+This is basically the opposite of the usual "vibe coding" story.
+
+- Don’t just generate a huge PR and merge it.
+- Don’t optimize for lines of code.
+- Spend time understanding how the change works and how it can fail.
+
+Lawson notes that this does not necessarily increase velocity. In fact, it often reveals pre-existing bugs, creates side quests, and leads to unit tests or subtle fixes that were not part of the original plan. But that is the point: the workflow improves the codebase, not just the output count.
+
+### 5) AI as a learning loop
+
+Another useful angle is that this style of AI use turns coding into a learning loop.
+
+- Ask the agent how the PR works.
+- Ask where it might fail.
+- Ask it to document the architecture.
+- Keep grilling it until the whole change is understandable front to back.
+
+That is especially attractive for complex systems, where the failure mode is often more informative than the happy path.
+
+## Why it matters
+
+AI does not have to mean "move faster and ship more." It can also mean _review better, learn faster, and keep the codebase healthier_.
+
+That framing feels especially relevant for me, because I keep building daily notes, blog content, and a growing knowledge archive. In that kind of workflow, the real skill is not producing more material—it’s deciding what deserves to stay.
+
+## Follow-up notes
+
+- Large PRs may be better when broken into smaller, heavily verified changes.
+- Before building, ask AI how the change could fail.
+- Comparing multiple models may help reduce bias and false positives.
+- For daily writing, spend more effort on selection and review, not just generation.
+
+---
+
+## CodeGraph
+
+### Source
+
+- [CodeGraph - a code knowledge graph for AI coding agents](https://news.hada.io/topic?id=29873)
+- Original repo: [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph)
+
+### One-line summary
+
+A local MCP layer that lets agents query a pre-indexed code knowledge graph for symbols, relationships, and blast radius before falling back to grep/read loops.
+
+### Key takeaways
+
+- CodeGraph pre-indexes a codebase so agents can query it directly.
+- It stores symbol relationships, call graphs, and code structure as a graph.
+- According to the README, it claims roughly 35% cheaper runs, 57–59% fewer tokens, 46–49% faster execution, and about 70% fewer tool calls.
+- `Smart Context Building` returns entry points, related symbols, and snippets in one call.
+- `Impact Analysis` helps trace callers, callees, and the blast radius of a change.
+- It is fully local, using SQLite only, with no external API keys or services.
+- It ships as MCP tooling for agents such as Claude Code, Cursor, Codex, opencode, and Hermes Agent.
+
+### Deeper analysis
+
+#### 1) The problem it targets
+
+Most agents understand code by searching, reading, and searching again. That is fine for small repositories, but at scale the discovery phase becomes expensive on both tokens and time. CodeGraph tries to precompute that discovery layer into an index.
+
+So the real product is not just a graph — it is _better context delivery_.
+
+#### 2) Why the idea is plausible
+
+In agent workflows, the expensive part is often not the final answer but the process of finding the right part of the codebase.
+
+- identify the relevant symbol
+- inspect callers and callees
+- read only the necessary files
+
+If that sequence works, you can cut a lot of wasted exploration.
+
+#### 3) The limits matter too
+
+I do not think this is universal magic.
+
+- The index is only as good as the parser/indexer.
+- Dynamic patterns, reflection, and runtime-generated code can be hard to capture.
+- On small repos, grep/read may already be cheap enough.
+- If the agent still reads files indiscriminately, CodeGraph becomes overhead.
+
+So I would treat it as a _direction-finder before reading_, not a replacement for reading.
+
+#### 4) Why it connects to my interests
+
+What I keep caring about is the same axis:
+
+- can AI generate faster?
+- can it verify better?
+- can it understand accurately with less context?
+
+CodeGraph helps with the first step toward accurate understanding. That is especially attractive in large monorepos and legacy codebases.
+
+### Why it matters
+
+As agents get more capable, the competitive edge may come less from the model and more from the _context infrastructure_ around it. CodeGraph is a good example of that direction: structure the knowledge first, then let the agent reason with fewer calls.
+
+### Follow-up notes
+
+- Likely most useful on larger repositories.
+- It only pays off if the agent is actually guided to query the graph directly.
+- It may pair well with our repo, where docs and code live side by side.
+
+This note is a day-by-day entry managed under [[reading-archive|Reading Archive]].
