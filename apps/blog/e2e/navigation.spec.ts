@@ -186,8 +186,10 @@ test.describe('Navigation', () => {
       await waitForHeaderState(page, 'true');
 
       // 네비게이션 링크 클릭
-      await header.getByRole('link', { name: '블로그' }).click();
-      await page.waitForURL(/\/ko\/blog$/);
+      await Promise.all([
+        page.waitForURL(/\/ko\/blog$/, { waitUntil: 'commit' }),
+        header.getByRole('link', { name: '블로그' }).click(),
+      ]);
 
       await expect(page).toHaveURL(/\/ko\/blog$/);
     });
