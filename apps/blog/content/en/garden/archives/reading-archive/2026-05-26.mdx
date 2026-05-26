@@ -1,0 +1,97 @@
+---
+title: '2026-05-26'
+created: '2026-05-26'
+updated: '2026-05-26'
+status: 'budding'
+tags: ['daily-digest', 'geek-news', 'ai', 'workflow', 'developer-tools']
+parent: 'reading-archive'
+draft: false
+---
+
+## Source
+
+- [Using AI to write better code more slowly](https://nolanlawson.com/2026/05/25/using-ai-to-write-better-code-more-slowly/)
+- Geek News summary: [AI를 사용해 더 나은 코드를 더 천천히 작성하기](https://news.hada.io/topic?id=29870)
+
+## One-line summary
+
+This post reframes AI coding as a tool for _deeper review, failure-mode analysis, bug prioritization, and codebase health_, not just for producing more code faster.
+
+## Key takeaways
+
+- The usual AI-coding narrative gets stuck on generating low-quality code quickly.
+- But LLMs are also good at _reviewing, exploring, challenging assumptions, and finding bugs_.
+- Experiments like Mythos show that models can surface a lot of bug candidates in a codebase.
+- The hard part is not discovery itself, but deciding _what matters first_ and _what is actually a real bug_.
+- Running multiple models in parallel helps reduce hallucinations and bogus findings.
+- The optimization target shifts away from speed and toward _accuracy, verification, and learning_.
+
+## Deeper analysis
+
+### 1) The post changes the question
+
+Most people ask whether AI can help them ship faster. Lawson asks a different set of questions:
+
+- Can it help me make better decisions?
+- Can it help me understand the PR more deeply?
+- Can it help me spot the failure modes before they become incidents?
+
+That shift matters. It moves AI from a throughput tool to a judgment tool.
+
+### 2) LLMs are strong at exploration
+
+The most interesting part of the argument is that LLMs are not just code generators. They are also very good at surfacing suspicious assumptions:
+
+- missing edge cases
+- brittle logic
+- confusing comments
+- performance pitfalls
+- legacy bugs hiding in the codebase
+
+In other words, AI can function as a _review engine_, not merely an autocomplete engine.
+
+### 3) Why use multiple models
+
+The article highlights a multi-model workflow:
+
+- Claude sub-agents
+- Codex
+- Cursor Bugbot
+
+The idea is simple: different models catch different things, and their overlap helps reduce false positives. That ensemble effect is the real trick. The value is not that any one model is perfect, but that their combined output makes human review sharper and less biased.
+
+### 4) Slower AI coding is about quality, not velocity
+
+This is basically the opposite of the usual "vibe coding" story.
+
+- Don’t just generate a huge PR and merge it.
+- Don’t optimize for lines of code.
+- Spend time understanding how the change works and how it can fail.
+
+Lawson notes that this does not necessarily increase velocity. In fact, it often reveals pre-existing bugs, creates side quests, and leads to unit tests or subtle fixes that were not part of the original plan. But that is the point: the workflow improves the codebase, not just the output count.
+
+### 5) AI as a learning loop
+
+Another useful angle is that this style of AI use turns coding into a learning loop.
+
+- Ask the agent how the PR works.
+- Ask where it might fail.
+- Ask it to document the architecture.
+- Keep grilling it until the whole change is understandable front to back.
+
+That is especially attractive for complex systems, where the failure mode is often more informative than the happy path.
+
+## Why it matters
+
+AI does not have to mean "move faster and ship more." It can also mean _review better, learn faster, and keep the codebase healthier_.
+
+That framing feels especially relevant for me, because I keep building daily notes, blog content, and a growing knowledge archive. In that kind of workflow, the real skill is not producing more material—it’s deciding what deserves to stay.
+
+## Follow-up notes
+
+- Large PRs may be better when broken into smaller, heavily verified changes.
+- Before building, ask AI how the change could fail.
+- Comparing multiple models may help reduce bias and false positives.
+- For daily writing, spend more effort on selection and review, not just generation.
+
+This note is a day-by-day entry managed under [[reading-archive|Reading Archive]].
