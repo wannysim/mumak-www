@@ -11,11 +11,11 @@ draft: false
 ## Source
 
 - [Using AI to write better code more slowly](https://nolanlawson.com/2026/05/25/using-ai-to-write-better-code-more-slowly/)
-- Geek News summary: [AI를 사용해 더 나은 코드를 더 천천히 작성하기](https://news.hada.io/topic?id=29870)
+- GeekNews summary: [AI를 사용해 더 나은 코드를 더 천천히 작성하기](https://news.hada.io/topic?id=29870)
 
 ## One-line summary
 
-This post reframes AI coding as a tool for _deeper review, failure-mode analysis, bug prioritization, and codebase health_, not just for producing more code faster.
+This post reframes AI coding as a tool for _deeper review, failure-mode analysis, bug prioritization, and codebase health_, not merely for producing more code faster.
 
 ## Key takeaways
 
@@ -105,13 +105,13 @@ That framing feels especially relevant for me, because I keep building daily not
 
 ### One-line summary
 
-A local MCP-based code intelligence layer that lets agents query a pre-indexed code graph for symbols, relationships, and impact radius before falling back to grep/read loops.
+A local MCP layer that lets agents query a pre-indexed code knowledge graph for symbols, relationships, and blast radius before falling back to grep/read loops.
 
 ### Key takeaways
 
 - CodeGraph pre-indexes a codebase so agents can query it directly.
 - It stores symbol relationships, call graphs, and code structure as a graph.
-- The README claims roughly 35% cheaper runs, 57–59% fewer tokens, 46–49% faster execution, and about 70% fewer tool calls.
+- According to the README, it claims roughly 35% cheaper runs, 57–59% fewer tokens, 46–49% faster execution, and about 70% fewer tool calls.
 - `Smart Context Building` returns entry points, related symbols, and snippets in one call.
 - `Impact Analysis` helps trace callers, callees, and the blast radius of a change.
 - It is fully local, using SQLite only, with no external API keys or services.
