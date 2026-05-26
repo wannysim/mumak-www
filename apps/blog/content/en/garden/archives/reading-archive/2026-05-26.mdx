@@ -3,7 +3,7 @@ title: '2026-05-26'
 created: '2026-05-26'
 updated: '2026-05-26'
 status: 'budding'
-tags: ['daily-digest', 'geek-news', 'ai', 'workflow', 'developer-tools']
+tags: ['daily-digest', 'geek-news', 'ai', 'workflow', 'developer-tools', 'mcp', 'knowledge-graph']
 parent: 'reading-archive'
 draft: false
 ---
@@ -93,5 +93,77 @@ That framing feels especially relevant for me, because I keep building daily not
 - Before building, ask AI how the change could fail.
 - Comparing multiple models may help reduce bias and false positives.
 - For daily writing, spend more effort on selection and review, not just generation.
+
+---
+
+## CodeGraph
+
+### Source
+
+- [CodeGraph - a code knowledge graph for AI coding agents](https://news.hada.io/topic?id=29873)
+- Original repo: [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph)
+
+### One-line summary
+
+A local MCP-based code intelligence layer that lets agents query a pre-indexed code graph for symbols, relationships, and impact radius before falling back to grep/read loops.
+
+### Key takeaways
+
+- CodeGraph pre-indexes a codebase so agents can query it directly.
+- It stores symbol relationships, call graphs, and code structure as a graph.
+- The README claims roughly 35% cheaper runs, 57–59% fewer tokens, 46–49% faster execution, and about 70% fewer tool calls.
+- `Smart Context Building` returns entry points, related symbols, and snippets in one call.
+- `Impact Analysis` helps trace callers, callees, and the blast radius of a change.
+- It is fully local, using SQLite only, with no external API keys or services.
+- It ships as MCP tooling for agents such as Claude Code, Cursor, Codex, opencode, and Hermes Agent.
+
+### Deeper analysis
+
+#### 1) The problem it targets
+
+Most agents understand code by searching, reading, and searching again. That is fine for small repositories, but at scale the discovery phase becomes expensive on both tokens and time. CodeGraph tries to precompute that discovery layer into an index.
+
+So the real product is not just a graph — it is _better context delivery_.
+
+#### 2) Why the idea is plausible
+
+In agent workflows, the expensive part is often not the final answer but the process of finding the right part of the codebase.
+
+- identify the relevant symbol
+- inspect callers and callees
+- read only the necessary files
+
+If that sequence works, you can cut a lot of wasted exploration.
+
+#### 3) The limits matter too
+
+I do not think this is universal magic.
+
+- The index is only as good as the parser/indexer.
+- Dynamic patterns, reflection, and runtime-generated code can be hard to capture.
+- On small repos, grep/read may already be cheap enough.
+- If the agent still reads files indiscriminately, CodeGraph becomes overhead.
+
+So I would treat it as a _direction-finder before reading_, not a replacement for reading.
+
+#### 4) Why it connects to my interests
+
+What I keep caring about is the same axis:
+
+- can AI generate faster?
+- can it verify better?
+- can it understand accurately with less context?
+
+CodeGraph helps with the first step toward accurate understanding. That is especially attractive in large monorepos and legacy codebases.
+
+### Why it matters
+
+As agents get more capable, the competitive edge may come less from the model and more from the _context infrastructure_ around it. CodeGraph is a good example of that direction: structure the knowledge first, then let the agent reason with fewer calls.
+
+### Follow-up notes
+
+- Likely most useful on larger repositories.
+- It only pays off if the agent is actually guided to query the graph directly.
+- It may pair well with our repo, where docs and code live side by side.
 
 This note is a day-by-day entry managed under [[reading-archive|Reading Archive]].
