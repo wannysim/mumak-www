@@ -136,9 +136,9 @@ node scripts/sync-versions.mjs 2.0.0-beta.1
 
 ## 문제 해결
 
-| 문제            | 해결                                          |
-| --------------- | --------------------------------------------- |
-| git flow 미설치 | `brew install git-flow`                       |
-| 버전 불일치     | `node scripts/sync-versions.mjs`              |
-| 태그 충돌       | `git tag -d <tag>` 후 재시도                  |
-| 머지 충돌       | 수동 해결 후 `git flow release finish` 재실행 |
+| 문제            | 해결                                                                |
+| --------------- | ------------------------------------------------------------------- |
+| git flow 미설치 | macOS: `brew install git-flow` / Linux: `sudo apt install git-flow` |
+| 버전 불일치     | `node scripts/sync-versions.mjs`                                    |
+| 태그 충돌       | `git tag -d <tag>` 후 재시도                                        |
+| 머지 충돌       | 수동 해결 후 `git flow release finish` 재실행                       |
