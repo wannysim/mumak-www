@@ -1,0 +1,277 @@
+---
+title: 'React Native 컨벤션과 함정'
+created: '2026-05-28'
+status: 'seedling'
+parent: 'frontend'
+tags: ['react-native', 'mobile', 'frontend', 'conventions', 'pitfalls']
+---
+
+웹 React에서 통하던 습관이 RN에서는 성능 문제, 레이아웃 깨짐, 혹은 그냥 안 보이는 화면을 만든다. 자주 부딪히는 것들을 모아둔다.
+
+> 기본은 [[react-native-basics-for-react-devs|React 개발자가 처음 만나는 RN]] 노트를 먼저 읽고 오면 좋다.
+
+## 리스트는 무조건 FlatList — `.map`은 짧을 때만
+
+웹에서는 100개짜리 리스트도 `array.map(...)`으로 그냥 그렸다. RN에서는 그러면 안 된다.
+
+```tsx
+// ❌ 길어지면 스크롤 끊김 + 메모리 폭발
+<ScrollView>
+  {items.map((item) => <Card key={item.id} item={item} />)}
+</ScrollView>
+
+// ✅ 화면에 보이는 것만 렌더 (virtualization)
+<FlatList
+  data={items}
+  keyExtractor={(item) => item.id}
+  renderItem={({ item }) => <Card item={item} />}
+/>
+```
+
+**왜인가**: RN의 리스트는 네이티브 View로 그려진다. 화면 밖에 있는 View도 다 만들어져 있으면 메모리/스크롤 성능에 직격탄. `FlatList`는 화면에 보이는 항목 + 약간의 버퍼만 들고 있고 나머지는 unmount 한다.
+
+**대략의 기준**:
+
+- 항목이 한 화면 이내 (≈10개) → `View` + `.map`
+- 항목이 화면을 넘어가지만 짧음 → `ScrollView` + `.map`
+- 항목이 길거나 동적 → `FlatList` (혹은 섹션 있으면 `SectionList`)
+
+## 이미지는 width/height를 명시한다
+
+웹에서는 이미지가 자기 사이즈를 가지고 알아서 펼쳐졌다. RN에서는 **원격 이미지의 사이즈는 미리 알 수 없어서**, 명시하지 않으면 0×0으로 그려진다(= 안 보인다).
+
+```tsx
+// ❌ 안 보임
+<Image source={{ uri: 'https://...' }} />
+
+// ✅
+<Image source={{ uri: 'https://...' }} style={{ width: 100, height: 100 }} />
+```
+
+부모 크기를 꽉 채우고 싶다면:
+
+```tsx
+<View style={{ width: '100%', aspectRatio: 16 / 9 }}>
+  <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+</View>
+```
+
+로컬 이미지(`require('./icon.png')`)는 사이즈를 갖고 있어서 명시 안 해도 보이긴 한다.
+
+## Safe Area를 무시하면 노치에 글자가 박힌다
+
+iPhone의 노치, Dynamic Island, 하단 홈 인디케이터 영역에 UI가 가려진다.
+
+```tsx
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+export function Screen() {
+  return (
+    <SafeAreaView style={{ flex: 1 }}>
+      {/* 노치/홈바를 피해서 그려진다 */}
+    </SafeAreaView>
+  );
+}
+```
+
+`react-native`에 내장된 `SafeAreaView`도 있지만, `react-native-safe-area-context`가 더 안정적이라 거의 표준이다. Expo 프로젝트는 보통 이미 깔려 있다.
+
+## 키보드가 입력창을 가린다 — KeyboardAvoidingView
+
+`TextInput`을 화면 아래쪽에 두면 키보드가 떴을 때 입력창이 가려진다.
+
+```tsx
+import { KeyboardAvoidingView, Platform, TextInput } from 'react-native';
+
+<KeyboardAvoidingView
+  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+  style={{ flex: 1 }}
+>
+  {/* ... */}
+  <TextInput />
+</KeyboardAvoidingView>
+```
+
+`behavior` 값이 iOS와 Android에서 다르게 동작하는 게 진짜 짜증나는 포인트인데, 위 패턴이 거의 정석.
+
+## 클릭은 onClick이 아니라 onPress
+
+```tsx
+// ❌
+<Pressable onClick={...}>
+
+// ✅
+<Pressable onPress={...}>
+```
+
+오타가 아니라 RN의 클릭 이벤트 이름은 `onPress`다. `Pressable`이 가장 모던하고 유연하며, 옛날 코드의 `TouchableOpacity` / `TouchableHighlight` / `TouchableWithoutFeedback`은 점차 `Pressable`로 통일되는 분위기.
+
+## useEffect 절제 — 웹 React와 똑같이 중요하다
+
+웹 React의 "[useEffect는 꼭 필요할 때만 쓰기](https://react.dev/learn/you-might-not-need-an-effect)" 원칙은 RN에서도 그대로다. 오히려 더 중요한데, RN에서는:
+
+- 컴포넌트 mount/unmount가 네비게이션 스택에 따라 자주 일어남
+- 잘못된 effect는 네이티브 모듈(카메라, 위치)을 반복 열고 닫는다
+- 메모리 누수가 디바이스 자원을 직접 갉아먹는다
+
+**대표적인 안티패턴 — props에서 파생되는 state**:
+
+```tsx
+// ❌
+const [fullName, setFullName] = useState('');
+useEffect(() => {
+  setFullName(`${firstName} ${lastName}`);
+}, [firstName, lastName]);
+
+// ✅
+const fullName = `${firstName} ${lastName}`;
+```
+
+**대표적인 안티패턴 — 데이터 페칭에 직접 useEffect**:
+
+대신 React Query (`@tanstack/react-query`) 같은 라이브러리를 쓴다. RN에서도 그대로 동작한다.
+
+useEffect가 진짜 필요한 곳은:
+
+- 외부 시스템 구독 (이벤트 리스너, 네이티브 모듈 연결)
+- AppState 변화 감지 (포그라운드/백그라운드)
+- 리소스 정리 (cleanup이 진짜로 의미 있는 경우)
+
+## 애니메이션은 `useNativeDriver: true`
+
+JS 스레드에서 매 프레임 계산하면 끊긴다. 네이티브에서 돌리도록 명시한다.
+
+```tsx
+Animated.timing(opacity, {
+  toValue: 1,
+  duration: 300,
+  useNativeDriver: true, // JS 스레드 안 거치고 네이티브에서 처리
+}).start();
+```
+
+요즘은 `react-native-reanimated`를 쓰는 게 거의 표준. 더 부드럽고 더 강력하다.
+
+## 리스트 항목 메모이제이션
+
+`FlatList`의 `renderItem`은 스크롤 중에 엄청 자주 호출된다. 항목 컴포넌트를 `React.memo`로 감싸고, `keyExtractor`/`renderItem`은 안정된 참조로 유지한다.
+
+```tsx
+const renderItem = useCallback(
+  ({ item }) => <Card item={item} onPress={handlePress} />,
+  [handlePress],
+);
+
+const keyExtractor = useCallback((item) => item.id, []);
+
+<FlatList data={items} renderItem={renderItem} keyExtractor={keyExtractor} />;
+```
+
+웹에서도 같은 원리지만, RN에서는 60fps 스크롤이 깨지는 게 훨씬 눈에 잘 띈다.
+
+## 플랫폼별 차이는 if 문보다 파일 분리로
+
+웹 React에서 `if (isMobile)` 같은 게 점점 코드를 더럽히듯, RN에서도 `Platform.OS === 'ios'` 분기가 늘어나면 가독성이 떨어진다.
+
+**작은 차이라면 Platform 모듈**:
+
+```tsx
+import { Platform } from 'react-native';
+
+const padding = Platform.OS === 'ios' ? 44 : 24;
+```
+
+**큰 차이라면 파일 자체를 분리**:
+
+```
+components/
+├── status-bar.ios.tsx
+├── status-bar.android.tsx
+└── index.ts          ← import './status-bar' 만 하면 알아서 골라줌
+```
+
+번들러(Metro)가 `.ios.tsx`/`.android.tsx`를 자동으로 선택한다.
+
+## 상태관리 / 데이터 페칭은 웹이랑 거의 같다
+
+- 글로벌 상태: Zustand, Jotai, Redux Toolkit — 다 그대로 동작
+- 서버 상태: `@tanstack/react-query` — 그대로 동작
+- form: `react-hook-form` — 그대로 동작 (단 input은 `TextInput`)
+
+웹에서 쓰던 거 거의 그대로 가져갈 수 있다. **컴포넌트 레이어만 바뀌고 나머지는 같다**가 핵심.
+
+## 영속 저장은 localStorage가 아니다
+
+웹의 `localStorage` 대신:
+
+- `@react-native-async-storage/async-storage` — 키-값 (간단한 거)
+- `expo-secure-store` — 토큰처럼 민감한 데이터
+- `expo-sqlite` / `op-sqlite` / `WatermelonDB` — 본격적인 DB
+
+**전부 비동기 API**라는 게 가장 큰 차이점. `await getItem(key)` 같은 식.
+
+## 환경변수는 빌드 타임에 박힌다
+
+웹에서 `process.env.NEXT_PUBLIC_*` 쓰던 것처럼 Expo는 `EXPO_PUBLIC_*` prefix가 있어야 클라이언트에 노출된다. 그리고 **앱 번들에 박혀 배포되므로 진짜 비밀은 절대 넣으면 안 된다** (웹 클라이언트와 같은 룰).
+
+```ts
+const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+```
+
+## 텍스트 줄임표는 `numberOfLines`
+
+웹의 `text-overflow: ellipsis`에 해당.
+
+```tsx
+<Text numberOfLines={2} ellipsizeMode="tail">
+  긴 텍스트...
+</Text>
+```
+
+## z-index가 잘 안 먹는다
+
+특히 Android에서 z-index가 기대대로 안 동작할 때가 많다. **DOM 순서가 우선**이다 — 위에 보이고 싶으면 JSX에서 나중에 그리는 편이 안전하다.
+
+```tsx
+{/* 뒤에 깔리는 거 */}
+<Background />
+{/* 위에 뜨는 거 */}
+<Overlay />
+```
+
+`elevation`(Android)이나 `shadow*`(iOS) 속성도 z-stacking에 영향을 준다.
+
+## debug할 때 알아두면 좋은 것
+
+- **React DevTools**: `pnpm dlx react-devtools` 로 실행하면 RN과도 붙는다
+- **Flipper**: 모바일 전용 디버깅 툴 (네트워크, 레이아웃 조사)
+- **Reactotron**: 가볍게 쓰기 좋은 RN 전용 디버거
+- **콘솔**: `console.log`는 Metro 터미널에 찍힌다
+
+## 체크리스트
+
+새 화면을 짤 때 머릿속에 돌려볼 만한 것:
+
+- [ ] 텍스트는 다 `<Text>` 안인가?
+- [ ] 긴 리스트면 `FlatList`인가?
+- [ ] `Image`에 width/height가 있나?
+- [ ] 최상위에 `SafeAreaView`가 있나?
+- [ ] `TextInput`이 키보드에 가리지 않는가?
+- [ ] 이 useEffect는 정말 필요한가?
+- [ ] 애니메이션에 `useNativeDriver: true`인가?
+- [ ] 플랫폼 분기는 if보다 파일 분리가 깔끔하지 않은가?
+
+## 관련 노트
+
+- [[react-native-basics-for-react-devs|RN 기초 (React 개발자용)]]
+- [[react-native-platform-agnostic|RN이 어떻게 iOS/Android를 동시에 다루는가]]
+- [[react-native-core-components|RN 핵심 컴포넌트 지도]]
+- [[react-native-navigation|RN 네비게이션]]
+- [[react-native-animations-and-gestures|RN 애니메이션과 제스처]]
+- [[react-native-performance-and-debugging|RN 성능과 디버깅]]
+- [[frontend]]
+
+## 참고
+
+- [Performance | React Native](https://reactnative.dev/docs/performance)
+- [You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect)
+- [Reanimated 문서](https://docs.swmansion.com/react-native-reanimated/)

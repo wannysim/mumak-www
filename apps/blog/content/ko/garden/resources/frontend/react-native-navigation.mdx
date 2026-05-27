@@ -1,0 +1,288 @@
+---
+title: 'React Native 네비게이션 — expo-router와 React Navigation'
+created: '2026-05-28'
+status: 'seedling'
+parent: 'frontend'
+tags: ['react-native', 'mobile', 'navigation', 'expo-router']
+---
+
+웹에서 `react-router` 또는 Next.js의 file-based routing을 쓰던 감각을 RN으로 가져오는 방법.
+
+> RN 기초는 [[react-native-basics-for-react-devs|기초 노트]] 먼저.
+
+## 큰 그림 — 두 가지 선택지
+
+| 라이브러리                      | 멘탈 모델               | 비유                |
+| ------------------------------- | ----------------------- | ------------------- |
+| **React Navigation**            | 컴포넌트로 navigator 정의 | react-router        |
+| **expo-router** (React Nav 기반) | 파일 기반 라우팅          | Next.js App Router  |
+
+`expo-router`는 React Navigation 위에 얹힌 layer다. 같은 동작을 다른 방식(코드 vs 파일 구조)으로 표현한다. **이 저장소(`apps/mumak-native`)는 expo-router 기반.**
+
+## 네비게이터 3종
+
+화면 전환의 기본 패턴은 3가지뿐이다.
+
+### 1. Stack — 새 화면을 쌓고 뒤로 가기
+
+가장 많이 쓰는 형태. iPhone 설정 앱에서 항목 누르면 오른쪽에서 들어오는 그것.
+
+```
+[Home] → push → [Detail] → push → [Edit]
+                       ← back ← back
+```
+
+### 2. Tab — 하단 탭바로 전환
+
+스택과 다른 점: **상태가 보존된다.** Home 탭에서 스크롤한 뒤 Profile로 갔다가 돌아오면 그 자리.
+
+### 3. Drawer — 좌측 슬라이드 메뉴
+
+햄버거 메뉴에서 슬라이드해서 나오는 사이드 메뉴. 모바일에서는 점점 잘 안 쓰는 패턴.
+
+이 세 가지를 **중첩해서** 만든다. 예: 루트는 Tab, 각 탭 안에 Stack.
+
+## expo-router로 시작하기
+
+파일 구조 자체가 라우트가 된다. Next.js App Router와 거의 동일.
+
+```
+app/
+├── _layout.tsx              ← 루트 레이아웃 (Stack)
+├── index.tsx                ← /
+├── login.tsx                ← /login
+├── (tabs)/                  ← 그룹: URL에는 안 보임
+│   ├── _layout.tsx          ← 탭 레이아웃
+│   ├── home.tsx             ← /home
+│   ├── profile.tsx          ← /profile
+│   └── settings.tsx         ← /settings
+├── posts/
+│   ├── index.tsx            ← /posts
+│   └── [id].tsx             ← /posts/123 (dynamic)
+└── +not-found.tsx           ← 404
+```
+
+### 루트 레이아웃
+
+```tsx
+// app/_layout.tsx
+import { Stack } from 'expo-router';
+
+export default function RootLayout() {
+  return (
+    <Stack>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="login" options={{ presentation: 'modal' }} />
+    </Stack>
+  );
+}
+```
+
+### 탭 레이아웃
+
+```tsx
+// app/(tabs)/_layout.tsx
+import { Tabs } from 'expo-router';
+
+export default function TabsLayout() {
+  return (
+    <Tabs>
+      <Tabs.Screen name="home" options={{ title: '홈' }} />
+      <Tabs.Screen name="profile" options={{ title: '프로필' }} />
+      <Tabs.Screen name="settings" options={{ title: '설정' }} />
+    </Tabs>
+  );
+}
+```
+
+### 화면 간 이동
+
+Next.js의 `<Link>` 또는 `useRouter()`와 거의 동일.
+
+```tsx
+import { Link, useRouter } from 'expo-router';
+
+// 선언적
+<Link href="/posts/123">상세 보기</Link>
+
+// 명령적
+const router = useRouter();
+router.push('/posts/123');
+router.replace('/login'); // 스택에서 현재 화면 교체
+router.back();             // 뒤로
+router.dismiss();          // 모달 닫기
+```
+
+### URL 파라미터
+
+```tsx
+// app/posts/[id].tsx
+import { useLocalSearchParams } from 'expo-router';
+
+export default function PostDetail() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  return <Text>Post {id}</Text>;
+}
+```
+
+쿼리스트링은 `useLocalSearchParams`의 같은 객체로 들어온다. 웹과 동일하게 `/posts/123?ref=feed`도 처리된다.
+
+## React Navigation으로 시작하기
+
+`expo-router`를 안 쓰는 RN 프로젝트면 React Navigation을 직접 쓴다.
+
+```tsx
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+const Stack = createNativeStackNavigator();
+
+function App() {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator>
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+```
+
+이동은 `useNavigation`으로:
+
+```tsx
+const navigation = useNavigation();
+navigation.navigate('Profile', { userId: 123 });
+```
+
+`@react-navigation/native-stack`은 iOS에서 `UINavigationController`, Android에서 `Fragment`를 그대로 사용한다. **성능과 모션이 OS 네이티브**라서 가능하면 이걸 쓰는 게 좋다.
+
+## 모달 표시
+
+화면을 모달처럼 띄우는 건 코어 `<Modal>`이 아니라 네비게이션의 `presentation` 옵션으로 처리하는 게 깔끔하다.
+
+```tsx
+// expo-router
+<Stack.Screen name="new-post" options={{ presentation: 'modal' }} />
+```
+
+```tsx
+// React Navigation
+<Stack.Screen
+  name="NewPost"
+  component={NewPostScreen}
+  options={{ presentation: 'modal' }}
+/>
+```
+
+이렇게 하면 뒤로 가기, 스와이프 dismiss, 백그라운드 dim 등이 OS 표준대로 자동 처리된다.
+
+## 헤더 커스터마이즈
+
+```tsx
+<Stack.Screen
+  name="profile"
+  options={{
+    title: '프로필',
+    headerStyle: { backgroundColor: '#000' },
+    headerTintColor: '#fff',
+    headerBackTitle: '뒤로',
+    headerRight: () => <Button title="저장" onPress={...} />,
+  }}
+/>
+```
+
+각 화면 안에서 동적으로 바꾸려면:
+
+```tsx
+// expo-router
+import { Stack } from 'expo-router';
+
+<Stack.Screen options={{ title: title }} />
+```
+
+## 딥링크
+
+`myapp://posts/123` 같은 URL로 앱을 열고 특정 화면으로 보내기.
+
+```ts
+// app.json (Expo)
+{
+  "expo": {
+    "scheme": "myapp"
+  }
+}
+```
+
+`expo-router`는 파일 경로 그대로 딥링크가 매핑된다 — `app/posts/[id].tsx` ↔ `myapp://posts/123`. 별도 설정 거의 없음.
+
+`https://` 링크도 받게 하려면 (Universal Links / App Links) iOS/Android 도메인 인증이 별도로 필요.
+
+## 자주 헷갈리는 것
+
+### "왜 화면이 매번 새로 마운트되나"
+
+Stack에서 push로 들어간 화면은 unmount된 게 아니라 그냥 뒤에 깔린 거다. 다시 push하면 새 인스턴스가 mount된다. Tab은 반대로 mount 상태가 유지된다.
+
+화면이 다시 보일 때 데이터 갱신하고 싶다면 React Query의 `refetchOnWindowFocus`나 `useFocusEffect`:
+
+```tsx
+import { useFocusEffect } from 'expo-router';
+
+useFocusEffect(
+  useCallback(() => {
+    refresh();
+    return () => {
+      // 화면 떠날 때 cleanup
+    };
+  }, [refresh])
+);
+```
+
+### "탭 이동 시 상태가 사라진다"
+
+기본 동작은 보존이지만, `unmountOnBlur` 같은 옵션을 켜면 사라진다. 의도한 게 아니면 옵션을 다시 확인.
+
+### "Android 백 버튼이 안 먹는다"
+
+대부분 자동 처리되지만, 특정 모달/입력 상태에서 백 버튼을 가로채야 할 때:
+
+```tsx
+import { BackHandler } from 'react-native';
+
+useEffect(() => {
+  const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+    if (isOpen) {
+      close();
+      return true; // 우리가 처리했음
+    }
+    return false; // 기본 동작
+  });
+  return () => handler.remove();
+}, [isOpen, close]);
+```
+
+### "헤더가 두 번 그려진다"
+
+부모(Stack)와 자식(Stack) 양쪽에서 헤더를 보여주는 경우. 한쪽을 `headerShown: false`로 끄는 게 보통.
+
+## 멘탈 모델 요약
+
+- **Next.js App Router 멘탈 모델 거의 그대로** (expo-router의 경우)
+- 화면 단위 모달은 코어 `<Modal>`이 아니라 `presentation: 'modal'`
+- Stack ↔ Tab ↔ Drawer를 중첩해서 앱 구조를 짠다
+- 데이터 갱신은 `useFocusEffect` 또는 React Query에 맡긴다
+
+## 관련 노트
+
+- [[react-native-basics-for-react-devs|RN 기초]]
+- [[react-native-core-components|RN 핵심 컴포넌트]]
+- [[react-native-conventions|RN 컨벤션과 함정]]
+- [[frontend]]
+
+## 참고
+
+- [Expo Router 공식 문서](https://docs.expo.dev/router/introduction/)
+- [React Navigation 공식 문서](https://reactnavigation.org/)
+- [Navigation - React Native 공식](https://reactnative.dev/docs/navigation)
