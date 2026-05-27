@@ -6,6 +6,18 @@ import '@testing-library/jest-dom';
 
 type MatchMediaListener = (event: MediaQueryListEvent) => void;
 
+const mockProgress = {
+  start: jest.fn(),
+  stop: jest.fn(),
+};
+
+let mockPathname = '/ko/garden';
+let mockSearchParams = new URLSearchParams();
+
+jest.mock('@bprogress/next', () => ({
+  useProgress: () => mockProgress,
+}));
+
 jest.mock('@bprogress/next/app', () => ({
   ProgressProvider: ({
     children,
@@ -15,6 +27,7 @@ jest.mock('@bprogress/next/app', () => ({
     stopDelay,
     options,
     shallowRouting,
+    disableAnchorClick,
   }: {
     children: React.ReactNode;
     color?: string;
@@ -23,6 +36,7 @@ jest.mock('@bprogress/next/app', () => ({
     stopDelay?: number;
     options?: Record<string, unknown>;
     shallowRouting?: boolean;
+    disableAnchorClick?: boolean;
   }) => (
     <div
       data-testid="bprogress-provider"
@@ -31,6 +45,7 @@ jest.mock('@bprogress/next/app', () => ({
       data-delay={delay}
       data-stop-delay={stopDelay}
       data-shallow-routing={String(shallowRouting)}
+      data-disable-anchor-click={String(disableAnchorClick)}
       data-easing={options?.easing as string | undefined}
       data-speed={options?.speed as number | undefined}
       data-trickle={String(options?.trickle)}
@@ -39,6 +54,11 @@ jest.mock('@bprogress/next/app', () => ({
       {children}
     </div>
   ),
+}));
+
+jest.mock('next/navigation', () => ({
+  usePathname: () => mockPathname,
+  useSearchParams: () => mockSearchParams,
 }));
 
 function mockMatchMedia(matches: boolean) {
@@ -76,6 +96,10 @@ function emitReducedMotionChange(listeners: MatchMediaListener[], matches: boole
 describe('ProgressProvider', () => {
   beforeEach(() => {
     mockMatchMedia(false);
+    mockProgress.start.mockClear();
+    mockProgress.stop.mockClear();
+    mockPathname = '/ko/garden';
+    mockSearchParams = new URLSearchParams();
   });
 
   it('should render children', () => {
@@ -204,5 +228,90 @@ describe('ProgressProvider', () => {
 
     expect(removeEventListener).toHaveBeenCalledTimes(1);
     expect(removeEventListener).toHaveBeenCalledWith('change', registeredHandler);
+  });
+
+  it('should disable the underlying anchor-click interceptor to avoid webkit navigation race', () => {
+    render(
+      <ProgressProvider>
+        <span>x</span>
+      </ProgressProvider>
+    );
+
+    expect(screen.getByTestId('bprogress-provider')).toHaveAttribute('data-disable-anchor-click', 'true');
+  });
+
+  describe('PageTransitionTrigger', () => {
+    it('should not start or stop progress on first mount', () => {
+      render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      expect(mockProgress.start).not.toHaveBeenCalled();
+      expect(mockProgress.stop).not.toHaveBeenCalled();
+    });
+
+    it('should not intercept anchor clicks (to avoid blocking webkit navigation)', () => {
+      // Verifies that the provider does not attach a document-level click
+      // handler. WebKit (esp. Linux CI) can drop subsequent navigations when a
+      // click listener runs synchronous React state updates inside the click
+      // cycle, so we intentionally rely on the post-navigation effect below
+      // instead of intercepting clicks.
+      const addEventListenerSpy = jest.spyOn(document, 'addEventListener');
+
+      render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const clickListeners = addEventListenerSpy.mock.calls.filter(([type]) => type === 'click');
+      expect(clickListeners).toHaveLength(0);
+
+      addEventListenerSpy.mockRestore();
+    });
+
+    it('should run a short start → stop pair when the pathname changes', () => {
+      const { rerender } = render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      mockProgress.start.mockClear();
+      mockProgress.stop.mockClear();
+      mockPathname = '/ko/garden/pkm';
+
+      rerender(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      expect(mockProgress.start).toHaveBeenCalledTimes(1);
+      expect(mockProgress.stop).toHaveBeenCalledTimes(1);
+    });
+
+    it('should run a short start → stop pair when the search params change', () => {
+      const { rerender } = render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      mockProgress.start.mockClear();
+      mockProgress.stop.mockClear();
+      mockSearchParams = new URLSearchParams('tag=react');
+
+      rerender(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      expect(mockProgress.start).toHaveBeenCalledTimes(1);
+      expect(mockProgress.stop).toHaveBeenCalledTimes(1);
+    });
   });
 });

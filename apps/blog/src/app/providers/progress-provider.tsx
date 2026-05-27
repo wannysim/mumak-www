@@ -1,6 +1,8 @@
 'use client';
 
+import { useProgress } from '@bprogress/next';
 import { ProgressProvider as BProgressProvider } from '@bprogress/next/app';
+import { usePathname, useSearchParams } from 'next/navigation';
 import * as React from 'react';
 
 const PROGRESS_COLOR = 'var(--primary)';
@@ -23,6 +25,29 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
+function PageTransitionTrigger() {
+  const { start, stop } = useProgress();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const firstMountRef = React.useRef(true);
+
+  React.useEffect(() => {
+    if (firstMountRef.current) {
+      firstMountRef.current = false;
+      return;
+    }
+    // When the App Router commits a new path/search, the navigation has
+    // already started; surface a short "start → stop" transition so the
+    // configured delay + stopDelay still produces a visible bar for
+    // non-trivial navigations.
+    start();
+    stop();
+  }, [pathname, searchParams, start, stop]);
+
+  return null;
+}
+
 export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const reducedMotion = usePrefersReducedMotion();
 
@@ -39,7 +64,9 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         trickle: !reducedMotion,
       }}
       shallowRouting
+      disableAnchorClick
     >
+      <PageTransitionTrigger />
       {children}
     </BProgressProvider>
   );
