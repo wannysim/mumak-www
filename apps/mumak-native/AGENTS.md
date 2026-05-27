@@ -215,8 +215,8 @@ CI 검증 대상: `lint` · `format:check` · `check-types` · `test:ci` · `bui
 
 - `watchFolders`: workspace 루트.
 - `nodeModulesPaths`: 앱 로컬 + workspace 루트.
-- `disableHierarchicalLookup`: pnpm isolated linker 호환.
 - `unstable_enableSymlinks` + `unstable_enablePackageExports`: pnpm 심볼릭 링크 해석.
+- **`disableHierarchicalLookup`은 켜지 말 것** — Expo 공식 가이드에서 pnpm store 패키지 해석을 막아 phantom dep 에러를 유발한다고 명시. Expo SDK 54+는 pnpm isolated 모드를 네이티브 지원하므로 hoist 설정도 불필요.
 
 새 워크스페이스 패키지를 추가했는데 Metro가 못 찾으면 이 파일을 우선 의심한다.
 
