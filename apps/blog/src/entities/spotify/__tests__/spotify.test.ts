@@ -307,7 +307,7 @@ describe('spotify', () => {
       // 현재 재생 중 API 요청에 cache: 'no-store' 옵션 확인 (실시간 데이터)
       expect(global.fetch).toHaveBeenNthCalledWith(
         2,
-        'https://api.spotify.com/v1/me/player/currently-playing',
+        'https://api.spotify.com/v1/me/player',
         expect.objectContaining({
           cache: 'no-store',
         })

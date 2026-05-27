@@ -27,7 +27,20 @@ interface SpotifyTrack {
   };
 }
 
-export type SpotifyDeviceType = 'Computer' | 'Smartphone' | 'Speaker' | 'TV' | 'Tablet' | 'AVR' | 'STB' | 'Unknown';
+export type SpotifyDeviceType =
+  | 'Computer'
+  | 'Smartphone'
+  | 'Speaker'
+  | 'TV'
+  | 'Tablet'
+  | 'AVR'
+  | 'STB'
+  | 'AudioDongle'
+  | 'GameConsole'
+  | 'CastVideo'
+  | 'CastAudio'
+  | 'Automobile'
+  | 'Unknown';
 
 interface SpotifyDevice {
   name: string;
@@ -75,6 +88,11 @@ const KNOWN_DEVICE_TYPES: ReadonlySet<SpotifyDeviceType> = new Set([
   'Tablet',
   'AVR',
   'STB',
+  'AudioDongle',
+  'GameConsole',
+  'CastVideo',
+  'CastAudio',
+  'Automobile',
   'Unknown',
 ]);
 
@@ -88,7 +106,7 @@ function normalizeDevice(device: SpotifyDevice | undefined): SpotifyDeviceInfo |
   return { name: device.name, type };
 }
 
-const NOW_PLAYING_ENDPOINT = 'https://api.spotify.com/v1/me/player/currently-playing';
+const NOW_PLAYING_ENDPOINT = 'https://api.spotify.com/v1/me/player';
 const RECENTLY_PLAYED_ENDPOINT = 'https://api.spotify.com/v1/me/player/recently-played?limit=1';
 const TOKEN_ENDPOINT = 'https://accounts.spotify.com/api/token';
 

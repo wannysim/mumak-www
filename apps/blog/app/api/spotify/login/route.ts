@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
-const SCOPES = ['user-read-currently-playing', 'user-read-recently-played'];
+const SCOPES = ['user-read-currently-playing', 'user-read-recently-played', 'user-read-playback-state'];
 
 // CSRF 방지를 위한 state 생성
 function generateState(): string {
