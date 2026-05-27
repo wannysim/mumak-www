@@ -7,15 +7,26 @@ import { SpotifyDeviceInfoBadge } from '../ui/spotify-device-info';
 import '@testing-library/jest-dom';
 
 describe('SpotifyDeviceInfoBadge', () => {
-  it.each<SpotifyDeviceType>(['Computer', 'Smartphone', 'Tablet', 'Speaker', 'TV', 'AVR', 'STB', 'Unknown'])(
-    'renders an icon and the device name for type %s',
-    type => {
-      render(<SpotifyDeviceInfoBadge device={{ name: 'My Device', type }} />);
+  it.each<SpotifyDeviceType>([
+    'Computer',
+    'Smartphone',
+    'Tablet',
+    'Speaker',
+    'TV',
+    'AVR',
+    'STB',
+    'AudioDongle',
+    'GameConsole',
+    'CastVideo',
+    'CastAudio',
+    'Automobile',
+    'Unknown',
+  ])('renders an icon and the device name for type %s', type => {
+    render(<SpotifyDeviceInfoBadge device={{ name: 'My Device', type }} />);
 
-      expect(screen.getByLabelText('Playing on My Device')).toBeInTheDocument();
-      expect(screen.getByText('My Device')).toBeInTheDocument();
-    }
-  );
+    expect(screen.getByLabelText('Playing on My Device')).toBeInTheDocument();
+    expect(screen.getByText('My Device')).toBeInTheDocument();
+  });
 
   it('hides the icon from assistive tech', () => {
     const { container } = render(<SpotifyDeviceInfoBadge device={{ name: 'iPhone', type: 'Smartphone' }} />);

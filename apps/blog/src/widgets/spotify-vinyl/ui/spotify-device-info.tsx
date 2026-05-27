@@ -1,4 +1,15 @@
-import { Laptop, MonitorPlay, Smartphone, Speaker, Tablet, type LucideIcon } from 'lucide-react';
+import {
+  Car,
+  Cast,
+  Gamepad2,
+  Laptop,
+  MonitorPlay,
+  Smartphone,
+  Speaker,
+  Tablet,
+  Usb,
+  type LucideIcon,
+} from 'lucide-react';
 
 import { cn } from '@mumak/ui/lib/utils';
 
@@ -17,6 +28,11 @@ const DEVICE_ICON_BY_TYPE: Record<SpotifyDeviceType, LucideIcon> = {
   TV: MonitorPlay,
   AVR: Speaker,
   STB: MonitorPlay,
+  AudioDongle: Usb,
+  GameConsole: Gamepad2,
+  CastVideo: Cast,
+  CastAudio: Cast,
+  Automobile: Car,
   Unknown: Speaker,
 };
 
