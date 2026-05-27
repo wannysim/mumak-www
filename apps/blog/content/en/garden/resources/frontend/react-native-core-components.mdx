@@ -1,0 +1,301 @@
+---
+title: 'React Native core components — a map'
+created: '2026-05-28'
+status: 'seedling'
+parent: 'frontend'
+tags: ['react-native', 'mobile', 'frontend', 'components', 'reference']
+---
+
+Where the web uses `<div>` for almost everything, RN has purpose-built components. This is a map so you can quickly answer "which one should I reach for right now?"
+
+> Start with [[react-native-basics-for-react-devs|RN basics]] if you haven't.
+
+## Four families of components
+
+RN's core components fall roughly into four families.
+
+1. **Layout/display** — View, Text, Image
+2. **Input/interaction** — TextInput, Pressable, Switch, Button
+3. **Lists/scroll** — ScrollView, FlatList, SectionList
+4. **System/overlay** — Modal, ActivityIndicator, Alert, StatusBar, KeyboardAvoidingView
+
+Platform-specific ones (`SafeAreaView` on iOS, `BackHandler` on Android) are covered separately.
+
+## Layout/display
+
+### View
+
+The `<div>` of RN. A rectangular container. It's a flex container, defaulting to `flexDirection: 'column'`.
+
+```tsx
+<View style={{ flex: 1, padding: 16 }}>{children}</View>
+```
+
+### Text
+
+All text lives inside one of these. Font props are inherited by nested `<Text>` (unlike View).
+
+```tsx
+<Text style={{ fontSize: 18, fontWeight: '600' }}>
+  Hello <Text style={{ color: 'red' }}>Younha</Text>
+</Text>
+```
+
+Ellipsis with `numberOfLines`:
+
+```tsx
+<Text numberOfLines={2} ellipsizeMode="tail">long text...</Text>
+```
+
+### Image
+
+Remote images need explicit width/height. Local ones via `require` know their size.
+
+```tsx
+<Image source={{ uri: 'https://...' }} style={{ width: 64, height: 64 }} />
+<Image source={require('./icon.png')} />
+```
+
+`resizeMode` controls how the image fills its frame: `cover` / `contain` / `stretch` / `center`.
+
+### ImageBackground
+
+When you want a background image with children stacked on top (the CSS `background-image` equivalent).
+
+```tsx
+<ImageBackground source={...} style={{ flex: 1 }}>
+  <Text>Content on top</Text>
+</ImageBackground>
+```
+
+## Input/interaction
+
+### TextInput
+
+The combined `<input>` + `<textarea>` of RN. See the keyboard section in [[react-native-conventions|conventions]] for production patterns.
+
+```tsx
+<TextInput
+  value={text}
+  onChangeText={setText}
+  placeholder="Name"
+  keyboardType="default" // email-address, numeric, phone-pad, etc.
+  secureTextEntry={false}
+  autoCapitalize="none"
+  multiline={false}
+/>
+```
+
+Note: it's `onChangeText` (gives you the string), not `onChange` (gives you an event).
+
+### Pressable
+
+The currently recommended tappable component. Gradually replacing the older `TouchableOpacity` / `TouchableHighlight`.
+
+```tsx
+<Pressable
+  onPress={handlePress}
+  onLongPress={handleLongPress}
+  style={({ pressed }) => [
+    styles.button,
+    pressed && { opacity: 0.6 },
+  ]}
+>
+  <Text>Tap</Text>
+</Pressable>
+```
+
+You can pass a function as `style` and read `pressed` — close to the web's `:active`.
+
+### Button
+
+The simplest possible button using OS defaults. **Almost no styling options.** For real product UI, most teams build their own with `Pressable`.
+
+```tsx
+<Button title="Save" onPress={handleSave} color="#007AFF" />
+```
+
+### Switch
+
+Native iOS/Android toggle.
+
+```tsx
+<Switch value={isOn} onValueChange={setIsOn} />
+```
+
+## Lists/scroll
+
+Pick based on item count and dynamism:
+
+| Situation                          | Use                   |
+| ---------------------------------- | --------------------- |
+| Static, fits one screen            | `View` + .map         |
+| Beyond one screen but short        | `ScrollView` + .map   |
+| Long or dynamic                    | `FlatList`            |
+| Sectioned list (with headers)      | `SectionList`         |
+| Need extra speed                   | `FlashList` (Shopify) |
+
+### ScrollView
+
+Basic scroll. Renders all children (no virtualization).
+
+```tsx
+<ScrollView
+  horizontal={false}
+  showsVerticalScrollIndicator={true}
+  contentContainerStyle={{ padding: 16 }}
+>
+  {children}
+</ScrollView>
+```
+
+`style` vs `contentContainerStyle` — get this right:
+
+- `style` — the scroll view's own box (e.g. `flex: 1`)
+- `contentContainerStyle` — the inner content wrapper (e.g. `padding`)
+
+### FlatList
+
+Virtualized list. Items outside the viewport unmount.
+
+```tsx
+<FlatList
+  data={items}
+  keyExtractor={(item) => item.id}
+  renderItem={({ item }) => <Card item={item} />}
+  ItemSeparatorComponent={() => <Divider />}
+  ListEmptyComponent={<Empty />}
+  ListHeaderComponent={<Header />}
+  ListFooterComponent={<Footer />}
+  onEndReached={loadMore}
+  onEndReachedThreshold={0.5}
+  refreshing={isRefreshing}
+  onRefresh={refresh}
+/>
+```
+
+Performance dials (when it isn't fast enough):
+
+- `getItemLayout` — required if you can compute item height; removes measuring cost
+- `removeClippedSubviews` — detach offscreen items
+- `initialNumToRender`, `windowSize`, `maxToRenderPerBatch` — render window tuning
+
+### SectionList
+
+Almost the same as `FlatList` but with section headers.
+
+```tsx
+<SectionList
+  sections={[
+    { title: 'A', data: [...] },
+    { title: 'B', data: [...] },
+  ]}
+  renderItem={({ item }) => <Row item={item} />}
+  renderSectionHeader={({ section }) => <Header title={section.title} />}
+  keyExtractor={(item) => item.id}
+/>
+```
+
+## System/overlay
+
+### Modal
+
+A full-screen or sliding overlay above the rest of the UI.
+
+```tsx
+<Modal
+  visible={isOpen}
+  onRequestClose={close}
+  animationType="slide" // fade, none
+  transparent={false}
+  presentationStyle="pageSheet" // iOS only
+>
+  <View>{children}</View>
+</Modal>
+```
+
+`Modal` is its own OS-level window, separate from the navigation stack. For screen-level modals you'd usually use a navigation library's modal screen (see [[react-native-navigation|navigation note]]).
+
+### ActivityIndicator
+
+The spinning loading dot.
+
+```tsx
+<ActivityIndicator size="large" color="#007AFF" />
+```
+
+### Alert
+
+The OS's native dialog.
+
+```tsx
+import { Alert } from 'react-native';
+
+Alert.alert('Delete?', 'This cannot be undone.', [
+  { text: 'Cancel', style: 'cancel' },
+  { text: 'Delete', style: 'destructive', onPress: handleDelete },
+]);
+```
+
+It's an **imperative API**, not JSX. Design is fixed by the OS — for custom dialogs use `Modal` or a library.
+
+### StatusBar
+
+Styles the OS status bar (time/battery area).
+
+```tsx
+<StatusBar barStyle="dark-content" backgroundColor="#fff" />
+```
+
+### KeyboardAvoidingView
+
+Keeps the keyboard from covering inputs. Detailed pattern in [[react-native-conventions|conventions]].
+
+## Platform-specific components
+
+### iOS only
+
+- `SafeAreaView` — prefer `react-native-safe-area-context` over the built-in one
+- `ActionSheetIOS` — iOS action sheet
+- `InputAccessoryView` — accessory bar above the keyboard
+
+### Android only
+
+- `BackHandler` — hardware back button handling
+- `ToastAndroid` — Android toasts
+- `PermissionsAndroid` — permission prompts (usually wrapped by `expo-permissions`-style libs)
+- `TouchableNativeFeedback` — Material ripple
+- `DrawerLayoutAndroid` — Android drawer
+
+In practice, you usually skip the platform-specific primitives and reach for a cross-platform abstraction (react-navigation, react-native-safe-area-context, etc.).
+
+## Things you'll almost always replace with a library
+
+The core works but is weak or visually locked in these areas:
+
+| Area              | Core             | What teams reach for                          |
+| ----------------- | ---------------- | --------------------------------------------- |
+| Lists             | FlatList         | @shopify/flash-list                           |
+| Animation         | Animated         | react-native-reanimated                       |
+| Gestures          | PanResponder     | react-native-gesture-handler                  |
+| Image             | Image            | expo-image (or react-native-fast-image)       |
+| Safe area         | SafeAreaView     | react-native-safe-area-context                |
+| Dialogs           | Alert / Modal    | a design-system Dialog                        |
+| Fonts             | (none)           | expo-font                                     |
+| Icons             | (none)           | @expo/vector-icons or lucide-react-native     |
+
+Similar logic to why you wouldn't ship the bare `<input type="date">` on the web.
+
+## Related notes
+
+- [[react-native-basics-for-react-devs|RN basics for React devs]]
+- [[react-native-platform-agnostic|How RN handles iOS and Android]]
+- [[react-native-navigation|RN navigation]]
+- [[react-native-animations-and-gestures|RN animations and gestures]]
+- [[react-native-performance-and-debugging|RN performance and debugging]]
+- [[react-native-conventions|RN conventions and pitfalls]]
+
+## References
+
+- [Core Components and APIs (official)](https://reactnative.dev/docs/components-and-apis)
+- [FlashList — Shopify](https://shopify.github.io/flash-list/)
