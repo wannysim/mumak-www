@@ -6,55 +6,8 @@ import '@testing-library/jest-dom';
 
 type MatchMediaListener = (event: MediaQueryListEvent) => void;
 
-const mockProgress = {
-  start: jest.fn(),
-  stop: jest.fn(),
-};
-
 let mockPathname = '/ko/garden';
 let mockSearchParams = new URLSearchParams();
-
-jest.mock('@bprogress/next', () => ({
-  useProgress: () => mockProgress,
-}));
-
-jest.mock('@bprogress/next/app', () => ({
-  ProgressProvider: ({
-    children,
-    color,
-    height,
-    delay,
-    stopDelay,
-    options,
-    shallowRouting,
-    disableAnchorClick,
-  }: {
-    children: React.ReactNode;
-    color?: string;
-    height?: string;
-    delay?: number;
-    stopDelay?: number;
-    options?: Record<string, unknown>;
-    shallowRouting?: boolean;
-    disableAnchorClick?: boolean;
-  }) => (
-    <div
-      data-testid="bprogress-provider"
-      data-color={color}
-      data-height={height}
-      data-delay={delay}
-      data-stop-delay={stopDelay}
-      data-shallow-routing={String(shallowRouting)}
-      data-disable-anchor-click={String(disableAnchorClick)}
-      data-easing={options?.easing as string | undefined}
-      data-speed={options?.speed as number | undefined}
-      data-trickle={String(options?.trickle)}
-      data-show-spinner={String(options?.showSpinner)}
-    >
-      {children}
-    </div>
-  ),
-}));
 
 jest.mock('next/navigation', () => ({
   usePathname: () => mockPathname,
@@ -95,11 +48,17 @@ function emitReducedMotionChange(listeners: MatchMediaListener[], matches: boole
 
 describe('ProgressProvider', () => {
   beforeEach(() => {
+    jest.useFakeTimers();
     mockMatchMedia(false);
-    mockProgress.start.mockClear();
-    mockProgress.stop.mockClear();
     mockPathname = '/ko/garden';
     mockSearchParams = new URLSearchParams();
+  });
+
+  afterEach(() => {
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    jest.useRealTimers();
   });
 
   it('should render children', () => {
@@ -112,42 +71,19 @@ describe('ProgressProvider', () => {
     expect(screen.getByTestId('content')).toBeInTheDocument();
   });
 
-  it('should pass theme-aware color and bar height to the underlying provider', () => {
+  it('should not render the progress bar on first mount', () => {
     render(
       <ProgressProvider>
         <span>x</span>
       </ProgressProvider>
     );
 
-    const provider = screen.getByTestId('bprogress-provider');
-    expect(provider).toHaveAttribute('data-color', 'var(--primary)');
-    expect(provider).toHaveAttribute('data-height', '2px');
+    expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
   });
 
-  it('should configure debounced start/stop to avoid flicker on fast transitions', () => {
-    render(
-      <ProgressProvider>
-        <span>x</span>
-      </ProgressProvider>
-    );
-
-    const provider = screen.getByTestId('bprogress-provider');
-    expect(Number(provider.getAttribute('data-delay'))).toBeGreaterThan(0);
-    expect(Number(provider.getAttribute('data-stop-delay'))).toBeGreaterThanOrEqual(0);
-  });
-
-  it('should hide the spinner and rely only on the top bar', () => {
-    render(
-      <ProgressProvider>
-        <span>x</span>
-      </ProgressProvider>
-    );
-
-    expect(screen.getByTestId('bprogress-provider')).toHaveAttribute('data-show-spinner', 'false');
-  });
-
-  it('should enable trickle animation when reduced motion is not preferred', () => {
-    mockMatchMedia(false);
+  it('should not attach any document-level click or popstate handlers', () => {
+    const addDocumentListenerSpy = jest.spyOn(document, 'addEventListener');
+    const addWindowListenerSpy = jest.spyOn(window, 'addEventListener');
 
     render(
       <ProgressProvider>
@@ -155,163 +91,216 @@ describe('ProgressProvider', () => {
       </ProgressProvider>
     );
 
-    const provider = screen.getByTestId('bprogress-provider');
-    expect(provider).toHaveAttribute('data-trickle', 'true');
-    expect(provider).toHaveAttribute('data-easing', 'ease');
+    const interceptedEvents = ['click', 'popstate', 'pushstate', 'replacestate'];
+    const documentHits = addDocumentListenerSpy.mock.calls.filter(([type]) =>
+      interceptedEvents.includes(String(type).toLowerCase())
+    );
+    const windowHits = addWindowListenerSpy.mock.calls.filter(([type]) =>
+      interceptedEvents.includes(String(type).toLowerCase())
+    );
+
+    expect(documentHits).toHaveLength(0);
+    expect(windowHits).toHaveLength(0);
+
+    addDocumentListenerSpy.mockRestore();
+    addWindowListenerSpy.mockRestore();
   });
 
-  it('should disable trickle animation when reduced motion is preferred', () => {
-    mockMatchMedia(true);
+  describe('on navigation', () => {
+    it('should render the bar with accent color and stay at top with elevated z-index', () => {
+      const { rerender } = render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
 
-    render(
+      mockPathname = '/ko/garden/pkm';
+      rerender(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const bar = screen.getByTestId('page-transition-progress');
+      expect(bar).toHaveClass('fixed', 'top-0', 'right-0', 'left-0', 'z-70');
+
+      const inner = bar.firstElementChild as HTMLElement;
+      expect(inner.style.backgroundColor).toBe('var(--accent)');
+    });
+
+    it('should transition loading → done → idle when pathname changes', () => {
+      const { rerender } = render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      mockPathname = '/ko/garden/pkm';
+      rerender(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const bar = screen.getByTestId('page-transition-progress');
+      expect(bar).toHaveAttribute('aria-hidden', 'false');
+      expect((bar.firstElementChild as HTMLElement).style.opacity).toBe('1');
+
+      act(() => {
+        jest.advanceTimersByTime(600);
+      });
+      expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'true');
+      expect((screen.getByTestId('page-transition-progress').firstElementChild as HTMLElement).style.opacity).toBe('0');
+
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+      expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
+    });
+
+    it('should transition the same way when search params change', () => {
+      const { rerender } = render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      mockSearchParams = new URLSearchParams('tag=react');
+      rerender(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      expect(screen.getByTestId('page-transition-progress')).toBeInTheDocument();
+
+      act(() => {
+        jest.advanceTimersByTime(800);
+      });
+      expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
+    });
+
+    it('should cancel the in-flight cycle and restart when navigation happens during fade', () => {
+      const { rerender } = render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      mockPathname = '/ko/garden/pkm';
+      rerender(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      act(() => {
+        jest.advanceTimersByTime(700);
+      });
+      // Now in 'done' phase
+      mockPathname = '/ko/garden/pkm/sub';
+      rerender(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const bar = screen.getByTestId('page-transition-progress');
+      expect(bar).toHaveAttribute('aria-hidden', 'false');
+      expect((bar.firstElementChild as HTMLElement).style.opacity).toBe('1');
+    });
+  });
+
+  describe('reduced motion', () => {
+    it('should skip the loading phase and only show a brief fade', () => {
+      mockMatchMedia(true);
+
+      const { rerender } = render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      mockPathname = '/ko/garden/pkm';
+      rerender(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const bar = screen.getByTestId('page-transition-progress');
+      expect(bar).toHaveAttribute('aria-hidden', 'true');
+      const inner = bar.firstElementChild as HTMLElement;
+      expect(inner.style.transition).toBe('opacity 200ms linear');
+
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+      expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
+    });
+
+    it('should react to a reduced-motion change after mount', () => {
+      const { listeners } = mockMatchMedia(false);
+
+      const { rerender } = render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      emitReducedMotionChange(listeners, true);
+
+      mockPathname = '/ko/garden/pkm';
+      rerender(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'true');
+    });
+  });
+
+  describe('media query subscription', () => {
+    it('should register and remove the change listener with the same handler', () => {
+      const { addEventListener, removeEventListener } = mockMatchMedia(false);
+
+      const { unmount } = render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      expect(addEventListener).toHaveBeenCalledTimes(1);
+      expect(addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+
+      const registeredHandler = addEventListener.mock.calls[0]?.[1];
+
+      unmount();
+
+      expect(removeEventListener).toHaveBeenCalledTimes(1);
+      expect(removeEventListener).toHaveBeenCalledWith('change', registeredHandler);
+    });
+  });
+
+  it('should clean up pending timers on unmount', () => {
+    const { rerender, unmount } = render(
       <ProgressProvider>
         <span>x</span>
       </ProgressProvider>
     );
 
-    const provider = screen.getByTestId('bprogress-provider');
-    expect(provider).toHaveAttribute('data-trickle', 'false');
-    expect(provider).toHaveAttribute('data-easing', 'linear');
-    expect(provider).toHaveAttribute('data-speed', '0');
-  });
-
-  it('should register a change listener on the reduced-motion media query', () => {
-    const { addEventListener } = mockMatchMedia(false);
-
-    render(
+    mockPathname = '/ko/garden/pkm';
+    rerender(
       <ProgressProvider>
         <span>x</span>
       </ProgressProvider>
     );
 
-    expect(addEventListener).toHaveBeenCalledTimes(1);
-    expect(addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
-  });
-
-  it('should react to reduced-motion changes after mount', () => {
-    const { listeners } = mockMatchMedia(false);
-
-    render(
-      <ProgressProvider>
-        <span>x</span>
-      </ProgressProvider>
-    );
-
-    const provider = screen.getByTestId('bprogress-provider');
-    expect(provider).toHaveAttribute('data-trickle', 'true');
-    expect(provider).toHaveAttribute('data-easing', 'ease');
-
-    emitReducedMotionChange(listeners, true);
-
-    expect(provider).toHaveAttribute('data-trickle', 'false');
-    expect(provider).toHaveAttribute('data-easing', 'linear');
-    expect(provider).toHaveAttribute('data-speed', '0');
-
-    emitReducedMotionChange(listeners, false);
-
-    expect(provider).toHaveAttribute('data-trickle', 'true');
-    expect(provider).toHaveAttribute('data-easing', 'ease');
-  });
-
-  it('should remove the change listener on unmount with the same handler', () => {
-    const { addEventListener, removeEventListener } = mockMatchMedia(false);
-
-    const { unmount } = render(
-      <ProgressProvider>
-        <span>x</span>
-      </ProgressProvider>
-    );
-
-    const registeredHandler = addEventListener.mock.calls[0]?.[1];
+    expect(jest.getTimerCount()).toBeGreaterThan(0);
 
     unmount();
 
-    expect(removeEventListener).toHaveBeenCalledTimes(1);
-    expect(removeEventListener).toHaveBeenCalledWith('change', registeredHandler);
-  });
-
-  it('should disable the underlying anchor-click interceptor to avoid webkit navigation race', () => {
-    render(
-      <ProgressProvider>
-        <span>x</span>
-      </ProgressProvider>
-    );
-
-    expect(screen.getByTestId('bprogress-provider')).toHaveAttribute('data-disable-anchor-click', 'true');
-  });
-
-  describe('PageTransitionTrigger', () => {
-    it('should not start or stop progress on first mount', () => {
-      render(
-        <ProgressProvider>
-          <span>x</span>
-        </ProgressProvider>
-      );
-
-      expect(mockProgress.start).not.toHaveBeenCalled();
-      expect(mockProgress.stop).not.toHaveBeenCalled();
-    });
-
-    it('should not intercept anchor clicks (to avoid blocking webkit navigation)', () => {
-      // Verifies that the provider does not attach a document-level click
-      // handler. WebKit (esp. Linux CI) can drop subsequent navigations when a
-      // click listener runs synchronous React state updates inside the click
-      // cycle, so we intentionally rely on the post-navigation effect below
-      // instead of intercepting clicks.
-      const addEventListenerSpy = jest.spyOn(document, 'addEventListener');
-
-      render(
-        <ProgressProvider>
-          <span>x</span>
-        </ProgressProvider>
-      );
-
-      const clickListeners = addEventListenerSpy.mock.calls.filter(([type]) => type === 'click');
-      expect(clickListeners).toHaveLength(0);
-
-      addEventListenerSpy.mockRestore();
-    });
-
-    it('should run a short start → stop pair when the pathname changes', () => {
-      const { rerender } = render(
-        <ProgressProvider>
-          <span>x</span>
-        </ProgressProvider>
-      );
-
-      mockProgress.start.mockClear();
-      mockProgress.stop.mockClear();
-      mockPathname = '/ko/garden/pkm';
-
-      rerender(
-        <ProgressProvider>
-          <span>x</span>
-        </ProgressProvider>
-      );
-
-      expect(mockProgress.start).toHaveBeenCalledTimes(1);
-      expect(mockProgress.stop).toHaveBeenCalledTimes(1);
-    });
-
-    it('should run a short start → stop pair when the search params change', () => {
-      const { rerender } = render(
-        <ProgressProvider>
-          <span>x</span>
-        </ProgressProvider>
-      );
-
-      mockProgress.start.mockClear();
-      mockProgress.stop.mockClear();
-      mockSearchParams = new URLSearchParams('tag=react');
-
-      rerender(
-        <ProgressProvider>
-          <span>x</span>
-        </ProgressProvider>
-      );
-
-      expect(mockProgress.start).toHaveBeenCalledTimes(1);
-      expect(mockProgress.stop).toHaveBeenCalledTimes(1);
-    });
+    expect(jest.getTimerCount()).toBe(0);
   });
 });

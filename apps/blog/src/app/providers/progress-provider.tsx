@@ -1,14 +1,13 @@
 'use client';
 
-import { useProgress } from '@bprogress/next';
-import { ProgressProvider as BProgressProvider } from '@bprogress/next/app';
 import { usePathname, useSearchParams } from 'next/navigation';
 import * as React from 'react';
 
-const PROGRESS_COLOR = 'var(--primary)';
-const PROGRESS_HEIGHT = '2px';
-const PROGRESS_DELAY_MS = 120;
-const PROGRESS_STOP_DELAY_MS = 50;
+const LOADING_DURATION_MS = 600;
+const FADE_DURATION_MS = 200;
+const TRICKLE_TARGET = 0.85;
+
+type Phase = 'idle' | 'loading' | 'done';
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = React.useState(false);
@@ -25,49 +24,76 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-function PageTransitionTrigger() {
-  const { start, stop } = useProgress();
+function PageTransitionBar({ phase, reducedMotion }: { phase: Phase; reducedMotion: boolean }) {
+  if (phase === 'idle') return null;
+
+  const isLoading = phase === 'loading';
+  const transform = `scaleX(${isLoading ? TRICKLE_TARGET : 1})`;
+  const opacity = phase === 'done' ? 0 : 1;
+  const transition = reducedMotion
+    ? `opacity ${FADE_DURATION_MS}ms linear`
+    : `transform ${LOADING_DURATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${FADE_DURATION_MS}ms linear`;
+
+  return (
+    <div
+      data-testid="page-transition-progress"
+      className="pointer-events-none fixed top-0 right-0 left-0 z-70 h-0.5"
+      role="progressbar"
+      aria-label="Page transition progress"
+      aria-hidden={phase === 'done'}
+    >
+      <div
+        className="h-full w-full origin-left"
+        style={{
+          backgroundColor: 'var(--accent)',
+          transform,
+          opacity,
+          transition,
+        }}
+      />
+    </div>
+  );
+}
+
+export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const reducedMotion = usePrefersReducedMotion();
 
+  const [phase, setPhase] = React.useState<Phase>('idle');
   const firstMountRef = React.useRef(true);
+  const timersRef = React.useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const clearTimers = React.useCallback(() => {
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+  }, []);
 
   React.useEffect(() => {
     if (firstMountRef.current) {
       firstMountRef.current = false;
       return;
     }
-    // When the App Router commits a new path/search, the navigation has
-    // already started; surface a short "start → stop" transition so the
-    // configured delay + stopDelay still produces a visible bar for
-    // non-trivial navigations.
-    start();
-    stop();
-  }, [pathname, searchParams, start, stop]);
 
-  return null;
-}
+    clearTimers();
 
-export function ProgressProvider({ children }: { children: React.ReactNode }) {
-  const reducedMotion = usePrefersReducedMotion();
+    if (reducedMotion) {
+      setPhase('done');
+      timersRef.current.push(setTimeout(() => setPhase('idle'), FADE_DURATION_MS));
+      return;
+    }
+
+    setPhase('loading');
+    timersRef.current.push(setTimeout(() => setPhase('done'), LOADING_DURATION_MS));
+    timersRef.current.push(setTimeout(() => setPhase('idle'), LOADING_DURATION_MS + FADE_DURATION_MS));
+  }, [pathname, searchParams, reducedMotion, clearTimers]);
+
+  React.useEffect(() => clearTimers, [clearTimers]);
 
   return (
-    <BProgressProvider
-      color={PROGRESS_COLOR}
-      height={PROGRESS_HEIGHT}
-      delay={PROGRESS_DELAY_MS}
-      stopDelay={PROGRESS_STOP_DELAY_MS}
-      options={{
-        showSpinner: false,
-        easing: reducedMotion ? 'linear' : 'ease',
-        speed: reducedMotion ? 0 : 200,
-        trickle: !reducedMotion,
-      }}
-      shallowRouting
-      disableAnchorClick
-    >
-      <PageTransitionTrigger />
+    <>
+      <PageTransitionBar phase={phase} reducedMotion={reducedMotion} />
       {children}
-    </BProgressProvider>
+    </>
   );
 }
