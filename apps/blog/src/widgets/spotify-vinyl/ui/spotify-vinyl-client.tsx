@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 
 import type { NowPlaying } from '@/src/entities/spotify';
-import { useSpotifyPolling } from '@/src/features/spotify-polling';
+import { useProgressInterpolation, useSpotifyPolling } from '@/src/features/spotify-polling';
 
 import { SpotifyVinyl } from './spotify-vinyl';
 import { SpotifyVinylSkeleton } from './spotify-vinyl-skeleton';
@@ -18,7 +18,7 @@ interface SpotifyVinylClientProps {
 }
 
 export function SpotifyVinylClient({ initialData, listeningToLabel, lastPlayedLabel }: SpotifyVinylClientProps) {
-  const { data, hasTrackChanged, hasPlayStateChanged, resetChangeState } = useSpotifyPolling({
+  const { data, hasTrackChanged, hasPlayStateChanged, resetChangeState, fetchedAt } = useSpotifyPolling({
     initialData,
     playingInterval: 5_000,
     pausedInterval: 30_000,
@@ -39,11 +39,26 @@ export function SpotifyVinylClient({ initialData, listeningToLabel, lastPlayedLa
   // Fast Refresh 시에도 initialData를 fallback으로 사용
   const displayData = data ?? initialData;
 
+  const { progressMs: interpolatedProgressMs } = useProgressInterpolation({
+    trackId: displayData?.songUrl ?? null,
+    progressMs: displayData?.progressMs ?? null,
+    durationMs: displayData?.durationMs ?? null,
+    isPlaying: displayData?.isPlaying ?? false,
+    fetchedAt: fetchedAt || Date.now(),
+  });
+
   if (!displayData) {
     return <SpotifyVinylSkeleton />;
   }
 
   const statusLabel = displayData.isPlaying ? listeningToLabel : lastPlayedLabel;
 
-  return <SpotifyVinyl data={displayData} statusLabel={statusLabel} isTransitioning={hasTrackChanged} />;
+  return (
+    <SpotifyVinyl
+      data={displayData}
+      statusLabel={statusLabel}
+      isTransitioning={hasTrackChanged}
+      interpolatedProgressMs={interpolatedProgressMs}
+    />
+  );
 }

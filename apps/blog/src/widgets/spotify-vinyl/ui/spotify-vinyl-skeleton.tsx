@@ -17,6 +17,10 @@ export function SpotifyVinylSkeleton() {
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-5 w-32 sm:w-40" />
           <Skeleton className="h-4 w-24 sm:w-32" />
+          {/* Progress bar skeleton */}
+          <Skeleton className="h-1 w-full mt-2" />
+          {/* Device info skeleton */}
+          <Skeleton className="h-3 w-20" />
         </div>
       </div>
     </div>
