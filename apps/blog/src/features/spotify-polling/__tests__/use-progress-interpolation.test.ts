@@ -182,6 +182,53 @@ describe('useProgressInterpolation', () => {
     expect(result.current.progressMs).toBe(12_000);
   });
 
+  it('ignores small backward jitter from Spotify (within tolerance) to keep UI monotonic', () => {
+    let currentNow = 0;
+    const { result, rerender } = renderHook(
+      (props: Parameters<typeof useProgressInterpolation>[0]) => useProgressInterpolation(props),
+      {
+        initialProps: {
+          trackId: 'a',
+          progressMs: 43_000,
+          durationMs: 200_000,
+          isPlaying: true,
+          fetchedAt: 0,
+          now: () => currentNow,
+        },
+      }
+    );
+
+    // 1초 후 보간 tick 진행
+    act(() => {
+      currentNow = 1_000;
+      jest.advanceTimersByTime(1_000);
+    });
+    expect(result.current.progressMs).toBe(44_000);
+
+    // 다음 폴 응답이 약간 뒤처져서 도착 — fetchedAt=2000 이지만 progressMs=43500
+    // 예상값(45000)보다 1500ms 작음 → tolerance 안 → baseline 흔들지 않음, UI 도 후진하지 않음
+    act(() => {
+      currentNow = 2_000;
+      rerender({
+        trackId: 'a',
+        progressMs: 43_500,
+        durationMs: 200_000,
+        isPlaying: true,
+        fetchedAt: 2_000,
+        now: () => currentNow,
+      });
+    });
+    // raw progressMs 가 44000 보다 작지만 UI 는 흔들리지 않음
+    expect(result.current.progressMs).toBe(44_000);
+
+    // 다음 tick: 기존 baseline (43000, fetchedAt=0) 기반으로 계속 진행 → 단조 증가
+    act(() => {
+      currentNow = 3_000;
+      jest.advanceTimersByTime(1_000);
+    });
+    expect(result.current.progressMs).toBeGreaterThanOrEqual(44_000);
+  });
+
   it('returns the raw progress value when durationMs is null (no clamp upper bound)', () => {
     let currentNow = 0;
     const { result } = renderHook(() =>
