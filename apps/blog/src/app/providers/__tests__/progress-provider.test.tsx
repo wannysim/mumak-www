@@ -206,7 +206,7 @@ describe('ProgressProvider', () => {
 
       const bar = screen.getByTestId('page-transition-progress');
       expect(bar).toHaveAttribute('aria-hidden', 'false');
-      expect((bar.firstElementChild as HTMLElement).style.backgroundColor).toBe('var(--accent)');
+      expect((bar.firstElementChild as HTMLElement).style.backgroundColor).toBe('var(--ring)');
     });
 
     it('should NOT preventDefault on the observed click (real navigation must proceed)', () => {

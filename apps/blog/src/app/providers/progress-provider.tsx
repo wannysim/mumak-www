@@ -66,7 +66,7 @@ function PageTransitionBar({ phase, reducedMotion }: { phase: Phase; reducedMoti
   return (
     <div
       data-testid="page-transition-progress"
-      className="pointer-events-none fixed top-0 right-0 left-0 z-70 h-0.5"
+      className="pointer-events-none fixed top-0 right-0 left-0 z-70 h-1"
       role="progressbar"
       aria-label="Page transition progress"
       aria-hidden={phase === 'done'}
@@ -74,7 +74,8 @@ function PageTransitionBar({ phase, reducedMotion }: { phase: Phase; reducedMoti
       <div
         className="h-full w-full origin-left"
         style={{
-          backgroundColor: 'var(--accent)',
+          backgroundColor: 'var(--ring)',
+          boxShadow: '0 0 8px var(--ring), 0 0 2px var(--ring)',
           transform,
           opacity,
           transition,
