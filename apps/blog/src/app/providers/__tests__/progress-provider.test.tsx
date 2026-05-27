@@ -46,12 +46,56 @@ function emitReducedMotionChange(listeners: MatchMediaListener[], matches: boole
   });
 }
 
+function setLocation(href: string) {
+  const url = new URL(href);
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+async function clickAndSettle(anchor: HTMLAnchorElement, init: MouseEventInit = {}) {
+  await act(async () => {
+    dispatchClick(anchor, init);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+function makeAnchor(attrs: Partial<HTMLAnchorElement> & Record<string, string | boolean | undefined>) {
+  const anchor = document.createElement('a');
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value === undefined) continue;
+    if (typeof value === 'boolean') {
+      if (value) anchor.setAttribute(key, '');
+      continue;
+    }
+    if (key === 'href') {
+      anchor.setAttribute('href', value as string);
+      continue;
+    }
+    anchor.setAttribute(key, value as string);
+  }
+  document.body.appendChild(anchor);
+  return anchor;
+}
+
+function dispatchClick(anchor: HTMLAnchorElement, init: MouseEventInit = {}) {
+  const event = new MouseEvent('click', {
+    bubbles: true,
+    cancelable: true,
+    button: 0,
+    ...init,
+  });
+  anchor.dispatchEvent(event);
+  return event;
+}
+
 describe('ProgressProvider', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask'] });
     mockMatchMedia(false);
     mockPathname = '/ko/garden';
     mockSearchParams = new URLSearchParams();
+    setLocation('http://localhost/ko/garden');
+    document.body.innerHTML = '';
   });
 
   afterEach(() => {
@@ -81,8 +125,7 @@ describe('ProgressProvider', () => {
     expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
   });
 
-  it('should not attach any document-level click or popstate handlers', () => {
-    const addDocumentListenerSpy = jest.spyOn(document, 'addEventListener');
+  it('should never wrap history APIs (no popstate/pushState listeners on window)', () => {
     const addWindowListenerSpy = jest.spyOn(window, 'addEventListener');
 
     render(
@@ -91,66 +134,201 @@ describe('ProgressProvider', () => {
       </ProgressProvider>
     );
 
-    const interceptedEvents = ['click', 'popstate', 'pushstate', 'replacestate'];
-    const documentHits = addDocumentListenerSpy.mock.calls.filter(([type]) =>
-      interceptedEvents.includes(String(type).toLowerCase())
+    const historyHits = addWindowListenerSpy.mock.calls.filter(([type]) =>
+      ['popstate', 'pushstate', 'replacestate'].includes(String(type).toLowerCase())
     );
-    const windowHits = addWindowListenerSpy.mock.calls.filter(([type]) =>
-      interceptedEvents.includes(String(type).toLowerCase())
-    );
+    expect(historyHits).toHaveLength(0);
 
-    expect(documentHits).toHaveLength(0);
-    expect(windowHits).toHaveLength(0);
-
-    addDocumentListenerSpy.mockRestore();
     addWindowListenerSpy.mockRestore();
   });
 
-  describe('on navigation', () => {
-    it('should render the bar with accent color and stay at top with elevated z-index', () => {
-      const { rerender } = render(
+  describe('click observer', () => {
+    it('should attach a passive capture-phase click listener on document', () => {
+      const addSpy = jest.spyOn(document, 'addEventListener');
+
+      render(
         <ProgressProvider>
           <span>x</span>
         </ProgressProvider>
       );
 
-      mockPathname = '/ko/garden/pkm';
-      rerender(
-        <ProgressProvider>
-          <span>x</span>
-        </ProgressProvider>
-      );
+      const clickCalls = addSpy.mock.calls.filter(([type]) => type === 'click');
+      expect(clickCalls).toHaveLength(1);
+      const [, , options] = clickCalls[0]!;
+      expect(options).toMatchObject({ capture: true, passive: true });
 
-      const bar = screen.getByTestId('page-transition-progress');
-      expect(bar).toHaveClass('fixed', 'top-0', 'right-0', 'left-0', 'z-70');
-
-      const inner = bar.firstElementChild as HTMLElement;
-      expect(inner.style.backgroundColor).toBe('var(--accent)');
+      addSpy.mockRestore();
     });
 
-    it('should transition loading → done → idle when pathname changes', () => {
-      const { rerender } = render(
+    it('should remove the click listener on unmount with matching options', () => {
+      const addSpy = jest.spyOn(document, 'addEventListener');
+      const removeSpy = jest.spyOn(document, 'removeEventListener');
+
+      const { unmount } = render(
         <ProgressProvider>
           <span>x</span>
         </ProgressProvider>
       );
 
-      mockPathname = '/ko/garden/pkm';
-      rerender(
+      const handler = addSpy.mock.calls.find(([type]) => type === 'click')?.[1];
+      unmount();
+
+      const removeCall = removeSpy.mock.calls.find(([type]) => type === 'click');
+      expect(removeCall?.[1]).toBe(handler);
+
+      addSpy.mockRestore();
+      removeSpy.mockRestore();
+    });
+
+    it('should NOT call setState synchronously inside the click handler (webkit-safe)', () => {
+      render(
         <ProgressProvider>
           <span>x</span>
         </ProgressProvider>
       );
+
+      const anchor = makeAnchor({ href: 'http://localhost/ko/about' });
+      dispatchClick(anchor);
+
+      // Synchronously after the click: no bar yet — state update is deferred.
+      expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
+    });
+
+    it('should show the bar after the microtask, in loading phase, for internal anchor clicks', async () => {
+      render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const anchor = makeAnchor({ href: 'http://localhost/ko/about' });
+      await clickAndSettle(anchor);
 
       const bar = screen.getByTestId('page-transition-progress');
       expect(bar).toHaveAttribute('aria-hidden', 'false');
-      expect((bar.firstElementChild as HTMLElement).style.opacity).toBe('1');
+      expect((bar.firstElementChild as HTMLElement).style.backgroundColor).toBe('var(--accent)');
+    });
 
-      act(() => {
-        jest.advanceTimersByTime(600);
-      });
+    it('should NOT preventDefault on the observed click (real navigation must proceed)', () => {
+      render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const anchor = makeAnchor({ href: 'http://localhost/ko/about' });
+      const event = dispatchClick(anchor);
+      expect(event.defaultPrevented).toBe(false);
+    });
+
+    it.each<[string, MouseEventInit | Partial<HTMLAnchorElement>, 'modifier' | 'anchor']>([
+      ['cmd-click', { metaKey: true }, 'modifier'],
+      ['ctrl-click', { ctrlKey: true }, 'modifier'],
+      ['shift-click', { shiftKey: true }, 'modifier'],
+      ['middle-click', { button: 1 }, 'modifier'],
+    ])('should ignore %s (user wants new tab / non-navigating)', async (_label, init) => {
+      render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const anchor = makeAnchor({ href: 'http://localhost/ko/about' });
+      await clickAndSettle(anchor, init as MouseEventInit);
+
+      expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
+    });
+
+    it('should ignore clicks on external links', async () => {
+      render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const anchor = makeAnchor({ href: 'https://example.com/somewhere' });
+      await clickAndSettle(anchor);
+
+      expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
+    });
+
+    it('should ignore clicks with target="_blank"', async () => {
+      render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const anchor = makeAnchor({ href: 'http://localhost/ko/about', target: '_blank' });
+      await clickAndSettle(anchor);
+
+      expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
+    });
+
+    it('should ignore download links', async () => {
+      render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const anchor = makeAnchor({ href: 'http://localhost/file.pdf', download: 'file.pdf' });
+      await clickAndSettle(anchor);
+
+      expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
+    });
+
+    it('should ignore hash-only links (same pathname + same search)', async () => {
+      render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const anchor = makeAnchor({ href: 'http://localhost/ko/garden#section' });
+      await clickAndSettle(anchor);
+
+      expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
+    });
+
+    it('should not attach a click listener when reduced motion is preferred', () => {
+      mockMatchMedia(true);
+      const addSpy = jest.spyOn(document, 'addEventListener');
+
+      render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const clickCalls = addSpy.mock.calls.filter(([type]) => type === 'click');
+      expect(clickCalls).toHaveLength(0);
+
+      addSpy.mockRestore();
+    });
+  });
+
+  describe('navigation completion', () => {
+    it('should transition loading → done → idle when pathname change follows a click', async () => {
+      const { rerender } = render(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
+      const anchor = makeAnchor({ href: 'http://localhost/ko/about' });
+      await clickAndSettle(anchor);
+
+      expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'false');
+
+      mockPathname = '/ko/about';
+      rerender(
+        <ProgressProvider>
+          <span>x</span>
+        </ProgressProvider>
+      );
+
       expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'true');
-      expect((screen.getByTestId('page-transition-progress').firstElementChild as HTMLElement).style.opacity).toBe('0');
 
       act(() => {
         jest.advanceTimersByTime(200);
@@ -158,61 +336,60 @@ describe('ProgressProvider', () => {
       expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
     });
 
-    it('should transition the same way when search params change', () => {
+    it('should flash briefly for programmatic navigation without a click', () => {
       const { rerender } = render(
         <ProgressProvider>
           <span>x</span>
         </ProgressProvider>
       );
 
-      mockSearchParams = new URLSearchParams('tag=react');
+      mockPathname = '/ko/about';
       rerender(
         <ProgressProvider>
           <span>x</span>
         </ProgressProvider>
       );
 
-      expect(screen.getByTestId('page-transition-progress')).toBeInTheDocument();
+      // Goes through loading → done → idle in a compressed flash.
+      expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'false');
 
       act(() => {
-        jest.advanceTimersByTime(800);
+        jest.advanceTimersByTime(80);
+      });
+      expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'true');
+
+      act(() => {
+        jest.advanceTimersByTime(200);
       });
       expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
     });
 
-    it('should cancel the in-flight cycle and restart when navigation happens during fade', () => {
-      const { rerender } = render(
+    it('should complete safely if navigation never lands (safety timeout)', async () => {
+      render(
         <ProgressProvider>
           <span>x</span>
         </ProgressProvider>
       );
 
-      mockPathname = '/ko/garden/pkm';
-      rerender(
-        <ProgressProvider>
-          <span>x</span>
-        </ProgressProvider>
-      );
+      const anchor = makeAnchor({ href: 'http://localhost/ko/about' });
+      await clickAndSettle(anchor);
+
+      expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'false');
 
       act(() => {
-        jest.advanceTimersByTime(700);
+        jest.advanceTimersByTime(8000);
       });
-      // Now in 'done' phase
-      mockPathname = '/ko/garden/pkm/sub';
-      rerender(
-        <ProgressProvider>
-          <span>x</span>
-        </ProgressProvider>
-      );
+      expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'true');
 
-      const bar = screen.getByTestId('page-transition-progress');
-      expect(bar).toHaveAttribute('aria-hidden', 'false');
-      expect((bar.firstElementChild as HTMLElement).style.opacity).toBe('1');
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+      expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
     });
   });
 
   describe('reduced motion', () => {
-    it('should skip the loading phase and only show a brief fade', () => {
+    it('should skip the loading phase and only show a brief fade on navigation', () => {
       mockMatchMedia(true);
 
       const { rerender } = render(
@@ -221,7 +398,7 @@ describe('ProgressProvider', () => {
         </ProgressProvider>
       );
 
-      mockPathname = '/ko/garden/pkm';
+      mockPathname = '/ko/about';
       rerender(
         <ProgressProvider>
           <span>x</span>
@@ -230,8 +407,7 @@ describe('ProgressProvider', () => {
 
       const bar = screen.getByTestId('page-transition-progress');
       expect(bar).toHaveAttribute('aria-hidden', 'true');
-      const inner = bar.firstElementChild as HTMLElement;
-      expect(inner.style.transition).toBe('opacity 200ms linear');
+      expect((bar.firstElementChild as HTMLElement).style.transition).toBe('opacity 200ms linear');
 
       act(() => {
         jest.advanceTimersByTime(200);
@@ -250,7 +426,7 @@ describe('ProgressProvider', () => {
 
       emitReducedMotionChange(listeners, true);
 
-      mockPathname = '/ko/garden/pkm';
+      mockPathname = '/ko/about';
       rerender(
         <ProgressProvider>
           <span>x</span>
@@ -290,7 +466,7 @@ describe('ProgressProvider', () => {
       </ProgressProvider>
     );
 
-    mockPathname = '/ko/garden/pkm';
+    mockPathname = '/ko/about';
     rerender(
       <ProgressProvider>
         <span>x</span>
