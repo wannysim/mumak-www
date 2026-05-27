@@ -28,6 +28,7 @@
     "validate:garden": "node scripts/validate-garden.mjs"
   },
   "dependencies": {
+    "@bprogress/next": "^3.2.12",
     "@mumak/ui": "workspace:*",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
