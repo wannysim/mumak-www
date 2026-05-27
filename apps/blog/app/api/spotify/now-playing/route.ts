@@ -7,6 +7,9 @@ export interface NowPlayingResponse {
   timestamp: number;
 }
 
+const EDGE_CACHE_MAX_AGE_S = 10;
+const EDGE_CACHE_SWR_S = 30;
+
 export async function GET(): Promise<NextResponse<NowPlayingResponse>> {
   const data = await getNowPlaying();
 
@@ -17,7 +20,7 @@ export async function GET(): Promise<NextResponse<NowPlayingResponse>> {
     },
     {
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Cache-Control': `public, s-maxage=${EDGE_CACHE_MAX_AGE_S}, stale-while-revalidate=${EDGE_CACHE_SWR_S}`,
       },
     }
   );
