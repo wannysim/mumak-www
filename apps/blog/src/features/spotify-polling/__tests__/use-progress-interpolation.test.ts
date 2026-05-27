@@ -182,6 +182,134 @@ describe('useProgressInterpolation', () => {
     expect(result.current.progressMs).toBe(12_000);
   });
 
+  it('returns the raw progress value when durationMs is null (no clamp upper bound)', () => {
+    let currentNow = 0;
+    const { result } = renderHook(() =>
+      useProgressInterpolation({
+        trackId: 'a',
+        progressMs: 1_234,
+        durationMs: null,
+        isPlaying: true,
+        fetchedAt: 0,
+        now: () => currentNow,
+      })
+    );
+
+    expect(result.current.progressMs).toBe(1_234);
+    expect(result.current.durationMs).toBeNull();
+
+    act(() => {
+      currentNow = 2_000;
+      jest.advanceTimersByTime(1_000);
+    });
+
+    // duration 이 없으면 상한이 없고 음수만 0으로 클램프
+    expect(result.current.progressMs).toBe(3_234);
+  });
+
+  it('treats a non-positive durationMs as an absent upper bound', () => {
+    const { result } = renderHook(() =>
+      useProgressInterpolation({
+        trackId: 'a',
+        progressMs: 500,
+        durationMs: 0,
+        isPlaying: false,
+        fetchedAt: 0,
+        now: () => 0,
+      })
+    );
+
+    // durationMs <= 0 인 경우 max(0, value) 만 적용
+    expect(result.current.progressMs).toBe(500);
+  });
+
+  it('clamps negative progress to zero when paused', () => {
+    const { result } = renderHook(() =>
+      useProgressInterpolation({
+        trackId: 'a',
+        // 비정상적으로 음수인 progressMs (방어 가드 확인)
+        progressMs: -100,
+        durationMs: 60_000,
+        isPlaying: false,
+        fetchedAt: 0,
+        now: () => 0,
+      })
+    );
+
+    expect(result.current.progressMs).toBe(0);
+  });
+
+  it('clears the interval on unmount', () => {
+    const clearIntervalSpy = jest.spyOn(globalThis, 'clearInterval');
+
+    const { unmount } = renderHook(() =>
+      useProgressInterpolation({
+        trackId: 'a',
+        progressMs: 1_000,
+        durationMs: 60_000,
+        isPlaying: true,
+        fetchedAt: 0,
+        now: () => 0,
+      })
+    );
+
+    unmount();
+
+    expect(clearIntervalSpy).toHaveBeenCalled();
+    clearIntervalSpy.mockRestore();
+  });
+
+  it('does not start an interval when paused (no interval to clear)', () => {
+    const setIntervalSpy = jest.spyOn(globalThis, 'setInterval');
+
+    renderHook(() =>
+      useProgressInterpolation({
+        trackId: 'a',
+        progressMs: 1_000,
+        durationMs: 60_000,
+        isPlaying: false,
+        fetchedAt: 0,
+        now: () => 0,
+      })
+    );
+
+    // 일시정지 상태에서는 useEffect 가 일찍 return — setInterval 호출 없음
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    setIntervalSpy.mockRestore();
+  });
+
+  it('resets to null when progress data disappears after being set', () => {
+    let currentNow = 0;
+    const { result, rerender } = renderHook(
+      (props: Parameters<typeof useProgressInterpolation>[0]) => useProgressInterpolation(props),
+      {
+        initialProps: {
+          trackId: 'a' as string | null,
+          progressMs: 5_000 as number | null,
+          durationMs: 60_000 as number | null,
+          isPlaying: true,
+          fetchedAt: 0,
+          now: () => currentNow,
+        },
+      }
+    );
+
+    expect(result.current.progressMs).toBe(5_000);
+
+    // 다음 폴링에서 progress 데이터가 사라짐 (예: 재생 종료)
+    rerender({
+      trackId: null,
+      progressMs: null,
+      durationMs: null,
+      isPlaying: false,
+      fetchedAt: 1_000,
+      now: () => currentNow,
+    });
+
+    expect(result.current.progressMs).toBeNull();
+    expect(result.current.durationMs).toBeNull();
+  });
+
   it('stops interpolating when isPlaying flips to false', () => {
     let currentNow = 0;
     const { result, rerender } = renderHook(
