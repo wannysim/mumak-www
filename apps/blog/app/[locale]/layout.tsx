@@ -17,7 +17,7 @@ export function generateStaticParams() {
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
-const ENABLE_VERCEL_ANALYTICS = process.env.NODE_ENV === 'production' && process.env.VERCEL === '1';
+const ENABLE_VERCEL_ANALYTICS = process.env.VERCEL_ENV === 'production';
 
 const GSC_TOKEN = process.env.NEXT_PUBLIC_GSC_TOKEN;
 const NAVER_TOKEN = process.env.NEXT_PUBLIC_NAVER_TOKEN;
