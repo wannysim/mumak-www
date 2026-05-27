@@ -1,0 +1,274 @@
+---
+title: 'React Native animations and gestures'
+created: '2026-05-28'
+status: 'seedling'
+parent: 'frontend'
+tags: ['react-native', 'animation', 'gesture', 'reanimated']
+---
+
+On the web, one line of CSS transition was enough. In RN you need to be more explicit, and the recurring theme is **keeping animation logic off the JS thread**.
+
+> Start at [[react-native-basics-for-react-devs|RN basics]] if you're new.
+
+## The big picture — why you must avoid the JS thread
+
+An RN app typically runs on two threads.
+
+- **JS thread** — React logic, API calls, touch handling
+- **UI thread (main)** — actual rendering, native animations, scrolling
+
+Each frame is 16.67ms (60fps). If the JS thread computes a new value and sends it to UI each frame, **the animation freezes the moment JS gets blocked**. So the entire story of RN animation is: push as much as possible onto the UI thread.
+
+See [[react-native-performance-and-debugging|performance and debugging]] for the deeper thread model.
+
+## Four APIs — pick one
+
+| API                                    | Origin  | When to use                                                  |
+| -------------------------------------- | ------- | ------------------------------------------------------------ |
+| `Animated`                             | Core    | Simple fade / slide / scale                                  |
+| `LayoutAnimation`                      | Core    | Layout-property transitions in one shot                      |
+| `react-native-reanimated`              | Library | Complex interactions, gesture-driven (the de facto standard) |
+| CSS-like (e.g. NativeWind transitions) | Library | Tailwind-style + simple transitions                          |
+
+In practice, **new code is almost always Reanimated**. Core `Animated` is for simple cases and legacy maintenance.
+
+## Animated — the core API
+
+The fundamentals: three motion types (timing/spring/decay) and an `Animated.Value` that you bind to a component's style.
+
+```tsx
+import { Animated, Easing } from 'react-native';
+import { useEffect, useRef } from 'react';
+
+export function FadeIn({ children }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 300,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+  }, [opacity]);
+
+  return <Animated.View style={{ opacity }}>{children}</Animated.View>;
+}
+```
+
+### Motion types
+
+```ts
+Animated.timing(value, { toValue, duration, easing }); // time-based
+Animated.spring(value, { toValue, friction, tension }); // physics
+Animated.decay(value, { velocity, deceleration }); // inertia
+```
+
+### Composition
+
+```ts
+Animated.sequence([a1, a2]).start(); // run serially
+Animated.parallel([a1, a2]).start(); // run together
+Animated.stagger(100, [a1, a2, a3]).start(); // 100ms apart
+```
+
+### Mapping values (interpolate)
+
+```ts
+const scale = scrollY.interpolate({
+  inputRange: [0, 100],
+  outputRange: [1, 0.8],
+  extrapolate: 'clamp',
+});
+```
+
+Strings work too — colors and values-with-units.
+
+```ts
+const color = progress.interpolate({
+  inputRange: [0, 1],
+  outputRange: ['#ff0000', '#00ff00'],
+});
+```
+
+### `useNativeDriver: true` is the magic
+
+With `useNativeDriver: true`, the animation config is shipped to native once, and **the JS thread is no longer involved**. JS can freeze and the animation still plays.
+
+**Catch**: only works on `transform` and `opacity`. Layout properties like width/height/padding can't (Flexbox needs to be recomputed).
+
+```tsx
+// ✅ native driver works
+<Animated.View style={{ opacity, transform: [{ scale }, { translateX }] }} />
+
+// ❌ falls back to JS driver
+<Animated.View style={{ width: animatedWidth }} />
+```
+
+If layout actually needs to change, reach for `LayoutAnimation` or Reanimated.
+
+### Scroll-linked animations
+
+```tsx
+const scrollY = useRef(new Animated.Value(0)).current;
+
+<Animated.ScrollView
+  onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+  scrollEventThrottle={16}
+>
+  ...
+</Animated.ScrollView>;
+
+// Drive header opacity or parallax with scrollY
+const headerOpacity = scrollY.interpolate({
+  inputRange: [0, 100],
+  outputRange: [1, 0],
+  extrapolate: 'clamp',
+});
+```
+
+## LayoutAnimation — when the layout itself changes
+
+For state changes that naturally affect size/position. A single line attaches a transition to all layout changes in the next render.
+
+```tsx
+import { LayoutAnimation, UIManager, Platform } from 'react-native';
+
+if (Platform.OS === 'android') {
+  UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
+
+function toggle() {
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  setExpanded(v => !v);
+}
+```
+
+Good fits:
+
+- "Show more" expansions
+- Adding/removing list items
+- Card height changes
+
+Downside: **low control**. Every layout change in that render gets the same animation — you can't tune them individually.
+
+## Reanimated — the industry standard
+
+`react-native-reanimated` runs animation code **directly on the UI thread** rather than on the JS thread. Maintaining 60fps is much easier, and gesture-driven motion feels natural.
+
+The core idea: `'worklet'` functions + `useSharedValue` / `useAnimatedStyle`.
+
+```tsx
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring } from 'react-native-reanimated';
+
+export function FadeIn({ children }) {
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    opacity.value = withTiming(1, { duration: 300 });
+  }, [opacity]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return <Animated.View style={style}>{children}</Animated.View>;
+}
+```
+
+### Why Reanimated wins
+
+- Layout properties (width/height etc.) can hit 60fps too
+- Plays beautifully with gestures (next section)
+- `useSharedValue` lives in native memory — doesn't cause re-renders
+- Expressive API (`withSequence`, `withRepeat`, `withDelay`, `cancelAnimation`, …)
+
+If you start a new RN project, install Reanimated from day one. Expo projects usually already have it.
+
+## Gesture Handler — touches and gestures
+
+`react-native-gesture-handler` replaces RN's `PanResponder` with a native gesture system. Reanimated's partner in crime.
+
+```tsx
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
+
+export function Draggable() {
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+
+  const pan = Gesture.Pan().onChange(e => {
+    translateX.value += e.changeX;
+    translateY.value += e.changeY;
+  });
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }, { translateY: translateY.value }],
+  }));
+
+  return (
+    <GestureDetector gesture={pan}>
+      <Animated.View style={[styles.box, style]} />
+    </GestureDetector>
+  );
+}
+```
+
+Available gestures:
+
+- `Pan` — drag
+- `Tap` — tap (single/double/N times)
+- `LongPress`
+- `Pinch` — two-finger zoom
+- `Rotation`
+- `Fling` — swipe-and-release
+
+You can combine them (`Gesture.Race`, `Gesture.Simultaneous`, `Gesture.Exclusive`).
+
+## Common pitfalls
+
+### "Animation is choppy"
+
+Most likely causes, in order:
+
+1. `useNativeDriver: true` is missing
+2. You're looking at a dev build (see [[react-native-performance-and-debugging|performance note]])
+3. Heavy JS work runs every frame
+4. You're trying to native-drive a layout property (not possible)
+
+### "Refs don't behave"
+
+`Animated.View` is `Animated.createAnimatedComponent(View)`, so children needing refs may need forwarding. Usually using `Animated.View` directly is enough.
+
+### "console.log inside a Reanimated worklet doesn't show"
+
+Worklets run on the UI thread — logging is handled separately. Use `runOnJS` to bounce back to JS for logging.
+
+```ts
+import { runOnJS } from 'react-native-reanimated';
+
+const pan = Gesture.Pan().onChange(e => {
+  translateX.value += e.changeX;
+  runOnJS(setLog)(`x=${translateX.value}`);
+});
+```
+
+## Decision guide
+
+- Simple fade/scale/slide → `Animated` + `useNativeDriver: true`
+- A layout toggle → `LayoutAnimation`
+- Anything gesture-driven or 60fps-critical → `Reanimated` + Gesture Handler
+- New project? Install Reanimated from the start
+
+## Related notes
+
+- [[react-native-basics-for-react-devs|RN basics]]
+- [[react-native-performance-and-debugging|RN performance and debugging]] — JS/UI thread model
+- [[react-native-conventions|RN conventions and pitfalls]]
+- [[frontend]]
+
+## References
+
+- [Animations — React Native (official)](https://reactnative.dev/docs/animations)
+- [Reanimated docs](https://docs.swmansion.com/react-native-reanimated/)
+- [Gesture Handler docs](https://docs.swmansion.com/react-native-gesture-handler/)

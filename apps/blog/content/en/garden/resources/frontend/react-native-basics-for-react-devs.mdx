@@ -1,0 +1,193 @@
+---
+title: 'React Native for React Developers — The Basics'
+created: '2026-05-28'
+status: 'seedling'
+parent: 'frontend'
+tags: ['react-native', 'mobile', 'frontend', 'basics']
+---
+
+Coming from web React/TypeScript, the first thing you notice when you open a React Native (RN) project is "the JSX looks the same, but everything else feels slightly off." This note sorts out what's actually different.
+
+> One-line summary: **React stays the same. What changes is _what_ you render and _where_ it ends up.**
+
+## What's the same, what's different
+
+React itself — function components, hooks, state, props, context, suspense — is almost entirely unchanged. What changes is that the tree React produces is **not a DOM tree**.
+
+| Item          | Web React         | React Native                |
+| ------------- | ----------------- | --------------------------- |
+| Render target | DOM (HTMLElement) | Native views (UIView …)     |
+| Primitives    | div, span, img …  | View, Text, Image …         |
+| Styling       | CSS · CSS Modules | JS objects (StyleSheet)     |
+| Units         | px, rem, %, vh …  | Unitless numbers (dp/pt)    |
+| Routing       | react-router …    | expo-router / RN Navigation |
+| Bundler       | Vite · webpack    | Metro                       |
+
+The point: **your React mental model carries over**. Only the rendered output is different.
+
+## No DOM — different primitives
+
+Where the web uses `<div>` for almost everything, RN has purpose-built primitives.
+
+```tsx
+import { View, Text, Image, ScrollView, Pressable } from 'react-native';
+
+export function Profile() {
+  return (
+    <View style={{ padding: 16 }}>
+      <Image source={{ uri: 'https://...' }} style={{ width: 64, height: 64 }} />
+      <Text>Name: Younha</Text>
+      <Pressable onPress={() => console.log('tap')}>
+        <Text>Tap me</Text>
+      </Pressable>
+    </View>
+  );
+}
+```
+
+The ones you'll use most:
+
+- `View` — the `<div>` equivalent. A layout container
+- `Text` — every piece of text must live inside one of these
+- `Image` — images. **You must specify width/height or it won't show**
+- `ScrollView` — a scrollable region
+- `FlatList` / `SectionList` — long lists (needed for performance)
+- `Pressable` / `TouchableOpacity` — tappable areas
+- `TextInput` — input fields
+
+There's **no** `<div>`, `<span>`, `<button>`, `<a>`. If you're stuck, "text goes in Text, boxes are View" gets you 80% of the way.
+
+## "Text must be inside a Text" — what that means
+
+What worked silently on the web throws an error in RN.
+
+```tsx
+// ❌ runtime error
+<View>Hello</View>
+
+// ✅
+<View>
+  <Text>Hello</Text>
+</View>
+```
+
+The reason is simple: `View` is just "a rectangular region." It doesn't know how to draw glyphs. That's the job of `UILabel` / `TextView` underneath, and `<Text>` is the abstraction that owns them.
+
+## Scrolling is not automatic
+
+On the web, `overflow: auto` did it. In RN, you have to explicitly create a scrollable area.
+
+```tsx
+import { ScrollView } from 'react-native';
+
+<ScrollView>{/* scrolls when content overflows */}</ScrollView>;
+```
+
+If the list is long (>20-ish items), use `FlatList` instead of `ScrollView`. See [[react-native-conventions]] for the why.
+
+## Styles are JS objects, not CSS
+
+```tsx
+import { StyleSheet, View, Text } from 'react-native';
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#fff',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+});
+
+<View style={styles.container}>
+  <Text style={styles.title}>Title</Text>
+</View>;
+```
+
+Key differences from CSS:
+
+- **Unitless numbers** by default (translated to pt on iOS, dp on Android)
+- **Every component is `display: flex` by default**, and **`flexDirection` defaults to `column`** (web defaults to `row`)
+- No cascading/inheritance — parent styles don't flow into children automatically (exception: `Text` inside `Text` inherits font props)
+- No `:hover`, `:focus`, `::before` pseudo-classes/elements
+- Use `style` prop, not `className`
+- Want Tailwind-style? Install `nativewind` separately
+
+If you carry a full CSS mental model over, you'll fight it. Think of RN styling as **"inline styles with only Flexbox available."**
+
+## Flexbox is mostly the same, with different defaults
+
+```tsx
+<View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between' }}>
+  <Text>Left</Text>
+  <Text>Right</Text>
+</View>
+```
+
+What's different from the web:
+
+- `flexDirection: 'column'` is the default (web: `row`)
+- Every View is already a flex container
+
+Just remembering those two saves a lot of layout confusion.
+
+## Dev environment: Metro and Expo
+
+Just like web uses Vite/Webpack, RN uses **Metro** as its bundler. You rarely touch it directly — think of it as "RN's dev server."
+
+This repo (`apps/mumak-native`) is built on **Expo**, which is roughly:
+
+- RN + bundled native modules (camera/location/push/file/audio …)
+- Build infrastructure (EAS), routing (`expo-router`), OTA updates
+
+Think of Expo as "the Next.js of RN." Most modern RN projects start with Expo.
+
+`expo-router` uses file-based routing — almost the same mental model as Next.js App Router:
+
+```
+app/
+├── _layout.tsx     ← RootLayout
+├── index.tsx       ← /
+├── login.tsx       ← /login
+└── (tabs)/
+    ├── _layout.tsx ← Tab Layout
+    ├── home.tsx
+    └── profile.tsx
+```
+
+If you've done Next.js, the adoption cost is near zero.
+
+## Hot reload still works
+
+There's **Fast Refresh** out of the box (similar to Vite/Next HMR). Save the file and the simulator/device reflects it instantly, preserving component state when it can.
+
+## So what should you focus on starting out?
+
+- Bring your React/TS knowledge as-is
+- Use `<View>` instead of `<div>`, put text inside `<Text>`
+- Style with JS objects + Flexbox + unitless numbers
+- Use `FlatList` for long lists
+- Use `expo-router` (same brain as Next.js)
+- When stuck, ask "is this a mobile-shaped problem, not a web one?"
+
+For how the same JSX renders on both iOS and Android, see [[react-native-platform-agnostic|How cross-platform actually works]].
+
+For pitfalls and RN-only conventions, see [[react-native-conventions|RN conventions and pitfalls]].
+
+## Related notes
+
+- [[react-native-platform-agnostic|How RN handles iOS and Android with one codebase]]
+- [[react-native-core-components|RN core component map]]
+- [[react-native-navigation|RN navigation]]
+- [[react-native-animations-and-gestures|RN animations and gestures]]
+- [[react-native-performance-and-debugging|RN performance and debugging]]
+- [[react-native-conventions|RN conventions and pitfalls]]
+- [[frontend]]
+
+## References
+
+- [React Native — The Basics (official)](https://reactnative.dev/docs/getting-started)
+- [Expo Router docs](https://docs.expo.dev/router/introduction/)

@@ -1,0 +1,151 @@
+---
+title: 'How React Native targets iOS and Android with one codebase'
+created: '2026-05-28'
+status: 'seedling'
+parent: 'frontend'
+tags: ['react-native', 'mobile', 'frontend', 'architecture']
+---
+
+The first question when you come from web frontend to React Native (RN):
+
+> I wrote the same JSX, so how does it become a `UIView` on iOS and an `android.view.View` on Android?
+
+Here's the model for why RN can "pretend platforms don't exist."
+
+## Core idea: "View" is an abstract interface
+
+On the web, `<div>` ultimately maps to one thing — `HTMLDivElement`. In RN, `<View>` is different.
+
+```tsx
+import { View, Text } from 'react-native';
+
+export function Hello() {
+  return (
+    <View>
+      <Text>Hello</Text>
+    </View>
+  );
+}
+```
+
+Here, `View` is just an **abstract component** meaning "a rectangular area." The actual thing on screen is:
+
+- iOS → `RCTView` (a UIView subclass)
+- Android → `ReactViewGroup` (an android.view.ViewGroup subclass)
+
+Your JS never touches either of those directly. The RN runtime sits in between.
+
+## Structure: two separate worlds
+
+There are roughly two worlds.
+
+| World  | What lives there                                        |
+| ------ | ------------------------------------------------------- |
+| JS     | Your React code, state, component tree                  |
+| Native | UIKit/Android View, camera, sensors, GPS, file system … |
+
+They live on separate threads and **can't call each other directly**. They exchange messages instead. In the old architecture, that channel was the "Bridge" — a queue-based async pipe. The new architecture replaces it with JSI (JavaScript Interface), which allows synchronous calls.
+
+```
+[JS Thread]   ──messages──>   [Native Modules]
+   React                          UIKit / Android
+   diff/reconcile               ─ Camera, GPS, FS
+   "shadow tree"                ─ UIView / View
+```
+
+## Render flow: who actually draws the pixels?
+
+RN holds the "what should be drawn" tree in JS and tells native "render it like this."
+
+1. React computes a component tree (same as web)
+2. RN turns it into a **Shadow Tree** — an intermediate representation
+3. Layout (Flexbox via the Yoga engine) is computed on the Shadow Tree
+4. The result is shipped to native, which builds the real `UIView` / `ViewGroup` tree
+
+The important part: **layout is platform-independent**. Yoga, a C++ library, computes coordinates by Flexbox rules; iOS and Android then draw their own way using those coordinates. That's why the same JSX renders nearly identically on both.
+
+## What "platform-agnostic" really means
+
+From your JS code's perspective:
+
+- You only deal with **shared interfaces** like `<View>`, `<Text>`, `<Image>`, `<ScrollView>`
+- Styles are CSS-ish JS objects (`{ flex: 1, padding: 16 }`)
+- Layout follows the same Flexbox rules everywhere
+
+Platform differences are absorbed by RN core and native modules. So **~90% of your app code genuinely doesn't know what platform it's on**.
+
+The remaining ~10% truly is platform-specific, and RN gives you explicit escape hatches.
+
+## Where the platform leaks through
+
+### 1. The Platform module — runtime branching
+
+```tsx
+import { Platform, StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 44 : 24,
+  },
+});
+```
+
+### 2. File names — bundler-level branching
+
+The bundler automatically picks between `Foo.ios.tsx` and `Foo.android.tsx` in the same folder.
+
+```
+components/
+├── status-bar.ios.tsx
+├── status-bar.android.tsx
+└── index.ts          ← `import './status-bar'` just works
+```
+
+### 3. Native modules
+
+Things like camera, Bluetooth, and keychain can't be fully hidden by RN core. Packages like `expo-camera` and `react-native-keychain` ship native code for both platforms and expose a single JS API.
+
+## New Architecture: why the rewrite?
+
+The old Bridge was fully async + JSON-serialized. That hit limits for fast, precise interactions (gestures, animations).
+
+Modern RN (0.68+, especially 0.74+) standardizes on:
+
+- **JSI**: the JS engine (Hermes etc.) holds and calls native C++ objects directly — no serialization
+- **Fabric**: a new renderer that ties the Shadow Tree and native views together more coherently
+- **TurboModules**: lazy-loaded, type-safe native module access
+
+The headline result: **the JSX you write stays the same; the plumbing underneath gets faster**. Critically, the abstract interfaces (`<View>`, `<Text>`) don't change.
+
+## How Expo changes things
+
+This repo's `apps/mumak-native` is Expo-based. Roughly, Expo is:
+
+- RN + a curated set of common native modules (camera/location/push/file/audio …)
+- Build infrastructure (EAS), routing (`expo-router`), OTA updates
+
+In platform-abstraction terms, Expo widens RN's "pretend platforms don't exist" surface area. That's why one `expo-camera` call works on both OSes.
+
+## When you start writing RN code, remember
+
+- Most JSX is platform-agnostic — write it like web React
+- But **it's not the DOM**: no `div`/`span`, only `View`/`Text`
+- All text must live inside `<Text>` — no bare strings outside
+- Scrolling isn't automatic — wrap with `<ScrollView>` or `<FlatList>`
+- Styles are JS objects, not CSS — unitless numbers by default
+- When you really need to branch, `.ios.tsx` / `.android.tsx` files are cleaner than `if` statements
+
+## Related notes
+
+- [[react-native-basics-for-react-devs|RN basics for React devs]] — start here
+- [[react-native-core-components|RN core component map]]
+- [[react-native-performance-and-debugging|RN performance and debugging]] — deeper on the thread model
+- [[react-native-conventions|RN conventions and pitfalls]] — common gotchas
+- [[browser-rendering-pipeline]] — the web counterpart for comparison
+- [[frontend]] — frontend hub
+
+## References
+
+- [React Native Architecture (official)](https://reactnative.dev/architecture/overview)
+- [Yoga Layout](https://www.yogalayout.dev/)
+- [Why we built the new architecture](https://reactnative.dev/blog/2022/06/21/version-070)

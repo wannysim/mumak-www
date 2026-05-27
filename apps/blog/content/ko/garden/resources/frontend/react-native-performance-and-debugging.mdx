@@ -1,0 +1,242 @@
+---
+title: 'React Native 성능과 디버깅'
+created: '2026-05-28'
+status: 'seedling'
+parent: 'frontend'
+tags: ['react-native', 'performance', 'debugging', 'hermes']
+---
+
+웹 React에서는 "느리네" 정도였던 게 RN에서는 끊김으로 바로 보인다. 모바일은 60fps가 기본이고, 한 프레임이 16.67ms라 여유가 적다.
+
+> 기초는 [[react-native-basics-for-react-devs|RN 기초]], 원리는 [[react-native-platform-agnostic|크로스플랫폼 작동 원리]] 참고.
+
+## 멘탈 모델 — 두 스레드를 같이 봐야 한다
+
+RN 앱은 보통 두 스레드에서 돌아간다.
+
+| 스레드        | 무엇을 한다                                  | 막히면                            |
+| ------------- | -------------------------------------------- | --------------------------------- |
+| **JS 스레드** | React 로직, 이벤트 핸들러, fetch, setState   | 화면은 그려지지만 상호작용이 굳음 |
+| **UI 스레드** | 네이티브 렌더링, 스크롤, 네이티브 애니메이션 | 화면 자체가 뚝뚝 끊김             |
+
+웹의 메인 스레드 하나 모델과 다르다. **스크롤은 JS가 막혀도 잘 돌아간다** (네이티브) — 그래서 "스크롤은 되는데 버튼이 안 눌리네"가 RN에서 흔한 증상.
+
+새 아키텍처(JSI/Fabric)에서는 이 분리가 좀 더 흐려지지만 멘탈 모델은 비슷하게 유지된다.
+
+## 60fps의 의미
+
+화면 갱신 주기는 보통 16.67ms (60fps) 혹은 8.3ms (120fps, 일부 iPad/안드로이드). **한 프레임 안에서 JS가 다음 프레임에 필요한 변경을 못 보내면 그 프레임이 떨어진다 (dropped frame).**
+
+UI 스레드 쪽 dropped frame은 더 치명적이다 — 사용자가 직접 느낀다.
+
+## 가장 흔한 함정 7가지
+
+### 1. dev 빌드에서 성능 판단
+
+dev 모드는 의도적으로 느리다 (소스맵, JSX 위치 추적, warning 검사 등). 성능을 평가할 때는 **release 빌드로 실행해야 한다**.
+
+```bash
+# Expo
+npx expo run:ios --configuration Release
+npx expo run:android --variant release
+
+# 베어 RN
+npx react-native run-ios --mode Release
+```
+
+체감으로 2~10배 빨라지는 경우도 흔하다.
+
+### 2. console.log를 잔뜩 남김
+
+`console.log`는 dev/release 모두에서 JS 스레드를 잡는다. 특히 객체를 직렬화하는 비용이 크다. 프로덕션 빌드에서 자동으로 제거되도록 babel 플러그인을 둔다.
+
+```jsonc
+// babel.config.js
+{
+  "env": {
+    "production": {
+      "plugins": ["transform-remove-console"],
+    },
+  },
+}
+```
+
+### 3. FlatList 미세 조정 안 함
+
+긴 리스트에서는 `FlatList`만 쓰는 걸로는 부족할 때가 있다.
+
+```tsx
+<FlatList
+  data={items}
+  keyExtractor={keyExtractor} // 안정된 참조
+  renderItem={renderItem} // useCallback
+  getItemLayout={getItemLayout} // 높이가 고정이면 필수
+  removeClippedSubviews
+  initialNumToRender={10}
+  windowSize={5}
+  maxToRenderPerBatch={5}
+/>
+```
+
+성능이 안 나오면 `@shopify/flash-list`로 교체.
+
+### 4. 매 프레임 setState
+
+스크롤/입력/제스처 핸들러에서 `setState`를 매 프레임 호출하면 React 렌더가 쌓인다. 이런 건 Reanimated의 `useSharedValue`로 옮기는 게 정석.
+
+```tsx
+// ❌ 60fps setState
+onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
+
+// ✅ shared value
+const scrollY = useSharedValue(0);
+const onScroll = useAnimatedScrollHandler({
+  onScroll: (e) => { scrollY.value = e.contentOffset.y; },
+});
+```
+
+[[react-native-animations-and-gestures|애니메이션 노트]] 참고.
+
+### 5. Animated에서 useNativeDriver 누락
+
+`useNativeDriver: false`(기본값)는 매 프레임 JS → 네이티브 메시지를 보낸다. JS가 막히면 애니가 멈춘다.
+
+```ts
+Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+```
+
+### 6. 무거운 작업을 onPress 안에서 즉시 실행
+
+탭 직후 무거운 동기 작업을 하면 ripple/transition이 끊긴다. `requestAnimationFrame` 또는 `InteractionManager`로 한 프레임 미룬다.
+
+```ts
+function handlePress() {
+  requestAnimationFrame(() => {
+    doExpensiveWork();
+  });
+}
+```
+
+또는:
+
+```ts
+import { InteractionManager } from 'react-native';
+
+InteractionManager.runAfterInteractions(() => {
+  doExpensiveWork();
+});
+```
+
+### 7. 이미지 처리 부주의
+
+원격 이미지 캐싱이 약하면 같은 이미지를 반복 다운로드한다. `expo-image` 또는 `react-native-fast-image`로 교체:
+
+```tsx
+import { Image } from 'expo-image';
+
+<Image source={uri} style={{ width: 64, height: 64 }} contentFit="cover" cachePolicy="memory-disk" />;
+```
+
+## Hermes 엔진
+
+기본 JS 엔진. RN 0.70+에서 기본 활성화. **앱 시작 시간과 메모리에 큰 영향**을 준다.
+
+확인:
+
+```ts
+const isHermes = !!global.HermesInternal;
+console.log('Hermes:', isHermes);
+```
+
+Hermes의 이점:
+
+- 더 빠른 시작 시간 (precompiled bytecode)
+- 더 작은 메모리 풋프린트
+- 더 작은 앱 사이즈
+
+요즘은 그냥 켜져 있다고 생각하고 시작하면 된다.
+
+## 프로파일링 도구
+
+### Performance Monitor (내장)
+
+dev 메뉴(시뮬레이터에서 `Cmd+D` / 디바이스에서 흔들기) → "Perf Monitor" 활성화. 화면 위에 작은 오버레이가 뜬다.
+
+- **JS FPS / UI FPS** — 둘 다 60 근처여야 한다
+- **RAM** — 메모리 사용량
+
+JS FPS가 떨어지면 JS 쪽 로직, UI FPS가 떨어지면 네이티브 렌더링이 문제.
+
+### React DevTools
+
+웹과 똑같이 컴포넌트 트리/props/profiler 다 본다.
+
+```bash
+pnpm dlx react-devtools
+```
+
+별도 창에서 열리고, RN 앱에 자동 연결.
+
+### Flipper
+
+페이스북이 만든 모바일 디버거. 네트워크 인스펙터, 레이아웃 인스펙터, 로그 뷰어 등. RN 0.73 이후로 공식 통합은 약해졌지만 여전히 쓰는 사람 많음.
+
+### Reactotron
+
+가벼운 RN 전용 디버거. Redux/MobX 상태 보기, API 호출 추적, 로그.
+
+### Chrome DevTools (Hermes)
+
+Hermes는 Chrome DevTools와 연결 가능. dev 메뉴 → "Open Debugger" → Chrome에서 `chrome://inspect`.
+
+### Xcode Instruments / Android Studio Profiler
+
+진짜 깊게 봐야 할 때. 메모리 누수, 네이티브 CPU 사용량, GPU 등. JS만으로는 안 풀리는 문제 (네이티브 모듈 의심) 일 때 꺼낸다.
+
+## 번들 사이즈 줄이기
+
+- **Tree-shaking** — ES 모듈 쓰는 라이브러리만 들어오게 (lodash는 `lodash-es` 같은 식)
+- **이미지 최적화** — 로컬 PNG 큰 거 주의. WebP 권장
+- **폰트** — 필요한 weight만 깐다
+- **`assetBundlePatterns`** (Expo) — 번들에 포함할 에셋 패턴 명시
+- `npx expo-doctor`로 잘못된 의존성 점검
+
+## 시작 시간 줄이기
+
+- Hermes 켜기 (기본)
+- 초기 화면을 가볍게 — 첫 화면에서 큰 라이브러리 import 지양
+- 동적 import / `React.lazy`로 화면 단위 코드 스플릿
+- 무거운 초기화는 첫 렌더 이후로 미루기
+
+## "어디가 느린가" 진단 순서
+
+1. release 빌드로 봤는가? (아니면 거기서 멈춤)
+2. Perf Monitor에서 JS FPS / UI FPS 어디가 떨어지나?
+3. JS FPS면 → React Profiler로 리렌더 추적, useCallback/memo 검토
+4. UI FPS면 → 애니메이션 native driver, 이미지, FlatList 옵션 검토
+5. 그래도 안 풀리면 → Instruments / Android Profiler
+
+## 체크리스트
+
+- [ ] release 빌드에서 테스트했는가?
+- [ ] 프로덕션에서 `console.log` 자동 제거되는가?
+- [ ] 모든 `Animated`에 `useNativeDriver: true`인가?
+- [ ] 긴 리스트는 FlatList + 옵션 튜닝 / FlashList인가?
+- [ ] 이미지 캐싱 라이브러리를 쓰는가?
+- [ ] Hermes가 켜져 있는가?
+- [ ] 매 프레임 setState 하는 핸들러는 없나?
+
+## 관련 노트
+
+- [[react-native-basics-for-react-devs|RN 기초]]
+- [[react-native-platform-agnostic|크로스플랫폼 작동 원리]] — Bridge/JSI/Fabric
+- [[react-native-animations-and-gestures|애니메이션과 제스처]]
+- [[react-native-conventions|RN 컨벤션과 함정]]
+- [[frontend]]
+
+## 참고
+
+- [Performance - React Native 공식](https://reactnative.dev/docs/performance)
+- [Profiling - React Native 공식](https://reactnative.dev/docs/profiling)
+- [Hermes - React Native 공식](https://reactnative.dev/docs/hermes)
+- [FlashList - Shopify](https://shopify.github.io/flash-list/)
