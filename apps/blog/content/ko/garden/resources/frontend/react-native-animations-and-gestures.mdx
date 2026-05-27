@@ -23,12 +23,12 @@ RN 앱은 보통 두 스레드에서 돈다.
 
 ## API 4가지 — 어느 걸 쓰나
 
-| API                            | 출신    | 언제                                   |
-| ------------------------------ | ------- | -------------------------------------- |
-| `Animated`                     | 코어    | 간단한 페이드/슬라이드/스케일          |
-| `LayoutAnimation`              | 코어    | 레이아웃 변화(크기/위치)를 한 번에 부드럽게 |
-| `react-native-reanimated`      | 라이브러리 | 복잡한 인터랙션, 제스처 연동 (사실상 표준) |
-| CSS-like (예: NativeWind 전환) | 라이브러리 | Tailwind 스타일 + 간단 트랜지션         |
+| API                            | 출신       | 언제                                        |
+| ------------------------------ | ---------- | ------------------------------------------- |
+| `Animated`                     | 코어       | 간단한 페이드/슬라이드/스케일               |
+| `LayoutAnimation`              | 코어       | 레이아웃 변화(크기/위치)를 한 번에 부드럽게 |
+| `react-native-reanimated`      | 라이브러리 | 복잡한 인터랙션, 제스처 연동 (사실상 표준)  |
+| CSS-like (예: NativeWind 전환) | 라이브러리 | Tailwind 스타일 + 간단 트랜지션             |
 
 실무에서는 **새 코드는 거의 Reanimated**. 코어 `Animated`는 간단한 케이스 + 옛 코드 유지보수용.
 
@@ -60,8 +60,8 @@ export function FadeIn({ children }) {
 
 ```ts
 Animated.timing(value, { toValue, duration, easing }); // 시간 기반
-Animated.spring(value, { toValue, friction, tension });  // 물리 기반
-Animated.decay(value, { velocity, deceleration });       // 관성
+Animated.spring(value, { toValue, friction, tension }); // 물리 기반
+Animated.decay(value, { velocity, deceleration }); // 관성
 ```
 
 ### 조합
@@ -113,10 +113,7 @@ const color = progress.interpolate({
 const scrollY = useRef(new Animated.Value(0)).current;
 
 <Animated.ScrollView
-  onScroll={Animated.event(
-    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-    { useNativeDriver: true },
-  )}
+  onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
   scrollEventThrottle={16}
 >
   ...
@@ -143,7 +140,7 @@ if (Platform.OS === 'android') {
 
 function toggle() {
   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  setExpanded((v) => !v);
+  setExpanded(v => !v);
 }
 ```
 
@@ -162,12 +159,7 @@ function toggle() {
 핵심은 `'worklet'` 함수와 `useSharedValue` / `useAnimatedStyle`.
 
 ```tsx
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSpring,
-} from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring } from 'react-native-reanimated';
 
 export function FadeIn({ children }) {
   const opacity = useSharedValue(0);
@@ -205,16 +197,13 @@ export function Draggable() {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
-  const pan = Gesture.Pan().onChange((e) => {
+  const pan = Gesture.Pan().onChange(e => {
     translateX.value += e.changeX;
     translateY.value += e.changeY;
   });
 
   const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-    ],
+    transform: [{ translateX: translateX.value }, { translateY: translateY.value }],
   }));
 
   return (
@@ -258,7 +247,7 @@ Worklet 안의 `console.log`는 UI 스레드라 별도 처리. 콘솔에 안 뜨
 ```ts
 import { runOnJS } from 'react-native-reanimated';
 
-const pan = Gesture.Pan().onChange((e) => {
+const pan = Gesture.Pan().onChange(e => {
   translateX.value += e.changeX;
   runOnJS(setLog)(`x=${translateX.value}`);
 });

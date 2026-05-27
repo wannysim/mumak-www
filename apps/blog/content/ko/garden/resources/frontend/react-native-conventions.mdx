@@ -66,11 +66,7 @@ iPhone의 노치, Dynamic Island, 하단 홈 인디케이터 영역에 UI가 가
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function Screen() {
-  return (
-    <SafeAreaView style={{ flex: 1 }}>
-      {/* 노치/홈바를 피해서 그려진다 */}
-    </SafeAreaView>
-  );
+  return <SafeAreaView style={{ flex: 1 }}>{/* 노치/홈바를 피해서 그려진다 */}</SafeAreaView>;
 }
 ```
 
@@ -83,13 +79,10 @@ export function Screen() {
 ```tsx
 import { KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 
-<KeyboardAvoidingView
-  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-  style={{ flex: 1 }}
->
+<KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
   {/* ... */}
   <TextInput />
-</KeyboardAvoidingView>
+</KeyboardAvoidingView>;
 ```
 
 `behavior` 값이 iOS와 Android에서 다르게 동작하는 게 진짜 짜증나는 포인트인데, 위 패턴이 거의 정석.
@@ -156,12 +149,9 @@ Animated.timing(opacity, {
 `FlatList`의 `renderItem`은 스크롤 중에 엄청 자주 호출된다. 항목 컴포넌트를 `React.memo`로 감싸고, `keyExtractor`/`renderItem`은 안정된 참조로 유지한다.
 
 ```tsx
-const renderItem = useCallback(
-  ({ item }) => <Card item={item} onPress={handlePress} />,
-  [handlePress],
-);
+const renderItem = useCallback(({ item }) => <Card item={item} onPress={handlePress} />, [handlePress]);
 
-const keyExtractor = useCallback((item) => item.id, []);
+const keyExtractor = useCallback(item => item.id, []);
 
 <FlatList data={items} renderItem={renderItem} keyExtractor={keyExtractor} />;
 ```
@@ -232,10 +222,14 @@ const apiUrl = process.env.EXPO_PUBLIC_API_URL;
 특히 Android에서 z-index가 기대대로 안 동작할 때가 많다. **DOM 순서가 우선**이다 — 위에 보이고 싶으면 JSX에서 나중에 그리는 편이 안전하다.
 
 ```tsx
-{/* 뒤에 깔리는 거 */}
-<Background />
-{/* 위에 뜨는 거 */}
-<Overlay />
+{
+  /* 뒤에 깔리는 거 */
+}
+<Background />;
+{
+  /* 위에 뜨는 거 */
+}
+<Overlay />;
 ```
 
 `elevation`(Android)이나 `shadow*`(iOS) 속성도 z-stacking에 영향을 준다.

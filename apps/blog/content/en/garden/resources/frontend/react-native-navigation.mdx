@@ -12,10 +12,10 @@ How to bring your `react-router` (or Next.js file-based routing) instincts over 
 
 ## The big picture — two choices
 
-| Library                          | Mental model                | Web analogue        |
-| -------------------------------- | --------------------------- | ------------------- |
-| **React Navigation**             | Define navigators in code   | react-router        |
-| **expo-router** (built on it)    | File-based routing          | Next.js App Router  |
+| Library                       | Mental model              | Web analogue       |
+| ----------------------------- | ------------------------- | ------------------ |
+| **React Navigation**          | Define navigators in code | react-router       |
+| **expo-router** (built on it) | File-based routing        | Next.js App Router |
 
 `expo-router` is a layer on top of React Navigation — same behavior expressed two different ways (code vs file structure). **This repo (`apps/mumak-native`) uses expo-router.**
 
@@ -103,14 +103,14 @@ Practically identical to Next.js `<Link>` / `useRouter()`.
 import { Link, useRouter } from 'expo-router';
 
 // Declarative
-<Link href="/posts/123">Open detail</Link>
+<Link href="/posts/123">Open detail</Link>;
 
 // Imperative
 const router = useRouter();
 router.push('/posts/123');
 router.replace('/login'); // replace the current screen
-router.back();             // pop
-router.dismiss();          // dismiss modal
+router.back(); // pop
+router.dismiss(); // dismiss modal
 ```
 
 ### URL parameters
@@ -169,11 +169,7 @@ Don't use the core `<Modal>` for screen-level modals — use the navigation `pre
 
 ```tsx
 // React Navigation
-<Stack.Screen
-  name="NewPost"
-  component={NewPostScreen}
-  options={{ presentation: 'modal' }}
-/>
+<Stack.Screen name="NewPost" component={NewPostScreen} options={{ presentation: 'modal' }} />
 ```
 
 You get back gestures, swipe-to-dismiss, and the dimmed background for free.
@@ -199,7 +195,7 @@ To change it dynamically from within a screen:
 // expo-router
 import { Stack } from 'expo-router';
 
-<Stack.Screen options={{ title: title }} />
+<Stack.Screen options={{ title: title }} />;
 ```
 
 ## Deep linking
@@ -210,8 +206,8 @@ Open the app at a specific screen via a URL like `myapp://posts/123`.
 // app.json (Expo)
 {
   "expo": {
-    "scheme": "myapp"
-  }
+    "scheme": "myapp",
+  },
 }
 ```
 

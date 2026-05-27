@@ -44,7 +44,9 @@ RN 코어 컴포넌트는 대략 4가지 계열로 나눌 수 있다.
 `numberOfLines`로 줄임표 처리:
 
 ```tsx
-<Text numberOfLines={2} ellipsizeMode="tail">긴 텍스트...</Text>
+<Text numberOfLines={2} ellipsizeMode="tail">
+  긴 텍스트...
+</Text>
 ```
 
 ### Image
@@ -96,10 +98,7 @@ RN 코어 컴포넌트는 대략 4가지 계열로 나눌 수 있다.
 <Pressable
   onPress={handlePress}
   onLongPress={handleLongPress}
-  style={({ pressed }) => [
-    styles.button,
-    pressed && { opacity: 0.6 },
-  ]}
+  style={({ pressed }) => [styles.button, pressed && { opacity: 0.6 }]}
 >
   <Text>탭</Text>
 </Pressable>
@@ -140,11 +139,7 @@ iOS/Android의 네이티브 토글.
 기본 스크롤. 자식을 다 렌더링한다 (가상화 없음).
 
 ```tsx
-<ScrollView
-  horizontal={false}
-  showsVerticalScrollIndicator={true}
-  contentContainerStyle={{ padding: 16 }}
->
+<ScrollView horizontal={false} showsVerticalScrollIndicator={true} contentContainerStyle={{ padding: 16 }}>
   {children}
 </ScrollView>
 ```
@@ -161,7 +156,7 @@ iOS/Android의 네이티브 토글.
 ```tsx
 <FlatList
   data={items}
-  keyExtractor={(item) => item.id}
+  keyExtractor={item => item.id}
   renderItem={({ item }) => <Card item={item} />}
   ItemSeparatorComponent={() => <Divider />}
   ListEmptyComponent={<Empty />}
@@ -273,16 +268,16 @@ Alert.alert('삭제할까요?', '되돌릴 수 없습니다.', [
 
 코어가 약하거나 디자인이 강제돼서 거의 항상 라이브러리로 갈아끼우는 영역:
 
-| 영역      | 코어                  | 거의 항상 쓰는 라이브러리                     |
-| --------- | --------------------- | --------------------------------------------- |
-| 리스트    | FlatList              | @shopify/flash-list                           |
-| 애니메이션 | Animated              | react-native-reanimated                       |
-| 제스처    | PanResponder          | react-native-gesture-handler                  |
-| 이미지     | Image                 | expo-image (혹은 react-native-fast-image)     |
-| 안전 영역 | SafeAreaView          | react-native-safe-area-context                |
-| 다이얼로그 | Alert / Modal         | 디자인 시스템의 자체 Dialog 컴포넌트          |
-| 폰트       | (없음)                | expo-font                                     |
-| 아이콘     | (없음)                | @expo/vector-icons 또는 lucide-react-native   |
+| 영역       | 코어          | 거의 항상 쓰는 라이브러리                   |
+| ---------- | ------------- | ------------------------------------------- |
+| 리스트     | FlatList      | @shopify/flash-list                         |
+| 애니메이션 | Animated      | react-native-reanimated                     |
+| 제스처     | PanResponder  | react-native-gesture-handler                |
+| 이미지     | Image         | expo-image (혹은 react-native-fast-image)   |
+| 안전 영역  | SafeAreaView  | react-native-safe-area-context              |
+| 다이얼로그 | Alert / Modal | 디자인 시스템의 자체 Dialog 컴포넌트        |
+| 폰트       | (없음)        | expo-font                                   |
+| 아이콘     | (없음)        | @expo/vector-icons 또는 lucide-react-native |
 
 웹에서도 코어 `<input type="date">`보다 라이브러리를 쓰는 것과 비슷한 맥락.
 

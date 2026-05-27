@@ -12,10 +12,10 @@ tags: ['react-native', 'mobile', 'navigation', 'expo-router']
 
 ## 큰 그림 — 두 가지 선택지
 
-| 라이브러리                      | 멘탈 모델               | 비유                |
-| ------------------------------- | ----------------------- | ------------------- |
-| **React Navigation**            | 컴포넌트로 navigator 정의 | react-router        |
-| **expo-router** (React Nav 기반) | 파일 기반 라우팅          | Next.js App Router  |
+| 라이브러리                       | 멘탈 모델                 | 비유               |
+| -------------------------------- | ------------------------- | ------------------ |
+| **React Navigation**             | 컴포넌트로 navigator 정의 | react-router       |
+| **expo-router** (React Nav 기반) | 파일 기반 라우팅          | Next.js App Router |
 
 `expo-router`는 React Navigation 위에 얹힌 layer다. 같은 동작을 다른 방식(코드 vs 파일 구조)으로 표현한다. **이 저장소(`apps/mumak-native`)는 expo-router 기반.**
 
@@ -103,14 +103,14 @@ Next.js의 `<Link>` 또는 `useRouter()`와 거의 동일.
 import { Link, useRouter } from 'expo-router';
 
 // 선언적
-<Link href="/posts/123">상세 보기</Link>
+<Link href="/posts/123">상세 보기</Link>;
 
 // 명령적
 const router = useRouter();
 router.push('/posts/123');
 router.replace('/login'); // 스택에서 현재 화면 교체
-router.back();             // 뒤로
-router.dismiss();          // 모달 닫기
+router.back(); // 뒤로
+router.dismiss(); // 모달 닫기
 ```
 
 ### URL 파라미터
@@ -169,11 +169,7 @@ navigation.navigate('Profile', { userId: 123 });
 
 ```tsx
 // React Navigation
-<Stack.Screen
-  name="NewPost"
-  component={NewPostScreen}
-  options={{ presentation: 'modal' }}
-/>
+<Stack.Screen name="NewPost" component={NewPostScreen} options={{ presentation: 'modal' }} />
 ```
 
 이렇게 하면 뒤로 가기, 스와이프 dismiss, 백그라운드 dim 등이 OS 표준대로 자동 처리된다.
@@ -199,7 +195,7 @@ navigation.navigate('Profile', { userId: 123 });
 // expo-router
 import { Stack } from 'expo-router';
 
-<Stack.Screen options={{ title: title }} />
+<Stack.Screen options={{ title: title }} />;
 ```
 
 ## 딥링크

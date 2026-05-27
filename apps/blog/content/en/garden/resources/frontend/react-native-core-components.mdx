@@ -44,7 +44,9 @@ All text lives inside one of these. Font props are inherited by nested `<Text>` 
 Ellipsis with `numberOfLines`:
 
 ```tsx
-<Text numberOfLines={2} ellipsizeMode="tail">long text...</Text>
+<Text numberOfLines={2} ellipsizeMode="tail">
+  long text...
+</Text>
 ```
 
 ### Image
@@ -96,10 +98,7 @@ The currently recommended tappable component. Gradually replacing the older `Tou
 <Pressable
   onPress={handlePress}
   onLongPress={handleLongPress}
-  style={({ pressed }) => [
-    styles.button,
-    pressed && { opacity: 0.6 },
-  ]}
+  style={({ pressed }) => [styles.button, pressed && { opacity: 0.6 }]}
 >
   <Text>Tap</Text>
 </Pressable>
@@ -127,24 +126,20 @@ Native iOS/Android toggle.
 
 Pick based on item count and dynamism:
 
-| Situation                          | Use                   |
-| ---------------------------------- | --------------------- |
-| Static, fits one screen            | `View` + .map         |
-| Beyond one screen but short        | `ScrollView` + .map   |
-| Long or dynamic                    | `FlatList`            |
-| Sectioned list (with headers)      | `SectionList`         |
-| Need extra speed                   | `FlashList` (Shopify) |
+| Situation                     | Use                   |
+| ----------------------------- | --------------------- |
+| Static, fits one screen       | `View` + .map         |
+| Beyond one screen but short   | `ScrollView` + .map   |
+| Long or dynamic               | `FlatList`            |
+| Sectioned list (with headers) | `SectionList`         |
+| Need extra speed              | `FlashList` (Shopify) |
 
 ### ScrollView
 
 Basic scroll. Renders all children (no virtualization).
 
 ```tsx
-<ScrollView
-  horizontal={false}
-  showsVerticalScrollIndicator={true}
-  contentContainerStyle={{ padding: 16 }}
->
+<ScrollView horizontal={false} showsVerticalScrollIndicator={true} contentContainerStyle={{ padding: 16 }}>
   {children}
 </ScrollView>
 ```
@@ -161,7 +156,7 @@ Virtualized list. Items outside the viewport unmount.
 ```tsx
 <FlatList
   data={items}
-  keyExtractor={(item) => item.id}
+  keyExtractor={item => item.id}
   renderItem={({ item }) => <Card item={item} />}
   ItemSeparatorComponent={() => <Divider />}
   ListEmptyComponent={<Empty />}
@@ -273,16 +268,16 @@ In practice, you usually skip the platform-specific primitives and reach for a c
 
 The core works but is weak or visually locked in these areas:
 
-| Area              | Core             | What teams reach for                          |
-| ----------------- | ---------------- | --------------------------------------------- |
-| Lists             | FlatList         | @shopify/flash-list                           |
-| Animation         | Animated         | react-native-reanimated                       |
-| Gestures          | PanResponder     | react-native-gesture-handler                  |
-| Image             | Image            | expo-image (or react-native-fast-image)       |
-| Safe area         | SafeAreaView     | react-native-safe-area-context                |
-| Dialogs           | Alert / Modal    | a design-system Dialog                        |
-| Fonts             | (none)           | expo-font                                     |
-| Icons             | (none)           | @expo/vector-icons or lucide-react-native     |
+| Area      | Core          | What teams reach for                      |
+| --------- | ------------- | ----------------------------------------- |
+| Lists     | FlatList      | @shopify/flash-list                       |
+| Animation | Animated      | react-native-reanimated                   |
+| Gestures  | PanResponder  | react-native-gesture-handler              |
+| Image     | Image         | expo-image (or react-native-fast-image)   |
+| Safe area | SafeAreaView  | react-native-safe-area-context            |
+| Dialogs   | Alert / Modal | a design-system Dialog                    |
+| Fonts     | (none)        | expo-font                                 |
+| Icons     | (none)        | @expo/vector-icons or lucide-react-native |
 
 Similar logic to why you wouldn't ship the bare `<input type="date">` on the web.
 

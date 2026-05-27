@@ -66,11 +66,7 @@ iPhone's notch, Dynamic Island, and bottom home indicator will overlap your UI.
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function Screen() {
-  return (
-    <SafeAreaView style={{ flex: 1 }}>
-      {/* draws around the notch and home indicator */}
-    </SafeAreaView>
-  );
+  return <SafeAreaView style={{ flex: 1 }}>{/* draws around the notch and home indicator */}</SafeAreaView>;
 }
 ```
 
@@ -83,13 +79,10 @@ Put a `TextInput` low on the screen and the keyboard will hide it when it opens.
 ```tsx
 import { KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 
-<KeyboardAvoidingView
-  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-  style={{ flex: 1 }}
->
+<KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
   {/* ... */}
   <TextInput />
-</KeyboardAvoidingView>
+</KeyboardAvoidingView>;
 ```
 
 That `behavior` value behaves differently on iOS vs Android, which is genuinely annoying — but the pattern above is the standard fix.
@@ -156,12 +149,9 @@ For anything non-trivial, use `react-native-reanimated` — it's the standard no
 `FlatList`'s `renderItem` is called constantly during scroll. Wrap item components in `React.memo` and keep `keyExtractor`/`renderItem` references stable.
 
 ```tsx
-const renderItem = useCallback(
-  ({ item }) => <Card item={item} onPress={handlePress} />,
-  [handlePress],
-);
+const renderItem = useCallback(({ item }) => <Card item={item} onPress={handlePress} />, [handlePress]);
 
-const keyExtractor = useCallback((item) => item.id, []);
+const keyExtractor = useCallback(item => item.id, []);
 
 <FlatList data={items} renderItem={renderItem} keyExtractor={keyExtractor} />;
 ```
@@ -232,10 +222,14 @@ The RN equivalent of `text-overflow: ellipsis`.
 Especially on Android, `z-index` often doesn't behave as expected. **JSX order wins** — to be on top, render last.
 
 ```tsx
-{/* in the back */}
-<Background />
-{/* on top */}
-<Overlay />
+{
+  /* in the back */
+}
+<Background />;
+{
+  /* on top */
+}
+<Overlay />;
 ```
 
 `elevation` (Android) and `shadow*` (iOS) also influence stacking.

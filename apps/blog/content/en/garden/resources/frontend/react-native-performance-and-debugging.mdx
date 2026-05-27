@@ -14,10 +14,10 @@ On the web, "slow" usually means "feels sluggish." In RN it shows up as visible 
 
 An RN app typically runs across two threads.
 
-| Thread          | What it does                                              | When blocked                             |
-| --------------- | --------------------------------------------------------- | ---------------------------------------- |
-| **JS thread**   | React logic, event handlers, fetch, setState              | UI renders but interaction freezes       |
-| **UI thread**   | Native rendering, scrolling, native animations            | Visible jank — frame drops               |
+| Thread        | What it does                                   | When blocked                       |
+| ------------- | ---------------------------------------------- | ---------------------------------- |
+| **JS thread** | React logic, event handlers, fetch, setState   | UI renders but interaction freezes |
+| **UI thread** | Native rendering, scrolling, native animations | Visible jank — frame drops         |
 
 Different from the web's single main-thread model. **Scrolling keeps working when JS is blocked** (it's on UI thread) — that's why "scrolling works, but buttons don't respond" is a classic RN symptom.
 
@@ -55,9 +55,9 @@ It's common to see a 2–10× speedup just from this.
 {
   "env": {
     "production": {
-      "plugins": ["transform-remove-console"]
-    }
-  }
+      "plugins": ["transform-remove-console"],
+    },
+  },
 }
 ```
 
@@ -68,9 +68,9 @@ It's common to see a 2–10× speedup just from this.
 ```tsx
 <FlatList
   data={items}
-  keyExtractor={keyExtractor}    // stable identity
-  renderItem={renderItem}         // memoized
-  getItemLayout={getItemLayout}   // required if heights are fixed
+  keyExtractor={keyExtractor} // stable identity
+  renderItem={renderItem} // memoized
+  getItemLayout={getItemLayout} // required if heights are fixed
   removeClippedSubviews
   initialNumToRender={10}
   windowSize={5}
@@ -134,7 +134,7 @@ Weak caching means re-downloading the same image. Swap `Image` for `expo-image` 
 ```tsx
 import { Image } from 'expo-image';
 
-<Image source={uri} style={{ width: 64, height: 64 }} contentFit="cover" cachePolicy="memory-disk" />
+<Image source={uri} style={{ width: 64, height: 64 }} contentFit="cover" cachePolicy="memory-disk" />;
 ```
 
 ## The Hermes engine

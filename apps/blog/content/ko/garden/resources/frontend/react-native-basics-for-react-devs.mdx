@@ -14,14 +14,14 @@ tags: ['react-native', 'mobile', 'frontend', 'basics']
 
 React 자체(=함수형 컴포넌트, hooks, state, props, context, suspense, …)는 거의 그대로 쓴다. 다른 건 그 React가 만들어내는 트리가 **DOM이 아니라는 점**뿐이다.
 
-| 항목         | 웹 React          | React Native              |
-| ------------ | ----------------- | ------------------------- |
-| 렌더 대상    | DOM (HTMLElement) | 네이티브 뷰 (UIView 등)   |
-| 최소 단위    | div, span, img …  | View, Text, Image …       |
-| 스타일       | CSS · CSS Modules | JS 객체 (StyleSheet)      |
-| 단위         | px, rem, %, vh …  | 단위 없는 숫자 (dp/pt 기준) |
-| 라우팅       | react-router 등   | expo-router / RN Navigation |
-| 번들러       | Vite · webpack    | Metro                     |
+| 항목      | 웹 React          | React Native                |
+| --------- | ----------------- | --------------------------- |
+| 렌더 대상 | DOM (HTMLElement) | 네이티브 뷰 (UIView 등)     |
+| 최소 단위 | div, span, img …  | View, Text, Image …         |
+| 스타일    | CSS · CSS Modules | JS 객체 (StyleSheet)        |
+| 단위      | px, rem, %, vh …  | 단위 없는 숫자 (dp/pt 기준) |
+| 라우팅    | react-router 등   | expo-router / RN Navigation |
+| 번들러    | Vite · webpack    | Metro                       |
 
 요점은 **React의 멘탈 모델은 그대로 가져가도 된다**는 것. 무엇이 그려지느냐만 바뀐다.
 
@@ -80,9 +80,7 @@ export function Profile() {
 ```tsx
 import { ScrollView } from 'react-native';
 
-<ScrollView>
-  {/* 길어지면 자동으로 스크롤 */}
-</ScrollView>
+<ScrollView>{/* 길어지면 자동으로 스크롤 */}</ScrollView>;
 ```
 
 리스트가 길면(>20개 정도) `ScrollView` 대신 `FlatList`를 써야 한다. 자세한 내용은 [[react-native-conventions]] 참고.
@@ -106,7 +104,7 @@ const styles = StyleSheet.create({
 
 <View style={styles.container}>
   <Text style={styles.title}>제목</Text>
-</View>
+</View>;
 ```
 
 핵심 차이:

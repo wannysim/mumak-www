@@ -39,10 +39,10 @@ Your JS never touches either of those directly. The RN runtime sits in between.
 
 There are roughly two worlds.
 
-| World  | What lives there                                          |
-| ------ | --------------------------------------------------------- |
-| JS     | Your React code, state, component tree                    |
-| Native | UIKit/Android View, camera, sensors, GPS, file system …   |
+| World  | What lives there                                        |
+| ------ | ------------------------------------------------------- |
+| JS     | Your React code, state, component tree                  |
+| Native | UIKit/Android View, camera, sensors, GPS, file system … |
 
 They live on separate threads and **can't call each other directly**. They exchange messages instead. In the old architecture, that channel was the "Bridge" — a queue-based async pipe. The new architecture replaces it with JSI (JavaScript Interface), which allows synchronous calls.
 

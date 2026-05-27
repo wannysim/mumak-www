@@ -14,14 +14,14 @@ Coming from web React/TypeScript, the first thing you notice when you open a Rea
 
 React itself — function components, hooks, state, props, context, suspense — is almost entirely unchanged. What changes is that the tree React produces is **not a DOM tree**.
 
-| Item             | Web React          | React Native             |
-| ---------------- | ------------------ | ------------------------ |
-| Render target    | DOM (HTMLElement)  | Native views (UIView …)  |
-| Primitives       | div, span, img …   | View, Text, Image …      |
-| Styling          | CSS · CSS Modules  | JS objects (StyleSheet)  |
-| Units            | px, rem, %, vh …   | Unitless numbers (dp/pt) |
-| Routing          | react-router …     | expo-router / RN Navigation |
-| Bundler          | Vite · webpack     | Metro                    |
+| Item          | Web React         | React Native                |
+| ------------- | ----------------- | --------------------------- |
+| Render target | DOM (HTMLElement) | Native views (UIView …)     |
+| Primitives    | div, span, img …  | View, Text, Image …         |
+| Styling       | CSS · CSS Modules | JS objects (StyleSheet)     |
+| Units         | px, rem, %, vh …  | Unitless numbers (dp/pt)    |
+| Routing       | react-router …    | expo-router / RN Navigation |
+| Bundler       | Vite · webpack    | Metro                       |
 
 The point: **your React mental model carries over**. Only the rendered output is different.
 
@@ -80,9 +80,7 @@ On the web, `overflow: auto` did it. In RN, you have to explicitly create a scro
 ```tsx
 import { ScrollView } from 'react-native';
 
-<ScrollView>
-  {/* scrolls when content overflows */}
-</ScrollView>
+<ScrollView>{/* scrolls when content overflows */}</ScrollView>;
 ```
 
 If the list is long (>20-ish items), use `FlatList` instead of `ScrollView`. See [[react-native-conventions]] for the why.
@@ -106,7 +104,7 @@ const styles = StyleSheet.create({
 
 <View style={styles.container}>
   <Text style={styles.title}>Title</Text>
-</View>
+</View>;
 ```
 
 Key differences from CSS:

@@ -14,10 +14,10 @@ tags: ['react-native', 'performance', 'debugging', 'hermes']
 
 RN 앱은 보통 두 스레드에서 돌아간다.
 
-| 스레드          | 무엇을 한다                                            | 막히면                            |
-| --------------- | ------------------------------------------------------ | --------------------------------- |
-| **JS 스레드**   | React 로직, 이벤트 핸들러, fetch, setState             | 화면은 그려지지만 상호작용이 굳음 |
-| **UI 스레드**   | 네이티브 렌더링, 스크롤, 네이티브 애니메이션            | 화면 자체가 뚝뚝 끊김             |
+| 스레드        | 무엇을 한다                                  | 막히면                            |
+| ------------- | -------------------------------------------- | --------------------------------- |
+| **JS 스레드** | React 로직, 이벤트 핸들러, fetch, setState   | 화면은 그려지지만 상호작용이 굳음 |
+| **UI 스레드** | 네이티브 렌더링, 스크롤, 네이티브 애니메이션 | 화면 자체가 뚝뚝 끊김             |
 
 웹의 메인 스레드 하나 모델과 다르다. **스크롤은 JS가 막혀도 잘 돌아간다** (네이티브) — 그래서 "스크롤은 되는데 버튼이 안 눌리네"가 RN에서 흔한 증상.
 
@@ -55,9 +55,9 @@ npx react-native run-ios --mode Release
 {
   "env": {
     "production": {
-      "plugins": ["transform-remove-console"]
-    }
-  }
+      "plugins": ["transform-remove-console"],
+    },
+  },
 }
 ```
 
@@ -68,9 +68,9 @@ npx react-native run-ios --mode Release
 ```tsx
 <FlatList
   data={items}
-  keyExtractor={keyExtractor}    // 안정된 참조
-  renderItem={renderItem}         // useCallback
-  getItemLayout={getItemLayout}   // 높이가 고정이면 필수
+  keyExtractor={keyExtractor} // 안정된 참조
+  renderItem={renderItem} // useCallback
+  getItemLayout={getItemLayout} // 높이가 고정이면 필수
   removeClippedSubviews
   initialNumToRender={10}
   windowSize={5}
@@ -134,7 +134,7 @@ InteractionManager.runAfterInteractions(() => {
 ```tsx
 import { Image } from 'expo-image';
 
-<Image source={uri} style={{ width: 64, height: 64 }} contentFit="cover" cachePolicy="memory-disk" />
+<Image source={uri} style={{ width: 64, height: 64 }} contentFit="cover" cachePolicy="memory-disk" />;
 ```
 
 ## Hermes 엔진
