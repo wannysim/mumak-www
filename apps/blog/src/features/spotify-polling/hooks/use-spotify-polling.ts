@@ -21,13 +21,12 @@ interface UseSpotifyPollingOptions {
 
 /** 곡 끝까지 남은 시간(ms)을 잔여 시간 버킷별 폴링 간격으로 매핑. */
 function pickAdaptiveInterval(remainingMs: number, fallbackInterval: number): number {
-  // 곡 종료가 임박: 트랙 전환을 빠르게 감지
-  if (remainingMs < 10_000) return 3_000;
-  // 종료까지 여유 있음: pause/device 변화는 살펴야 하므로 너무 늘리지는 않음
-  if (remainingMs < 30_000) return 8_000;
-  // 충분히 멀리 있음: 폴링 빈도를 크게 낮춰 함수 호출을 절약
-  if (remainingMs < 60_000) return fallbackInterval;
-  return 15_000;
+  // 곡 종료 매우 임박: 트랙 전환 직전 거의 즉각 감지
+  if (remainingMs < 10_000) return 2_000;
+  // 종료 임박: pause/device/구간 점프 모두 빠르게 감지
+  if (remainingMs < 30_000) return 3_000;
+  // 곡 중반: 구간 점프 감지를 위해 너무 늘리지 않음
+  return fallbackInterval;
 }
 
 interface UseSpotifyPollingReturn {
@@ -116,6 +115,7 @@ export function useSpotifyPolling({
     data: response,
     error,
     isLoading,
+    mutate,
   } = useSWR<NowPlayingResponse>(enabled ? '/api/spotify/now-playing' : null, fetcher, {
     fallbackData: initialData ? { data: initialData, timestamp: Date.now() } : undefined,
     refreshInterval: getRefreshInterval,
@@ -134,6 +134,39 @@ export function useSpotifyPolling({
 
   const currentData = response?.data ?? initialData ?? null;
   const fetchedAt = response?.timestamp ?? 0;
+
+  // 트랙 종료 예측 fetch: 보간된 잔여 시간이 0이 되는 정확한 시점에
+  // cache-busting URL 로 직접 fetch 해서 edge 캐시를 우회 → 트랙 전환을 즉시 감지
+  useEffect(() => {
+    if (!enabled || !isVisible) return;
+    if (!currentData?.isPlaying) return;
+    if (currentData.progressMs == null || currentData.durationMs == null) return;
+    if (!fetchedAt) return;
+
+    const elapsed = Math.max(0, Date.now() - fetchedAt);
+    const remainingMs = currentData.durationMs - currentData.progressMs - elapsed;
+    // 이미 종료 시점을 지났다면 다음 polling tick 에 맡긴다
+    if (remainingMs <= 0) return;
+
+    const timerId = window.setTimeout(() => {
+      // 고유한 query param 으로 edge cache 우회. SWR 의 폴링 키는 그대로 유지.
+      const bustedUrl = `/api/spotify/now-playing?b=${Date.now()}`;
+      mutate(
+        async () => {
+          const response = await fetch(bustedUrl, { cache: 'no-store' });
+          if (!response.ok) {
+            throw new Error('Failed to fetch now playing');
+          }
+          return (await response.json()) as NowPlayingResponse;
+        },
+        { revalidate: false }
+      ).catch(() => {
+        // 실패하면 다음 polling tick 에 맡긴다
+      });
+    }, remainingMs);
+
+    return () => window.clearTimeout(timerId);
+  }, [enabled, isVisible, currentData, fetchedAt, mutate]);
 
   // 상태 변화 감지
   useEffect(() => {

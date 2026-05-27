@@ -352,36 +352,28 @@ describe('useSpotifyPolling', () => {
       expect(getRefreshIntervalFn()({ data: paused, timestamp: Date.now() })).toBe(30000);
     });
 
-    it('returns 3s interval when track is near the end (<10s remaining)', async () => {
+    it('returns 2s interval when track is near the end (<10s remaining)', async () => {
       const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
       renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
 
       const nearEnd: NowPlaying = { ...mockSongData, progressMs: 195_000, durationMs: 200_000 };
-      expect(getRefreshIntervalFn()({ data: nearEnd, timestamp: Date.now() })).toBe(3000);
+      expect(getRefreshIntervalFn()({ data: nearEnd, timestamp: Date.now() })).toBe(2000);
     });
 
-    it('returns 8s interval when 10-30s remain', async () => {
+    it('returns 3s interval when 10-30s remain', async () => {
       const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
       renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
 
       const midToEnd: NowPlaying = { ...mockSongData, progressMs: 180_000, durationMs: 200_000 };
-      expect(getRefreshIntervalFn()({ data: midToEnd, timestamp: Date.now() })).toBe(8000);
+      expect(getRefreshIntervalFn()({ data: midToEnd, timestamp: Date.now() })).toBe(3000);
     });
 
-    it('falls back to playingInterval when 30-60s remain', async () => {
+    it('uses playingInterval for mid-song polling (>30s remaining)', async () => {
       const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
-      renderHook(() => useSpotifyPolling({ initialData: mockSongData, playingInterval: 5000 }));
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData, playingInterval: 4000 }));
 
-      const midSong: NowPlaying = { ...mockSongData, progressMs: 150_000, durationMs: 200_000 };
-      expect(getRefreshIntervalFn()({ data: midSong, timestamp: Date.now() })).toBe(5000);
-    });
-
-    it('returns 15s interval when more than 60s remain', async () => {
-      const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
-      renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
-
-      const earlyInSong: NowPlaying = { ...mockSongData, progressMs: 10_000, durationMs: 200_000 };
-      expect(getRefreshIntervalFn()({ data: earlyInSong, timestamp: Date.now() })).toBe(15000);
+      const midSong: NowPlaying = { ...mockSongData, progressMs: 50_000, durationMs: 200_000 };
+      expect(getRefreshIntervalFn()({ data: midSong, timestamp: Date.now() })).toBe(4000);
     });
 
     it('uses playingInterval fallback when progress/duration are unknown', async () => {
@@ -399,7 +391,7 @@ describe('useSpotifyPolling', () => {
       // 곡 시작 후 175s 지점, 200s 길이 — 잔여 25s이지만 fetch가 20초 전이라면 실제 잔여 5s
       const data: NowPlaying = { ...mockSongData, progressMs: 175_000, durationMs: 200_000 };
       const result = getRefreshIntervalFn()({ data, timestamp: Date.now() - 20_000 });
-      expect(result).toBe(3000);
+      expect(result).toBe(2000);
     });
   });
 

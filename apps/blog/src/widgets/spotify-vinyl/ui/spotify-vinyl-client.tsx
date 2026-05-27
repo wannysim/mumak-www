@@ -20,7 +20,7 @@ interface SpotifyVinylClientProps {
 export function SpotifyVinylClient({ initialData, listeningToLabel, lastPlayedLabel }: SpotifyVinylClientProps) {
   const { data, hasTrackChanged, hasPlayStateChanged, resetChangeState, fetchedAt } = useSpotifyPolling({
     initialData,
-    playingInterval: 5_000,
+    playingInterval: 4_000,
     pausedInterval: 30_000,
     enabled: true,
   });
