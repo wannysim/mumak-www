@@ -12,12 +12,9 @@ export function SpotifyProgressBar({ progressMs, durationMs, isPlaying, classNam
   const percent = ratio * 100;
 
   return (
-    <div className={cn('flex items-center gap-2 w-full', className)} aria-label="Track progress">
-      <span className="text-[10px] tabular-nums text-muted-foreground shrink-0 w-8 text-right">
-        {formatTime(progressMs)}
-      </span>
+    <div className={cn('w-full', className)} aria-label="Track progress">
       <div
-        className="relative h-1 flex-1 rounded-full bg-neutral-200/60 dark:bg-neutral-700/50 overflow-hidden"
+        className="relative h-1 w-full rounded-full bg-neutral-200/60 dark:bg-neutral-700/50 overflow-hidden"
         role="progressbar"
         aria-valuenow={Math.round(progressMs / 1000)}
         aria-valuemin={0}
@@ -31,7 +28,10 @@ export function SpotifyProgressBar({ progressMs, durationMs, isPlaying, classNam
           style={{ width: `${percent}%` }}
         />
       </div>
-      <span className="text-[10px] tabular-nums text-muted-foreground shrink-0 w-8">{formatTime(durationMs)}</span>
+      <div className="mt-1 flex items-center justify-between text-[10px] tabular-nums text-muted-foreground">
+        <span>{formatTime(progressMs)}</span>
+        <span>{formatTime(durationMs)}</span>
+      </div>
     </div>
   );
 }
