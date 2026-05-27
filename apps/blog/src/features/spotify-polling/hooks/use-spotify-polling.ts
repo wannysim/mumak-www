@@ -19,16 +19,6 @@ interface UseSpotifyPollingOptions {
   enabled?: boolean;
 }
 
-/** 곡 끝까지 남은 시간(ms)을 잔여 시간 버킷별 폴링 간격으로 매핑. */
-function pickAdaptiveInterval(remainingMs: number, fallbackInterval: number): number {
-  // 곡 종료 매우 임박: 트랙 전환 직전 거의 즉각 감지
-  if (remainingMs < 10_000) return 2_000;
-  // 종료 임박: pause/device/구간 점프 모두 빠르게 감지
-  if (remainingMs < 30_000) return 3_000;
-  // 곡 중반: 구간 점프 감지를 위해 너무 늘리지 않음
-  return fallbackInterval;
-}
-
 interface UseSpotifyPollingReturn {
   /** 현재 재생 정보 */
   data: NowPlaying | null;
@@ -90,23 +80,13 @@ export function useSpotifyPolling({
     };
   }, []);
 
-  // 현재 재생 상태/곡 진행도에 따른 적응형 폴링 간격
+  // 재생 중이면 playingInterval, 그 외엔 pausedInterval. 트랙 종료 시점은 별도 useEffect 의 예측 fetch 가 잡는다.
   const getRefreshInterval = useCallback(
     (latestData: NowPlayingResponse | undefined): number => {
       if (!enabled || !isVisible) return 0;
-
       const current = latestData?.data ?? initialData ?? null;
-      if (!current) return playingInterval;
-      if (!current.isPlaying) return pausedInterval;
-
-      const { progressMs, durationMs } = current;
-      if (progressMs == null || durationMs == null) return playingInterval;
-
-      const fetchedAt = latestData?.timestamp ?? Date.now();
-      const elapsedSinceFetch = Math.max(0, Date.now() - fetchedAt);
-      const remainingMs = Math.max(0, durationMs - progressMs - elapsedSinceFetch);
-
-      return pickAdaptiveInterval(remainingMs, playingInterval);
+      if (!current?.isPlaying) return pausedInterval;
+      return playingInterval;
     },
     [enabled, isVisible, playingInterval, pausedInterval, initialData]
   );

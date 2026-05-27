@@ -27,12 +27,12 @@ describe('GET /api/spotify/now-playing', () => {
     mockGetNowPlaying.mockReset();
   });
 
-  it('disables caching while a track is actively playing', async () => {
+  it('uses a 1-second edge cache while a track is actively playing (concurrent-poll dedupe)', async () => {
     mockGetNowPlaying.mockResolvedValueOnce(basePlaying);
     const { GET } = await import('../route');
 
     const response = await GET();
-    expect(response.headers.get('Cache-Control')).toBe('no-store, no-cache, must-revalidate');
+    expect(response.headers.get('Cache-Control')).toBe('public, s-maxage=1, stale-while-revalidate=5');
   });
 
   it('caches paused responses (device present, isPlaying false)', async () => {
