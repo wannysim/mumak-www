@@ -51,6 +51,7 @@ describe('spotify', () => {
 
       const mockCurrentlyPlaying = {
         is_playing: true,
+        progress_ms: 30000,
         item: {
           name: 'Test Song',
           artists: [{ name: 'Test Artist' }],
@@ -59,9 +60,15 @@ describe('spotify', () => {
             images: [{ url: 'https://i.scdn.co/test-image.jpg' }],
           },
           explicit: false,
+          duration_ms: 180000,
           external_urls: {
             spotify: 'https://open.spotify.com/track/test',
           },
+        },
+        device: {
+          name: 'MacBook Pro',
+          type: 'Computer',
+          is_active: true,
         },
       };
 
@@ -85,6 +92,9 @@ describe('spotify', () => {
         albumImageUrl: 'https://i.scdn.co/test-image.jpg',
         songUrl: 'https://open.spotify.com/track/test',
         isExplicit: false,
+        progressMs: 30000,
+        durationMs: 180000,
+        device: { name: 'MacBook Pro', type: 'Computer' },
       });
     });
 
@@ -110,6 +120,7 @@ describe('spotify', () => {
                 images: [{ url: 'https://i.scdn.co/recent-image.jpg' }],
               },
               explicit: true,
+              duration_ms: 200000,
               external_urls: {
                 spotify: 'https://open.spotify.com/track/recent',
               },
@@ -142,6 +153,9 @@ describe('spotify', () => {
         albumImageUrl: 'https://i.scdn.co/recent-image.jpg',
         songUrl: 'https://open.spotify.com/track/recent',
         isExplicit: true,
+        progressMs: null,
+        durationMs: null,
+        device: null,
       });
     });
 
@@ -158,6 +172,7 @@ describe('spotify', () => {
 
       const mockCurrentlyPlaying = {
         is_playing: false,
+        progress_ms: 0,
         item: {
           name: 'Collaboration Song',
           artists: [{ name: 'Artist 1' }, { name: 'Artist 2' }],
@@ -166,6 +181,7 @@ describe('spotify', () => {
             images: [{ url: 'https://i.scdn.co/collab-image.jpg' }],
           },
           explicit: false,
+          duration_ms: 150000,
           external_urls: {
             spotify: 'https://open.spotify.com/track/collab',
           },
@@ -246,6 +262,7 @@ describe('spotify', () => {
 
       const mockCurrentlyPlaying = {
         is_playing: true,
+        progress_ms: 30000,
         item: {
           name: 'Test Song',
           artists: [{ name: 'Test Artist' }],
@@ -254,9 +271,15 @@ describe('spotify', () => {
             images: [{ url: 'https://i.scdn.co/test-image.jpg' }],
           },
           explicit: false,
+          duration_ms: 180000,
           external_urls: {
             spotify: 'https://open.spotify.com/track/test',
           },
+        },
+        device: {
+          name: 'MacBook Pro',
+          type: 'Computer',
+          is_active: true,
         },
       };
 
@@ -366,6 +389,7 @@ describe('spotify', () => {
 
       const mockCurrentlyPlaying = {
         is_playing: true,
+        progress_ms: 30000,
         item: {
           name: 'Test Song',
           artists: [{ name: 'Test Artist' }],
@@ -374,9 +398,15 @@ describe('spotify', () => {
             images: [{ url: 'https://i.scdn.co/test-image.jpg' }],
           },
           explicit: false,
+          duration_ms: 180000,
           external_urls: {
             spotify: 'https://open.spotify.com/track/test',
           },
+        },
+        device: {
+          name: 'MacBook Pro',
+          type: 'Computer',
+          is_active: true,
         },
       };
 
@@ -412,6 +442,9 @@ describe('spotify', () => {
         albumImageUrl: 'https://i.scdn.co/test-image.jpg',
         songUrl: 'https://open.spotify.com/track/test',
         isExplicit: false,
+        progressMs: 30000,
+        durationMs: 180000,
+        device: { name: 'MacBook Pro', type: 'Computer' },
       });
 
       // 총 4번의 fetch 호출 확인 (토큰 → 401 → 새 토큰 → 성공)
@@ -439,11 +472,13 @@ describe('spotify', () => {
       const mockTokenResponse = { access_token: 'token-1', token_type: 'Bearer', expires_in: 3600 };
       const mockSong = {
         is_playing: true,
+        progress_ms: 5000,
         item: {
           name: 'Song',
           artists: [{ name: 'A' }],
           album: { name: 'Album', images: [{ url: 'https://i.scdn.co/x.jpg' }] },
           explicit: false,
+          duration_ms: 60000,
           external_urls: { spotify: 'https://open.spotify.com/track/x' },
         },
       };
@@ -476,6 +511,7 @@ describe('spotify', () => {
               artists: [{ name: 'R' }],
               album: { name: 'A', images: [{ url: 'https://i.scdn.co/r.jpg' }] },
               explicit: false,
+              duration_ms: 120000,
               external_urls: { spotify: 'https://open.spotify.com/track/r' },
             },
             played_at: '2024-01-01T00:00:00Z',
@@ -622,6 +658,67 @@ describe('spotify', () => {
 
       expect(result).toBeNull();
       expect(console.error).toHaveBeenCalledWith('[Spotify] 토큰 갱신 후에도 401 에러 발생');
+    });
+
+    it('normalizes unknown device types to "Unknown"', async () => {
+      process.env.SPOTIFY_CLIENT_ID = 'id';
+      process.env.SPOTIFY_CLIENT_SECRET = 'secret';
+      process.env.SPOTIFY_REFRESH_TOKEN = 'refresh';
+
+      const mockToken = { access_token: 't', token_type: 'Bearer', expires_in: 3600 };
+      const mockSong = {
+        is_playing: true,
+        progress_ms: 1234,
+        item: {
+          name: 'Song',
+          artists: [{ name: 'A' }],
+          album: { name: 'Album', images: [{ url: 'https://i.scdn.co/x.jpg' }] },
+          explicit: false,
+          duration_ms: 200000,
+          external_urls: { spotify: 'https://open.spotify.com/track/x' },
+        },
+        device: { name: 'Mystery Device', type: 'AlienSpaceship', is_active: true },
+      };
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
+        .mockResolvedValueOnce({ status: 200, json: async () => mockSong });
+
+      const result = await getNowPlaying();
+
+      expect(result?.device).toEqual({ name: 'Mystery Device', type: 'Unknown' });
+      expect(result?.progressMs).toBe(1234);
+      expect(result?.durationMs).toBe(200000);
+    });
+
+    it('returns null device when the payload omits it', async () => {
+      process.env.SPOTIFY_CLIENT_ID = 'id';
+      process.env.SPOTIFY_CLIENT_SECRET = 'secret';
+      process.env.SPOTIFY_REFRESH_TOKEN = 'refresh';
+
+      const mockToken = { access_token: 't', token_type: 'Bearer', expires_in: 3600 };
+      const mockSong = {
+        is_playing: false,
+        progress_ms: null,
+        item: {
+          name: 'Song',
+          artists: [{ name: 'A' }],
+          album: { name: 'Album', images: [{ url: 'https://i.scdn.co/x.jpg' }] },
+          explicit: false,
+          duration_ms: 100000,
+          external_urls: { spotify: 'https://open.spotify.com/track/x' },
+        },
+      };
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
+        .mockResolvedValueOnce({ status: 200, json: async () => mockSong });
+
+      const result = await getNowPlaying();
+
+      expect(result?.device).toBeNull();
+      expect(result?.progressMs).toBeNull();
+      expect(result?.durationMs).toBe(100000);
     });
   });
 });
