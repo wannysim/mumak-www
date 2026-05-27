@@ -8,21 +8,30 @@ import { cn } from '@mumak/ui/lib/utils';
 
 import type { NowPlaying } from '@/src/entities/spotify';
 
+import { SpotifyDeviceInfoBadge } from './spotify-device-info';
+import { SpotifyProgressBar } from './spotify-progress-bar';
+
 interface SpotifyVinylProps {
   data: NowPlaying;
   statusLabel: string;
   /** 곡 전환 애니메이션 활성화 여부 */
   isTransitioning?: boolean;
+  /** 보간된 진행률 (ms). 없으면 진행률 바 미표시. */
+  interpolatedProgressMs?: number | null;
 }
 
 export const SpotifyVinyl = memo(function SpotifyVinyl({
   data,
   statusLabel,
   isTransitioning = false,
+  interpolatedProgressMs = null,
 }: SpotifyVinylProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const toggleOpen = () => setIsOpen(prev => !prev);
+
+  const canShowProgress = data.durationMs != null && interpolatedProgressMs != null;
+  const canShowDevice = data.isPlaying && data.device != null;
 
   return (
     <div className="w-full max-w-md p-4 select-none overflow-visible">
@@ -131,6 +140,17 @@ export const SpotifyVinyl = memo(function SpotifyVinyl({
             </span>
             <span className="block text-sm text-muted-foreground truncate mt-0.5">{data.artist}</span>
           </Link>
+
+          {canShowProgress && (
+            <SpotifyProgressBar
+              progressMs={interpolatedProgressMs}
+              durationMs={data.durationMs as number}
+              isPlaying={data.isPlaying}
+              className="mt-2"
+            />
+          )}
+
+          {canShowDevice && data.device != null && <SpotifyDeviceInfoBadge device={data.device} className="mt-1" />}
         </div>
       </div>
     </div>
@@ -143,7 +163,11 @@ function arePropsEqual(prev: SpotifyVinylProps, next: SpotifyVinylProps): boolea
     prev.data.isPlaying === next.data.isPlaying &&
     prev.data.title === next.data.title &&
     prev.data.artist === next.data.artist &&
+    prev.data.durationMs === next.data.durationMs &&
+    prev.data.device?.name === next.data.device?.name &&
+    prev.data.device?.type === next.data.device?.type &&
     prev.statusLabel === next.statusLabel &&
-    prev.isTransitioning === next.isTransitioning
+    prev.isTransitioning === next.isTransitioning &&
+    prev.interpolatedProgressMs === next.interpolatedProgressMs
   );
 }

@@ -11,7 +11,7 @@ interface NowPlayingResponse {
 interface UseSpotifyPollingOptions {
   /** 초기 데이터 (SSR에서 전달) */
   initialData?: NowPlaying | null;
-  /** 재생 중일 때 폴링 간격 (ms) */
+  /** 재생 중일 때 기본 폴링 간격 (ms). 곡 잔여 시간을 모를 때 fallback. */
   playingInterval?: number;
   /** 일시정지 시 폴링 간격 (ms) */
   pausedInterval?: number;
@@ -34,6 +34,8 @@ interface UseSpotifyPollingReturn {
   hasPlayStateChanged: boolean;
   /** 변경 상태 리셋 (애니메이션 완료 후 호출) */
   resetChangeState: () => void;
+  /** 최신 데이터를 받은 시각 (ms epoch). 진행률 보간의 baseline 으로 사용. */
+  fetchedAt: number;
 }
 
 const fetcher = async (url: string): Promise<NowPlayingResponse> => {
@@ -78,37 +80,55 @@ export function useSpotifyPolling({
     };
   }, []);
 
-  // 현재 재생 상태에 따른 폴링 간격 계산
+  // 재생 중이면 playingInterval, 그 외엔 pausedInterval. 트랙 종료 시점은 별도 useEffect 의 예측 fetch 가 잡는다.
   const getRefreshInterval = useCallback(
     (latestData: NowPlayingResponse | undefined): number => {
       if (!enabled || !isVisible) return 0;
-      const isPlaying = latestData?.data?.isPlaying ?? initialData?.isPlaying ?? false;
-      return isPlaying ? playingInterval : pausedInterval;
+      const current = latestData?.data ?? initialData ?? null;
+      if (!current?.isPlaying) return pausedInterval;
+      return playingInterval;
     },
-    [enabled, isVisible, playingInterval, pausedInterval, initialData?.isPlaying]
+    [enabled, isVisible, playingInterval, pausedInterval, initialData]
   );
 
   const {
     data: response,
     error,
     isLoading,
+    mutate,
   } = useSWR<NowPlayingResponse>(enabled ? '/api/spotify/now-playing' : null, fetcher, {
     fallbackData: initialData ? { data: initialData, timestamp: Date.now() } : undefined,
     refreshInterval: getRefreshInterval,
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
-    dedupingInterval: 2000,
-    // 데이터 비교로 불필요한 리렌더링 방지
-    compare: (a, b) => {
-      if (!a?.data && !b?.data) return true;
-      if (!a?.data || !b?.data) return false;
-      return (
-        a.data.songUrl === b.data.songUrl && a.data.isPlaying === b.data.isPlaying && a.data.title === b.data.title
-      );
-    },
+    dedupingInterval: 500,
+    // 기본 deep-equal 비교 사용: progressMs/device 등 모든 필드의 변화를 감지해야
+    // 구간 점프·디바이스 전환을 즉시 반영할 수 있다.
   });
 
   const currentData = response?.data ?? initialData ?? null;
+  const fetchedAt = response?.timestamp ?? 0;
+
+  // 트랙 종료 예측 fetch: 보간된 잔여 시간이 0이 되는 정확한 시점에
+  // mutate 를 트리거해서 다음 폴 간격을 기다리지 않고 즉시 새 트랙을 가져온다.
+  useEffect(() => {
+    if (!enabled || !isVisible) return;
+    if (!currentData?.isPlaying) return;
+    if (currentData.progressMs == null || currentData.durationMs == null) return;
+    if (!fetchedAt) return;
+
+    const elapsed = Math.max(0, Date.now() - fetchedAt);
+    const remainingMs = currentData.durationMs - currentData.progressMs - elapsed;
+    if (remainingMs <= 0) return;
+
+    const timerId = window.setTimeout(() => {
+      mutate().catch(() => {
+        // 실패하면 다음 polling tick 에 맡긴다
+      });
+    }, remainingMs);
+
+    return () => window.clearTimeout(timerId);
+  }, [enabled, isVisible, currentData, fetchedAt, mutate]);
 
   // 상태 변화 감지
   useEffect(() => {
@@ -147,5 +167,6 @@ export function useSpotifyPolling({
     hasTrackChanged,
     hasPlayStateChanged,
     resetChangeState,
+    fetchedAt,
   };
 }

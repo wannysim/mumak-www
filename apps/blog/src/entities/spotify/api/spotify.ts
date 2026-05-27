@@ -21,14 +21,38 @@ interface SpotifyTrack {
   artists: SpotifyArtist[];
   album: SpotifyAlbum;
   explicit: boolean;
+  duration_ms: number;
   external_urls: {
     spotify: string;
   };
 }
 
+export type SpotifyDeviceType =
+  | 'Computer'
+  | 'Smartphone'
+  | 'Speaker'
+  | 'TV'
+  | 'Tablet'
+  | 'AVR'
+  | 'STB'
+  | 'AudioDongle'
+  | 'GameConsole'
+  | 'CastVideo'
+  | 'CastAudio'
+  | 'Automobile'
+  | 'Unknown';
+
+interface SpotifyDevice {
+  name: string;
+  type: string;
+  is_active: boolean;
+}
+
 interface SpotifyCurrentlyPlayingResponse {
   is_playing: boolean;
   item: SpotifyTrack;
+  progress_ms: number | null;
+  device?: SpotifyDevice;
 }
 
 interface SpotifyRecentlyPlayedResponse {
@@ -36,6 +60,11 @@ interface SpotifyRecentlyPlayedResponse {
     track: SpotifyTrack;
     played_at: string;
   }>;
+}
+
+export interface SpotifyDeviceInfo {
+  name: string;
+  type: SpotifyDeviceType;
 }
 
 export interface NowPlaying {
@@ -46,9 +75,38 @@ export interface NowPlaying {
   albumImageUrl: string;
   songUrl: string;
   isExplicit: boolean;
+  progressMs: number | null;
+  durationMs: number | null;
+  device: SpotifyDeviceInfo | null;
 }
 
-const NOW_PLAYING_ENDPOINT = 'https://api.spotify.com/v1/me/player/currently-playing';
+const KNOWN_DEVICE_TYPES: ReadonlySet<SpotifyDeviceType> = new Set([
+  'Computer',
+  'Smartphone',
+  'Speaker',
+  'TV',
+  'Tablet',
+  'AVR',
+  'STB',
+  'AudioDongle',
+  'GameConsole',
+  'CastVideo',
+  'CastAudio',
+  'Automobile',
+  'Unknown',
+]);
+
+function normalizeDevice(device: SpotifyDevice | undefined): SpotifyDeviceInfo | null {
+  if (!device?.name) {
+    return null;
+  }
+  const type = KNOWN_DEVICE_TYPES.has(device.type as SpotifyDeviceType)
+    ? (device.type as SpotifyDeviceType)
+    : 'Unknown';
+  return { name: device.name, type };
+}
+
+const NOW_PLAYING_ENDPOINT = 'https://api.spotify.com/v1/me/player';
 const RECENTLY_PLAYED_ENDPOINT = 'https://api.spotify.com/v1/me/player/recently-played?limit=1';
 const TOKEN_ENDPOINT = 'https://accounts.spotify.com/api/token';
 
@@ -204,6 +262,9 @@ async function fetchNowPlayingData(accessToken: string): Promise<NowPlaying | nu
       albumImageUrl: track.album.images[0]?.url || '',
       songUrl: track.external_urls.spotify,
       isExplicit: track.explicit,
+      progressMs: null,
+      durationMs: null,
+      device: null,
     };
   }
 
@@ -217,6 +278,9 @@ async function fetchNowPlayingData(accessToken: string): Promise<NowPlaying | nu
     albumImageUrl: song.item.album.images[0]?.url || '',
     songUrl: song.item.external_urls.spotify,
     isExplicit: song.item.explicit,
+    progressMs: song.progress_ms ?? null,
+    durationMs: song.item.duration_ms ?? null,
+    device: normalizeDevice(song.device),
   };
 }
 

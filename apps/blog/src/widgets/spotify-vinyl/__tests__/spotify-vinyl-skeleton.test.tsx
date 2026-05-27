@@ -41,14 +41,14 @@ describe('SpotifyVinylSkeleton', () => {
     expect(albumSkeleton).toHaveClass('rounded-lg');
   });
 
-  it('should render track info skeletons', async () => {
+  it('should render track info skeletons including progress and device rows', async () => {
     const { SpotifyVinylSkeleton } = await import('../ui/spotify-vinyl-skeleton');
 
     const { container } = render(<SpotifyVinylSkeleton />);
 
-    // Should have 4 skeleton elements total (1 album + 3 track info)
+    // 1 album + 3 track info + 1 progress bar + 1 device info = 6 skeletons
     const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
-    expect(skeletons.length).toBe(4);
+    expect(skeletons.length).toBe(6);
 
     // All skeletons should have animate-pulse
     skeletons.forEach(skeleton => {

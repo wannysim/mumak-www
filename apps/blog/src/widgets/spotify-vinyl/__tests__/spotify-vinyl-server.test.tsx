@@ -43,6 +43,11 @@ jest.mock('@/src/features/spotify-polling', () => ({
     hasTrackChanged: false,
     hasPlayStateChanged: false,
     resetChangeState: jest.fn(),
+    fetchedAt: 1_700_000_000_000,
+  }),
+  useProgressInterpolation: ({ progressMs, durationMs }: { progressMs: number | null; durationMs: number | null }) => ({
+    progressMs,
+    durationMs,
   }),
 }));
 
@@ -82,6 +87,9 @@ describe('SpotifyVinylServer', () => {
       albumImageUrl: 'https://i.scdn.co/test.jpg',
       songUrl: 'https://open.spotify.com/track/test',
       isExplicit: false,
+      progressMs: 30000,
+      durationMs: 180000,
+      device: { name: 'MacBook Pro', type: 'Computer' },
     });
 
     const { SpotifyVinylServer } = await import('../ui/spotify-vinyl-server');
@@ -106,6 +114,9 @@ describe('SpotifyVinylServer', () => {
       albumImageUrl: 'https://i.scdn.co/recent.jpg',
       songUrl: 'https://open.spotify.com/track/recent',
       isExplicit: false,
+      progressMs: null,
+      durationMs: 200000,
+      device: null,
     });
 
     const { SpotifyVinylServer } = await import('../ui/spotify-vinyl-server');
@@ -146,6 +157,9 @@ describe('SpotifyVinylServer', () => {
       albumImageUrl: 'https://i.scdn.co/test.jpg',
       songUrl: 'https://open.spotify.com/track/test',
       isExplicit: false,
+      progressMs: 30000,
+      durationMs: 180000,
+      device: { name: 'MacBook Pro', type: 'Computer' },
     });
 
     const { SpotifyVinylServer } = await import('../ui/spotify-vinyl-server');
@@ -170,6 +184,9 @@ describe('SpotifyVinylServer', () => {
       albumImageUrl: 'https://i.scdn.co/test.jpg',
       songUrl: 'https://open.spotify.com/track/test',
       isExplicit: false,
+      progressMs: 30000,
+      durationMs: 180000,
+      device: { name: 'MacBook Pro', type: 'Computer' },
     });
 
     const { SpotifyVinylServer } = await import('../ui/spotify-vinyl-server');
@@ -195,6 +212,9 @@ describe('SpotifyVinylServer', () => {
       albumImageUrl: 'https://i.scdn.co/test.jpg',
       songUrl: 'https://open.spotify.com/track/test',
       isExplicit: false,
+      progressMs: 30000,
+      durationMs: 180000,
+      device: { name: 'MacBook Pro', type: 'Computer' },
     });
 
     const { SpotifyVinylServer } = await import('../ui/spotify-vinyl-server');
