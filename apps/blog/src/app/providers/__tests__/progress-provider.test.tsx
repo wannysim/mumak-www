@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 
 import { ProgressProvider } from '../progress-provider';
 
 import '@testing-library/jest-dom';
+
+type MatchMediaListener = (event: MediaQueryListEvent) => void;
 
 jest.mock('@bprogress/next/app', () => ({
   ProgressProvider: ({
@@ -40,7 +42,14 @@ jest.mock('@bprogress/next/app', () => ({
 }));
 
 function mockMatchMedia(matches: boolean) {
-  const listeners: Array<(event: MediaQueryListEvent) => void> = [];
+  const listeners: MatchMediaListener[] = [];
+  const removeEventListener = jest.fn((_: string, cb: MatchMediaListener) => {
+    const idx = listeners.indexOf(cb);
+    if (idx !== -1) listeners.splice(idx, 1);
+  });
+  const addEventListener = jest.fn((_: string, cb: MatchMediaListener) => {
+    listeners.push(cb);
+  });
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
@@ -48,16 +57,20 @@ function mockMatchMedia(matches: boolean) {
       matches,
       media: query,
       onchange: null,
-      addEventListener: jest.fn((_: string, cb: (event: MediaQueryListEvent) => void) => {
-        listeners.push(cb);
-      }),
-      removeEventListener: jest.fn(),
+      addEventListener,
+      removeEventListener,
       addListener: jest.fn(),
       removeListener: jest.fn(),
       dispatchEvent: jest.fn(),
     })),
   });
-  return listeners;
+  return { listeners, addEventListener, removeEventListener };
+}
+
+function emitReducedMotionChange(listeners: MatchMediaListener[], matches: boolean) {
+  act(() => {
+    listeners.forEach(listener => listener({ matches } as MediaQueryListEvent));
+  });
 }
 
 describe('ProgressProvider', () => {
@@ -136,5 +149,60 @@ describe('ProgressProvider', () => {
     expect(provider).toHaveAttribute('data-trickle', 'false');
     expect(provider).toHaveAttribute('data-easing', 'linear');
     expect(provider).toHaveAttribute('data-speed', '0');
+  });
+
+  it('should register a change listener on the reduced-motion media query', () => {
+    const { addEventListener } = mockMatchMedia(false);
+
+    render(
+      <ProgressProvider>
+        <span>x</span>
+      </ProgressProvider>
+    );
+
+    expect(addEventListener).toHaveBeenCalledTimes(1);
+    expect(addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+  });
+
+  it('should react to reduced-motion changes after mount', () => {
+    const { listeners } = mockMatchMedia(false);
+
+    render(
+      <ProgressProvider>
+        <span>x</span>
+      </ProgressProvider>
+    );
+
+    const provider = screen.getByTestId('bprogress-provider');
+    expect(provider).toHaveAttribute('data-trickle', 'true');
+    expect(provider).toHaveAttribute('data-easing', 'ease');
+
+    emitReducedMotionChange(listeners, true);
+
+    expect(provider).toHaveAttribute('data-trickle', 'false');
+    expect(provider).toHaveAttribute('data-easing', 'linear');
+    expect(provider).toHaveAttribute('data-speed', '0');
+
+    emitReducedMotionChange(listeners, false);
+
+    expect(provider).toHaveAttribute('data-trickle', 'true');
+    expect(provider).toHaveAttribute('data-easing', 'ease');
+  });
+
+  it('should remove the change listener on unmount with the same handler', () => {
+    const { addEventListener, removeEventListener } = mockMatchMedia(false);
+
+    const { unmount } = render(
+      <ProgressProvider>
+        <span>x</span>
+      </ProgressProvider>
+    );
+
+    const registeredHandler = addEventListener.mock.calls[0]?.[1];
+
+    unmount();
+
+    expect(removeEventListener).toHaveBeenCalledTimes(1);
+    expect(removeEventListener).toHaveBeenCalledWith('change', registeredHandler);
   });
 });
