@@ -17,7 +17,7 @@ export function generateStaticParams() {
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
-const ENABLE_VERCEL_ANALYTICS = process.env.NODE_ENV === 'production' && process.env.VERCEL === '1';
+const ENABLE_VERCEL_ANALYTICS = process.env.VERCEL_ENV === 'production';
 
 const GSC_TOKEN = process.env.NEXT_PUBLIC_GSC_TOKEN;
 const NAVER_TOKEN = process.env.NEXT_PUBLIC_NAVER_TOKEN;
@@ -31,8 +31,8 @@ export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   openGraph: {
     type: 'website',
-    locale: 'en_US',
-    alternateLocale: ['ko_KR'],
+    locale: 'ko_KR',
+    alternateLocale: ['en_US'],
     siteName: 'Wan Sim',
     title: 'Wan Sim',
     description: 'A space for thoughts and records',
