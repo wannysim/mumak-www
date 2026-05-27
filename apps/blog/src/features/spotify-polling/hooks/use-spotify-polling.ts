@@ -121,15 +121,9 @@ export function useSpotifyPolling({
     refreshInterval: getRefreshInterval,
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
-    dedupingInterval: 2000,
-    // 데이터 비교로 불필요한 리렌더링 방지
-    compare: (a, b) => {
-      if (!a?.data && !b?.data) return true;
-      if (!a?.data || !b?.data) return false;
-      return (
-        a.data.songUrl === b.data.songUrl && a.data.isPlaying === b.data.isPlaying && a.data.title === b.data.title
-      );
-    },
+    dedupingInterval: 500,
+    // 기본 deep-equal 비교 사용: progressMs/device 등 모든 필드의 변화를 감지해야
+    // 구간 점프·디바이스 전환을 즉시 반영할 수 있다.
   });
 
   const currentData = response?.data ?? initialData ?? null;
