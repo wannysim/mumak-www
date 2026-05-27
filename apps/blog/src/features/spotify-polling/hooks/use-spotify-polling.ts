@@ -34,6 +34,8 @@ interface UseSpotifyPollingReturn {
   hasPlayStateChanged: boolean;
   /** 변경 상태 리셋 (애니메이션 완료 후 호출) */
   resetChangeState: () => void;
+  /** 최신 데이터를 받은 시각 (ms epoch). 진행률 보간의 baseline 으로 사용. */
+  fetchedAt: number;
 }
 
 const fetcher = async (url: string): Promise<NowPlayingResponse> => {
@@ -109,6 +111,7 @@ export function useSpotifyPolling({
   });
 
   const currentData = response?.data ?? initialData ?? null;
+  const fetchedAt = response?.timestamp ?? 0;
 
   // 상태 변화 감지
   useEffect(() => {
@@ -147,5 +150,6 @@ export function useSpotifyPolling({
     hasTrackChanged,
     hasPlayStateChanged,
     resetChangeState,
+    fetchedAt,
   };
 }

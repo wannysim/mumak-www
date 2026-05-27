@@ -54,6 +54,9 @@ const mockSongData: NowPlaying = {
   albumImageUrl: 'https://i.scdn.co/test.jpg',
   songUrl: 'https://open.spotify.com/track/test',
   isExplicit: false,
+  progressMs: 1000,
+  durationMs: 60000,
+  device: { name: 'MacBook Pro', type: 'Computer' },
 };
 
 describe('useSpotifyPolling', () => {
