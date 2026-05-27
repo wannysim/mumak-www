@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 import {
   IntlProvider,
   JsonLdScript,
+  ProgressProvider,
   VercelAnalytics,
   generateSiteNavigationJsonLd,
   generateWebSiteJsonLd,
@@ -84,10 +85,12 @@ async function LocaleContent({ params, children }: { params: Promise<{ locale: s
 
   return (
     <IntlProvider locale={locale} messages={messages}>
-      <JsonLdScript data={websiteJsonLd} />
-      <JsonLdScript data={siteNavigationJsonLd} />
-      {children}
-      {ENABLE_VERCEL_ANALYTICS ? <VercelAnalytics /> : null}
+      <ProgressProvider>
+        <JsonLdScript data={websiteJsonLd} />
+        <JsonLdScript data={siteNavigationJsonLd} />
+        {children}
+        {ENABLE_VERCEL_ANALYTICS ? <VercelAnalytics /> : null}
+      </ProgressProvider>
     </IntlProvider>
   );
 }

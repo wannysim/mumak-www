@@ -1,4 +1,4 @@
-export { IntlProvider } from './providers';
+export { IntlProvider, ProgressProvider } from './providers';
 export { VercelAnalytics } from './analytics';
 export {
   buildAlternates,
