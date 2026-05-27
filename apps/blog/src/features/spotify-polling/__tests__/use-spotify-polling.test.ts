@@ -329,6 +329,80 @@ describe('useSpotifyPolling', () => {
     });
   });
 
+  describe('적응형 폴링 간격', () => {
+    function getRefreshIntervalFn(): (latest: { data: NowPlaying | null; timestamp: number } | undefined) => number {
+      const swrOptions = mockUseSWR.mock.calls[mockUseSWR.mock.calls.length - 1]![2] as {
+        refreshInterval: (latest: { data: NowPlaying | null; timestamp: number } | undefined) => number;
+      };
+      return swrOptions.refreshInterval;
+    }
+
+    it('returns 0 when polling is disabled', async () => {
+      const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData, enabled: false }));
+
+      expect(getRefreshIntervalFn()({ data: mockSongData, timestamp: Date.now() })).toBe(0);
+    });
+
+    it('returns pausedInterval when track is paused', async () => {
+      const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData, pausedInterval: 30000 }));
+
+      const paused: NowPlaying = { ...mockSongData, isPlaying: false };
+      expect(getRefreshIntervalFn()({ data: paused, timestamp: Date.now() })).toBe(30000);
+    });
+
+    it('returns 3s interval when track is near the end (<10s remaining)', async () => {
+      const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
+
+      const nearEnd: NowPlaying = { ...mockSongData, progressMs: 195_000, durationMs: 200_000 };
+      expect(getRefreshIntervalFn()({ data: nearEnd, timestamp: Date.now() })).toBe(3000);
+    });
+
+    it('returns 8s interval when 10-30s remain', async () => {
+      const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
+
+      const midToEnd: NowPlaying = { ...mockSongData, progressMs: 180_000, durationMs: 200_000 };
+      expect(getRefreshIntervalFn()({ data: midToEnd, timestamp: Date.now() })).toBe(8000);
+    });
+
+    it('falls back to playingInterval when 30-60s remain', async () => {
+      const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData, playingInterval: 5000 }));
+
+      const midSong: NowPlaying = { ...mockSongData, progressMs: 150_000, durationMs: 200_000 };
+      expect(getRefreshIntervalFn()({ data: midSong, timestamp: Date.now() })).toBe(5000);
+    });
+
+    it('returns 15s interval when more than 60s remain', async () => {
+      const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
+
+      const earlyInSong: NowPlaying = { ...mockSongData, progressMs: 10_000, durationMs: 200_000 };
+      expect(getRefreshIntervalFn()({ data: earlyInSong, timestamp: Date.now() })).toBe(15000);
+    });
+
+    it('uses playingInterval fallback when progress/duration are unknown', async () => {
+      const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData, playingInterval: 4000 }));
+
+      const noProgress: NowPlaying = { ...mockSongData, progressMs: null, durationMs: null };
+      expect(getRefreshIntervalFn()({ data: noProgress, timestamp: Date.now() })).toBe(4000);
+    });
+
+    it('accounts for elapsed time since fetch (drift correction)', async () => {
+      const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
+
+      // 곡 시작 후 175s 지점, 200s 길이 — 잔여 25s이지만 fetch가 20초 전이라면 실제 잔여 5s
+      const data: NowPlaying = { ...mockSongData, progressMs: 175_000, durationMs: 200_000 };
+      const result = getRefreshIntervalFn()({ data, timestamp: Date.now() - 20_000 });
+      expect(result).toBe(3000);
+    });
+  });
+
   describe('상태 변화 감지', () => {
     it('should detect track change when songUrl changes', async () => {
       // Arrange

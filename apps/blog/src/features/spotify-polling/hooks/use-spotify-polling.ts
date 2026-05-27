@@ -11,12 +11,23 @@ interface NowPlayingResponse {
 interface UseSpotifyPollingOptions {
   /** 초기 데이터 (SSR에서 전달) */
   initialData?: NowPlaying | null;
-  /** 재생 중일 때 폴링 간격 (ms) */
+  /** 재생 중일 때 기본 폴링 간격 (ms). 곡 잔여 시간을 모를 때 fallback. */
   playingInterval?: number;
   /** 일시정지 시 폴링 간격 (ms) */
   pausedInterval?: number;
   /** 폴링 활성화 여부 */
   enabled?: boolean;
+}
+
+/** 곡 끝까지 남은 시간(ms)을 잔여 시간 버킷별 폴링 간격으로 매핑. */
+function pickAdaptiveInterval(remainingMs: number, fallbackInterval: number): number {
+  // 곡 종료가 임박: 트랙 전환을 빠르게 감지
+  if (remainingMs < 10_000) return 3_000;
+  // 종료까지 여유 있음: pause/device 변화는 살펴야 하므로 너무 늘리지는 않음
+  if (remainingMs < 30_000) return 8_000;
+  // 충분히 멀리 있음: 폴링 빈도를 크게 낮춰 함수 호출을 절약
+  if (remainingMs < 60_000) return fallbackInterval;
+  return 15_000;
 }
 
 interface UseSpotifyPollingReturn {
@@ -80,14 +91,25 @@ export function useSpotifyPolling({
     };
   }, []);
 
-  // 현재 재생 상태에 따른 폴링 간격 계산
+  // 현재 재생 상태/곡 진행도에 따른 적응형 폴링 간격
   const getRefreshInterval = useCallback(
     (latestData: NowPlayingResponse | undefined): number => {
       if (!enabled || !isVisible) return 0;
-      const isPlaying = latestData?.data?.isPlaying ?? initialData?.isPlaying ?? false;
-      return isPlaying ? playingInterval : pausedInterval;
+
+      const current = latestData?.data ?? initialData ?? null;
+      if (!current) return playingInterval;
+      if (!current.isPlaying) return pausedInterval;
+
+      const { progressMs, durationMs } = current;
+      if (progressMs == null || durationMs == null) return playingInterval;
+
+      const fetchedAt = latestData?.timestamp ?? Date.now();
+      const elapsedSinceFetch = Math.max(0, Date.now() - fetchedAt);
+      const remainingMs = Math.max(0, durationMs - progressMs - elapsedSinceFetch);
+
+      return pickAdaptiveInterval(remainingMs, playingInterval);
     },
-    [enabled, isVisible, playingInterval, pausedInterval, initialData?.isPlaying]
+    [enabled, isVisible, playingInterval, pausedInterval, initialData]
   );
 
   const {
