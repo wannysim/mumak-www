@@ -42,7 +42,7 @@
     "@types/node": "^25.9.1",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
-    "jest": "^30.4.2",
+    "jest": "^30.4.1",
     "jest-environment-jsdom": "^30.4.1",
     "typescript": "^5.9.3"
   }
