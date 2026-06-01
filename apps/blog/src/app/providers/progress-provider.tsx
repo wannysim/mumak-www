@@ -7,6 +7,7 @@ const LOADING_GROW_MS = 6000;
 const DONE_FADE_MS = 200;
 const SAFETY_TIMEOUT_MS = 8000;
 const TRICKLE_TARGET = 0.85;
+const INITIAL_SCALE = 0.08;
 
 type Phase = 'idle' | 'loading' | 'done';
 
@@ -51,11 +52,10 @@ function isInternalNavigationClick(event: MouseEvent): boolean {
   return true;
 }
 
-function PageTransitionBar({ phase, reducedMotion }: { phase: Phase; reducedMotion: boolean }) {
+function PageTransitionBar({ phase, scale, reducedMotion }: { phase: Phase; scale: number; reducedMotion: boolean }) {
   if (phase === 'idle') return null;
 
   const isLoading = phase === 'loading';
-  const transform = `scaleX(${isLoading ? TRICKLE_TARGET : 1})`;
   const opacity = phase === 'done' ? 0 : 1;
   const transition = reducedMotion
     ? `opacity ${DONE_FADE_MS}ms linear`
@@ -76,7 +76,7 @@ function PageTransitionBar({ phase, reducedMotion }: { phase: Phase; reducedMoti
         style={{
           backgroundColor: 'var(--ring)',
           boxShadow: '0 0 8px var(--ring), 0 0 2px var(--ring)',
-          transform,
+          transform: `scaleX(${scale})`,
           opacity,
           transition,
         }}
@@ -91,22 +91,39 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const reducedMotion = usePrefersReducedMotion();
 
   const [phase, setPhase] = React.useState<Phase>('idle');
+  const [scale, setScale] = React.useState(INITIAL_SCALE);
   const firstMountRef = React.useRef(true);
   const timersRef = React.useRef<ReturnType<typeof setTimeout>[]>([]);
+  const rafRef = React.useRef<number | null>(null);
   const phaseRef = React.useRef<Phase>('idle');
   phaseRef.current = phase;
 
   const clearTimers = React.useCallback(() => {
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
   }, []);
 
   const startLoading = React.useCallback(() => {
     clearTimers();
+    // Mount the bar at a small width first, then grow toward the trickle target on
+    // the next frame so the CSS transform transition actually animates (it can't
+    // animate from an initial mount value). Without this the bar snaps to 85% and
+    // freezes there, which reads as "stuck", not "loading".
+    setScale(INITIAL_SCALE);
     setPhase('loading');
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = requestAnimationFrame(() => {
+        if (phaseRef.current === 'loading') setScale(TRICKLE_TARGET);
+      });
+    });
     timersRef.current.push(
       setTimeout(() => {
         if (phaseRef.current === 'loading') {
+          setScale(1);
           setPhase('done');
           timersRef.current.push(setTimeout(() => setPhase('idle'), DONE_FADE_MS));
         }
@@ -116,6 +133,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   const completeLoading = React.useCallback(() => {
     clearTimers();
+    setScale(1);
     setPhase('done');
     timersRef.current.push(setTimeout(() => setPhase('idle'), DONE_FADE_MS));
   }, [clearTimers]);
@@ -148,6 +166,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
     if (reducedMotion) {
       clearTimers();
+      setScale(1);
       setPhase('done');
       timersRef.current.push(setTimeout(() => setPhase('idle'), DONE_FADE_MS));
       return;
@@ -156,7 +175,13 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     if (phaseRef.current === 'loading') {
       completeLoading();
     } else {
+      setScale(INITIAL_SCALE);
       setPhase('loading');
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = requestAnimationFrame(() => {
+          if (phaseRef.current === 'loading') setScale(TRICKLE_TARGET);
+        });
+      });
       timersRef.current.push(setTimeout(() => completeLoading(), 80));
     }
   }, [pathname, searchParams, reducedMotion, clearTimers, completeLoading]);
@@ -165,7 +190,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <PageTransitionBar phase={phase} reducedMotion={reducedMotion} />
+      <PageTransitionBar phase={phase} scale={scale} reducedMotion={reducedMotion} />
       {children}
     </>
   );
