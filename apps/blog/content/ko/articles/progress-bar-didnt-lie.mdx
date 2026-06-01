@@ -1,0 +1,182 @@
+---
+title: '로딩바 버그를 고치려다, 사이트가 전부 동적이란 걸 알아버렸다'
+date: '2026-06-01'
+description: 'cacheComponents 한 줄과 루트 레이아웃의 getLocale()이 어떻게 사이트 전체를 동적으로 만들었나'
+tags: ['nextjs', 'performance', 'debugging', 'frontend']
+draft: false
+---
+
+페이지 전환 로딩바를 직접 구현했다. 며칠 뒤, 페이지를 이동할 때마다 바가 80%쯤에서 멈춰 있는 걸 발견했다. 로딩처럼 보이질 않았다.
+
+버그 하나 잡는 일이라고 생각했다. 그런데 원인을 따라가 보니 로딩바는 멀쩡했고, 오히려 **놓치고 있던 더 큰 문제를 발견했다.** 작은 수정으로 끝날 일이 사이트의 렌더링 모델 전체를 다시 보는 일로 번졌다. 이 글은 그 과정에 대한 기록이다.
+
+## 1. 첫 번째 용의자: 로딩바 자신
+
+진행바는 클릭하면 85%까지 천천히 차오르고(트리클), 라우트가 바뀌면 100%로 마무리되는 구조다.
+6초에 걸쳐 0에서 85%로 변하도록 CSS transition을 걸어뒀다.
+
+그런데 실제로는 트리클이 한 번도 재생되지 않고 있었다. 원인은 한 줄이었다.
+
+```tsx
+// idle일 때 바는 언마운트(null). loading이 되면 이 div가 '새로' 마운트된다.
+<div style={{ transform: `scaleX(0.85)`, transition: 'transform 6000ms' }} />
+```
+
+**CSS transition은 "값의 변화"가 있을 때만 동작한다. 마운트 시 초기값에는 걸리지 않는다.**
+그래서 바는 0에서 변하는 게 아니라, 처음부터 `scaleX(0.85)` 상태로 렌더링되었다.
+6초짜리 transition은 죽은 코드였고, 바는 즉시 85%로 점프한 뒤 새 페이지가 뜰 때까지 그대로 멈춰 있었다.
+
+고치는 방법은 작은 값으로 먼저 마운트한 뒤, **다음 프레임에** 목표값으로 올리는 것이다.
+
+```tsx
+setScale(0.08); // 먼저 작은 값으로 마운트
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => setScale(0.85)); // 다음 프레임에 변경 → transition 발동
+});
+```
+
+이걸 고치니 바가 0.08에서 0.85로 부드럽게 차올랐다.
+**그런데 여기서 멈췄으면 진짜 문제를 놓칠 뻔했다.**
+
+## 2. "그런데 왜 85%에 오래 머무르지?"
+
+바가 85%에 도달해 멈춰 보이려면, 네비게이션이 **그만큼 오래 걸려야 한다.**
+로컬 dev에서는 페이지 이동이 130ms라 바가 80%까지 가기도 전에 끝났다. 그런데 프로덕션에서는 1-3초씩 멈춰 있었다.
+
+처음엔 이렇게 넘기려 했다. "여긴 ISR이잖아. 그래서 어쩔 수 없는 건가?"
+
+**아니었다.** 그리고 이 가설이 틀렸다는 걸 확인하는 게 이 글의 본론이다.
+
+빌드 로그의 라우트 테이블을 열어보니 콘텐츠 페이지가 전부 이렇게 찍혀 있었다.
+
+```
+├ ƒ /[locale]/garden/[slug]
+├ ƒ /[locale]/blog/[category]/[slug]
+```
+
+`ƒ`는 **Dynamic(요청마다 서버 렌더링)**이다. `○`(정적)도 `●`(SSG)도 아니었다.
+우리 콘텐츠는 빌드 타임에 고정되는 MDX다. **정적이어야 정상인데 동적으로 서빙되고 있었다.**
+
+네비게이션 시 RSC 요청의 캐시 헤더를 보니 더욱 확실했다.
+
+```
+# 같은 페이지인데 두 종류의 요청이 있었다
+prefetch (<Link>)     → Cache-Control: s-maxage=31536000   (1년, 캐시됨)
+실제 클릭 네비게이션   → Cache-Control: private, no-store    (캐시 불가, 매번 서버)
+```
+
+본문 콘텐츠가 매 클릭마다 `no-store`로 서버를 새로 쳤다.
+프로덕션에서는 이게 CDN 엣지 캐시를 못 타고 origin/서버리스까지 왕복한다.
+네트워크 RTT에 콜드 스타트까지 더해지면 1-3초.
+**진행바는 그 지연을 여실히 보여주고 있었다.**
+
+## 3. 진범은 한 명이 아니었다
+
+왜 정적이어야 할 페이지가 동적이 됐을까. 범인은 둘이었고, 둘 다 **내가 무심코 만든 것**이었다.
+
+### 범인 1 -- 의도 없이 켠 cacheComponents
+
+```js
+// 어느 날의 "perf" 커밋
+-  cacheComponents: false,
++  cacheComponents: true,
+```
+
+Spotify 위젯에 `'use cache'`를 쓰려고 `cacheComponents`를 켰다.
+그런데 `cacheComponents`(구 `dynamicIO`)는 **모든 페이지를 기본 동적으로** 만든다.
+정적이 되려면 페이지마다 `'use cache'`를 명시해야 하는데, 콘텐츠 페이지엔 안 붙였다.
+한 줄짜리 플래그가 렌더링 모델 전체를 뒤집은 것이다. **커밋 메시지엔 "enable cacheComponents" 한 줄뿐이었다.**
+
+### 범인 2 -- SEO를 위해 넣은 getLocale()
+
+```tsx
+// 루트 app/layout.tsx
+async function LocalizedRoot({ children }) {
+  const locale = await getLocale(); // ← 여기
+  return <html lang={locale}>...</html>;
+}
+```
+
+`<html lang>`을 제대로 넣으려고 루트 레이아웃에서 `getLocale()`을 호출했다. SEO를 챙긴다는 좋은 의도였다.
+문제는 `getLocale()`이 `setRequestLocale` 스코프 밖에서 호출되면 **`headers()`로 폴백**한다는 점이다.
+그리고 `headers()`를 읽는 순간, 그 컴포넌트는 동적이 된다.
+루트 레이아웃은 앱 전체를 감싸므로, **이 한 줄이 사이트의 모든 페이지를 동적으로 만들었다.**
+
+두 범인은 시기도 다르고 의도도 달랐지만, 결과적으로 같은 곳을 가리키고 있었다.
+**둘 다 "기능을 추가하는" 커밋이었지, "이게 정적이던 페이지를 동적으로 바꾼다"고 인식한 커밋이 아니었다.**
+
+## 4. 되돌리는 길은 생각보다 좁았다
+
+고치는 과정은 Next.js의 제약을 하나씩 밟아가는 일이었다. 각 단계가 다음 함정을 열었다.
+
+**(1) cacheComponents 대신 useCache.**
+`cacheComponents: true`를 `experimental.useCache: true`로 바꿨다.
+후자는 `'use cache'` 디렉티브 기능만 켜고, 동적-기본화는 하지 않는다.
+Spotify 위젯은 그대로 살리면서 콘텐츠는 static-by-default로 돌아왔다.
+
+**(2) `<html>`을 옮겼다 -- 그리고 SSR이 깨졌다.**
+`getLocale()`을 없애려면 locale을 아는 곳에서 `<html lang>`을 렌더해야 한다.
+next-intl 정설대로 `<html>`을 루트에서 `app/[locale]/layout.tsx`(locale 파라미터 보유)로 옮겼다.
+그런데 `<html>`을 `<Suspense>` 안에 두니 **SSR 출력에서 `<html>` 태그 자체가 사라졌다.**
+스트리밍이 셸을 지연시킨 것이다. `<html>`은 Suspense 밖, 동기 셸에 있어야 했다.
+
+**(3) useSearchParams가 페이지 전체를 클라이언트로 끌어내렸다.**
+진행바 컴포넌트(`ProgressProvider`)가 `useSearchParams()`를 쓰는데, 이게 레이아웃에서 children을 감싸고 있었다.
+정적 페이지에서 `useSearchParams()`는 **Suspense 경계가 없으면 그 아래 전체를 CSR로 bail**시킨다.
+즉 진행바 하나가 페이지 본문 전체를 클라이언트 렌더로 끌어내려 정적 SSR을 무력화하고 있었다.
+해법은 `useSearchParams`를 쓰는 부분만 떼어내 Suspense로 감싸고, **children은 그 형제로** 두는 것이었다.
+
+```tsx
+// Bad: children이 useSearchParams의 bailout에 휩쓸린다
+<ProgressProvider> {/* 내부에서 useSearchParams */}
+  {children}
+</ProgressProvider>
+
+// Good: 격리. children은 형제라 정적 SSR 유지
+<>
+  <Suspense><PageTransitionIndicator /></Suspense> {/* useSearchParams는 여기 갇힘 */}
+  {children}
+</>
+```
+
+**(4) 정적화하니 잠복 버그가 튀어나왔다.**
+콘텐츠가 정적 prerender로 바뀌자 OG 이미지가 빌드 타임에 터졌다. `Unsupported OpenType signature wOF2`.
+Satori(`next/og`)는 woff2도, variable 폰트도 못 읽는다.
+**이건 원래도 런타임에 실패하던 버그였다.** 동적이라 빌드에선 안 드러났을 뿐.
+static woff(Regular/SemiBold/Bold)로 바꾸니 OG도 정상 렌더되면서 같이 정적화됐다.
+
+결과: 모든 콘텐츠 라우트가 `ƒ → ●`, 네비게이션 RSC가 `no-store → s-maxage=31536000`.
+
+## 5. 내가 한 실수들
+
+이 일에서 내가 배운 건 기술보다 습관 쪽이 많다.
+
+- **"perf" 커밋이 정작 perf를 깎아먹었다.** `cacheComponents`를 켜면서 라우트 테이블을 확인하지 않았다. 한 줄짜리 플래그일수록 영향 범위를 의심했어야 했다.
+- **좋은 의도(SEO)가 회귀를 숨겼다.** `getLocale()`은 `<html lang>`을 위한 합리적 선택처럼 보였다. 동적 렌더링이라는 부작용은 빌드 로그를 안 읽으면 보이지 않았다.
+- **로컬에서 "빠르니까 괜찮다"고 넘어갔다.** dev도 빠르고(130ms) 로컬 프로덕션도 빨랐다(RSC 20ms). 진짜 신호는 속도가 아니라 **`Cache-Control` 헤더**에 있었다. 네트워크와 콜드 스타트가 없는 로컬에선 동적이어도 빠르다.
+- **잠복 버그를 동적 렌더링이 가려주고 있었다.** OG woff2 문제는 "어차피 동적이라" 빌드에서 안 터졌다. 동적은 종종 버그의 은신처다.
+
+## 6. 인사이트
+
+- **진행바는 측정 도구다.** 잘 만든 진행 표시는 "느낌"이 아니라 실제 지연을 픽셀로 번역한다. 80%에서 멈춘 바는 버그가 아니라 **정직한 계기판**이었다. 측정 도구를 의심하기 전에, 그것이 가리키는 곳을 먼저 봐야 한다.
+- **빌드 로그의 `ƒ`/`○`/`●`를 읽는 습관.** Next.js는 매 빌드마다 어떤 라우트가 정적인지 동적인지 말해준다. 이걸 안 읽으면 "정적이라고 믿는 동적 페이지"를 몇 달씩 들고 다니게 된다.
+- **정적/동적의 진짜 증거는 캐시 헤더다.** 로컬 타이밍은 거짓말을 한다. 네비게이션 RSC 요청의 `Cache-Control`이 `no-store`인지 `s-maxage`인지가 프로덕션 체감 속도를 결정한다.
+- **편의 플래그는 모델을 바꾼다.** `cacheComponents` 같은 플래그는 "기능 on/off"가 아니라 "렌더링 패러다임 전환"이다. 켜는 순간 전제(기본이 정적인가 동적인가)가 뒤집힌다.
+- **프레임워크는 한 곳을 고치면 다른 곳을 연다.** 루트 레이아웃 → SSR 셸 → useSearchParams → OG 폰트로 이어진 연쇄는, 각 제약이 서로 맞물려 있다는 증거다. 정적 렌더링은 기능이 아니라 **트리 전체가 지켜야 하는 계약**이다.
+
+## 실전 체크리스트
+
+- [ ] 빌드 로그의 라우트 테이블에서 정적이어야 할 페이지가 `ƒ`로 찍히지 않았는가?
+- [ ] 네비게이션 RSC 요청의 `Cache-Control`이 `no-store`가 아니라 `s-maxage`인가?
+- [ ] 렌더링 관련 플래그(`cacheComponents` 등)를 켤 때 라우트 테이블 변화를 확인했는가?
+- [ ] 루트/공통 레이아웃에서 `headers()`·`cookies()`·`getLocale()`(setRequestLocale 없이)을 호출하고 있지 않은가?
+- [ ] `useSearchParams()`를 쓰는 컴포넌트가 자체 `Suspense`로 격리되어 children을 CSR로 끌어내리지 않는가?
+- [ ] `<html>`/`<body>`가 `Suspense` 밖, 동기 셸에 있는가? (SSR에 실제로 출력되는지 curl로 확인)
+- [ ] next-intl 정적 렌더링: 관련 레이아웃·페이지마다 `setRequestLocale`을 호출했는가?
+- [ ] `next/og`에 넘기는 폰트가 static ttf/otf/woff인가? (woff2·variable ❌)
+
+## 참고
+
+- [Cache Components](https://nextjs.org/docs/app/api-reference/config/next-config-js/cacheComponents) -- Next.js
+- [Static Rendering & setRequestLocale](https://next-intl.dev/docs/getting-started/app-router) -- next-intl
+- [Missing Suspense boundary with useSearchParams](https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout) -- Next.js
