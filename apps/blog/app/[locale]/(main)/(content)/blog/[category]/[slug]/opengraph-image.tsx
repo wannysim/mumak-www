@@ -1,9 +1,8 @@
 import { ImageResponse } from 'next/og';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
 import { getAllPostSlugs, getPost, isValidCategory } from '@/src/entities/post';
 import { locales, type Locale } from '@/src/shared/config/i18n';
+import { loadOgFonts } from '@/src/shared/lib/og';
 
 export const alt = 'Blog Post';
 export const size = {
@@ -19,12 +18,6 @@ export function generateStaticParams() {
   });
 }
 
-async function loadFont(): Promise<ArrayBuffer> {
-  const fontPath = join(process.cwd(), 'public', 'assets', 'fonts', 'PretendardVariable.woff2');
-  const fontData = await readFile(fontPath);
-  return fontData.buffer.slice(fontData.byteOffset, fontData.byteOffset + fontData.byteLength);
-}
-
 interface Props {
   params: Promise<{ locale: string; category: string; slug: string }>;
 }
@@ -32,17 +25,9 @@ interface Props {
 export default async function Image({ params }: Props) {
   const { locale, category, slug } = await params;
 
-  const fontData = await loadFont();
   const fontOptions = {
     ...size,
-    fonts: [
-      {
-        name: 'Pretendard',
-        data: fontData,
-        style: 'normal' as const,
-        weight: 400 as const,
-      },
-    ],
+    fonts: await loadOgFonts(),
   };
 
   if (!isValidCategory(category)) {

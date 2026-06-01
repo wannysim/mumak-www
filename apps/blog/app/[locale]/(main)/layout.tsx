@@ -1,9 +1,23 @@
+import { setRequestLocale } from 'next-intl/server';
 import { Suspense } from 'react';
 
 import { Footer, FooterSkeleton } from '@/src/widgets/footer';
 import { HeaderSpacer, Navigation, NavigationSkeleton, SmartHeader } from '@/src/widgets/header';
 
-export default function MainLayout({ children }: { children: React.ReactNode }) {
+// Navigation/Footer가 getTranslations()를 쓰므로, 이 레이아웃 스코프에서
+// setRequestLocale을 호출해 정적 렌더링을 유지한다. (상위 [locale] 레이아웃의
+// 호출은 Suspense 경계를 넘어 항상 전파되지는 않는다 — next-intl 권장대로
+// "관련된 모든 레이아웃·페이지"에 추가한다.)
+export default async function MainLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+
   return (
     <>
       <a
