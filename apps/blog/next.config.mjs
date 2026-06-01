@@ -13,7 +13,10 @@ const nextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(import.meta.dirname, '../../'),
   outputFileTracingIncludes: {
-    '/*': ['./content/**/*', './messages/**/*'],
+    // OG 이미지 라우트가 런타임(on-demand)에 Satori용 woff 폰트를 fs로 읽으므로
+    // standalone 산출물에 포함되도록 트레이싱한다. (standalone은 public/을 자동
+    // 포함하지 않는다.)
+    '/*': ['./content/**/*', './messages/**/*', './public/assets/fonts/**/*'],
   },
   transpilePackages: ['@mumak/ui'],
   images: {
