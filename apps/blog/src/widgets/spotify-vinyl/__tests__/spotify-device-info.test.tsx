@@ -21,11 +21,19 @@ describe('SpotifyDeviceInfoBadge', () => {
     'CastAudio',
     'Automobile',
     'Unknown',
-  ])('renders an icon and the device name for type %s', type => {
-    render(<SpotifyDeviceInfoBadge device={{ name: 'My Device', type }} />);
+  ])('renders an icon labeled with the device name for type %s', type => {
+    const { container } = render(<SpotifyDeviceInfoBadge device={{ name: 'My Device', type }} />);
 
-    expect(screen.getByLabelText('Playing on My Device')).toBeInTheDocument();
-    expect(screen.getByText('My Device')).toBeInTheDocument();
+    const badge = screen.getByLabelText('Playing on My Device');
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveAttribute('title', 'My Device');
+    expect(container.querySelector('svg')).toBeInTheDocument();
+  });
+
+  it('does not render the device name as visible text (icon-only)', () => {
+    render(<SpotifyDeviceInfoBadge device={{ name: 'My Device', type: 'Computer' }} />);
+
+    expect(screen.queryByText('My Device')).not.toBeInTheDocument();
   });
 
   it('hides the icon from assistive tech', () => {

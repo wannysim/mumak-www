@@ -249,13 +249,14 @@ describe('SpotifyVinyl', () => {
   });
 
   describe('device info', () => {
-    it('renders device name when playing on a device', async () => {
+    it('renders device icon labeled with the device name when playing on a device', async () => {
       const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
 
       render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" interpolatedProgressMs={30000} />);
 
       expect(screen.getByLabelText('Playing on MacBook Pro')).toBeInTheDocument();
-      expect(screen.getByText('MacBook Pro')).toBeInTheDocument();
+      // 디바이스명은 텍스트로 노출되지 않고 아이콘만 표시된다 (title 속성으로만 노출)
+      expect(screen.queryByText('MacBook Pro')).not.toBeInTheDocument();
     });
 
     it('hides device info when not playing (recently-played fallback)', async () => {
