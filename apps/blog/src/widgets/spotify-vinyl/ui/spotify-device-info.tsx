@@ -40,11 +40,11 @@ export function SpotifyDeviceInfoBadge({ device, className }: SpotifyDeviceInfoP
   const Icon = DEVICE_ICON_BY_TYPE[device.type] ?? Speaker;
   return (
     <span
-      className={cn('inline-flex items-center gap-1 text-[10px] text-muted-foreground truncate', className)}
+      className={cn('inline-flex items-center text-muted-foreground', className)}
       aria-label={`Playing on ${device.name}`}
+      title={device.name}
     >
-      <Icon className="size-3 shrink-0" aria-hidden="true" />
-      <span className="truncate">{device.name}</span>
+      <Icon className="size-3.5 shrink-0" aria-hidden="true" />
     </span>
   );
 }
