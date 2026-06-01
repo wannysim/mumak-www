@@ -2,8 +2,8 @@ import { ImageResponse } from 'next/og';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { getAllPostSlugs, getPost, isValidCategory } from '@/src/entities/post';
-import { locales, type Locale } from '@/src/shared/config/i18n';
+import { getPost, isValidCategory } from '@/src/entities/post';
+import { type Locale } from '@/src/shared/config/i18n';
 
 export const alt = 'Blog Post';
 export const size = {
@@ -12,12 +12,10 @@ export const size = {
 };
 export const contentType = 'image/png';
 
-export function generateStaticParams() {
-  return locales.flatMap(locale => {
-    const slugs = getAllPostSlugs(locale);
-    return slugs.map(({ category, slug }) => ({ locale, category, slug }));
-  });
-}
+// 이미지는 Satori(next/og)가 런타임에 생성한다. 현재 폰트(woff2)는 Satori가
+// 지원하지 않아 빌드 타임 prerender가 실패하므로 on-demand 동적 생성으로 유지한다.
+// (콘텐츠 페이지 정적화와 무관 — OG 이미지는 크롤러 전용 경로다.)
+export const dynamic = 'force-dynamic';
 
 async function loadFont(): Promise<ArrayBuffer> {
   const fontPath = join(process.cwd(), 'public', 'assets', 'fonts', 'PretendardVariable.woff2');

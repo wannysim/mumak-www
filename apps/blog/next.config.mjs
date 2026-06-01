@@ -28,10 +28,13 @@ const nextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     minimumCacheTTL: 31536000,
   },
-  cacheComponents: true,
   compress: true,
   poweredByHeader: false,
   experimental: {
+    // 'use cache' 디렉티브만 활성화한다. cacheComponents(전부 동적-기본 + PPR)와 달리
+    // generateStaticParams 기반 콘텐츠 페이지의 static-by-default 동작을 유지하므로,
+    // 페이지 이동 시 RSC payload가 정적/캐시 가능(no-store 아님)하게 서빙된다.
+    useCache: true,
     optimizePackageImports: ['next-mdx-remote-client', '@mumak/ui', 'lucide-react', 'next-themes', 'next-intl'],
   },
   async redirects() {

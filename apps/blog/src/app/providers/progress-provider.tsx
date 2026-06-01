@@ -85,7 +85,11 @@ function PageTransitionBar({ phase, scale, reducedMotion }: { phase: Phase; scal
   );
 }
 
-export function ProgressProvider({ children }: { children: React.ReactNode }) {
+// useSearchParams()를 쓰는 상태 머신은 이 컴포넌트로 분리한다. ProgressProvider가
+// children을 직접 감싸면 useSearchParams의 CSR bailout이 전체 페이지로 전파되어
+// 정적 페이지가 클라이언트 렌더로 떨어진다(SEO 손실). 이 컴포넌트만 Suspense로
+// 감싸고 children은 형제로 두어, 페이지 본문은 정적 prerender를 유지한다.
+function PageTransitionIndicator() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const reducedMotion = usePrefersReducedMotion();
@@ -188,9 +192,15 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => clearTimers, [clearTimers]);
 
+  return <PageTransitionBar phase={phase} scale={scale} reducedMotion={reducedMotion} />;
+}
+
+export function ProgressProvider({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <PageTransitionBar phase={phase} scale={scale} reducedMotion={reducedMotion} />
+      <React.Suspense>
+        <PageTransitionIndicator />
+      </React.Suspense>
       {children}
     </>
   );
