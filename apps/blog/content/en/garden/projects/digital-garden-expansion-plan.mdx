@@ -1,0 +1,149 @@
+---
+title: 'Expanding the Digital Garden: Private Notes, Obsidian, and a Web Editor'
+created: '2026-06-02'
+status: 'budding'
+tags: ['digital-garden', 'architecture', 'project', 'pkm']
+draft: true
+---
+
+A design memo for taking the [[what-is-digital-garden|digital garden]] one step further. This isn't something
+I'm building right now; it's a record so I can resume the implementation later based on it.
+(Summary of a discussion with Claude.)
+
+## What I want to build
+
+Today every note is an `.mdx` file committed to git, and the blog reads them from the filesystem at build
+time and renders them statically. I want to add three things on top of that.
+
+1. **Private notes** — notes only I can see, separate from the public garden. Viewing them requires auth.
+2. **Read/write in Obsidian** — open those notes as an Obsidian vault and edit them there.
+3. **Web editor** — create and edit the same notes from the web.
+
+All three surfaces (blog / Obsidian / web editor) must point to the same notes consistently.
+
+## Core decision: git as the single source of truth
+
+The trap that kills this kind of project isn't a feature — it's **bidirectional sync between Obsidian (files)
+and a DB (rows)**. If both can write, conflict resolution, delete propagation, renames, and frontmatter
+normalization become a distributed-systems problem, and you can sink months into building a sync engine.
+
+The decisive simplification: **I'm the only writer.** There's no scenario where the same note is edited in two
+places at the same moment, so sophisticated conflict resolution isn't needed. "Last push wins + keep history"
+is enough.
+
+So pick one source of truth and derive the rest from it → make **git the source of truth**. Git is already a
+battle-tested sync layer, which removes the need to build one.
+
+### How the three surfaces converge
+
+```
+        [ private git repo for personal notes ]   <- the single source of truth
+         /            |               \
+   Obsidian        Web editor         Blog build
+  (open this       (commit to this    (pull via submodule/
+   repo as a        repo via GitHub    token, render
+   vault, Git       API, gated by      statically behind auth
+   plugin auto-     the same OAuth)    + filter out private
+   syncs)                              via isPublic)
+```
+
+That one private repo becomes **the Obsidian vault, the web editor's backend, and the source the blog pulls
+from** all at once.
+
+## Premise: this repo (wannysim/mumak-www) is PUBLIC
+
+If I commit private `.mdx` **in plaintext to this repo, anyone can read the source on GitHub no matter how much
+auth the site has.** Site auth alone does not guarantee secrecy. So the source of private notes must be:
+
+- **A separate private repo + git submodule** (recommended): keep private notes in a private repo and pull
+  them in with a token during the Vercel build. Most robust. That repo is also the Obsidian vault.
+- Or **git-crypt / age encrypted commits**: keep them in the same repo but only ciphertext lands on GitHub.
+  The local working tree is decrypted transparently, so Obsidian editing works as usual. Inject the key (env)
+  into the build to decrypt.
+
+## Easiest leak to miss: aggregation surfaces
+
+If I flag a single note private and only gate its body page, **its title and links still leak into the sitemap,
+RSS, graph, and OG image.** That's because `getNotes()` / `getPosts()` feed all of these:
+
+- `app/sitemap.ts` (URLs, tags, statuses — all of it)
+- `app/[locale]/feed.xml/route.ts` (RSS)
+- `app/[locale]/(immersive)/graph/page.tsx` (3D graph)
+- `app/[locale]/(main)/(content)/garden/[slug]/opengraph-image.tsx` (renders title/excerpt as an image)
+- garden sidebar / tag / status pages
+
+→ **It has to be blocked in one place in the data layer.** `isPublishable(note)` in
+`src/entities/note/api/notes.ts` is already the seam that filters drafts. Add an `isPublic` concept there so
+every public aggregation excludes private notes, and only the authenticated view includes them via a separate
+function (e.g. `getPrivateNotes`).
+
+## Auth (access control)
+
+- Vercel's built-in Password Protection is paid (Pro) and operates per-deployment, so it doesn't fit
+  "only some notes" → **build it myself**.
+- **A precedent already exists**: Spotify OAuth in `app/api/spotify/login/route.ts` uses an
+  `httpOnly` + `secure` + `sameSite` cookie + crypto state pattern. Reuse it.
+- Single user means no account system needed. One of:
+  - **Single-password gate**: login → an API route constant-time-compares against an env password → sets an
+    HMAC-signed cookie → `middleware.ts` protects only `/private/**`. Lightest. (Watch for matcher conflicts
+    with next-intl routing.)
+  - **GitHub OAuth restricted to me** (Auth.js): no password to manage. Since the web editor commits to GitHub,
+    "login = commit identity" merges naturally.
+
+### Rendering constraint (static / dynamic)
+
+The blog is `useCache` + static-by-default (`next.config.ts`). Baking private notes statically would expose
+them to the public cache. → Move only the private-note routes to `export const dynamic = 'force-dynamic'` so
+auth runs per request. Keep the static rendering of public notes intact (don't touch what was just stabilized
+in the recent static/dynamic postmortem).
+
+## Phased roadmap
+
+| Phase              | Content                                                                              | Notes                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| 0                  | Private notes = separate private repo, site auth gate + data-layer `isPublic` filter | Start here                                                            |
+| 1                  | Open that repo as an Obsidian vault + Obsidian Git plugin auto-sync                  | Mostly config                                                         |
+| 2                  | Web editor route (same OAuth gate) commits to that repo                              | Achieves the core goal (web create/edit)                              |
+| 3 (optional)       | Build a derived DB / search index on push (not authoritative, rebuildable from git)  | For query/search/graph speed                                          |
+| 4 (only if needed) | Move source of truth to DB, demote Obsidian to one-way export                        | The truly hard sync shows up only here — defer until clearly outgrown |
+
+**Phases 0–2 alone satisfy the goal (private notes + Obsidian + web editing + blog exposure).** Each phase is
+mostly reversible, and DB-as-truth (phase 4) is worth considering only when mobile / real-time / thousands-of-notes
+scale becomes the actual goal.
+
+### Derived index (phase 3) precedent
+
+`src/features/graph/lib/build-graph-data.ts` already builds graph data from files at build time. The phase-3
+DB/search index is the same pattern extended — git stays the source of truth and the DB is a rebuildable cache,
+so there's no reverse-sync problem.
+
+## Web editor: off-the-shelf vs custom
+
+- Off-the-shelf (git-based CMS): Keystatic / TinaCMS / Decap. Good for fast validation.
+- **Caveat**: our notes are `.mdx` + custom wikilinks · transclusion · garden frontmatter, so I have to verify
+  whether a generic CMS handles wikilinks/MDX cleanly (markdown usually fine, MDX and custom syntax often weak).
+- Long term, a **thin custom editor on CodeMirror** (markdown + wikilink autocomplete, commit via GitHub API)
+  may fit better. Validate the concept off-the-shelf first → go custom if it falls short.
+
+## Still undecided
+
+- Web editor priority: do 0–2 in one go vs do 0–1 first (Obsidian is enough, web later).
+- Editor form: validate off-the-shelf vs build custom with wikilink support from the start.
+- Secrecy level: "block search engines / casual visitors" (light) vs "doesn't leak even under network
+  inspection" (strict, premised on a private repo).
+
+## Where to start (when resuming)
+
+- Data-layer seam: `src/entities/note/api/notes.ts` → add `isPublic` next to `isPublishable`
+- Leak surfaces to block: `app/sitemap.ts`, `app/[locale]/feed.xml/route.ts`,
+  `app/[locale]/(immersive)/graph/page.tsx`, `garden/[slug]/opengraph-image.tsx`
+- Auth pattern reference: `app/api/spotify/login/route.ts` (cookie + crypto)
+- Rendering mode: `dynamic = 'force-dynamic'` on private-note routes
+- Source separation: private repo as a submodule, inject a token into the Vercel build
+
+## Related notes
+
+- [[what-is-digital-garden]]
+- [[my-garden-principles]]
+- [[pkm]]
+- [[digital-garden-and-pkm]]
