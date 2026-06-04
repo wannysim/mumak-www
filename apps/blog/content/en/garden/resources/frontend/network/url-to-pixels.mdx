@@ -1,0 +1,217 @@
+---
+title: 'From URL to Pixels: Everything That Happens in a Single Navigation'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'browser', 'navigation']
+---
+
+In the half second between typing `https://example.com` into the address bar and hitting Enter, the browser walks through dozens of steps in order. This note traces, step by step, exactly what happens and in what order before a pixel is drawn — and why each step exists in the first place.
+
+> One-line summary: **A single line of URL goes through a fixed pipeline: "interpret the text → find the address → make a connection → make it secure → receive the data → draw it." No step holds up without the one before it, and a cache slips into nearly every step to make the next visit faster.**
+
+## Step 0 — The Big Picture First
+
+```
+[Parse & decide URL] → [DNS] → [TCP] → [TLS] → [HTTP request/response] → [Renderer parse~paint]
+   Search? URL?       Find IP   Connect Encrypt    Receive bytes              Pixels
+   Check HSTS                  Establish
+```
+
+The key point is that this is **not just a list of steps but a chain of dependencies**. Without an IP there's nowhere to connect (DNS→TCP); without a connection there's no channel to encrypt (TCP→TLS); without a secure channel you can't send the request (TLS→HTTP). That's why the order can't be rearranged.
+
+## Step 1 — URL Parsing and Decision: Is This a Search Query or an Address?
+
+The address bar is really an "address bar that doubles as a search box." So the very first thing the browser does the moment you press Enter is **decide whether the input is a URL or a search query**.
+
+- `react rendering` → no dot, no scheme → send it to the default search engine
+- `localhost:3000` → can be interpreted as a host → treat it as a URL
+- `example.com` → has a dot and looks like a TLD → treat it as a URL
+
+**Why this decision comes first**: every step that follows (DNS, TCP, …) assumes "there is a destination host." If it's a search query there's no host, so it branches off down an entirely different path (navigation to a search results page).
+
+Once it's judged to be a URL, the browser immediately checks the **HSTS list**. HSTS (HTTP Strict Transport Security) is a list the browser remembers that says "always connect to this site over HTTPS only." Even if you type `http://example.com`, if it's on this list it gets rewritten to `https://` inside the browser before anything goes out onto the network (a 307 Internal Redirect).
+
+**Why this step exists**: if even a single plaintext request goes out over `http://`, a man in the middle (a café Wi-Fi, etc.) could intercept it and keep you from reaching the HTTPS page (SSL stripping). HSTS forcibly upgrades the request inside the browser **before it ever hits the network**, closing this gap. The fuller security context connects to [[web-security-xss-csrf]].
+
+## Step 2 — DNS Resolution: Finding the IP Where example.com Lives
+
+The browser can't communicate using a name like `example.com`. To actually send packets it needs an IP like `192.0.2.1` (a documentation-use example address). Turning a name into an IP is what DNS does.
+
+The lookup walks **from the nearest cache outward**.
+
+```
+Browser DNS cache → OS DNS cache → Resolver (usually ISP/public DNS, recursive query)
+                                        │
+                          Root (.) → TLD (.com) → Authoritative server (example.com)
+```
+
+- **Root server**: tells you "which TLD server knows about .com"
+- **TLD server (.com)**: tells you "which authoritative server knows about example.com"
+- **Authoritative server**: gives the final answer, "the IP of example.com is this"
+
+**Why the hierarchy**: it's impossible for one server to hold the information for every domain in the world. By delegating responsibility level by level (the root only needs to know TLDs, a TLD only needs to know domains), each server stays small, and when new domains are added you only add the authoritative server for that domain. It's a partitioning for scalability.
+
+**Why caching is central**: asking all the way from the root every time would pile up several round trips per single connection. So each step's response carries a TTL (time to live) and gets cached. From the second visit on, the IP comes straight out of the browser/OS cache, so the DNS step effectively disappears. This is the first source of "only the first time is slow, after that it's fast."
+
+## Step 3 — TCP 3-Way Handshake: Why Shake Hands Three Times?
+
+Now that we know the IP, we open a **reliable channel** to that server. TCP guarantees "what you send arrives complete and in order," and to do that both sides must confirm they're ready before communication begins.
+
+```
+Client                Server
+   │   ── SYN ──────▶  │   "I'm going to send; my starting number is x"
+   │  ◀─ SYN-ACK ───   │   "Got x. I'll send too; my starting number is y"
+   │   ── ACK ──────▶  │   "Got y. Let's begin"
+   Connection established
+```
+
+**Why exactly 3**: both sides need to confirm to each other that "I can send (transmit) and the other side can receive (reception)." When the client sends a SYN and the server replies with SYN-ACK, the "client→server" direction is verified. But the server still doesn't know whether what it sent reaches the client. So one more ACK from the client is needed. In other words, **confirming each direction takes at least 3 messages** (the server's ACK and SYN are combined into a single SYN-ACK, so it's 3 rather than 4).
+
+This one round trip (RTT) is "the cost of opening a new connection." That's why the **connection reuse** that comes later matters so much.
+
+## Step 4 — TLS Handshake: Making the Channel Secure
+
+TCP has opened the channel, but it's still plaintext. If it's `https`, a TLS encryption layer goes on top of it. There are two goals.
+
+1. **Authentication**: "Is the party I just connected to really example.com?" — receive the server certificate and verify that a trusted CA signed it, that the domain matches, and that it hasn't expired.
+2. **Key exchange**: securely create a **shared secret key** to encrypt the data exchanged from here on (so that even an eavesdropper can't figure out the key).
+
+**Why authentication matters before key exchange**: if you only encrypt without verifying who you're talking to, you might be "securely" carrying on an encrypted conversation with a man in the middle. So you nail down "who you're communicating with" first.
+
+```
+TLS 1.2: TCP 1RTT + TLS 2RTT  → long round trip to the first byte
+TLS 1.3: TCP 1RTT + TLS 1RTT  → handshake cut to 1 round trip, even 0-RTT possible on revisit
+```
+
+**Why TLS 1.3 got faster**: 1.2 made separate round trips for "negotiate cipher suite → key exchange," but 1.3 has the client send the key exchange material along in its first message, cutting it down to a single round trip. A large part of the "connection delay" people feel is this handshake RTT, so this shortening lands hard.
+
+## Step 5 — HTTP Request/Response: Finally Exchanging Data
+
+Now that a secure channel exists, we send the actual request.
+
+```http
+GET / HTTP/1.1
+Host: example.com
+Accept-Encoding: gzip, br
+User-Agent: ...
+```
+
+The server response comes back with a status code, headers, and a body.
+
+| Status code | Meaning             | Browser's next action                 |
+| ----------- | ------------------- | ------------------------------------- |
+| 200         | Success             | Send the body (HTML) to renderer      |
+| 301 / 308   | Moved permanently   | Re-request at the new URL in Location |
+| 304         | Not modified        | Reuse the local cached body           |
+| 404 / 500   | Client/server error | Draw an error page                    |
+
+The `Accept-Encoding: gzip, br` header is a signal that "it's fine to send this compressed." **Why compression slips in**: HTML/CSS/JS are text and full of repetition, so they shrink well (often by more than 70%). Less data to transfer means a shorter time to receive the last byte. How each protocol version multiplexes this request/response is covered in [[http-versions]].
+
+## Step 6 — Browser Architecture: Who Handles the Work That Comes In?
+
+Here we step back and look at "who inside the browser was doing what all this time." A modern browser is not a single process but is **split across several processes**.
+
+```
+┌─────────────────┐   Oversees tabs/address bar/navigation
+│ Browser process  │ ──────────────┐
+└─────────────────┘               │
+        │ Delegate request         │ Deliver HTML
+        ▼                          ▼
+┌─────────────────┐        ┌─────────────────┐
+│ Network process  │ ─────▶ │ Renderer process │  (isolated per site)
+│  DNS/TCP/TLS/HTTP│  bytes │  parse·layout·paint│
+└─────────────────┘        └─────────────────┘
+```
+
+- **Browser process**: coordinates the address bar, tabs, and the whole of navigation
+- **Network process**: actually performs Steps 2–5 above (DNS/TCP/TLS/HTTP)
+- **Renderer process**: parses the received HTML and turns it into the screen — **a separate process per site** (site isolation)
+
+**Why multi-process**:
+
+- **Stability**: if one tab's renderer dies, only that tab dies and the whole browser survives
+- **Security/isolation**: the renderer is where untrusted web content runs, so it's locked in a sandbox. Site Isolation splits a.com and b.com into **different processes** so one site can't peek at another's memory (defense against Spectre-class attacks)
+- **Responsiveness**: a single heavy page doesn't eat up the responsiveness of other tabs
+
+In other words, Step 6 is not new work but **a fresh look at who executes the earlier steps, from a security perspective**.
+
+## Step 7 — The Renderer Turns HTML into Pixels
+
+When the Renderer process receives the HTML bytes, the familiar rendering pipeline kicks in.
+
+```
+HTML → DOM → (CSSOM) → Render Tree → Layout → Paint → Composite
+```
+
+A deep explanation of this process itself lives in [[browser-rendering-pipeline]], so here we'll just summarize. The key point is that **HTML parsing is streaming**. It doesn't wait for the last byte; as much as it receives, it builds the DOM right away and progressively fills the screen. That feeling of "being drawn from the top down" comes from this.
+
+## Step 8 — Loading Additional Resources During Navigation
+
+Embedded in the HTML are **resources that still need to be fetched**, like `<link>`, `<script>`, and `<img>`. The page isn't complete until all of these arrive. The browser keeps a **preload scanner**: while the main parser is blocked on a `<script>`, a separate lightweight scanner runs ahead through the HTML and **starts downloading** resources like CSS and images in advance.
+
+**Why this is needed**: a synchronous `<script>` halts DOM parsing. If nothing is being fetched in the meantime, that time is wasted. The preload scanner pulls in later resources during that idle window so the network doesn't sit idle. Why scripts block parsing and the difference between `async`/`defer` are covered in [[browser-script-loading]].
+
+## The Whole Timeline at a Glance
+
+```
+t0  Press Enter
+│   Parse URL + check HSTS (inside the browser, nothing goes to the network)
+│
+├─ DNS    [near 0 on cache hit] ─ otherwise recursive query (root→TLD→authoritative)
+│
+├─ TCP    SYN → SYN-ACK → ACK            (1 RTT)
+│
+├─ TLS    ClientHello → ... → Finished   (1.3: 1 RTT, 0-RTT on revisit)
+│
+├─ HTTP   GET → 200 + HTML (gzip/br)     (server processing + transfer)
+│         first byte arrives = TTFB
+│
+├─ Render HTML streaming parse → DOM/CSSOM → Layout → Paint
+│         preload scanner downloads CSS/JS/IMG in parallel
+│
+▼   First Paint → pixels start to show
+```
+
+## Where Caches Slip In
+
+There's a cache in nearly every step. Here's "why the second visit is fast" laid out all at once.
+
+| Step    | What it caches                 | Effect                               |
+| ------- | ------------------------------ | ------------------------------------ |
+| HSTS    | "This domain is HTTPS-only"    | Instant upgrade, no http request     |
+| DNS     | Name→IP mapping (TTL)          | Skips the recursive query round trip |
+| TCP/TLS | Reuse of a live connection     | Skips the handshake RTT itself       |
+| HTTP    | Response body/validation token | Skips transfer via 304 or disk cache |
+
+**Connection reuse** is especially important. When a TCP+TLS channel opened once via keep-alive is shared by many requests, from the second resource on you skip the RTTs of Steps 3 and 4 entirely. The behavior rules of the HTTP cache (which headers decide what) are covered in detail in [[http-caching]].
+
+## Common Misconceptions
+
+- **Misconception: the address bar only takes URLs.** Reality: the address bar doubles as a search box, and in Step 1 it first decides whether the input is a URL or a search query. It splits on things like the presence of a dot or a scheme.
+- **Misconception: since I typed `http://`, a plaintext request goes out at least once.** Reality: for a domain on the HSTS list, it gets rewritten to https inside the browser before it hits the network. The plaintext request never even occurs.
+- **Misconception: just turning on TLS makes it safe.** Reality: before encrypting, TLS first verifies via the certificate "whether the other party is genuine." With encryption but no authentication, you end up communicating "safely"(?) with a man in the middle.
+- **Misconception: the page is drawn all at once after it's fully received.** Reality: HTML parsing is streaming, so it progressively builds and draws the DOM as much as it receives. That's why it fills in from the top down.
+
+## Check Yourself
+
+- Typing just `react` into the address bar doesn't go to the DNS step. Why?
+- Can you explain why the TCP handshake is 3 messages rather than 2, from the angle of "confirming both directions"?
+- In TLS, which matters first — authentication or key exchange — and why?
+- What are the three reasons a browser bothers to split the renderer into a separate process per site?
+- While a synchronous `<script>` blocks parsing, what keeps the network from sitting idle?
+- When you explain "the second visit is fast" via per-step caches, which step's cache is the one that eliminates the RTT itself?
+
+## Related Notes
+
+- [[browser-rendering-pipeline]] — after Step 7, the process of HTML becoming pixels
+- [[http-versions]] — how protocol versions multiplex the Step 5 request/response
+- [[http-caching]] — the behavior rules of the cache steps
+- [[browser-script-loading]] — the preload scanner and async/defer
+
+## References
+
+- [What happens when you type a URL — web.dev / related guide](https://web.dev/articles/howbrowserswork)
+- [Inside look at modern web browser (multi-process architecture) — Chrome Developers](https://developer.chrome.com/blog/inside-browser-part1)
+- [Strict-Transport-Security (HSTS) — MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security)
+- [TLS 1.3 handshake — Cloudflare Learning](https://www.cloudflare.com/learning/ssl/why-use-tls-1.3/)

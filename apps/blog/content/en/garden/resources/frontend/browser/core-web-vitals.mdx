@@ -1,0 +1,184 @@
+---
+title: 'Core Web Vitals: The User Experience the Browser Measures'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-browser'
+tags: ['frontend', 'browser', 'performance', 'web-vitals']
+---
+
+A "fast site" means something different to everyone. Core Web Vitals is an attempt to pin down that vague feeling with three numbers. This note lays out what each of those numbers captures and why it was designed that way.
+
+> One-line summary: **It splits "fast" into three questions — loading (LCP), responsiveness (INP), and stability (CLS) — and each number is the trace of a specific stage in the rendering pipeline leaking through to the user.**
+
+## Why We Needed Numbers
+
+"This site is fast" never reaches consensus. One person calls it fast the moment the first character appears; another watches for the moment a button registers a press. Perception is subjective, so it can't be a target for improvement.
+
+That's why metrics have been used for a long time, but the problem was that **the old metrics were out of step with the user experience**. A prime example is the `load` event.
+
+```js
+window.addEventListener('load', () => {
+  // The moment every resource (images, scripts, CSS) has finished downloading
+  console.log('load complete');
+});
+```
+
+`load` is "the moment the last resource finishes downloading." But users don't care whether the final tracking pixel has arrived. The content at the top of the screen may already be fully visible while `load` fires much later, or `load` may finish while the main image still hasn't shown up. The measurement and the perception drifted apart.
+
+The idea behind Core Web Vitals is simple. **Decide first on the questions users actually feel, then measure the moment those questions are answered.** There are three questions.
+
+| Question                | Metric | Good threshold |
+| ----------------------- | ------ | -------------- |
+| Is loading fast?        | LCP    | 2.5s or less   |
+| Is responsiveness fast? | INP    | 200ms or less  |
+| Is the screen stable?   | CLS    | 0.1 or less    |
+
+## LCP — Is Loading Fast?
+
+LCP (Largest Contentful Paint) is **the moment the largest content element within the viewport is painted**. The crucial point is why it looks at "the largest thing" rather than the first pixel (FCP). What makes users feel "the page is up" is usually when the main image or headline appears, not when a single small logo shows up. A large element is likely to be the subject of the page.
+
+The things that can become the LCP element are fixed.
+
+- `<img>`, `<image>` (inside SVG)
+- A block with a `background-image`
+- The poster image of a `<video>`
+- Text blocks (the largest cluster of text)
+
+If you trace why it gets slow, it all comes down to **the path that large element travels to reach the screen**.
+
+```
+Server response (TTFB) → HTML parsing → LCP resource discovery → download → decode → paint
+```
+
+If any cell along this path is late, LCP slips. A slow server response (TTFB) means a late starting line, and if the LCP image is discovered late as an `<img>` far down the page, its download starts late too. Fonts also play a role. If text is the LCP element and the web font arrives late, that text either isn't painted until the font arrives (invisible) or is repainted later.
+
+So the broad direction for improving LCP is **resource priority**. Give the LCP image `fetchpriority="high"`, fetch it early with `<link rel="preload">`, and never apply lazy loading (`loading="lazy"`) to the LCP element. The structure where scripts and resources compete with each other for priority is covered in more depth in [[browser-script-loading|Browser Script Loading]].
+
+## INP — Is Responsiveness Fast?
+
+INP (Interaction to Next Paint) is **the time it takes for the next frame to be painted after a user input arrives**. It captures, as a number, that frustrating stutter when you click, tap, or type and the screen hesitates.
+
+```
+Input occurs → event handler runs → rendering work → next paint
+└──────────────── this entire span is INP ────────────────┘
+```
+
+The culprit is almost always a **long JS task**. The browser's main thread runs only one task at a time. If a click event handler is running a heavy 50ms computation, there's no room to repaint the screen during that time. It's a question of who occupies this single thread, so knowing [[js-event-loop|the JS Event Loop]] makes INP much clearer.
+
+```js
+button.addEventListener('click', () => {
+  // Occupies the main thread for 100ms → the screen freezes meanwhile → INP worsens
+  const result = heavySyncWork();
+  render(result);
+});
+```
+
+### Why FID Was Dropped in Favor of INP
+
+This slot was originally held by FID (First Input Delay). FID measured only the delay before the **first input** reached its handler. It had two limitations.
+
+- It looks at **only the first input**. Since it measures just once right after page load, FID could come out fine even if the app stuttered the entire time afterward.
+- It looks at **only the delay**, not the processing and paint. As long as the handler started quickly, FID came out good no matter how long things took inside it.
+
+INP fills both gaps. It looks at **every interaction** over the page's lifetime (effectively the slowest one) and measures the whole thing from input to **the next paint**. The question shifted from "first impression" to "is it responsive throughout."
+
+The broad direction for improving INP is **breaking up tasks**. You split a long task into smaller pieces so the browser has room to paint in between.
+
+```js
+button.addEventListener('click', async () => {
+  render(firstChunk); // Paint the urgent part first
+  await scheduler.yield(); // Briefly yield the main thread
+  render(restChunk); // Do the rest in the next opening
+});
+```
+
+## CLS — Is the Screen Stable?
+
+CLS (Cumulative Layout Shift) is **the cumulative amount of layout jumps that happen without warning**. The experience of trying to read text when a banner cuts in from above and pushes the body down, or pressing what turns out to be the wrong thing because the button you meant to tap suddenly moved due to an ad. It puts a score on that annoyance.
+
+CLS isn't time but a **ratio score**. Roughly, it accumulates "the fraction of the screen the moved area occupies × the fraction of distance it moved." So it has no unit and is a decimal like 0.1.
+
+The three common causes all come down to **not reserving space in advance**.
+
+```html
+<!-- Bad: with no dimensions, the spot suddenly opens up when the image arrives -->
+<img src="hero.jpg" />
+
+<!-- Good: reserve the spot first with width/height (or aspect-ratio) -->
+<img src="hero.jpg" width="800" height="450" />
+```
+
+- **Images without specified dimensions**: height is 0 before loading, then pushes the body down the moment it arrives.
+- **Dynamically inserted banners and ads**: when they cut in above already-painted content, everything below drops down.
+- **Web font swap**: when text drawn with a fallback font switches to the real font, the character widths change and lines get reflowed.
+
+The broad direction for improvement, in a word, is **reserving space**. Give images and embeds dimensions or an `aspect-ratio`, secure a minimum height for ad slots in advance, and match fallback fonts' widths with `size-adjust`. That said, shifts within 500ms after a user input are treated as "user-triggered" and excluded from CLS. Content being pushed down because you expanded a menu is an intended shift.
+
+## Where in the Pipeline Do the Three Metrics Come From?
+
+The three numbers aren't isolated; they're traces of different segments of the [[browser-rendering-pipeline|browser rendering pipeline]] leaking through to the user.
+
+```
+Request → [response·parse·resources] → [Layout·Paint] → screen → [input → next Paint]
+            └── LCP ──┘                    └─ CLS ─┘               └──── INP ────┘
+            (how fast it painted)      (did the paint shift)   (is repainting fast)
+```
+
+- **LCP** measures the length of the path to the first paint (response, download, decode, paint).
+- **CLS** measures how much Layout unexpectedly happened again after something was painted.
+- **INP** measures from input to the next Paint — that is, how quickly the main thread frees up and repaints.
+
+So the tools for improvement differ too. LCP is approached through resource priority, CLS through layout stability, and INP through main-thread occupancy time.
+
+## Lab and Field: Why the Numbers Differ
+
+It's common for the same page to show an LCP of 1.8s in Lighthouse while real-world data shows 4s. The two differ **because the measurement environment itself is different**.
+
+| Aspect               | Lab                             | Field                                          |
+| -------------------- | ------------------------------- | ---------------------------------------------- |
+| Typical tool         | Lighthouse                      | CrUX (real-user data)                          |
+| Environment          | Controlled single run           | Accumulation from real users                   |
+| Device·network       | Fixed virtual conditions        | All over the map (low-end phones, slow 3G too) |
+| INP                  | Cannot measure (no interaction) | Measurable                                     |
+| Representative value | Single measurement              | 75th percentile                                |
+
+Lab runs once in a clean, controlled environment. It's reproducible and good for debugging, but since it's based on my fast laptop, it's more optimistic than reality. Field gathers the results of real users on a variety of devices, so it reflects reality, but I can't control it and it's noisy.
+
+The use of the **75th percentile** in the field is telling. It means the baseline is set not at the average but at "the slower 1 in 4 people." Averages are easily dragged up and masked by a handful of fast users. The point of the 75th percentile is to guarantee the experience of three-quarters of users, which is why it always comes out stingier than a single lab number. The two differing isn't a bug — it's by design. You divide the roles: find the cause with lab, confirm the real effect with field.
+
+## Common Misconceptions
+
+**Misconception: LCP is the first element painted on the page.**
+In reality it's the **largest** content element. The first paint is a separate metric called FCP, and LCP usually comes after it. Even if a small logo shows up first, LCP is recorded the moment the main image appears.
+
+**Misconception: INP measures only the first click.**
+That's the old metric, FID. INP looks at the interactions that happen throughout the use of the page and takes effectively the slowest response as its representative value. So even if the load is fast, INP comes out poorly if there's stuttering during use.
+
+**Misconception: CLS penalizes every layout shift.**
+Shifts within a short window (about 500ms) right after a user input are treated as "intended" and excluded. An accordion expanding because you pressed a button isn't counted in the score. Only shifts without warning are the problem.
+
+**Misconception: A good Lighthouse score means you've passed Core Web Vitals.**
+Lighthouse is lab, so it can't measure INP at all, and being based on my device, it's optimistic. What's actually used for search and assessment is the field (CrUX) 75th percentile. Passing in lab is only a starting point, not a guarantee.
+
+## Check Yourself
+
+- Can you explain in one sentence why old metrics like the `load` event were out of step with the user experience?
+- Why does LCP look at the "largest" element rather than the "first" one?
+- Can you state the two reasons behind the switch from FID to INP (only the first input, only the delay)?
+- Can you explain why a long JS task worsens INP, from the perspective of the main thread?
+- Why is CLS a ratio score rather than time, and why does it exclude shifts right after an input?
+- Why do lab and field numbers differ for the same page, and what's the intent behind field using the 75th percentile?
+
+## Related Notes
+
+- [[browser-rendering-pipeline]]
+- [[browser-script-loading]]
+- [[js-event-loop]]
+- [[url-to-pixels]]
+
+## References
+
+- [Web Vitals - web.dev](https://web.dev/articles/vitals)
+- [Largest Contentful Paint (LCP) - web.dev](https://web.dev/articles/lcp)
+- [Interaction to Next Paint (INP) - web.dev](https://web.dev/articles/inp)
+- [Cumulative Layout Shift (CLS) - web.dev](https://web.dev/articles/cls)

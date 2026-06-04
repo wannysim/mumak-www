@@ -1,0 +1,24 @@
+---
+title: '브라우저 동작 원리'
+created: '2026-06-05'
+status: 'seedling'
+parent: 'frontend'
+tags: ['frontend', 'browser']
+---
+
+프론트엔드 코드의 런타임은 결국 브라우저다.
+HTML 한 장이 픽셀이 되기까지, 스크립트 한 줄이 로딩을 막기까지, 데이터 한 조각이 어디에 저장되기까지 —
+브라우저가 하는 일을 직접 들여다보는 노트 모음이다.
+
+## 하위 노트
+
+- [[browser-rendering-pipeline|브라우저 렌더링 파이프라인]]
+- [[browser-script-loading|스크립트 로딩: async, defer, 그리고 파서 블로킹]]
+- [[browser-storage|브라우저 저장소: 쿠키, localStorage, IndexedDB는 왜 다 따로 있는가]]
+- [[core-web-vitals|Core Web Vitals: 브라우저가 측정하는 사용자 경험]]
+
+## 읽는 순서 제안
+
+렌더링 파이프라인을 먼저 읽고 스크립트 로딩으로 넘어가면
+"왜 `<script>` 위치가 중요한가"가 파이프라인 위에서 자연스럽게 이해된다.
+Core Web Vitals는 앞의 두 노트를 측정 지표 관점에서 다시 묶어준다.

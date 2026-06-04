@@ -1,0 +1,253 @@
+---
+title: 'Closures and Lexical Scope: Why Functions Have Memory'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-javascript'
+tags: ['frontend', 'javascript', 'closure', 'scope']
+---
+
+The outer function has already returned and vanished from the call stack, so how can the inner function keep reading and writing its outer variables? Follow this single question all the way down and it threads lexical scope, closures, and even React's stale closures onto one line.
+
+> One-line summary: **A closure is "a function plus a reference to the lexical environment in which it was declared." Scope is determined by where you write code, not where you call it, and the environment lives on the heap rather than the stack — which is why a function can remember its variables.**
+
+## Lexical Scope: Determined by "Where You Wrote It," Not the Call
+
+Scope is the rule that decides where a variable can be found. JavaScript uses lexical (static) scope. That means which variables you can reference is determined by **where you wrote the code**. It has nothing to do with who called what from where at runtime.
+
+```js
+const x = 'global';
+
+function outer() {
+  const x = 'outer';
+  inner();
+}
+
+function inner() {
+  console.log(x); // ?
+}
+
+outer(); // 'global'
+```
+
+`inner` was called inside `outer`, but it cannot see `outer`'s `x`. That is because the place where `inner` is **written** is the global scope. Had it followed the call site (dynamic scope), it would have logged `'outer'`.
+
+Why was this design chosen? With static scope, you can determine which variable is bound just by reading the code. Since the result is the same no matter where a function is called, it is easy for people to reason about, and the engine can optimize variable locations ahead of time. With dynamic scope, the meaning changes for every call path, making reasoning nearly impossible. JavaScript chose predictability and optimization.
+
+## Mental Model: Execution Context and Lexical Environment
+
+When a function runs, the engine creates an execution context. Inside it sits a Lexical Environment, which is split into two parts.
+
+- **Environment Record**: where the variables/functions declared in this scope are actually stored
+- **Outer reference (outer)**: a pointer to the surrounding lexical environment
+
+That `outer` pointer is the key. And this pointer is fixed at the **moment the function is defined** to "the outer environment of the place where I am written." It is not decided at call time. This pointer is the concrete reality behind the statement that lexical scope follows the code.
+
+```
+inner's lexical environment
+┌───────────────────────────┐
+│ Environment Record: { }    │
+│ outer ──────────┐          │
+└─────────────────┼──────────┘
+                  ▼
+Global lexical environment
+┌───────────────────────────┐
+│ Environment Record: { x:   │
+│   'global', outer, inner } │
+│ outer ──► null             │
+└───────────────────────────┘
+```
+
+## Scope Chain: If Not Found, Climb Up Through outer
+
+When reading a variable, the engine looks at the current environment record first. If it is not there, it follows the `outer` pointer one level up and searches again. If it reaches the global scope (where outer is `null`) and still finds nothing, it is a `ReferenceError`. This chain is the scope chain.
+
+```js
+const a = 1;
+function f() {
+  const b = 2;
+  function g() {
+    const c = 3;
+    console.log(a + b + c); // 6
+  }
+  g();
+}
+f();
+```
+
+The process of finding `a` inside `g`: `g`'s record (not found) → `f`'s record (not found) → global record (`a` found). The important point is that an inner scope is never pointed to from the outside. The chain always runs one way, from inner to outer.
+
+## Closure: Function + Reference to the Lexical Environment Where It Was Declared
+
+Now we can define it. **A closure is a function bundled together with a reference to the lexical environment in which that function was declared.** In fact, every function in JavaScript is a closure. It is just that the fact becomes visible when the inner function survives after the outer function has finished.
+
+```js
+function makeCounter() {
+  let count = 0;
+  return function () {
+    count += 1;
+    return count;
+  };
+}
+
+const next = makeCounter();
+console.log(next()); // 1
+console.log(next()); // 2
+console.log(next()); // 3
+```
+
+`makeCounter` already returned on the first line. Yet every time you call `next`, `count` grows by one. That is because the returned function holds onto `makeCounter`'s lexical environment (where `count` lives) as its `outer`.
+
+## The Stack May Disappear, but the Environment Stays on the Heap
+
+Here is the answer to the opening question, "the outer function finished — how?" The key is that the two things are separate.
+
+| Category                             | Where it lives | When the function returns |
+| ------------------------------------ | -------------- | ------------------------- |
+| Call frame                           | Call stack     | Disappears immediately    |
+| Lexical environment (variable store) | Heap           | Kept if referenced        |
+
+When `makeCounter` returns, its frame on the call stack disappears. But the lexical environment that holds the variables is an object on the heap. Since the returned function references that environment as its `outer`, the GC (garbage collector) sees it as a "still reachable object" and does not reclaim it. In other words, as long as `next` is alive, `count` is alive too.
+
+```
+[ next function ] ──ref──► [ makeCounter's env { count } ]  ← heap, not GC'd
+( makeCounter frame )  ← already removed from the stack
+```
+
+Conversely, once nobody references `next` anymore, that environment becomes unreachable too and is reclaimed. Whether a closure holds onto memory or releases it is ultimately explained by a single rule: "is there still a path to reach this environment?" How the engine tracks reachability is covered in more depth in [[js-v8-under-the-hood]].
+
+## A Classic Trap: Why a for + var Loop Logs the Same Value Every Time
+
+A litmus test for whether you truly understand closures.
+
+```js
+for (var i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 0);
+}
+// 3, 3, 3
+```
+
+Intuitively you expect 0, 1, 2, but 3 is logged three times. Why? Because `var` is function-scoped, `i` is **a single binding shared by the entire loop**. All three callbacks reference that one `i` as their `outer`. By the time the `setTimeout` callbacks actually run (after the event loop turns once — see [[js-event-loop]]), the loop has already finished and `i` has become 3. Since the three callbacks are looking at the same box, they produce the same value.
+
+How does `let` fix this?
+
+```js
+for (let i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 0);
+}
+// 0, 1, 2
+```
+
+`let` is block-scoped, and per the spec a for loop creates **a new binding on each iteration**. That is, the box called `i` is created anew every iteration. The spec copies the previous iteration's value into the new box and then applies `i++` to that new box, so each callback captures the `i` at its own iteration (0, 1, 2) separately. Because there are three boxes, you get 0, 1, 2.
+
+To get the same effect with `var`, you had to create a new scope yourself.
+
+```js
+for (var i = 0; i < 3; i++) {
+  (j => setTimeout(() => console.log(j), 0))(i);
+}
+// 0, 1, 2 — the IIFE creates a fresh j each time
+```
+
+`let` does this pattern automatically at the language level.
+
+## Closures in Practice: Hiding, Modules, Partial Application
+
+**Data hiding**. The `count` in the counter above cannot be touched directly from outside. It is accessible only through the returned function. Long before class private fields existed, JavaScript achieved encapsulation with closures.
+
+**Module pattern**. By bundling several functions that share the same environment into a single object, you can separate a public API from internal state.
+
+```js
+const counter = (() => {
+  let count = 0;
+  return {
+    increment: () => (count += 1),
+    reset: () => (count = 0),
+    value: () => count,
+  };
+})();
+counter.increment();
+console.log(counter.value()); // 1, count is not accessible from outside
+```
+
+**Currying / partial application**. You build a function with some arguments fixed in advance. The fixed arguments are captured in the closure.
+
+```js
+const multiply = a => b => a * b;
+const double = multiply(2); // a closure that remembers a=2
+console.log(double(10)); // 20
+```
+
+## Closures and Memory: Unintended Captures
+
+A closure holds onto the **entire** environment. Even if you only export one small closure out of a scope that holds large data, the whole environment may survive and never be reclaimed.
+
+```js
+function setup() {
+  const huge = new Array(1_000_000).fill('x'); // large data
+  return () => 'hello'; // doesn't use huge, and yet...
+}
+const fn = setup();
+// depending on engine optimization, huge may stick around and not be reclaimed
+```
+
+V8 has an optimization that keeps only the variables a closure actually references in the environment, but if another closure that lives in the same scope references `huge`, it is bundled together and survives. To avoid unintentionally capturing heavy data, it is safer to cut references you no longer need (`ref = null`) and move large data outside the closure.
+
+## Connecting to React: Every Render Is a New Closure
+
+A React function component re-runs its function body from the top every time it renders. That means **every render creates a new scope and a new closure**. The props and state at that render moment are frozen into that render's closure.
+
+```jsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      console.log(count); // always logs 0
+    }, 1000);
+    return () => clearInterval(id);
+  }, []); // empty array: the effect runs only on the first render
+
+  return <button onClick={() => setCount(count + 1)}>{count}</button>;
+}
+```
+
+No matter how many times you press the button, the interval keeps logging `0`. The callback inside the effect is trapped in the **first render's closure**, and that closure's `count` is forever 0. This is a stale closure. It works on exactly the same principle as the for + var trap: "a callback sees the variable as of the moment it captured it."
+
+The fix is to put `count` in the dependency array so the effect is rebuilt as a new closure, or to use an updater function that receives the latest value as its argument, like `setCount(c => c + 1)`. How this mechanism works inside hooks continues in [[react-hooks-under-the-hood]].
+
+## Common Misconceptions
+
+**Misconception: A closure copies and stores the "value" of a variable.**
+Reality: It captures a reference to the variable (the binding), not the value. So when the variable changes on the outside, the value the closure sees changes too. The 3 being logged in for + var is exactly this evidence.
+
+**Misconception: Scope is determined by where a function is called.**
+Reality: It is determined by where a function is declared (written). That is lexical scope. The call site is irrelevant.
+
+**Misconception: Closures are special syntax, or only some functions have them.**
+Reality: Every function in JavaScript is a closure. It is just that the effect surfaces only when the inner function survives after the outer function has finished.
+
+**Misconception: When a function returns, its local variables are always gone.**
+Reality: If a closure that references those variables is still alive, the lexical environment holding them stays on the heap and is not reclaimed.
+
+## Check Yourself
+
+- Can you state the difference between lexical scope and dynamic scope in one sentence? And why did JavaScript choose the former?
+- What are the two components of a lexical environment, and when is the `outer` pointer determined?
+- In the `makeCounter` example, can you explain why `count` is still alive even though the outer function has finished, in terms of the difference between the call stack and the heap?
+- Can you explain why a for + var loop logs the same value, and the mechanism by which `let` solves it (a new binding per iteration)?
+- What pattern causes a closure to create an unintended memory leak, and how do you mitigate it?
+- Can you explain the principle behind React's stale closures by connecting it to the fact that "every render is a new closure"?
+
+## Related Notes
+
+- [[react-hooks-under-the-hood|How closures are used inside hooks]]
+- [[js-v8-under-the-hood|How V8 tracks environments and reachability]]
+- [[js-event-loop|The story of when callbacks run later]]
+- [[frontend-javascript]]
+
+## References
+
+- [Closures - MDN](https://developer.mozilla.org/ko/docs/Web/JavaScript/Closures)
+- [Scope and the scope chain - MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Functions#scope_and_the_function_stack)
+- [Variable scope, closure - javascript.info](https://javascript.info/closure)
+- [ECMAScript Lexical Environments - ECMA-262 spec](https://tc39.es/ecma262/#sec-lexical-environments)

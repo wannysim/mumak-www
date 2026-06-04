@@ -1,0 +1,26 @@
+---
+title: 'How JavaScript Works'
+created: '2026-06-05'
+status: 'seedling'
+parent: 'frontend'
+tags: ['frontend', 'javascript']
+---
+
+"It works" and "I know why it works" are not the same thing.
+This is a collection of notes that digs into how JavaScript, as a language, actually runs on top of an engine.
+
+The goal is to answer the "why?" questions: what happens on the call stack when you run a single line of code, how closures linger in memory,
+and why `this` keeps changing from one moment to the next.
+
+## Child Notes
+
+- [[js-event-loop|The Event Loop: How Single-Threaded JS Does Many Things at Once]]
+- [[js-closure-and-scope|Closures and Lexical Scope: Why Functions Have Memory]]
+- [[js-prototype-and-this|Prototypes and this: The Two Pillars of JavaScript's Object System]]
+- [[js-promise-and-async-await|Promise and async/await: How Asynchronous Code Looks Synchronous]]
+- [[js-v8-under-the-hood|Inside the V8 Engine: JIT, Hidden Classes, and Garbage Collection]]
+
+## Suggested Reading Order
+
+Reading them in the order event loop → closures → prototypes and this → Promise → V8
+flows naturally as "execution model → memory model → object model → asynchronous model → engine internals."

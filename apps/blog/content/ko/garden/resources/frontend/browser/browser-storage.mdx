@@ -1,0 +1,240 @@
+---
+title: '브라우저 저장소: 쿠키, localStorage, IndexedDB는 왜 다 따로 있는가'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-browser'
+tags: ['frontend', 'browser', 'storage', 'cookie']
+---
+
+브라우저에 데이터를 저장하는 방법은 왜 이렇게 여러 개고, 각각 언제 써야 맞는가. 쿠키부터 IndexedDB까지 전부 "왜 이렇게 생겼는지"를 따라가며 정리한다.
+
+> 한 줄 요약: **저장소가 여러 개인 건 설계 실수가 아니라, 풀려고 했던 문제가 달라서다. 서버로 같이 보낼 거냐(쿠키), 클라이언트에만 둘 거냐(Web Storage), 대용량을 구조화해서 둘 거냐(IndexedDB)로 갈린다.**
+
+## 역사로 이해하기: 저장소는 한 번에 안 나왔다
+
+지금의 저장소 API들은 동시에 설계된 게 아니다. 각 시대의 문제를 하나씩 때우면서 쌓인 지층에 가깝다.
+
+```
+1994  쿠키        상태 없는 HTTP에 "상태"를 주려고
+2009  Web Storage "쿠키를 저장소로 쓰지 마"라는 반성
+2010~ IndexedDB   대용량 구조화 데이터를 클라이언트에
+2015~ Cache API   Service Worker와 함께 오프라인 자산용
+```
+
+HTTP는 원래 상태가 없다(stateless). 요청 하나가 끝나면 서버는 그 클라이언트를 까맣게 잊는다. 그런데 "로그인 유지", "장바구니" 같은 걸 하려면 요청들을 같은 사용자로 묶을 방법이 필요했다. 그래서 1994년 넷스케이프가 **쿠키**를 만들었다. "서버가 작은 쪽지를 브라우저에 맡겨 두고, 다음 요청마다 그 쪽지를 도로 받는다"는 발상이다.
+
+문제는 그 다음이다. 쿠키밖에 없으니 사람들이 쿠키를 일반 저장소처럼 막 썼고, 그 데이터가 **매 요청에 다 딸려 가는** 부작용이 심해졌다. 그래서 2009년 HTML5가 "서버로 안 보내는, 순수 클라이언트 저장소"인 **Web Storage**(localStorage / sessionStorage)를 분리해 냈다. 이후 더 큰 데이터를 위해 **IndexedDB**, 오프라인 자산을 위해 **Cache Storage**가 차례로 붙었다. 핵심은, 새 저장소가 나올 때마다 답하려던 질문이 매번 달랐다는 것이다.
+
+## 쿠키의 본질: 매 요청에 자동으로 실려 가는 작은 데이터
+
+쿠키를 이해하는 가장 정확한 한 문장: **쿠키는 "저장소"라기보다 "요청에 자동으로 붙는 꼬리표"다.**
+
+서버가 응답에 `Set-Cookie` 헤더를 실어 보내면, 브라우저는 그걸 저장해 두었다가 같은 도메인으로 가는 **모든 요청의 `Cookie` 헤더에 자동으로 붙여서** 보낸다.
+
+```
+[응답] Set-Cookie: sessionId=abc123
+                ↓ 브라우저가 저장
+[다음 요청] GET /api/me
+            Cookie: sessionId=abc123   ← 내가 안 시켜도 자동
+```
+
+여기서 쿠키의 거의 모든 특성이 파생된다.
+
+- **왜 4KB 제한인가**: 매 요청에 실려 가니까. 쿠키가 1MB면 모든 요청·이미지·CSS 요청에까지 1MB가 따라붙는다. 작아야 하는 게 본질이다.
+- **왜 보안 속성이 따로 필요한가**: "자동으로 어디든 실려 간다"는 편리함이 곧 공격 표면이다. 그래서 "어디까지 실려 갈지"를 제어하는 속성들이 생겼다.
+
+## 쿠키 속성이 존재하는 이유
+
+쿠키 속성은 외울 게 아니라 "무엇을 막으려고 생겼는지"로 묶으면 한 번에 잡힌다.
+
+```js
+// 서버가 응답에 붙이는 헤더 형태
+Set-Cookie: sessionId=abc123;
+  HttpOnly;            // JS에서 document.cookie로 못 읽음
+  Secure;              // HTTPS 연결에서만 전송
+  SameSite=Lax;        // 교차 사이트 요청엔 (대부분) 안 붙음
+  Domain=example.com;  // 어떤 도메인에 보낼지
+  Path=/;              // 어떤 경로에 보낼지
+  Max-Age=3600         // 수명(초)
+```
+
+- **HttpOnly** — JS의 `document.cookie`로 접근을 차단한다. **왜?** XSS로 악성 스크립트가 주입돼도 세션 쿠키 값을 훔쳐 가지 못하게 하려고. 인증 쿠키라면 거의 필수다.
+- **Secure** — HTTPS 연결에서만 전송한다. **왜?** 평문 HTTP로 새어 나가 중간에서 가로채이는 걸 막으려고.
+- **SameSite** — 교차 사이트(cross-site) 요청에 쿠키를 붙일지 제어한다. **왜?** CSRF 방어의 핵심이다. 공격자 사이트가 몰래 우리 서버로 요청을 보내도 `SameSite=Lax/Strict`면 인증 쿠키가 안 붙어서 위조 요청이 무력화된다.
+- **Domain / Path** — 쿠키가 실려 갈 범위를 좁힌다. 좁을수록 노출 표면이 작다.
+- **Max-Age / Expires** — 수명. 없으면 세션 쿠키(브라우저 닫으면 소멸)다.
+
+`SameSite`와 XSS/CSRF의 관계는 [[web-security-xss-csrf]]에서 더 깊게 다룬다.
+
+## localStorage와 sessionStorage: 수명과 범위가 다르다
+
+Web Storage는 쿠키와 정반대 발상이다. **서버로 안 보낸다.** 순수하게 브라우저 안에만 머무는 key-value 저장소다. 둘의 차이는 딱 두 축, 수명과 범위다.
+
+```js
+localStorage.setItem('theme', 'dark');
+localStorage.getItem('theme'); // 'dark'
+
+sessionStorage.setItem('step', '2');
+```
+
+| 항목      | localStorage           | sessionStorage        |
+| --------- | ---------------------- | --------------------- |
+| 수명      | 명시적으로 지울 때까지 | 탭/세션이 닫힐 때까지 |
+| 범위      | 같은 origin의 모든 탭  | 그 탭 하나            |
+| 서버 전송 | 안 됨                  | 안 됨                 |
+| 용량      | 보통 5~10MB            | 보통 5~10MB           |
+
+### 동기 API라는 숨은 비용
+
+Web Storage는 쓰기 편하지만, **모든 API가 동기(synchronous)**라는 함정이 있다. `getItem`/`setItem`이 값을 반환할 때까지 **메인 스레드가 멈춘다.**
+
+작은 값이면 무시할 만하지만, 큰 JSON을 넣고 빼면 직렬화/역직렬화가 메인 스레드를 붙잡아 렌더링과 입력 처리를 막는다. 메인 스레드가 막힌다는 게 왜 치명적인지는 [[browser-rendering-pipeline]]을 보면 와닿는다.
+
+```js
+// 큰 객체를 매번 이렇게 다루면 그 순간 메인 스레드가 멈춘다
+const big = JSON.parse(localStorage.getItem('cache')); // 동기 파싱
+big.items.push(newItem);
+localStorage.setItem('cache', JSON.stringify(big)); // 동기 직렬화
+```
+
+그래서 Web Storage는 **작고, 자주 안 바뀌고, 구조가 단순한** 데이터(테마, 언어, 작은 플래그)에 적합하다. 대용량은 IndexedDB가 맞다.
+
+### storage 이벤트: 공짜로 얻는 탭 간 통신
+
+재밌는 부수 효과가 하나 있다. 어떤 탭이 localStorage를 바꾸면, **같은 origin의 다른 탭들**에 `storage` 이벤트가 날아온다. (바꾼 탭 자신에게는 안 온다.)
+
+```js
+// 탭 A
+localStorage.setItem('theme', 'dark');
+
+// 탭 B — 자동으로 통지받음
+window.addEventListener('storage', e => {
+  if (e.key === 'theme') applyTheme(e.newValue);
+});
+```
+
+"한 탭에서 로그아웃하면 다른 탭도 같이 로그아웃" 같은 동기화를 별도 인프라 없이 구현할 수 있다.
+
+## IndexedDB: 비동기 · 트랜잭션 · 인덱스
+
+대용량(수십~수백 MB) 구조화 데이터가 필요하면 IndexedDB다. Web Storage와 정반대 설계 철학을 가졌다.
+
+- **비동기** — 메인 스레드를 막지 않는다. (Web Storage의 동기 문제를 정면으로 해결)
+- **트랜잭션** — 여러 작업을 원자적으로 묶는다. 중간에 실패하면 통째로 롤백.
+- **인덱스** — 특정 필드로 빠르게 조회한다. 거의 클라이언트 안의 작은 NoSQL DB다.
+
+문제는 **날것의 API가 지독하게 불편하다**는 점이다. 2010년대 초 설계라 Promise가 아니라 **이벤트 기반 콜백**이다.
+
+```js
+const req = indexedDB.open('myDB', 1);
+
+req.onupgradeneeded = e => {
+  const db = e.target.result;
+  db.createObjectStore('books', { keyPath: 'id' });
+};
+
+req.onsuccess = e => {
+  const db = e.target.result;
+  const tx = db.transaction('books', 'readwrite');
+  tx.objectStore('books').put({ id: 1, title: '데미안' });
+  tx.oncomplete = () => console.log('저장 완료');
+};
+
+req.onerror = e => console.error(e);
+```
+
+`open` → `onupgradeneeded`(스키마) → `onsuccess`(연결) → 트랜잭션 → 요청 → 또 콜백. 이 콜백 지옥 때문에 실무에서는 거의 항상 `idb` 같은 Promise 래퍼를 쓴다.
+
+```js
+import { openDB } from 'idb';
+
+const db = await openDB('myDB', 1, {
+  upgrade(db) {
+    db.createObjectStore('books', { keyPath: 'id' });
+  },
+});
+
+await db.put('books', { id: 1, title: '데미안' });
+const book = await db.get('books', 1);
+```
+
+같은 일을 하지만 읽기 흐름이 완전히 달라진다. 왜 이렇게 불편하게 설계됐냐는 질문의 답은 단순하다. **Promise가 표준으로 자리 잡기 전에 만들어졌기 때문**이다. 그래서 `idb`가 사실상 표준처럼 쓰인다.
+
+## Cache Storage + Service Worker: 오프라인 자산용
+
+마지막 한 조각. **Cache Storage**는 HTTP 요청/응답 쌍을 통째로 저장하는 전용 저장소다. 주로 **Service Worker**와 짝을 이뤄 오프라인 지원과 자산 캐싱에 쓴다. Service Worker가 네트워크 요청을 가로채 먼저 캐시를 보고, 없으면 네트워크로 가는 식이다. 일반 데이터 저장이 목적인 다른 저장소들과 달리 "요청에 대한 응답을 캐싱"하는 게 목적이라 결이 다르다. HTTP 레벨 캐싱과의 관계는 [[http-caching]]에서 이어진다.
+
+## 그래서 뭘 쓰면 되나: 선택 기준 표
+
+| 저장소         | 용량     | 수명       | 서버 자동 전송 | 동기/비동기 | 적합 용도                      |
+| -------------- | -------- | ---------- | -------------- | ----------- | ------------------------------ |
+| 쿠키           | 약 4KB   | 만료까지   | O (자동)       | -           | 세션 식별, 서버가 읽을 값      |
+| localStorage   | 5~10MB   | 영구       | X              | 동기        | 테마, 언어, 작은 설정          |
+| sessionStorage | 5~10MB   | 탭 닫힐 때 | X              | 동기        | 탭 한정 임시 상태              |
+| IndexedDB      | 수백 MB+ | 영구       | X              | 비동기      | 대용량/구조화 데이터, 오프라인 |
+| Cache Storage  | 큼       | 영구       | X              | 비동기      | 응답 캐시, 오프라인 자산       |
+
+표를 한 문장으로 압축하면: **서버가 읽어야 하면 쿠키, 작고 단순하면 Web Storage, 크고 구조적이면 IndexedDB, 응답 캐싱이면 Cache Storage.**
+
+## 인증 토큰은 어디에 둬야 하나
+
+가장 자주 부딪히는 실전 질문이다. 그리고 **깔끔한 정답이 없는** 질문이다. 후보는 둘이다.
+
+**(1) localStorage에 토큰 저장**
+
+```js
+localStorage.setItem('token', jwt);
+fetch('/api/me', { headers: { Authorization: `Bearer ${jwt}` } });
+```
+
+- 장점: 구현이 쉽고, `Authorization` 헤더로 명시적으로 보낸다. CSRF에 자동으로 안전하다(쿠키처럼 자동 전송되지 않으니까).
+- 단점: **JS가 읽을 수 있다 → XSS 한 방이면 토큰이 통째로 털린다.** 의존성 하나가 오염돼도 끝이다.
+
+**(2) HttpOnly 쿠키에 토큰 저장**
+
+- 장점: JS가 못 읽으니 **XSS로 토큰 탈취가 안 된다.**
+- 단점: 자동 전송되므로 **CSRF를 따로 막아야 한다**(`SameSite`, CSRF 토큰 등).
+
+| 방식          | XSS 노출 | CSRF 노출 | 핵심 부담               |
+| ------------- | -------- | --------- | ----------------------- |
+| localStorage  | 높음     | 낮음      | XSS 차단에 사활         |
+| HttpOnly 쿠키 | 낮음     | 있음      | SameSite/CSRF 토큰 필요 |
+
+요점은 "어디가 정답"이 아니라 **트레이드오프를 이해하는 것**이다. 어느 쪽을 고르든 **나머지 한 축을 반드시 따로 막아야 한다.** XSS 위협을 더 무겁게 보면 HttpOnly 쿠키 + CSRF 방어로, CSRF 표면을 피하고 XSS를 확실히 통제할 수 있으면 localStorage + `Authorization` 헤더로 간다. 두 위협의 메커니즘은 [[web-security-xss-csrf]]에서 다룬다.
+
+## 흔한 오해
+
+- **오해: 쿠키는 그냥 작은 localStorage다.**
+  실제: 본질이 다르다. 쿠키는 **매 요청에 자동으로 서버에 실려 가는** 데이터고, localStorage는 절대 서버로 안 간다. 4KB 제한도 "요청에 실려 간다"는 본질에서 나온 제약이다.
+
+- **오해: localStorage는 빠르니까 캐시로 쓰면 좋다.**
+  실제: **동기 API**라 큰 데이터를 다루면 그 순간 메인 스레드가 멈춘다. 대용량 캐시는 비동기인 IndexedDB나 Cache Storage가 맞다.
+
+- **오해: HttpOnly 쿠키면 인증이 완전히 안전하다.**
+  실제: XSS로 토큰을 못 훔쳐 갈 뿐, **자동 전송 때문에 CSRF는 그대로 열려 있다.** `SameSite`나 CSRF 토큰으로 따로 막아야 비로소 안전해진다.
+
+- **오해: IndexedDB API가 불편한 건 설계자가 게을러서다.**
+  실제: **Promise가 표준화되기 전**에 설계돼 이벤트 기반 콜백이 됐을 뿐이다. 그래서 `idb` 같은 Promise 래퍼가 사실상 표준처럼 쓰인다.
+
+## 스스로 점검하기
+
+- 쿠키가 4KB로 제한된 진짜 이유는 무엇인가? 그게 localStorage에는 왜 적용되지 않는가?
+- `HttpOnly`, `Secure`, `SameSite`는 각각 어떤 공격을 막으려고 존재하는가?
+- localStorage가 "빠른 캐시"로 부적합할 수 있는 이유는 무엇인가? 어떤 데이터에 적합한가?
+- 한 탭의 변경을 다른 탭에 알리려면 Web Storage의 무엇을 쓰는가?
+- IndexedDB의 날것 API가 콜백 지옥처럼 보이는 역사적 이유는 무엇인가?
+- 인증 토큰을 localStorage에 둘 때와 HttpOnly 쿠키에 둘 때, 각각 어떤 위협을 추가로 막아야 하는가?
+
+## 함께 보기
+
+- [[web-security-xss-csrf]] — 쿠키 보안 속성과 토큰 저장 전략이 막으려는 실제 공격
+- [[http-caching]] — Cache Storage와 결이 다른, HTTP 레벨에서의 응답 캐싱
+- [[browser-rendering-pipeline]] — 동기 저장소 API가 메인 스레드를 막으면 무엇이 멈추는가
+- [[frontend-browser]]
+
+## 참고
+
+- [MDN — Web Storage API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API)
+- [MDN — Using HTTP cookies](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Cookies)
+- [MDN — IndexedDB API](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)
+- [web.dev — Storage for the web](https://web.dev/articles/storage-for-the-web)

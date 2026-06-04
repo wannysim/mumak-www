@@ -1,0 +1,231 @@
+---
+title: 'HTTP Caching: When Does the Browser Ask the Server Again?'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'http', 'caching']
+---
+
+What agreement do the browser and server make so they don't fetch the same file twice? The rules that decide when a response you've already received can be reused, and when you have to ask again, are HTTP caching.
+
+> One-line summary: **The fastest request is the one you never send. Caching is a two-step agreement: first it asks "can I use this (is it fresh)?", and once that expires, it asks "is it still the same (validation)?" without a body.**
+
+## The Two Questions Caching Asks
+
+Network round trips are expensive. Re-downloading the same `app.js` every time you move between pages is slow and wastes data. So the browser keeps a response it has already received somewhere (memory or disk) and tries to reuse it. There are only two questions it asks at this point.
+
+1. **Can I use it (is it fresh)?** — If the stored response is still valid, it never goes out to the network and uses it as is.
+2. **Is it still the same (validation)?** — If the valid period has passed, it asks the server only "is what I have still up to date?" If it's the same, it doesn't fetch the body again.
+
+**Why two steps?** With only step 1, you can't pin down exactly "how long can I trust this." Too short and the cache is useless; too long and you miss what's changed. Step 2 makes a compromise possible: "trust it briefly, but verify cheaply once it expires."
+
+```
+request ──▶ in the cache?
+              │ no ────────────────▶ fetch the whole thing from the server (200)
+              │ yes ──▶ fresh?
+                         │ yes ─────▶ use the cache as is (no network)
+                         │ no ──────▶ send a validation request to the server
+                                        │ same ───▶ 304, reuse the cache
+                                        │ different ─▶ 200, fetch a new body
+```
+
+## Freshness: The Window Where Nothing Goes Out to the Network
+
+A response being "fresh" means it's within its valid period. What sets this period is `Cache-Control`'s `max-age`.
+
+```http
+Cache-Control: max-age=3600
+```
+
+For **3600 seconds (1 hour)** from when this response is received, the browser uses the cache as is without asking the server. This is the window shown as `(memory cache)` or `(disk cache)` in the DevTools network tab. No request goes out at all, so it's the fastest.
+
+- **Memory cache**: Stored in RAM while the tab is alive. Instant when going back or revisiting within the same tab.
+- **Disk cache**: Stored on disk. Survives even if you close the tab and reopen it.
+
+**Why two places?** Memory is fast but volatile and small. Disk is slow but persistent. The browser looks at a response's size and reuse frequency and places it accordingly.
+
+The `Expires` header (an absolute time) does the same job, but it goes off when the client clock is skewed. That's why the relative `max-age` takes precedence and is recommended.
+
+## Revalidation After Expiry: Headers Only, No Body
+
+Once `max-age` passes, the cache becomes "stale." It isn't thrown away; instead, it asks the server only **"is what I have still valid?"** This is called a conditional request.
+
+When the server hands over a response, it includes that response's "fingerprint."
+
+```http
+HTTP/1.1 200 OK
+ETag: "v3-abc123"
+Last-Modified: Wed, 04 Jun 2026 10:00:00 GMT
+Cache-Control: max-age=60
+```
+
+After expiry, the browser sends that fingerprint back on the next request.
+
+```http
+GET /data.json HTTP/1.1
+If-None-Match: "v3-abc123"
+If-Modified-Since: Wed, 04 Jun 2026 10:00:00 GMT
+```
+
+If the content is unchanged from the server's point of view, it sends only a short response **with no body**.
+
+```http
+HTTP/1.1 304 Not Modified
+ETag: "v3-abc123"
+```
+
+A `304` has an empty body. Only headers go back and forth, so it's far cheaper than fetching the whole thing again. On receiving this, the browser thinks "ah, my cache is still correct" and uses the body it's holding as is. If the content has changed, the server sends a `200` with a new body.
+
+| Validation header (server→client) | Conditional request header (client→server) | Basis               |
+| --------------------------------- | ------------------------------------------ | ------------------- |
+| ETag                              | If-None-Match                              | Content fingerprint |
+| Last-Modified                     | If-Modified-Since                          | Modification time   |
+
+**Why is ETag more accurate than Last-Modified?** Modification time is in seconds, so it can't tell apart two changes within one second, and just re-saving a file changes the time even when the content is the same. ETag is a fingerprint derived from the content itself, so it guarantees "same value if the content is the same."
+
+## no-cache vs no-store: A Trap Where the Names Seem Reversed
+
+This is the most commonly confused point. By the names alone they both sound like "no caching," but they differ.
+
+| Directive | Stores? | Validates before reuse?              | One-line meaning                          |
+| --------- | ------- | ------------------------------------ | ----------------------------------------- |
+| no-cache  | Yes     | Validates every time                 | "Cache, but check every time"             |
+| no-store  | No      | N/A                                  | "Don't keep it at all"                    |
+| max-age=0 | Yes     | Stale immediately, usually validates | Forced validation needs `must-revalidate` |
+
+`no-cache` **does** cache. It just asks the server to validate (whether it's a `304`) every time before using it. So it becomes "always guarantee the latest, but don't fetch the body if it hasn't changed."
+
+`no-store` **forbids storing at all**, on neither disk nor memory. Use it for sensitive responses that must not be left in the cache, such as bank balances or payment information.
+
+`max-age=0` means "stale the moment it's received," so it usually goes through validation on the next use, but without `must-revalidate` there's still room for the cache to use a stale response as is, depending on the situation. To firmly force "validate before use" the way `no-cache` does, set `max-age=0, must-revalidate`.
+
+```http
+Cache-Control: no-cache          # cache yes, validate every time
+Cache-Control: no-store          # no cache
+```
+
+**Why was it named so confusingly?** `no-cache` should be read as "don't just trust freshness and pull the copy straight from the cache (use cached copy without checking)." In other words, it's "don't use without validating," not "don't store." This one subtle difference is a recurring cause of incidents.
+
+## private vs public: Whose Cache Is It
+
+Browsers aren't the only cache a response passes through. A **shared cache** like a CDN or proxy can sit in between.
+
+```
+browser ──── CDN/proxy ──── origin server
+         (shared cache)
+```
+
+- `private`: Store only in the browser (personal) cache. Intermediate shared caches must not keep it.
+- `public`: Intermediate shared caches may keep it too.
+
+**Why does this distinction lead to incidents?** If you mistakenly put `public` on a per-user personalized response (for example, HTML with a "Hello, Yunha" header baked in), the CDN caches that whole response and then **serves it to another user as is.** It's an information leak where one person's logged-in screen shows up for someone else. Responses mixing authentication and personalization are safer with `private` (or `no-store`).
+
+```http
+Cache-Control: private, max-age=0, must-revalidate   # personalized response
+Cache-Control: public, max-age=31536000, immutable   # shared static asset
+```
+
+## Vary: When the Same URL Has Several Responses
+
+A cache usually stores a response keyed by URL. But there are cases where, even for the same URL, **the response differs depending on the request headers**.
+
+```http
+Vary: Accept-Encoding, Accept-Language
+```
+
+`Vary` is the instruction "if these headers differ, treat it as a different response."
+
+- `Accept-Encoding`: Some clients receive a gzip-compressed version, others an uncompressed one. Without distinguishing this, a compressed version could be wrongly delivered to a client that can't decompress gzip.
+- `Accept-Language`: Even for the same `/home`, the Korean and English responses differ. The language negotiation result must be included in the cache key so they don't get mixed up.
+
+**Why is it needed?** Caching without `Vary` means "the first response received" goes out to everyone. If an English user receives it first and it gets cached, a Korean user ends up seeing the English page.
+
+## stale-while-revalidate: Show It First, Refresh Behind the Scenes
+
+If you make the user wait while a stale cache is being validated, the screen stutters. What removes this is `stale-while-revalidate`.
+
+```http
+Cache-Control: max-age=60, stale-while-revalidate=600
+```
+
+It reads as follows.
+
+- 0–60s: Fresh. The cache as is.
+- 60–660s: Expired, but **show the stale cache immediately first** and quietly fetch a new response in the background to refresh the cache. The user doesn't wait.
+- After 660s: Too old, so fetch fresh normally.
+
+**Why does this pattern matter?** It captures both perceived speed and freshness at once. "A screen that may be stale but shows instantly" is usually better than "a screen that's accurate but you have to wait for." This very mindset became the name of a data-fetching library. The "show stale data first, revalidate behind the scenes" strategy that SWR and React Query use is taken straight from this header. Client-side caching also connects to the [[browser-storage]] note.
+
+## The Standard Pattern for Frontend Deployment
+
+If everything up to here is the toolkit, the key in real deployments is how you combine it. There's a combination close to the right answer.
+
+```http
+# hashed static assets: app.3f9a2c.js, main.7b2e10.css
+Cache-Control: public, max-age=31536000, immutable
+
+# entry point: index.html
+Cache-Control: no-cache
+```
+
+The key is using **opposite strategies depending on the file type**.
+
+- **Hashed assets are cached forever.** When the content changes, the build tool changes the hash in the filename too (`app.3f9a2c.js` → `app.8d1f04.js`). In other words, **when the content changes, the URL changes.** Then the cache for a given URL can never go stale, so a year (`31536000` seconds) with `immutable` (don't even validate before expiry) is safe.
+- **index.html is always validated.** This file has a fixed URL (`/index.html`) but its content changes with every deploy. It needs to be updated to **point to the new hash**, like `<script src="app.8d1f04.js">`. So with `no-cache` it validates every time to always get the latest entry point.
+
+```
+index.html (no-cache, validate every time)
+   └─▶ <script src="/app.8d1f04.js">  ← the hash changes on deploy
+            │
+            ▼
+   app.8d1f04.js (immutable, cached a year)  ← the URL is the version
+```
+
+**How this combination prevents "I deployed but I'm seeing the old screen":** As long as only the entry point is always fresh, the `<script>` tags inside it always point to the latest hash. A new hash URL isn't in the cache, so it's fetched fresh; an unchanged asset keeps its existing hash, so its cache is reused. As a result, only what changed is fetched fresh, precisely. Conversely, if you cache `index.html` for a long time too, the browser clings to the old HTML and keeps pointing at old hash files that are gone, so the screen never refreshes.
+
+## The History and Limits of Cache Busting
+
+Before hashed filenames became standard, caches were invalidated with a **query string**.
+
+```html
+<script src="/app.js?v=20260605"></script>
+```
+
+The idea is that changing the `?v=...` value makes the URL look different, so it's fetched fresh. It works, but it has limits.
+
+- Some intermediate proxies wouldn't cache a response with a query string attached, or conversely would ignore the query and treat it as the same thing.
+- Bumping the version by hand was an error-prone, frequent mistake.
+- Changing only the version while the content stays the same triggers an unnecessary re-fetch.
+
+So now **embedding a content hash in the filename** is the standard. If the content is the same, the hash is the same, so the cache holds; the URL changes only when the content changes. Cache invalidation happens automatically and precisely from the build tool. Differences in connection reuse and multiplexing across HTTP versions are covered in the [[http-versions]] note, and the entire flow from request to screen in the [[url-to-pixels]] note.
+
+## Common Misconceptions
+
+- **Misconception**: "no-cache doesn't cache." → **Reality**: It does cache. It just validates with the server every time before using it. Forbidding storage is `no-store`.
+- **Misconception**: "A 304 response contains a body too." → **Reality**: `304 Not Modified` has an empty body. Only headers go back and forth, so it's cheap. The body reuses the existing cache.
+- **Misconception**: "Just give a long max-age and you're done with caching." → **Reality**: Caching a file with a fixed URL (like index.html) for a long time bakes in the old screen after a deploy. Fixed URLs should favor validation; only hashed URLs should be cached for a long time.
+- **Misconception**: "public is just a good option that caches more aggressively." → **Reality**: Putting `public` on a personalized or authenticated response can make the CDN serve one person's response to someone else. It's a matter of whose cache it sits in.
+
+## Check Yourself
+
+- What question does each of "freshness" and "validation" answer, and why are they split into two steps?
+- Why does no network request go out at all during the `max-age` window?
+- Why is `304 Not Modified` cheaper than fetching the whole response again?
+- Can you explain the difference between `no-cache` and `no-store` in one sentence each?
+- What incident happens if you put `public` on a personalized response?
+- Why does the combination of `immutable` for hashed assets and `no-cache` for `index.html` prevent the "old screen"?
+- What problem arises without `Vary: Accept-Language`?
+
+## Related Notes
+
+- [[http-versions]]
+- [[url-to-pixels]]
+- [[browser-storage]]
+- [[frontend-network]]
+
+## References
+
+- [HTTP caching - MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching)
+- [Cache-Control - MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control)
+- [Prevent unnecessary network requests with the HTTP Cache - web.dev](https://web.dev/articles/http-cache)
+- [RFC 9111: HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111)

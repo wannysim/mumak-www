@@ -1,0 +1,240 @@
+---
+title: 'Browser Storage: Why Do Cookies, localStorage, and IndexedDB All Exist Separately?'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-browser'
+tags: ['frontend', 'browser', 'storage', 'cookie']
+---
+
+Why are there so many ways to store data in the browser, and when is each one the right choice? This note walks from cookies all the way to IndexedDB, tracing "why each one looks the way it does."
+
+> One-line summary: **Having multiple storage options isn't a design mistake — it's because each was built to solve a different problem. The split comes down to whether you'll send it to the server (cookies), keep it on the client only (Web Storage), or store large, structured data (IndexedDB).**
+
+## Understanding Through History: Storage Didn't Arrive All at Once
+
+Today's storage APIs weren't designed together. They're closer to sediment that piled up as each era patched the problem in front of it.
+
+```
+1994  Cookies       Giving "state" to stateless HTTP
+2009  Web Storage   A reaction against "stop using cookies as storage"
+2010~ IndexedDB     Large, structured data on the client
+2015~ Cache API     Offline assets, paired with Service Workers
+```
+
+HTTP is stateless by design. Once a request finishes, the server completely forgets that client. But to do things like "stay logged in" or "shopping cart," you need a way to tie requests back to the same user. So in 1994, Netscape created **cookies**. The idea: "the server leaves a small note with the browser, then gets that note back on every subsequent request."
+
+The trouble came next. Since cookies were all that existed, people started using them like general-purpose storage, and the side effect — that data **riding along on every single request** — got severe. So in 2009, HTML5 carved out **Web Storage** (localStorage / sessionStorage), a pure client-side store that doesn't get sent to the server. Later, **IndexedDB** was added for larger data and **Cache Storage** for offline assets, in turn. The key point is that each new storage type answered a different question.
+
+## The Essence of Cookies: Small Data Automatically Carried on Every Request
+
+The most accurate one-sentence description of a cookie: **a cookie is less a "store" and more a "tag that automatically attaches to requests."**
+
+When the server includes a `Set-Cookie` header in its response, the browser stores it and then **automatically attaches it to the `Cookie` header of every request** going to the same domain.
+
+```
+[response] Set-Cookie: sessionId=abc123
+                ↓ browser stores it
+[next request] GET /api/me
+            Cookie: sessionId=abc123   ← automatic, even though I never asked
+```
+
+Almost every characteristic of cookies derives from this.
+
+- **Why the 4KB limit?** Because it rides along on every request. If a cookie were 1MB, that 1MB would tag along with every request — including image and CSS requests. Being small is fundamental.
+- **Why do security attributes need to exist separately?** The convenience of "automatically carried everywhere" is also the attack surface. So attributes that control "how far it gets carried" came into being.
+
+## Why Cookie Attributes Exist
+
+Cookie attributes aren't something to memorize — group them by "what they were created to prevent" and they click into place all at once.
+
+```js
+// The header form the server attaches to its response
+Set-Cookie: sessionId=abc123;
+  HttpOnly;            // can't be read from JS via document.cookie
+  Secure;              // sent only over HTTPS connections
+  SameSite=Lax;        // (mostly) not attached to cross-site requests
+  Domain=example.com;  // which domain to send it to
+  Path=/;              // which path to send it to
+  Max-Age=3600         // lifetime (in seconds)
+```
+
+- **HttpOnly** — blocks access via JS's `document.cookie`. **Why?** So that even if a malicious script is injected through XSS, it can't steal the session cookie value. For auth cookies this is practically mandatory.
+- **Secure** — sent only over HTTPS connections. **Why?** To prevent it from leaking over plaintext HTTP and being intercepted in transit.
+- **SameSite** — controls whether the cookie is attached to cross-site requests. **Why?** It's the core of CSRF defense. Even if an attacker's site secretly sends a request to our server, with `SameSite=Lax/Strict` the auth cookie isn't attached, which neutralizes the forged request.
+- **Domain / Path** — narrow the scope where the cookie gets carried. The narrower it is, the smaller the exposure surface.
+- **Max-Age / Expires** — lifetime. Without it, the cookie is a session cookie (it disappears when the browser closes).
+
+The relationship between `SameSite` and XSS/CSRF is covered more deeply in [[web-security-xss-csrf]].
+
+## localStorage and sessionStorage: They Differ in Lifetime and Scope
+
+Web Storage is the exact opposite idea from cookies. **It isn't sent to the server.** It's a key-value store that lives purely inside the browser. The two differ along just two axes: lifetime and scope.
+
+```js
+localStorage.setItem('theme', 'dark');
+localStorage.getItem('theme'); // 'dark'
+
+sessionStorage.setItem('step', '2');
+```
+
+| Item           | localStorage                | sessionStorage               |
+| -------------- | --------------------------- | ---------------------------- |
+| Lifetime       | Until explicitly cleared    | Until the tab/session closes |
+| Scope          | All tabs of the same origin | That one tab                 |
+| Sent to server | No                          | No                           |
+| Capacity       | Typically 5–10MB            | Typically 5–10MB             |
+
+### The Hidden Cost of a Synchronous API
+
+Web Storage is convenient to use, but it has a trap: **every API is synchronous.** The **main thread halts** until `getItem`/`setItem` returns a value.
+
+For small values it's negligible, but when you put in and pull out large JSON, the serialization/deserialization seizes the main thread and blocks rendering and input handling. Why a blocked main thread is so fatal becomes clear once you look at [[browser-rendering-pipeline]].
+
+```js
+// Handling a large object this way every time freezes the main thread at that moment
+const big = JSON.parse(localStorage.getItem('cache')); // synchronous parsing
+big.items.push(newItem);
+localStorage.setItem('cache', JSON.stringify(big)); // synchronous serialization
+```
+
+So Web Storage suits data that is **small, rarely changing, and simply structured** (theme, language, small flags). For large data, IndexedDB is the right fit.
+
+### The storage Event: Cross-Tab Communication for Free
+
+There's one fun side effect. When a tab changes localStorage, a `storage` event fires in the **other tabs of the same origin.** (The tab that made the change doesn't receive it.)
+
+```js
+// Tab A
+localStorage.setItem('theme', 'dark');
+
+// Tab B — notified automatically
+window.addEventListener('storage', e => {
+  if (e.key === 'theme') applyTheme(e.newValue);
+});
+```
+
+You can implement synchronization like "log out in one tab and the other tabs log out too" without any separate infrastructure.
+
+## IndexedDB: Asynchronous · Transactional · Indexed
+
+When you need large (tens to hundreds of MB), structured data, IndexedDB is the answer. It has the exact opposite design philosophy from Web Storage.
+
+- **Asynchronous** — doesn't block the main thread. (It tackles Web Storage's synchronous problem head-on.)
+- **Transactional** — groups multiple operations atomically. If something fails midway, the whole thing rolls back.
+- **Indexed** — queries quickly by a specific field. It's practically a small NoSQL DB inside the client.
+
+The catch is that **the raw API is brutally inconvenient.** Designed in the early 2010s, it's based on **event-driven callbacks** rather than Promises.
+
+```js
+const req = indexedDB.open('myDB', 1);
+
+req.onupgradeneeded = e => {
+  const db = e.target.result;
+  db.createObjectStore('books', { keyPath: 'id' });
+};
+
+req.onsuccess = e => {
+  const db = e.target.result;
+  const tx = db.transaction('books', 'readwrite');
+  tx.objectStore('books').put({ id: 1, title: 'Demian' });
+  tx.oncomplete = () => console.log('save complete');
+};
+
+req.onerror = e => console.error(e);
+```
+
+`open` → `onupgradeneeded` (schema) → `onsuccess` (connection) → transaction → request → another callback. Because of this callback hell, in practice people almost always use a Promise wrapper like `idb`.
+
+```js
+import { openDB } from 'idb';
+
+const db = await openDB('myDB', 1, {
+  upgrade(db) {
+    db.createObjectStore('books', { keyPath: 'id' });
+  },
+});
+
+await db.put('books', { id: 1, title: 'Demian' });
+const book = await db.get('books', 1);
+```
+
+It does the same thing, but the reading flow is completely different. The answer to why it was designed so inconveniently is simple: **it was built before Promises became the standard.** That's why `idb` is used as a de facto standard.
+
+## Cache Storage + Service Worker: For Offline Assets
+
+The last piece. **Cache Storage** is a dedicated store that holds entire HTTP request/response pairs. It's mainly paired with a **Service Worker** for offline support and asset caching. The Service Worker intercepts network requests, checks the cache first, and goes to the network only if it's missing. Unlike the other stores, whose purpose is general data storage, its purpose is to "cache responses to requests," so it has a different flavor. The relationship with HTTP-level caching continues in [[http-caching]].
+
+## So What Should You Use? A Selection Criteria Table
+
+| Storage        | Capacity        | Lifetime            | Auto-sent to server | Sync/Async | Suitable use                                    |
+| -------------- | --------------- | ------------------- | ------------------- | ---------- | ----------------------------------------------- |
+| Cookie         | About 4KB       | Until expiry        | Yes (automatic)     | -          | Session identification, values the server reads |
+| localStorage   | 5–10MB          | Permanent           | No                  | Sync       | Theme, language, small settings                 |
+| sessionStorage | 5–10MB          | When the tab closes | No                  | Sync       | Tab-scoped temporary state                      |
+| IndexedDB      | Hundreds of MB+ | Permanent           | No                  | Async      | Large/structured data, offline                  |
+| Cache Storage  | Large           | Permanent           | No                  | Async      | Response cache, offline assets                  |
+
+Compressing the table into one sentence: **if the server needs to read it, cookies; if it's small and simple, Web Storage; if it's large and structured, IndexedDB; if it's response caching, Cache Storage.**
+
+## Where Should You Put Auth Tokens?
+
+This is the practical question you run into most often. And it's a question with **no clean right answer.** There are two candidates.
+
+**(1) Store the token in localStorage**
+
+```js
+localStorage.setItem('token', jwt);
+fetch('/api/me', { headers: { Authorization: `Bearer ${jwt}` } });
+```
+
+- Pros: Easy to implement, and you send it explicitly via the `Authorization` header. It's automatically safe from CSRF (since it isn't auto-sent the way cookies are).
+- Cons: **JS can read it → a single XSS and the whole token is stolen.** One poisoned dependency and it's over.
+
+**(2) Store the token in an HttpOnly cookie**
+
+- Pros: JS can't read it, so **the token can't be stolen via XSS.**
+- Cons: It's auto-sent, so you **have to defend against CSRF separately** (`SameSite`, CSRF tokens, etc.).
+
+| Approach        | XSS exposure | CSRF exposure | Core burden                      |
+| --------------- | ------------ | ------------- | -------------------------------- |
+| localStorage    | High         | Low           | Everything rides on blocking XSS |
+| HttpOnly cookie | Low          | Present       | Needs SameSite/CSRF tokens       |
+
+The point isn't "which one is the right answer" but **understanding the trade-offs.** Whichever you choose, **you must defend the remaining axis separately.** If you weigh the XSS threat more heavily, go with HttpOnly cookies + CSRF defense; if you can avoid the CSRF surface and reliably control XSS, go with localStorage + the `Authorization` header. The mechanics of both threats are covered in [[web-security-xss-csrf]].
+
+## Common Misconceptions
+
+- **Misconception: A cookie is just a small localStorage.**
+  Reality: They're fundamentally different. A cookie is data **automatically carried to the server on every request**, while localStorage never goes to the server. Even the 4KB limit comes from the essential nature of "riding along on requests."
+
+- **Misconception: localStorage is fast, so it's good to use as a cache.**
+  Reality: It's a **synchronous API**, so handling large data freezes the main thread at that moment. For a large cache, the asynchronous IndexedDB or Cache Storage is the right fit.
+
+- **Misconception: With HttpOnly cookies, authentication is completely safe.**
+  Reality: It only means the token can't be stolen via XSS — **because of auto-sending, CSRF is still wide open.** Only after defending separately with `SameSite` or CSRF tokens does it become safe.
+
+- **Misconception: The IndexedDB API is inconvenient because its designers were lazy.**
+  Reality: It was simply designed **before Promises were standardized**, so it became event-driven callbacks. That's why a Promise wrapper like `idb` is used as a de facto standard.
+
+## Check Yourself
+
+- What's the real reason cookies are limited to 4KB? Why doesn't that apply to localStorage?
+- What attack does each of `HttpOnly`, `Secure`, and `SameSite` exist to prevent?
+- Why might localStorage be unsuitable as a "fast cache"? What data is it suitable for?
+- What part of Web Storage do you use to notify other tabs of a change in one tab?
+- What's the historical reason the raw IndexedDB API looks like callback hell?
+- When you keep an auth token in localStorage versus in an HttpOnly cookie, what additional threat must you defend against in each case?
+
+## Related Notes
+
+- [[web-security-xss-csrf]] — The actual attacks that cookie security attributes and token storage strategies aim to prevent
+- [[http-caching]] — Response caching at the HTTP level, distinct in flavor from Cache Storage
+- [[browser-rendering-pipeline]] — What halts when a synchronous storage API blocks the main thread
+- [[frontend-browser]]
+
+## References
+
+- [MDN — Web Storage API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API)
+- [MDN — Using HTTP cookies](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Cookies)
+- [MDN — IndexedDB API](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)
+- [web.dev — Storage for the web](https://web.dev/articles/storage-for-the-web)

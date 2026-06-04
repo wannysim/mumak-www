@@ -1,0 +1,229 @@
+---
+title: '상태 업데이트와 배칭: setState가 비동기처럼 보이는 이유'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'state', 'rendering']
+---
+
+`setState`를 호출한 바로 다음 줄에서 그 state를 읽으면 왜 옛날 값이 나올까? 그리고 React는 도대체 언제 화면을 다시 그릴까?
+
+> 한 줄 요약: **setState는 "지금 바꿔라"가 아니라 "다음 렌더에서 이 값으로 그려라"라는 예약이다. React는 그 예약들을 모아 한 번에 처리한다.**
+
+## setState는 "변경"이 아니라 "예약"이다
+
+가장 흔한 오해부터 깨자. `setCount(1)`은 `count` 변수를 1로 바꾸는 명령이 아니다. "다음 렌더 때 count를 1로 쳐라"는 **예약**이고, 동시에 "다시 그려야 한다"고 React에 알리는 신호다.
+
+```tsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  function handleClick() {
+    setCount(count + 1);
+    console.log(count); // 0 — 방금 set 했는데도 여전히 0
+  }
+
+  return <button onClick={handleClick}>{count}</button>;
+}
+```
+
+`console.log`가 0을 찍는 게 버그처럼 보이지만 정상이다. `count`는 이 렌더가 시작될 때 박제된 값이라 함수가 도는 동안 변하지 않는다. `setCount`는 변수에 손대는 게 아니라 "다음 렌더를 예약"할 뿐이다. setState는 진짜 비동기(Promise, setTimeout)가 아니고, 단지 **반영 시점이 다음 렌더로 미뤄진** 것이다. "지연된 일괄 처리"라는 표현이 더 정확하다.
+
+> 왜 이렇게 설계했나? state를 즉시 바꿔버리면 한 함수가 도는 도중에 같은 변수의 값이 변한다. React는 "한 렌더 안에서 state는 변하지 않는 스냅샷"이라는 규칙으로 코드를 예측 가능하게 만든다.
+
+## 같은 값을 세 번 set 해도 1만 오르는 이유
+
+```tsx
+function handleClick() {
+  setCount(count + 1); // count는 0 → 1을 예약
+  setCount(count + 1); // count는 여전히 0 → 또 1을 예약
+  setCount(count + 1); // count는 여전히 0 → 또 1을 예약
+}
+// 결과: 3이 아니라 1
+```
+
+세 줄 모두 이번 렌더의 `count`(=0)를 클로저로 잡고 있다. set을 한다고 `count`가 1로 바뀌지 않으니, 세 줄 다 "다음 값은 1"이라고 똑같이 예약한다. 큐에 `1, 1, 1`이 쌓이고 마지막 값이 이긴다.
+
+클로저가 값을 박제하는 메커니즘은 [[js-closure-and-scope]]와 정확히 같은 이야기다. 렌더할 때마다 `count`를 가둔 새 클로저가 만들어진다.
+
+## 함수형 업데이트는 큐를 순서대로 적용한다
+
+"이전 값에 +1"을 진짜로 세 번 하고 싶으면 값이 아니라 **함수**를 넘긴다.
+
+```tsx
+function handleClick() {
+  setCount(c => c + 1); // 큐: (c => c+1)
+  setCount(c => c + 1); // 큐: (c => c+1), (c => c+1)
+  setCount(c => c + 1); // 큐: ... 하나 더
+}
+// 결과: 3
+```
+
+`setCount(count + 1)`은 **값**을 큐에 넣지만 `setCount(c => c + 1)`은 **레시피(함수)**를 큐에 넣는다. 다음 렌더 직전 React는 큐를 처음부터 훑으며 각 함수에 직전 결과를 넘긴다.
+
+```
+초기값 0
+├─ (c => c+1) 적용 → 1
+├─ (c => c+1) 적용 → 2
+└─ (c => c+1) 적용 → 3
+최종 state = 3
+```
+
+> 규칙: 다음 state가 **이전 state에 의존**하면 함수형 업데이터를 쓴다. 의존하지 않는 단순 대입이면 값을 그냥 넘겨도 된다.
+
+## 배칭: 왜 모아서 처리하는가
+
+React는 set을 호출할 때마다 즉시 다시 그리지 않는다. 한 차례 작업이 끝날 때까지 모았다가 **한 번만** 그린다. 이걸 배칭이라 한다.
+
+```tsx
+function handleClick() {
+  setCount(c => c + 1);
+  setFlag(f => !f);
+  setName('윤하'); // set 3번 → 리렌더는 1번
+}
+```
+
+세 가지 이유로 이렇게 한다.
+
+| 이유           | 배칭이 없으면 생기는 문제                                   |
+| -------------- | ----------------------------------------------------------- |
+| 일관성         | count만 갱신되고 flag는 아직 옛 값인 어중간한 화면이 보인다 |
+| 중간 상태 방지 | set마다 그리면 깜빡임과 불필요한 중간 프레임이 발생한다     |
+| 성능           | 렌더는 비싸다 — 3번 그릴 일을 1번으로 줄인다                |
+
+핵심은 **일관성**이다. 클릭 한 번에 대한 모든 상태 변화를 한 화면에 한꺼번에 반영해야, 사용자가 절반만 갱신된 모순된 화면을 보지 않는다.
+
+## React 18 자동 배칭: 17과 무엇이 달라졌나
+
+React 17까지는 배칭이 **React 이벤트 핸들러 안에서만** 동작했다. 핸들러 밖, 즉 `setTimeout`·`Promise.then`·fetch 콜백 안에서는 set마다 따로 그렸다.
+
+```tsx
+function handleClick() {
+  setCount(c => c + 1);
+  setFlag(f => !f); // 핸들러 안 → 17·18 모두 배칭 (리렌더 1번)
+}
+
+function fetchAndUpdate() {
+  fetch('/api').then(() => {
+    setCount(c => c + 1);
+    setFlag(f => !f); // 핸들러 밖 → 17: 리렌더 2번 / 18: 1번
+  });
+}
+```
+
+React 18부터는 `createRoot`로 마운트하면 **출처와 무관하게 모두 배칭된다**. setTimeout, Promise, 네이티브 이벤트 안에서도 마찬가지다.
+
+> 왜 18에서야 바뀌었나? 17의 배칭은 React가 콜스택을 쥐고 있는 동안에만 가능한 트릭이라, 비동기 콜백처럼 그 스택 밖의 업데이트엔 손을 못 댔다. 18은 동시성 렌더링 기반으로 다시 설계되면서 어느 시점의 업데이트든 모아 스케줄링할 수 있게 됐다. 이 타이밍은 [[js-event-loop]]의 마이크로태스크/매크로태스크 개념과 맞닿아 있다.
+
+## flushSync: 배칭을 일부러 깨야 할 때
+
+가끔 배칭이 방해가 된다. state를 바꾸고 **그 결과가 DOM에 반영된 직후**의 값을 읽어야 하는 경우, 예를 들어 리스트에 항목을 추가하고 그 위치로 스크롤해야 할 때다.
+
+```tsx
+import { flushSync } from 'react-dom';
+
+function addAndScroll() {
+  flushSync(() => {
+    setItems(prev => [...prev, newItem]); // 여기서 동기로 렌더+커밋
+  });
+  // 이 줄에선 이미 DOM에 새 항목이 들어있다
+  listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+}
+```
+
+`flushSync`는 콜백 안의 업데이트를 즉시 렌더+커밋한다. 대신 배칭의 이점을 포기하므로, **동기적 DOM 측정이 꼭 필요한 드문 경우에만** 쓴다. 평소엔 쓸 일이 없다.
+
+## 불변성이 강제되는 진짜 이유
+
+React는 "state가 바뀌었는지"를 어떻게 알까? 깊은 비교가 아니라 `Object.is`로 **참조만** 비교한다.
+
+```tsx
+const [user, setUser] = useState({ name: '윤하', age: 20 });
+
+// 안 됨: 같은 객체를 직접 변경 → 참조 동일 → React가 변화를 못 본다
+function wrong() {
+  user.age = 21;
+  setUser(user); // Object.is(이전, 다음) === true → 리렌더 스킵
+}
+
+// 됨: 새 객체 → 참조 다름 → 변화 감지
+function right() {
+  setUser({ ...user, age: 21 });
+}
+```
+
+`user.age = 21`로 직접 바꾸면 객체는 그대로고 안의 값만 바뀐다. React 입장에선 "넘어온 게 전과 같은 객체"이니 "안 바뀌었다"고 판단해 렌더를 건너뛴다.
+
+> 왜 참조 비교만 하나? 매번 객체 전체를 깊게 비교하면 큰 state에서 비교 자체가 병목이 된다. "바뀌면 새 참조를 줘라"는 계약을 두면 비교가 포인터 한 번으로 끝난다. 불변성은 변경 감지를 싸게 만들기 위한 전제 조건이고, 같은 원리가 `memo`·`useMemo`의 의존성 비교에도 적용된다 — [[react-memoization-strategy]] 참고.
+
+## 부모가 리렌더하면 자식도 다시 호출된다
+
+"props가 안 바뀌면 자식은 리렌더 안 한다"는 말은 **기본 동작이 아니다**.
+
+```tsx
+function Parent() {
+  const [count, setCount] = useState(0);
+  return (
+    <div>
+      <button onClick={() => setCount(c => c + 1)}>{count}</button>
+      <Child name="윤하" /> {/* props 안 바뀌어도 매번 다시 호출됨 */}
+    </div>
+  );
+}
+```
+
+`Parent`가 리렌더하면 `Child`는 props가 그대로여도 함수가 다시 호출된다. React의 기본 규칙은 단순하다. **부모가 다시 그려지면 자식 트리도 통째로 다시 그린다.** "props 비교 후 스킵"을 원하면 명시적으로 `React.memo`로 감싸야 props 얕은 비교가 켜진다. 이게 자동이 아닌 이유와 언제 감싸야 하는지는 [[react-memoization-strategy]]에서 다룬다.
+
+## 렌더(함수 호출)와 커밋(DOM 반영)은 다르다
+
+마지막 오해. "리렌더 = 화면이 다시 그려진다"가 아니다. React의 작업은 두 단계로 나뉜다.
+
+| 단계 | 하는 일                                                                                             | 비용                    |
+| ---- | --------------------------------------------------------------------------------------------------- | ----------------------- |
+| 렌더 | 컴포넌트 함수를 호출해 새 가상 트리를 만들고, 이전 트리와 비교(재조정)해 **달라진 부분**을 추려낸다 | JS 실행 (상대적으로 쌈) |
+| 커밋 | 렌더 단계에서 추려낸 변경분만 실제 DOM에 반영한다                                                   | 실제 DOM 조작 (비쌈)    |
+
+```
+setState
+  │
+  ▼
+[렌더] 컴포넌트 함수 실행 → 새 가상 트리
+  │
+  ▼
+[비교] 이전 트리와 diff (재조정)
+  │
+  ▼
+[커밋] 달라진 노드만 DOM 업데이트
+```
+
+즉 컴포넌트 함수가 다시 호출됐다고 해서 DOM이 반드시 바뀌는 건 아니다. 결과가 이전과 같으면 커밋 단계에서 DOM은 그대로다. "리렌더가 잦아서 느리다"는 진단이 종종 틀리는 이유다 — 렌더는 보통 싸고, 진짜 비싼 건 커밋과 그 뒤의 브라우저 [[browser-rendering-pipeline]]다. 이 diff(재조정) 과정은 [[react-fiber-architecture]]가 담당한다.
+
+## 흔한 오해
+
+- **오해**: setState는 비동기 함수다. → **실제**: Promise가 아니다. 반영 시점이 다음 렌더로 미뤄질 뿐인 동기 호출이다. `await setState()` 같은 건 의미가 없다.
+- **오해**: `setCount(count + 1)`을 여러 번 부르면 그만큼 누적된다. → **실제**: 같은 렌더의 박제된 `count`를 다 똑같이 읽으므로 마지막 하나만 반영된다. 누적하려면 함수형 업데이터를 쓴다.
+- **오해**: state 객체의 필드 하나만 바꾸면 그것만 갱신된다. → **실제**: 객체를 직접 변경하면 참조가 같아 React가 변화를 못 본다. 새 객체를 만들어야 한다.
+- **오해**: 자식 props가 그대로면 리렌더되지 않는다. → **실제**: `memo`가 없으면 부모가 리렌더될 때 자식도 무조건 다시 호출된다.
+
+## 스스로 점검하기
+
+- `setCount(count + 1)` 직후 `console.log(count)`가 옛 값을 찍는 이유를 클로저로 설명할 수 있는가?
+- 같은 핸들러에서 `setCount(count + 1)`을 세 번 부르면 왜 1만 오르고, 함수형 업데이터는 왜 3이 되는가?
+- React 18 자동 배칭이 17과 구체적으로 무엇이 다른가? `setTimeout` 안에서의 동작 차이를 말할 수 있는가?
+- `flushSync`는 어떤 상황에서만 정당하고, 왜 평소엔 피해야 하는가?
+- 객체 state를 `user.age = 21`로 바꾸면 왜 리렌더가 안 일어나는가? `Object.is`와 엮어 설명해 보라.
+- "리렌더됐다"와 "DOM이 바뀌었다"는 왜 같은 말이 아닌가?
+
+## 함께 보기
+
+- [[react-hooks-under-the-hood|훅은 어떻게 state를 기억하는가]]
+- [[react-memoization-strategy|memo·useMemo·useCallback 전략]]
+- [[react-fiber-architecture|Fiber: 렌더와 커밋을 나누는 구조]]
+- [[js-closure-and-scope|클로저와 스코프]]
+
+## 참고
+
+- [State as a Snapshot - react.dev](https://react.dev/learn/state-as-a-snapshot)
+- [Queueing a Series of State Updates - react.dev](https://react.dev/learn/queueing-a-series-of-state-updates)
+- [Automatic batching for fewer renders in React 18](https://github.com/reactwg/react-18/discussions/21)
+- [flushSync - react.dev](https://react.dev/reference/react-dom/flushSync)

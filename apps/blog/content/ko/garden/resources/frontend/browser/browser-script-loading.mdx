@@ -1,0 +1,202 @@
+---
+title: '스크립트 로딩: async, defer, 그리고 파서 블로킹'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-browser'
+tags: ['frontend', 'browser', 'performance', 'script-loading']
+---
+
+`<script>` 태그 하나가 어떻게 페이지 전체를 멈출 수 있을까? 그리고 `async`와 `defer`는 그 멈춤을 정확히 어떻게 풀어주는 걸까?
+
+> 한 줄 요약: **파서는 `<script>`를 만나면 멈춘다. `async`/`defer`는 "다운로드"와 "실행"을 파싱에서 분리해서 그 멈춤을 없애는 장치다.**
+
+## HTML 파서는 왜 스크립트 앞에서 멈추는가
+
+브라우저는 HTML을 받아 위에서 아래로 한 줄씩 읽어 DOM을 만든다. 이 과정을 파싱이라 한다. 그러다 `<script>`를 만나면 파서는 **그 자리에서 멈춘다**. 이걸 파서 블로킹(parser-blocking)이라 부른다.
+
+왜 멈출까? 스크립트가 지금 만들어지는 중인 DOM을 **바꿀 수 있기 때문**이다. 극단적인 예가 `document.write`다.
+
+```html
+<p>위</p>
+<script>
+  document.write('<p>스크립트가 끼워넣은 줄</p>');
+</script>
+<p>아래</p>
+```
+
+파서 입장에서는 스크립트를 실행해보기 전까지 "아래"가 진짜 그다음 줄인지, 스크립트가 그 사이에 뭔가 더 써넣을지 알 수 없다. 그래서 안전하게 스크립트가 끝날 때까지 기다린다. 즉 파서 블로킹은 버그가 아니라 **DOM 일관성을 지키기 위한 의도된 설계**다.
+
+## 다운로드까지 기다리는 최악의 구간
+
+내부 스크립트(`<script>...</script>`)라면 실행만 기다리면 되니 그래도 빠르다. 문제는 외부 스크립트다.
+
+```html
+<script src="/big-library.js"></script>
+```
+
+이 경우 파서는 (1) 네트워크로 파일을 **다운로드**하고 (2) 그걸 **실행**할 때까지 멈춰 있는다. 네트워크는 느리고 변동도 크다. 즉 파싱이 네트워크 왕복 시간만큼 통째로 막힌다. 사용자 눈에는 그동안 화면에 아무것도 안 그려지는 흰 화면이 보인다.
+
+핵심은 **다운로드와 실행이라는 두 가지가 모두 파싱을 막는다**는 것이다. 뒤에서 볼 `async`/`defer`는 이 둘을 떼어내는 이야기다.
+
+## 옛 처방: "스크립트는 body 끝에"
+
+`async`/`defer`가 널리 쓰이기 전, 표준 처방은 "스크립트 태그를 `</body>` 직전에 둬라"였다.
+
+```html
+<body>
+  <h1>본문</h1>
+  <!-- ... 모든 콘텐츠 ... -->
+  <script src="/app.js"></script>
+</body>
+```
+
+원리는 단순하다. 파서가 스크립트를 만날 때쯤이면 이미 본문 DOM이 거의 다 만들어져 있다. 그래서 스크립트가 파싱을 멈춰도 사용자에게 보여줄 건 이미 다 그려진 뒤다. 게다가 스크립트가 `getElementById`로 DOM을 찾을 때 이미 그 요소가 존재한다는 보너스도 있다.
+
+하지만 한계가 명확하다. **다운로드 시작이 늦어진다.** 파서가 `<head>`부터 본문 끝까지 다 읽고 나서야 비로소 스크립트 다운로드를 시작한다. 정작 일찍 받아둘 수 있었던 파일을 마지막에야 요청하는 셈이다. 이 "늦은 시작" 문제를 푸는 게 다음 두 속성이다.
+
+## async: 받는 즉시 끼어들어 실행한다
+
+```html
+<script async src="/analytics.js"></script>
+```
+
+`async`는 파서를 멈추지 않고 다운로드를 **병렬로** 시작한다. 여기까진 좋다. 그런데 파일이 도착하면 **그 즉시 파싱을 중단하고 실행**한다. 도착 시점이 곧 실행 시점이다.
+
+도착 순서는 네트워크 상황에 달렸으니 **실행 순서가 보장되지 않는다.** `a.js`를 먼저 썼어도 `b.js`가 더 빨리 도착하면 `b`가 먼저 실행된다. 따라서 `async`는 서로 의존하지 않고 DOM에도 의존하지 않는 **독립 스크립트**에 맞다. 대표적으로 analytics, 광고 태그 같은 것들이다.
+
+## defer: 다 받아두고 파싱이 끝난 뒤 순서대로
+
+```html
+<script defer src="/framework.js"></script>
+<script defer src="/app.js"></script>
+```
+
+`defer`도 다운로드는 병렬로 미리 시작한다. 차이는 **실행 시점**이다. 다운로드가 끝나도 바로 실행하지 않고, **DOM 파싱이 완전히 끝난 뒤** 작성된 순서대로 실행한다. 위 예시는 항상 `framework.js` 다음에 `app.js`다.
+
+왜 이게 사실상 기본 선택지일까? 두 가지를 동시에 만족하기 때문이다. 다운로드는 일찍 시작하니 네트워크 지연을 숨기고, 실행은 DOM이 완성된 뒤니까 안전하게 요소를 만질 수 있다. `async`의 "순서 보장 안 됨" 문제도 없다. 대부분의 애플리케이션 스크립트는 `defer`가 정답이다.
+
+## type="module"은 기본이 defer다
+
+ES 모듈은 명시적으로 `defer`를 안 붙여도 **기본 동작이 defer와 같다.**
+
+```html
+<!-- 아래 두 줄은 실행 타이밍이 사실상 동일하다 -->
+<script type="module" src="/app.mjs"></script>
+<script defer src="/app.js"></script>
+```
+
+왜 이렇게 설계됐을까? 모듈은 `import`로 다른 모듈을 끌어오는 의존성 그래프 자체이고, 그 그래프를 다 받아 해석한 뒤 실행해야 한다. 즉 본질적으로 비동기 로딩이 전제다. 그래서 스펙이 처음부터 defer를 기본값으로 정했다. (모듈에 `async`를 붙이면 defer가 아니라 async 동작으로 바뀐다.)
+
+## 타임라인으로 비교하기
+
+같은 스크립트를 세 방식으로 로드했을 때 파싱/다운로드/실행 구간이 어떻게 겹치는지 보면 차이가 한눈에 들어온다.
+
+```
+일반 <script src>
+파싱  ====            ========
+다운로드   ~~~~~~~
+실행            ####
+              (다운로드+실행 동안 파싱이 통째로 멈춤)
+
+async
+파싱  ====    !중단!  ====   ====
+다운로드  ~~~~~~~
+실행          ####
+              (도착 즉시 끼어들어 실행, 그동안만 파싱 멈춤)
+
+defer
+파싱  ============================
+다운로드  ~~~~~~~
+실행                            ####
+              (파싱은 끝까지 안 멈춤, 실행은 파싱 완료 후)
+
+범례: ==== 파싱   ~~~~ 다운로드   #### 실행
+```
+
+요약하면 이렇다.
+
+| 방식  | 다운로드  | 파싱 중단     | 실행 시점     | 순서 보장 |
+| ----- | --------- | ------------- | ------------- | --------- |
+| 일반  | 막으며 함 | 다운로드+실행 | 만난 자리에서 | 작성 순서 |
+| async | 병렬      | 실행할 때만   | 도착 즉시     | 없음      |
+| defer | 병렬      | 안 함         | 파싱 완료 후  | 작성 순서 |
+
+## CSS는 다른 방식으로 막는다
+
+CSS는 스크립트와 막는 방식이 다르다. 외부 CSS(`<link rel="stylesheet">`)는 **렌더를 막는다**(render-blocking). 브라우저는 CSSOM이 완성되기 전에는 화면을 그리지 않는다. 스타일이 절반만 적용된 화면을 깜빡이며 보여주지 않으려는 의도다. CSS는 파싱(DOM 생성)은 막지 않지만 그리기(렌더)는 막는다는 점이 스크립트와 다르다.
+
+여기에 함정이 하나 더 있다. CSS는 **뒤따르는 스크립트의 실행도 막는다.** 왜냐하면 스크립트가 `getComputedStyle(el)` 같은 걸 호출해 계산된 스타일을 읽을 수 있기 때문이다.
+
+```html
+<link rel="stylesheet" href="/big.css" />
+<script>
+  // 이 줄은 big.css의 CSSOM이 완성될 때까지 기다린다
+  const color = getComputedStyle(document.body).color;
+</script>
+```
+
+스타일이 아직 다 안 들어온 상태에서 계산값을 읽으면 틀린 값이 나온다. 그래서 브라우저는 앞선 CSS가 다 도착해 CSSOM이 완성될 때까지 스크립트 실행을 미룬다. 렌더링 단계 자체의 동작은 [[browser-rendering-pipeline]]에서 더 깊게 다룬다.
+
+## preload, prefetch, preconnect로 힌트 주기
+
+브라우저에게 "이건 곧 필요하다"를 미리 알려주는 장치들이 있다.
+
+```html
+<link rel="preconnect" href="https://cdn.example.com" />
+<link rel="preload" href="/critical.js" as="script" />
+<link rel="prefetch" href="/next-page.js" as="script" />
+```
+
+- `preconnect` — 특정 origin과 DNS/TCP/TLS 연결을 미리 맺어둔다. 실제 요청이 갈 때 연결 비용을 아낀다.
+- `preload` — **지금 이 페이지에** 곧 쓸 리소스를 높은 우선순위로 미리 받는다.
+- `prefetch` — **다음 페이지에서** 쓸 법한 리소스를 낮은 우선순위로 미리 받아둔다.
+
+여기서 짚을 게 프리로드 스캐너(preload scanner)다. 메인 파서가 스크립트 앞에서 멈춰 있는 동안에도, 브라우저는 별도의 가벼운 스캐너로 HTML 뒷부분을 미리 훑어 `src`/`href`를 발견하고 다운로드를 먼저 시작한다. 덕분에 파서가 멈춰 있어도 네트워크는 놀지 않는다. 다만 이 스캐너는 정적 HTML만 본다. JS로 동적으로 끼워넣는 리소스는 못 찾으니, 정말 중요한 리소스라면 `preload`로 명시해주는 게 안전하다.
+
+## DOMContentLoaded vs load
+
+두 이벤트의 발화 시점을 정확히 구분해야 한다.
+
+- `DOMContentLoaded` — HTML 파싱이 끝나고 **모든 `defer` 스크립트 실행까지 완료된 직후**. 이미지 같은 외부 리소스는 아직 안 받았어도 발화한다.
+- `load` — 이미지, 스타일시트, 서브프레임까지 **모든 리소스 로딩이 끝난 뒤**.
+
+```js
+document.addEventListener('DOMContentLoaded', () => {
+  // DOM은 준비됨. 이미지 크기는 아직 모를 수 있음
+});
+window.addEventListener('load', () => {
+  // 이미지까지 전부 로딩 완료
+});
+```
+
+`defer` 스크립트가 `DOMContentLoaded` **전에** 실행된다는 점이 중요하다. 그래서 `defer` 스크립트 안에서 `DOMContentLoaded`를 기다리는 패턴이 안전하게 동작한다. 반면 `async`는 도착 타이밍에 따라 이 이벤트 전후 어디서든 실행될 수 있다. 로딩 성능 지표 전반은 [[core-web-vitals]]와 함께 보면 좋다.
+
+## 흔한 오해
+
+- **오해: `async`가 `defer`보다 항상 빠르다.** → 실제: 다운로드는 둘 다 병렬이라 받는 속도는 같다. `async`는 도착 즉시 끼어들어 실행하느라 오히려 파싱을 중간에 끊고, 순서도 안 지킨다. 대부분의 앱 스크립트엔 `defer`가 더 안전하고 체감도 더 낫다.
+- **오해: `defer`를 붙이면 다운로드가 늦게 시작된다.** → 실제: 다운로드는 `async`와 똑같이 즉시(병렬로) 시작한다. 늦춰지는 건 다운로드가 아니라 **실행**뿐이다.
+- **오해: 내부 인라인 스크립트에 `async`/`defer`가 먹힌다.** → 실제: 두 속성은 `src`가 있는 외부 스크립트에만 적용된다. `src` 없는 인라인 스크립트에 붙이면 무시되고 그 자리에서 즉시 실행된다.
+- **오해: CSS는 스크립트와 무관하다.** → 실제: 앞선 CSS는 뒤따르는 스크립트 실행을 막는다. 스크립트가 계산된 스타일을 읽을 수 있기 때문이다.
+
+## 스스로 점검하기
+
+- 파서가 `<script>` 앞에서 멈추는 근본 이유를 `document.write`를 예로 설명할 수 있는가?
+- 외부 스크립트에서 "파싱을 막는 두 구간"은 각각 무엇인가?
+- "스크립트는 body 끝에" 처방의 장점과, 그래도 남는 한계(무엇이 늦어지는가)는?
+- `async`와 `defer`는 다운로드 시점은 같고 무엇만 다른가? 순서 보장은 어느 쪽이 되는가?
+- `type="module"`이 기본 defer로 설계된 이유는?
+- CSS가 뒤따르는 스크립트 실행을 막는 이유, 그리고 `DOMContentLoaded`와 `load`의 발화 시점 차이는?
+
+## 함께 보기
+
+- [[browser-rendering-pipeline]]
+- [[core-web-vitals]]
+- [[js-event-loop]]
+- [[frontend-browser]]
+
+## 참고
+
+- [MDN — `<script>` 요소 (async, defer)](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script)
+- [web.dev — Efficiently load third-party JavaScript](https://web.dev/articles/efficiently-load-third-party-javascript)
+- [web.dev — Preload critical assets](https://web.dev/articles/preload-critical-assets)
+- [HTML 표준 — Scripting](https://html.spec.whatwg.org/multipage/scripting.html)
