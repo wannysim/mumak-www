@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 
-import { formatTime, SpotifyProgressBar } from '../ui/spotify-progress-bar';
+import { formatTime } from '../lib/format-time';
+import { SpotifyProgressBar } from '../ui/spotify-progress-bar';
 
 import '@testing-library/jest-dom';
 

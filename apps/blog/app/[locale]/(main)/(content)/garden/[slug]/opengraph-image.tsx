@@ -30,6 +30,9 @@ const STATUS_COLORS: Record<NoteStatus, string> = {
   evergreen: '#34d399',
 };
 
+// 폰트 로딩은 요청마다 동일하므로 모듈 스코프에서 한 번만 수행한다.
+const fontOptionsPromise = loadOgFonts().then(fonts => ({ ...size, fonts }));
+
 interface Props {
   params: Promise<{ locale: string; slug: string }>;
 }
@@ -37,10 +40,7 @@ interface Props {
 export default async function Image({ params }: Props) {
   const { locale, slug } = await params;
 
-  const fontOptions = {
-    ...size,
-    fonts: await loadOgFonts(),
-  };
+  const fontOptions = await fontOptionsPromise;
 
   const note = getNote(locale as Locale, slug);
 
