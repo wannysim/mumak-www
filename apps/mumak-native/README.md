@@ -65,7 +65,7 @@ pnpm --filter mumak-native run verify   # check-types → lint → format:check 
 
 ```bash
 pnpm --filter mumak-native exec playwright install --with-deps chromium
-pnpm --filter mumak-native test:e2e -- --project=chromium
+pnpm --filter mumak-native test:e2e --project=chromium
 ```
 
 자세한 컨벤션은 [`AGENTS.md`](./AGENTS.md) 참조.
@@ -86,7 +86,7 @@ pnpm --filter mumak-native test:e2e -- --project=chromium
 
 ## 템플릿 마감 상태 / Follow-up 후보
 
-이 앱은 `create-expo-app --template default`로 시작했고, "폴더만 복사하면 새 앱을 시작할 수 있는 템플릿"으로 마감했다. 아래는 마감된 항목과 남은 follow-up. 상세 런북은 [`PLAN.md`](./PLAN.md) 참조.
+이 앱은 `create-expo-app --template default`로 시작했고, "폴더만 복사하면 새 앱을 시작할 수 있는 템플릿"으로 마감했다. 아래는 마감된 항목과 남은 follow-up.
 
 ### 완료된 마감 (template hardening)
 
@@ -110,8 +110,8 @@ pnpm --filter mumak-native test:e2e -- --project=chromium
 ### 남은 Follow-up
 
 - **Coverage threshold 상향**: 실 화면이 생기면 측정치 기준으로 baseline을 점진 상향(blog 패턴).
-- **네이티브 E2E (Maestro)**: 네이티브 충실도(제스처/SF Symbols/햅틱) 필요 시 도입. 에뮬레이터(KVM) 필요 → GitHub Actions 전용. 런북은 [`PLAN.md`](./PLAN.md) §T-4.
-- **EAS 빌드·배포**: 첫 내부 테스트 배포(TestFlight/Play Internal) 시점에 `eas.json` + 워크플로 추가. 런북은 [`PLAN.md`](./PLAN.md) §C.
+- **네이티브 E2E (Maestro)**: 네이티브 충실도(제스처/SF Symbols/햅틱) 필요 시 도입. 에뮬레이터(KVM) 필요 → GitHub Actions 전용.
+- **EAS 빌드·배포**: 첫 내부 테스트 배포(TestFlight/Play Internal) 시점에 `eas.json` + 워크플로 추가.
 
 ### dependabot
 
