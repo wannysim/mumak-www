@@ -1,0 +1,227 @@
+---
+title: 'Promise and async/await: How Asynchronous Code Looks Synchronous'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-javascript'
+tags: ['frontend', 'javascript', 'promise', 'async']
+---
+
+Does `await` really "pause" your code? If it doesn't, how does it manage to look like it does? This note walks through the asynchronous model that runs from callbacks to Promises and then to async/await, focusing on "why it was designed this way."
+
+> One-line summary: **`await` does not stop the thread. It just slices the function at that point and defers the rest to a microtask, and the "appearance of pausing" is an illusion.**
+
+## Why Callbacks Were Painful — Inversion of Control
+
+Think back to the days when you passed a function in to receive the result of an asynchronous operation.
+
+```js
+getUser(1, (err, user) => {
+  if (err) return handle(err);
+  getPosts(user.id, (err, posts) => {
+    if (err) return handle(err);
+    getComments(posts[0].id, (err, comments) => {
+      if (err) return handle(err);
+      render(comments); // the tip of the pyramid
+    });
+  });
+});
+```
+
+The problem isn't the indentation but the **inversion of control**. Since you handed off "what to do next" to someone else's function, `getUser`, you can't know whether that function will call your callback twice, never, or synchronously. On top of that, error handling isn't wrapped in a single `try/catch` but scattered across every callback as `if (err)`. The idea behind Promises is this: instead of handing the "right to receive the result" off to a callback, **get it back as a single object**.
+
+## A Promise Is a State Machine — Why Immutability
+
+A Promise is in one of three states.
+
+```
+                 resolve(value)
+            ┌──────────────────▶  fulfilled (success)
+ pending ───┤
+ (undecided)└──────────────────▶  rejected  (failure)
+                 reject(error)
+```
+
+The core design rule: **it transitions from `pending` to either `fulfilled` or `rejected` exactly once, and once settled, the state and value never change again.**
+
+Why was it designed to be immutable? An asynchronous result is "an event that happens once." If the value could later change again, there'd be no guarantee about how many times the `.then` callback gets called, and if a response that already arrived turned into a different value, every inference built on top of it would collapse. Because it's immutable, the property "even if you attach `.then` later to an already-settled Promise, you'll still receive its value" holds true.
+
+## `.then` Always Returns a New Promise
+
+This is the real reason chaining works. `.then` doesn't merely register a callback — it **creates and returns a new Promise**.
+
+```js
+const p1 = Promise.resolve(1);
+const p2 = p1.then(x => x + 1);
+console.log(p1 === p2); // false — a new Promise every time
+```
+
+What value that new Promise settles to depends on what the callback returns.
+
+| What the callback did  | Result of the next Promise                        |
+| ---------------------- | ------------------------------------------------- |
+| Plain value `return v` | fulfilled with `v`                                |
+| `return` a Promise     | waits for that Promise to settle, then follows it |
+| `throw err`            | rejected with `err`                               |
+
+Thanks to the third branch, an error thrown inside `.then` isn't lost and flows on to the next `.catch`. The second branch (returning a Promise unwraps and follows it) is the secret to chaining flat without nesting. That's how the callback pyramid flattens out like this.
+
+```js
+getUser(1)
+  .then(user => getPosts(user.id)) // returns a Promise → waits automatically
+  .then(posts => getComments(posts[0].id))
+  .then(comments => render(comments))
+  .catch(handle); // an error from any stage ends up here
+```
+
+## Promise Callbacks Are Microtasks — Even If Already Settled, They Don't Run Synchronously
+
+Let's trace it directly. What's the output order?
+
+```js
+console.log('A');
+Promise.resolve().then(() => console.log('B'));
+console.log('C');
+```
+
+The answer is `A C B`. Even though `Promise.resolve()` is already in the fulfilled state, the `.then` callback doesn't run immediately. The callback goes into the **microtask queue** and is only processed after all the synchronous code currently running has finished.
+
+Why isn't even an already-settled Promise run synchronously? If it were "synchronous when the value is ready, asynchronous otherwise," then the same function would, depending on when it's called, sometimes run before the callback and sometimes after. This nondeterminism is called **Zalgo**. Promises enforce the consistency of "callbacks always run in the next microtask, always asynchronously," cutting Zalgo off at the source. When the microtask queue gets drained within the event loop is covered in [[js-event-loop]].
+
+## An async Function Always Returns a Promise
+
+```js
+async function f() {
+  return 42;
+}
+f().then(v => console.log(v)); // 42
+```
+
+`f` returned a number, but the result of calling it isn't `42` — it's **a Promise fulfilled with `42`**. If you `throw` inside an async function, that Promise becomes rejected. In other words, async/await isn't a new asynchronous model; it's **syntactic sugar** layered on top of Promises.
+
+## What `await` Really Is — The Scissors That Cut a Function
+
+This is the key question. In the following code, does `await` stop the thread? Try to predict the output order.
+
+```js
+async function load() {
+  console.log('1');
+  const user = await getUser(); // does it "pause" here?
+  console.log('3');
+  return user;
+}
+console.log('0');
+load();
+console.log('2'); // the output is 0 1 2 3
+```
+
+`console.log('2')` comes out before `'3'`. That order would be impossible if the thread truly stopped. Here's what actually happens. When `await` is hit, function execution is **cut at that point** and returns, handing control back to the caller. The rest (from `console.log('3')` to the end) becomes a **`.then` callback** registered on the result of `getUser()`. You can think of it as transforming roughly into this, and that's accurate.
+
+```js
+function load() {
+  console.log('1');
+  return getUser().then(user => {
+    // ← everything after await goes into the callback
+    console.log('3');
+    return user;
+  });
+}
+```
+
+So `await` isn't "pausing" but **"deferring the rest into the future."** The accurate mental model is a generator. Just as `yield` lets a function step out for a while and then step back in, an async function steps out at the `await` point and resumes from there once the result is ready. It preserves local variables and the position and then restores them — it doesn't hold onto the thread. This idea of "preserve, then restore" resembles the way a closure captures variables — see [[js-closure-and-scope]].
+
+## Error Propagation — Why `try/catch` Works in Async Code
+
+In the callback days, `try/catch` couldn't catch asynchronous errors. By the time the callback runs, you've already left the `try` block.
+
+```js
+try {
+  setTimeout(() => {
+    throw new Error('!'); // not caught by this catch
+  }, 0);
+} catch (e) {
+  /* unreachable */
+}
+```
+
+In async/await, if the Promise you `await`ed is rejected, that rejection **comes back to life as a throw at the `await` point.** That's why ordinary `try/catch` works again.
+
+```js
+async function load() {
+  try {
+    const user = await getUser(); // if rejected, converts to a throw here
+    return user;
+  } catch (e) {
+    handle(e); // caught just like in synchronous code
+  }
+}
+```
+
+Error handling that used to be scattered across `.then(...).catch(...)` has returned to the exact same shape as synchronous code — and this is the single biggest way async/await improved readability.
+
+## Sequential await vs Promise.all — The Accidental Serialization Trap
+
+Look at this clean-looking but slow code. The three tasks are unrelated to one another.
+
+```js
+const a = await getA(); // 1 second
+const b = await getB(); // 1 second — starts only after a finishes
+const c = await getC(); // 1 second
+// 3 seconds total. Yet the three are unrelated to each other.
+```
+
+When you write `await` after `await`, each task waits for the previous one to complete. It's a trap that serializes even tasks that don't depend on one another. To start them at the same time, you have to create the Promises first and wait for them all at once.
+
+```js
+const [a, b, c] = await Promise.all([getA(), getB(), getC()]);
+// start all three at once → only as long as the slowest one (about 1 second)
+```
+
+The rule is simple. **If the previous result is needed as the next input, use sequential `await`; if they're unrelated, use `Promise.all`.** Here's a summary of similar combinator functions.
+
+| Function             | When it settles                              | Result                           |
+| -------------------- | -------------------------------------------- | -------------------------------- |
+| `Promise.all`        | rejects immediately if any one rejects       | array of values if all succeed   |
+| `Promise.allSettled` | when all finish (success or failure)         | array of status objects for each |
+| `Promise.race`       | the first one to settle (success or failure) | the result of that one           |
+| `Promise.any`        | the first one to succeed                     | AggregateError if all fail       |
+
+## Forgetting await, and Unhandled Rejections
+
+Forgetting `await` isn't a compile error but a silent bug. The `save` below returns without waiting for the DB write.
+
+```js
+async function save() {
+  writeToDB(); // missing await — the Promise is thrown away
+  return 'done'; // returns before the DB write finishes
+}
+```
+
+Since no one received the Promise that `writeToDB()` threw, even if it fails, nothing catches it. When something is rejected but there's no `.catch` or `try/catch` to handle it anywhere, that's an **unhandled rejection**. Browsers detect it via `window.onunhandledrejection` and Node.js via `process.on('unhandledRejection')`, and recent Node terminates the process by default. Even for a "fire-and-forget" Promise, if it's intentional, it's safer to attach an explicit `.catch`.
+
+## Common Misconceptions
+
+- **Misconception: `await` stops the thread.** → It doesn't. It cuts the function at that point, defers the rest to a microtask, and control returns to the caller immediately. JS is single-threaded, so if it truly stopped, nothing else could run.
+- **Misconception: `.then` on an already-fulfilled Promise runs right away.** → It's always deferred to the next microtask. This is the consistency guarantee that prevents Zalgo, where execution timing gets mixed up.
+- **Misconception: async/await is faster than or a different mechanism from Promises.** → It's syntactic sugar layered on the same Promises. `await` reduces to registering a `.then`.
+- **Misconception: writing multiple lines of `await` is always natural.** → Sequentially `await`ing unrelated tasks accidentally serializes them and slows things down. Bundle independent tasks with `Promise.all`.
+
+## Check Yourself
+
+- Can you explain the output order of `console.log('A'); Promise.resolve().then(() => console.log('B')); console.log('C');` and the reason for it?
+- Why were Promises designed to be "immutable once settled," and why does "not running the callback synchronously even when already fulfilled" matter (Zalgo)?
+- How is the fact that `.then` returns a new Promise related to chaining? When the callback returns a value, returns a Promise, or throws, what happens to the next Promise in each case?
+- Can you explain `await` by rewriting it as registering a `.then` callback? Why is "appearing to pause" an illusion?
+- When should you use sequential `await` versus `Promise.all`? What's the difference between `all`/`allSettled`/`race`/`any`?
+
+## Related Notes
+
+- [[js-event-loop]]
+- [[js-closure-and-scope]]
+- [[frontend-javascript]]
+
+## References
+
+- [MDN — Using Promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises)
+- [MDN — async function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function)
+- [V8 — Faster async functions and promises](https://v8.dev/blog/fast-async)
+- [HTML Living Standard — Microtask queuing](https://html.spec.whatwg.org/multipage/webappapis.html#microtask-queuing)

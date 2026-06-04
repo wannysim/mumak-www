@@ -1,0 +1,251 @@
+---
+title: '프로토타입과 this: 자바스크립트 객체 시스템의 두 기둥'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-javascript'
+tags: ['frontend', 'javascript', 'prototype', 'this']
+---
+
+클래스라는 개념 없이 설계된 언어가 어떻게 상속을 구현했고, `this`는 왜 호출할 때마다 값이 달라지는가. 이 노트는 자바스크립트 객체 시스템을 떠받치는 두 기둥, 프로토타입과 `this`를 "왜 이렇게 설계됐는가" 중심으로 따라간다.
+
+> 한 줄 요약: **자바스크립트는 객체를 객체에 연결(프로토타입)해 상속을 흉내내고, `this`는 함수에 박힌 값이 아니라 "어떻게 호출됐는가"로 정해진다.**
+
+## 프로토타입: 클래스가 아니라 객체를 잇는다
+
+대부분의 객체지향 언어는 "클래스라는 설계도 → 인스턴스라는 제품" 모델을 쓴다. 자바스크립트는 다르다. 가벼운 스크립트 언어로 빠르게 설계되면서, 무거운 클래스 시스템 대신 더 단순한 아이디어를 택했다. **객체를 다른 객체에 그냥 연결한다.**
+
+연결 고리의 이름이 `[Prototype]`이라는 내부 슬롯이다(스펙에서는 이중 대괄호로 적지만, 여기서는 위키링크와 충돌하지 않게 백틱으로 표기한다). 어떤 객체에서 속성을 읽으려 할 때 그 객체에 없으면, 엔진은 이 슬롯 링크를 따라 위로 올라가며 같은 이름의 속성을 찾는다. 이 사슬이 **프로토타입 체인**이다.
+
+```js
+const animal = {
+  breathe() {
+    return '숨쉰다';
+  },
+};
+const dog = {
+  bark() {
+    return '멍';
+  },
+};
+
+Object.setPrototypeOf(dog, animal); // dog의 [Prototype] = animal
+
+dog.bark(); // '멍'    (dog 자신이 가짐)
+dog.breathe(); // '숨쉰다' (dog엔 없음 → animal에서 찾음)
+```
+
+`dog.breathe`를 호출하는 순간 엔진이 따라가는 경로를 그림으로 보면 이렇다.
+
+```
+dog ──[Prototype]──▶ animal ──[Prototype]──▶ Object.prototype ──▶ null
+ │                       │
+ breathe? 없음           breathe? 있음 → 사용
+```
+
+찾으면 멈추고, 끝(`null`)까지 못 찾으면 `undefined`다. 상속이 "복사"가 아니라 "위임(delegation)"이라는 점이 핵심이다. `animal`의 `breathe`를 고치면 `dog`가 보는 값도 즉시 바뀐다. 복사본이 아니라 같은 객체를 가리키고 있기 때문이다.
+
+## `__proto__` vs `prototype`: 가장 헷갈리는 지점
+
+이 둘은 이름이 비슷해서 매번 헷갈린다. 하지만 역할이 완전히 다르다.
+
+- `prototype`: **생성자 함수(constructor)에만 있는 속성**. `new`로 만들 인스턴스의 `[Prototype]`이 될 객체를 미리 담아두는 상자.
+- `__proto__`: **인스턴스에 있는 접근자**. 자기 자신의 `[Prototype]`을 읽고 쓰는 통로. (실무에선 `Object.getPrototypeOf`를 쓰는 게 표준이다.)
+
+`new`가 이 둘을 잇는다. `new Foo()`를 하면 엔진이 새 객체를 만들고, 그 객체의 `[Prototype]`에 `Foo.prototype`을 꽂는다.
+
+```js
+function Dog(name) {
+  this.name = name;
+}
+Dog.prototype.bark = function () {
+  return `${this.name}: 멍`;
+};
+
+const d = new Dog('초코');
+
+d.bark(); // '초코: 멍'
+Object.getPrototypeOf(d) === Dog.prototype; // true
+d.__proto__ === Dog.prototype; // true (같은 말)
+```
+
+```
+       prototype                       [Prototype]
+Dog ───────────────▶ Dog.prototype ◀───────────────── d
+(함수)                (메서드 보관소)                  (인스턴스)
+```
+
+정리하면 **`prototype`은 함수가 "앞으로 만들 인스턴스에게 물려줄 것"을 담는 상자**고, **`__proto__`는 인스턴스가 "내가 누굴 보고 있는지"를 가리키는 화살표**다. 화살표(`d.__proto__`)가 상자(`Dog.prototype`)를 가리킨다.
+
+## 왜 배열에서 `map`을 쓸 수 있는가
+
+`map`을 직접 정의한 적이 없는데도 모든 배열에서 쓸 수 있는 이유가 바로 체인이다.
+
+```js
+const arr = [1, 2, 3];
+arr.map(x => x * 2); // 어디서 온 map인가?
+
+// 체인: arr → Array.prototype → Object.prototype → null
+//             map, filter, …    toString, …
+```
+
+`arr` 자신에는 `map`이 없다. 엔진은 `Array.prototype`으로 올라가 거기서 `map`을 찾아 쓴다. `arr.toString` 같은 건 한 칸 더 올라가 `Object.prototype`에서 찾는다. 메서드를 인스턴스마다 복사하지 않고 프로토타입 한 곳에 두기 때문에, 배열 1만 개를 만들어도 `map` 함수는 메모리에 단 하나만 존재한다. 이게 위임 모델이 주는 실질적 이득이다.
+
+## `class`는 프로토타입 위의 문법 설탕
+
+ES2015의 `class`는 새로운 객체 모델이 아니다. 위에서 손으로 짜던 프로토타입 코드를 보기 좋게 적어주는 **문법 설탕(syntactic sugar)**일 뿐이다. 같은 결과를 두 방식으로 써보면 분명해진다.
+
+```js
+// 프로토타입 방식
+function Dog(name) {
+  this.name = name;
+}
+Dog.prototype.bark = function () {
+  return `${this.name}: 멍`;
+};
+
+// class 방식 — 결과는 위와 사실상 동일
+class Dog2 {
+  constructor(name) {
+    this.name = name;
+  }
+  bark() {
+    return `${this.name}: 멍`;
+  }
+}
+
+typeof Dog2; // 'function' (클래스도 함수다)
+Object.getPrototypeOf(new Dog2('x')) === Dog2.prototype; // true
+```
+
+`class`로 선언한 메서드는 결국 `Dog2.prototype`에 얹힌다. `extends`는 프로토타입 체인을 연결해주는 것이고, `super`는 부모 프로토타입을 가리킨다. 그래서 "자바스크립트엔 진짜 클래스가 없다"는 말이 나온다. 겉모습만 클래스고 속은 여전히 프로토타입이다. 이걸 알아두면 `class` 문법에서 이상한 동작을 만났을 때 프로토타입 차원에서 원인을 짚을 수 있다.
+
+## `this`: 함수가 아니라 호출이 정한다
+
+여기서 멘탈 모델을 한 번 갈아야 한다. 많은 언어에서 `this`(또는 `self`)는 "내가 속한 인스턴스"로 고정돼 있다. 자바스크립트의 `this`는 **함수를 선언할 때가 아니라 호출하는 순간 결정된다.** 같은 함수라도 어떻게 부르느냐에 따라 `this`가 달라진다. 왜 이렇게 만들었나. 함수를 객체에 자유롭게 붙였다 뗐다 하는 언어이기 때문에, "지금 누구의 자격으로 실행되는가"를 호출 시점에 정하는 게 자연스러웠다.
+
+규칙은 네 가지다. 위에서 아래로 우선순위가 높아진다.
+
+| 규칙        | 언제                     | this가 가리키는 것                    |
+| ----------- | ------------------------ | ------------------------------------- |
+| 기본 바인딩 | 그냥 함수로 호출         | 전역 객체(느슨한 모드) 또는 undefined |
+| 암시적      | 점 앞에 객체가 있을 때   | 점 앞의 그 객체                       |
+| 명시적      | call / apply / bind 사용 | 직접 넘긴 객체                        |
+| new 바인딩  | new로 호출               | 새로 만들어진 인스턴스                |
+
+```js
+function who() {
+  return this?.label ?? '(없음)';
+}
+
+const obj = { label: 'obj', who };
+
+who(); // 기본 바인딩 → (없음)  (strict면 this는 undefined)
+obj.who(); // 암시적     → 'obj'    (점 앞의 obj)
+who.call({ label: 'call' }); // 명시적 → 'call'
+new who(); // new 바인딩 → who 안의 this는 새 객체
+```
+
+## 우선순위: new > 명시적 > 암시적 > 기본
+
+규칙이 겹칠 때 누가 이기는지 알면 헷갈리는 코드를 단번에 푼다. 핵심 비교는 `bind`(명시적)와 암시적이다.
+
+```js
+function show() {
+  return this.tag;
+}
+
+const bound = show.bind({ tag: 'bound' });
+const o = { tag: 'o', m: bound };
+
+bound(); // 'bound'  (bind가 박아둠)
+o.m(); // 'bound'  (점 앞이 o여도 bind가 이긴다)
+new bound(); // bind한 객체가 아니라 새 인스턴스가 this → new가 최상위
+```
+
+`o.m()`에서 점 앞에 `o`가 있는데도 `this`가 `o`가 아니라 `bound`인 게 우선순위를 보여준다. `bind`로 한 번 묶인 함수는 점으로 불러도 바인딩이 풀리지 않는다.
+
+## 왜 메서드를 변수에 담아 호출하면 `this`가 깨지는가
+
+가장 자주 밟는 함정이다. 암시적 바인딩은 **"점 앞의 객체"가 있을 때만** 작동하는데, 변수에 함수를 꺼내 담으면 그 점이 사라진다.
+
+```js
+const user = {
+  name: '윤하',
+  greet() {
+    return `안녕, ${this.name}`;
+  },
+};
+
+user.greet(); // '안녕, 윤하'   (점 앞에 user)
+const g = user.greet;
+g(); // '안녕, undefined' — this가 깨짐!
+```
+
+`g`에는 함수 자체만 복사됐고 `user`라는 연결은 따라오지 않는다. 호출 `g()`에는 점 앞 객체가 없으니 기본 바인딩으로 떨어진다. 같은 이유로 `setTimeout(user.greet, 0)`이나 `button.onclick = user.greet`도 `this`를 잃는다. 해법은 `user.greet.bind(user)`로 묶어 넘기거나, 화살표 함수로 감싸 `() => user.greet()`처럼 호출 시점을 보존하는 것이다.
+
+## 화살표 함수: `this`가 아예 없다
+
+ES2015 이전에는 콜백 안에서 바깥 `this`를 쓰려고 `var self = this`로 미리 담아두는 관용구가 흔했다. 콜백 안 `function`은 호출 시 점 앞 객체가 없어 기본 바인딩으로 떨어지기 때문이다(느슨한 모드면 전역 객체, strict면 `undefined`). 어느 쪽이든 바깥 객체를 가리키지 못한다. 화살표 함수는 바로 이 패턴을 언어 차원에서 없애려고 만들어졌다. **화살표 함수는 자신만의 `this`를 갖지 않고, 선언된 위치의 바깥 `this`를 렉시컬하게 그대로 쓴다.**
+
+```js
+function Timer() {
+  this.count = 0;
+  setInterval(() => {
+    this.count++; // 바깥 Timer의 this를 그대로 사용 → 'self' 변수 불필요
+  }, 1000);
+}
+```
+
+여기서 "렉시컬"은 [[js-closure-and-scope|스코프]]를 정하는 방식과 같은 원리다. 코드가 어디에 쓰였는지로 결정된다는 뜻이다. 그래서 화살표 함수에는 `call`/`apply`/`bind`로 `this`를 바꿔도 먹히지 않는다. 애초에 자기 `this`가 없으니 바꿀 대상이 없다. 거꾸로, 객체 메서드를 화살표로 정의하면 `this`가 그 객체가 아니라 바깥을 가리켜 버리니 주의해야 한다.
+
+## strict mode가 기본 바인딩에 미치는 영향
+
+기본 바인딩의 결과는 모드에 따라 다르다. 느슨한 모드에서는 `this`가 전역 객체(`window` / `globalThis`)로 채워지지만, strict mode에서는 `undefined`로 남는다.
+
+```js
+function loose() {
+  return this;
+}
+loose(); // 느슨한 모드: globalThis
+
+function strictFn() {
+  'use strict';
+  return this;
+}
+strictFn(); // undefined
+```
+
+왜 바뀌었나. 느슨한 모드에서 `this`를 전역으로 자동 채우는 동작은 실수를 조용히 숨겼다. 위 함정처럼 `this`가 깨진 채 호출돼도 전역 객체에 값이 쓰여 버그가 늦게 발견됐다. strict mode는 이를 `undefined`로 두어 `this.x` 접근 시 즉시 에러를 던진다. ES 모듈과 `class` 본문은 항상 strict라서, 요즘 코드에서는 깨진 `this`가 전역으로 새지 않고 바로 터진다.
+
+## 흔한 오해
+
+- **오해: 자바스크립트의 `class`는 다른 언어의 클래스와 같은 것이다.**
+  실제: `class`는 프로토타입 위에 얹은 문법 설탕이다. 메서드는 `prototype`에 얹히고 `extends`는 프로토타입 체인을 연결할 뿐, 별도의 클래스 시스템이 따로 도는 게 아니다.
+
+- **오해: `this`는 함수를 정의할 때 어디에 속하는지로 정해진다.**
+  실제: 화살표 함수를 빼면 `this`는 정의 위치가 아니라 호출 방식으로 정해진다. 같은 함수도 `obj.fn()`과 `fn()`에서 `this`가 다르다.
+
+- **오해: 화살표 함수의 `this`는 `bind`로 바꿀 수 있다.**
+  실제: 화살표 함수는 자기 `this`가 없어 `bind`/`call`/`apply`가 무시된다. 바깥 스코프의 `this`로 고정된다.
+
+## 스스로 점검하기
+
+- `dog.breathe()`를 호출했을 때 엔진이 `breathe`를 찾기까지 거치는 경로를 `[Prototype]` 링크로 설명할 수 있는가?
+- `prototype`과 `__proto__`가 각각 누구에게 붙어 있고, `new`가 둘을 어떻게 잇는지 한 문장으로 말할 수 있는가?
+- 배열에 직접 정의하지 않은 `map`을 쓸 수 있는 이유를 체인으로 설명할 수 있는가?
+- `const g = user.greet; g();`에서 `this`가 깨지는 이유는 무엇이며, 어떻게 고치는가?
+- `new`, `bind`, 암시적, 기본 바인딩이 겹칠 때 누가 이기는가?
+- 같은 함수를 느슨한 모드와 strict mode에서 그냥 호출하면 `this`가 각각 무엇이 되는가?
+
+## 함께 보기
+
+- [[js-closure-and-scope|클로저와 스코프]]
+- [[js-v8-under-the-hood|V8 내부 동작]]
+- [[frontend-javascript|프론트엔드 자바스크립트]]
+
+## 참고
+
+- [Inheritance and the prototype chain - MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Inheritance_and_the_prototype_chain)
+- [this - MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/this)
+- [Arrow function expressions - MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Arrow_functions)
+- [Classes - MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes)

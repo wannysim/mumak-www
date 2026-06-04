@@ -1,0 +1,216 @@
+---
+title: 'Virtual DOM and Reconciliation: How React Updates Only What Changed'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'virtual-dom', 'reconciliation']
+---
+
+A single `setState` changes the screen — but what exactly does React compare against what to figure out "only this part changed"? What does that comparison rule look like, such that it never stalls even on a tree with thousands of nodes?
+
+> One-line summary: **React compares the previous Element tree against the new one, but it cuts the comparison cost down to O(n) using two heuristics: "if the type differs, throw the whole thing away" and "identify siblings by key."**
+
+## Why Touching the DOM Directly Is Expensive
+
+People often say "DOM manipulation is slow," but a single line of `document.createElement` is not slow in itself. The real cost is the **layout and paint** that follow.
+
+Change one node's size or position, and the browser can't recalculate just that node. The effect can ripple to siblings, children, and parents, so it has to re-measure the tree (reflow) and repaint it. The per-stage cost of this pipeline is laid out in [[browser-rendering-pipeline]].
+
+The problem is that imperative code encourages this.
+
+```js
+// Append 1000 items one row at a time — the append itself is batched into layout by the browser
+for (const item of items) {
+  list.appendChild(makeRow(item));
+  // But read a layout value like offsetHeight mid-loop, and at that moment a forced synchronous reflow occurs
+}
+```
+
+To optimize this by hand, the developer has to manually track "this changed, so touch only that." The more complex the screen gets, the more this tracking turns into a state-management problem that's hard for a human to keep up with.
+
+## What the Virtual DOM Really Is: Just a JS Object
+
+The Virtual DOM isn't some special technology — it's a **lightweight tree of JS objects that describes the screen**. In React, these are called React Elements.
+
+JSX is just syntactic sugar; at build time it's converted into `createElement` calls.
+
+```jsx
+// What we write
+const el = <li className="row">Younha</li>;
+
+// What it's converted into
+const el = React.createElement('li', { className: 'row' }, 'Younha');
+
+// What createElement produces (not a real DOM node!)
+// Only the key fields shown — in reality fields like key, ref, and $$typeof are attached too
+const el = {
+  type: 'li',
+  props: { className: 'row', children: 'Younha' },
+};
+```
+
+This object is not an actual `<li>`. It's just a **specification** that says "please render an `<li>` like this." Creating this object is far cheaper than creating a real DOM node. That's why React can freely build this tree from scratch on every render.
+
+## The Bargain of Declarative UI
+
+This is where React's proposed bargain reveals itself.
+
+> "Write your code as if you're drawing the entire screen from scratch every time. I'll take responsibility for figuring out the minimal set of changes to actually apply."
+
+```jsx
+// Imperative: "when count changes, update this span's textContent"
+span.textContent = String(count);
+
+// Declarative: "the screen always looks like this" — React handles change tracking
+function Counter({ count }) {
+  return <span>{count}</span>;
+}
+```
+
+The developer only writes the mapping of "current state → some screen." When the state changes, React builds an entirely new Element tree, then compares it against the previous one to compute the minimal set of changes to apply to the real DOM. This comparison process is **reconciliation**.
+
+```
+state changes
+   │
+   ▼
+build new Element tree (cheap)
+   │
+   ▼
+diff against previous tree  ◄── this is reconciliation
+   │
+   ▼
+commit only the changed parts to the real DOM (minimize expensive work)
+```
+
+## Why Not Use a General Tree Diff
+
+The general algorithm for finding the exact minimal difference between two trees is **O(n^3)**. With 1000 nodes, that's on the order of a billion operations. Running this on every render is impractical.
+
+So React gave up exactness and accepted **two assumptions (heuristics)** to cut it down to O(n). The trade-off is that when these assumptions are violated, React can behave "less than ideally" — and this is the root of the key-related accidents that come up later.
+
+### Heuristic 1: If the Type Differs, Throw the Whole Thing Away
+
+If the node at the same position was a `<div>` before but is now a `<span>`, React doesn't compare the two. It **destroys the old subtree entirely and builds a new one.**
+
+```jsx
+// Before
+<div><Counter /></div>
+
+// After — div changed to span
+<span><Counter /></span>
+```
+
+Here, even though the inner `<Counter />` looks the same, the parent type changed, so **Counter unmounts and its state is wiped out**. That's the price of accepting the empirical assumption that "if the type differs, the contents are likely different too." The same applies when the component type (the function itself) changes.
+
+### Heuristic 2: Identify Siblings by Key
+
+When comparing a list of siblings under the same parent, React matches them by **order (index)** by default. But lists commonly have insertions, deletions, and reordering in the middle. Order alone can't tell you "where did the item that was third go now."
+
+So React requires a `key` for each sibling. A key is the **ID card** that tells React "which item from the previous render is this the same entity as."
+
+```jsx
+{
+  items.map(item => (
+    <Row key={item.id} item={item} /> // pin identity by id
+  ));
+}
+```
+
+## The Accident That Happens When You Use index as key
+
+Once you properly understand the role of key, you can reproduce in code why using index as key is dangerous.
+
+```jsx
+function TodoList() {
+  const [todos, setTodos] = useState(['Buy milk', 'Clean up', 'Exercise']);
+
+  return (
+    <ul>
+      {todos.map((todo, i) => (
+        // (anti-pattern) key as index — identity is tied to "position"
+        <li key={i}>
+          <input defaultValue={todo} /> {/* the value the user typed lives in the DOM */}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+Suppose on the current screen you've typed a different note into each of the three input fields. Now you delete the first item.
+
+```
+Before delete (key is index)   After delete
+key 0 → input "Note A"         key 0 → input "Note A"  ← unchanged!?
+key 1 → input "Note B"         key 1 → input "Note B"  ← unchanged!?
+key 2 → input "Note C"         (no key 2 → input removed)
+```
+
+Intuitively, "Note A should disappear entirely and B, C should shift up." But because the key is the index, from React's point of view **key 0/1 are still there and only key 2 disappeared**. So the positions shifted up by one, but the input values (state) stayed in place, and the result is that **Note C disappears and A and B get attached to the wrong items.**
+
+```jsx
+// (correct approach) a stable identifier as key
+{
+  todos.map(todo => (
+    <li key={todo.id}>
+      <input defaultValue={todo.text} />
+    </li>
+  ));
+}
+```
+
+Switch to `key={todo.id}` and React removes precisely "the item whose id disappeared." **Keys only truly matter in lists with reordering, insertions, or deletions**, and in those cases using index causes state to get reattached to a different item. The deeper workings of this state preservation/migration mechanism are covered in [[react-state-batching-and-rerender]].
+
+## When the Type Is the Same: Update and Recurse
+
+Only when the type is the same does React start saving work.
+
+| Comparison result   | What React does                                               |
+| ------------------- | ------------------------------------------------------------- |
+| Same DOM type       | Patch only the changed attributes and recurse into children   |
+| Same component type | Keep the instance, update props and re-render, preserve state |
+| Different type      | Destroy the old subtree + build anew, state is destroyed      |
+
+```jsx
+// Same li type → patch only the changed attribute (className), reuse the node
+<li className="row" />     →     <li className="row active" />
+```
+
+Thanks to this "if the type is the same, keep the instance" rule, even when the same component re-renders, the values held in `useState` survive. Even if the parent renders 100 times, as long as the child component's type and position stay the same, that state is preserved.
+
+## Common Misconceptions
+
+**Misconception 1: "It's the Virtual DOM, so it's always fast."**
+Reality: the diff itself isn't free either. Building a new tree and comparing it on every render has a cost. Carefully hand-optimized imperative code (touching only the one spot that changed) is often faster. The value of the Virtual DOM isn't "top speed" but **"it's fast enough even when you write declaratively."**
+
+**Misconception 2: "The Virtual DOM is a copy of the real DOM."**
+Reality: it's not a copy of the real DOM — it's a lightweight tree of JS objects that describes the JSX we returned. It's far smaller than the real DOM and has no side effects like layout or paint at all.
+
+**Misconception 3: "key is just something you add to silence the warning."**
+Reality: key is React's only clue for judging the identity of siblings. Use it wrong and you create a real bug where state gets attached to the wrong item. It's a matter of correctness, not a warning.
+
+**Misconception 4: "The diff draws the screen directly."**
+Reality: the diff (reconciliation) only computes "what to change"; reflecting it in the real DOM (commit) is a separate phase. Separating these two and making the work splittable and interruptible is the core of [[react-fiber-architecture]].
+
+## Check Yourself
+
+- When we say DOM manipulation is expensive, what's the truly expensive stage — node creation, or what comes after it?
+- What function call does the JSX `<li>Younha</li>` convert into, and into what shape of JS object?
+- A general tree diff is O(n^3); with which two assumptions did React cut it down to O(n)?
+- When the node type at the same position changes from `div` to `span`, what happens to the inner component's state? Why?
+- When you delete the first item in a list, what accident occurs if you use index as key? Why doesn't it occur if you use id?
+- Why is "it's fast because it's the Virtual DOM" not quite accurate?
+
+## Related Notes
+
+- [[react-fiber-architecture]]
+- [[react-state-batching-and-rerender]]
+- [[react-memoization-strategy]]
+- [[browser-rendering-pipeline]]
+
+## References
+
+- [Reconciliation — React official docs (legacy)](https://legacy.reactjs.org/docs/reconciliation.html)
+- [Preserving and Resetting State — react.dev](https://react.dev/learn/preserving-and-resetting-state)
+- [Rendering Lists: keeping list items in order with key — react.dev](https://react.dev/learn/rendering-lists)
+- [Render and Commit — react.dev](https://react.dev/learn/render-and-commit)

@@ -1,0 +1,202 @@
+---
+title: 'Script Loading: async, defer, and Parser Blocking'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-browser'
+tags: ['frontend', 'browser', 'performance', 'script-loading']
+---
+
+How can a single `<script>` tag freeze an entire page? And how exactly do `async` and `defer` release that freeze?
+
+> One-line summary: **The parser stops when it hits a `<script>`. `async`/`defer` are the levers that remove that stop by decoupling "download" and "execution" from parsing.**
+
+## Why the HTML parser stops in front of a script
+
+The browser receives HTML and reads it top to bottom, line by line, building the DOM. This process is called parsing. When it encounters a `<script>`, the parser **stops right there**. This is called parser blocking.
+
+Why does it stop? Because the script **can modify the DOM that is currently being built**. The extreme example is `document.write`.
+
+```html
+<p>above</p>
+<script>
+  document.write('<p>line inserted by the script</p>');
+</script>
+<p>below</p>
+```
+
+From the parser's point of view, until it actually runs the script, it can't know whether "below" is really the next line or whether the script will write something more in between. So it safely waits until the script finishes. In other words, parser blocking isn't a bug—it's an **intentional design choice to preserve DOM consistency**.
+
+## The worst case: waiting on the download too
+
+For inline scripts (`<script>...</script>`), you only wait on execution, so it's still fast. The problem is external scripts.
+
+```html
+<script src="/big-library.js"></script>
+```
+
+In this case the parser stays frozen until it (1) **downloads** the file over the network and (2) **executes** it. The network is slow and variable. So parsing is blocked for the full length of a network round trip. From the user's perspective, they see a blank white screen with nothing painted during that time.
+
+The key point is that **both things—downloading and executing—block parsing**. The `async`/`defer` we'll see later are about peeling these two apart.
+
+## The old prescription: "put scripts at the end of body"
+
+Before `async`/`defer` were widely used, the standard prescription was "place your script tags just before `</body>`."
+
+```html
+<body>
+  <h1>content</h1>
+  <!-- ... all the content ... -->
+  <script src="/app.js"></script>
+</body>
+```
+
+The idea is simple. By the time the parser reaches the script, the body's DOM is already almost fully built. So even if the script halts parsing, everything to show the user has already been painted. As a bonus, when the script looks up the DOM with `getElementById`, the element already exists.
+
+But the limitation is clear. **The download starts late.** The parser only begins downloading the script after it has read everything from `<head>` to the end of the body. In effect, a file you could have fetched early is requested only at the very end. Solving this "late start" problem is exactly what the next two attributes do.
+
+## async: cut in and run the moment it arrives
+
+```html
+<script async src="/analytics.js"></script>
+```
+
+`async` starts the download **in parallel** without stopping the parser. So far so good. But once the file arrives, it **immediately halts parsing and executes**. Arrival time is execution time.
+
+Arrival order depends on network conditions, so **execution order is not guaranteed**. Even if you write `a.js` first, if `b.js` arrives faster, `b` runs first. Therefore `async` suits **independent scripts** that depend on neither each other nor the DOM—typically things like analytics and ad tags.
+
+## defer: download everything, then run in order after parsing
+
+```html
+<script defer src="/framework.js"></script>
+<script defer src="/app.js"></script>
+```
+
+`defer` also starts the download in parallel ahead of time. The difference is the **execution timing**. Even when the download finishes, it doesn't run right away; it runs **after DOM parsing is completely done**, in the order written. In the example above, it's always `framework.js` then `app.js`.
+
+Why is this effectively the default choice? Because it satisfies two things at once. The download starts early, so it hides network latency, and execution happens after the DOM is complete, so it can safely touch elements. It also avoids `async`'s "order not guaranteed" problem. For most application scripts, `defer` is the answer.
+
+## type="module" defaults to defer
+
+ES modules behave **the same as defer by default**, even without explicitly adding `defer`.
+
+```html
+<!-- The two lines below have effectively identical execution timing -->
+<script type="module" src="/app.mjs"></script>
+<script defer src="/app.js"></script>
+```
+
+Why is it designed this way? A module is itself a dependency graph that pulls in other modules via `import`, and it must execute only after that whole graph has been fetched and resolved. In other words, asynchronous loading is inherently the premise. So the spec set defer as the default from the start. (Adding `async` to a module switches it to async behavior rather than defer.)
+
+## Comparing on a timeline
+
+When you load the same script in three ways, seeing how the parsing/download/execution segments overlap makes the difference obvious at a glance.
+
+```
+plain <script src>
+parsing   ====            ========
+download       ~~~~~~~
+execution           ####
+              (parsing stops entirely during download + execution)
+
+async
+parsing   ====    !halt!  ====   ====
+download      ~~~~~~~
+execution         ####
+              (cuts in and runs on arrival; parsing stops only during that)
+
+defer
+parsing   ============================
+download      ~~~~~~~
+execution                         ####
+              (parsing never stops; execution happens after parsing completes)
+
+Legend: ==== parsing   ~~~~ download   #### execution
+```
+
+In summary:
+
+| Method | Download              | Parsing halt          | Execution timing        | Order guaranteed |
+| ------ | --------------------- | --------------------- | ----------------------- | ---------------- |
+| plain  | blocks while doing it | download + execution  | at the spot it's met    | write order      |
+| async  | parallel              | only during execution | immediately on arrival  | none             |
+| defer  | parallel              | none                  | after parsing completes | write order      |
+
+## CSS blocks in a different way
+
+CSS blocks differently from scripts. External CSS (`<link rel="stylesheet">`) is **render-blocking**. The browser won't paint the screen until the CSSOM is complete. The intent is to avoid flashing a half-styled screen at you. The difference from scripts is that CSS doesn't block parsing (DOM building) but does block painting (rendering).
+
+There's one more trap here. CSS **also blocks the execution of a following script**. That's because a script might call something like `getComputedStyle(el)` and read computed styles.
+
+```html
+<link rel="stylesheet" href="/big.css" />
+<script>
+  // This line waits until big.css's CSSOM is complete
+  const color = getComputedStyle(document.body).color;
+</script>
+```
+
+If you read a computed value while styles haven't all arrived, you get the wrong value. So the browser defers the script's execution until the preceding CSS has fully arrived and the CSSOM is complete. The behavior of the rendering stage itself is covered more deeply in [[browser-rendering-pipeline]].
+
+## Giving hints with preload, prefetch, preconnect
+
+There are mechanisms to tell the browser "this will be needed soon" in advance.
+
+```html
+<link rel="preconnect" href="https://cdn.example.com" />
+<link rel="preload" href="/critical.js" as="script" />
+<link rel="prefetch" href="/next-page.js" as="script" />
+```
+
+- `preconnect` — establish a DNS/TCP/TLS connection to a specific origin ahead of time. It saves the connection cost when the actual request goes out.
+- `preload` — fetch a resource you'll use soon **on this very page**, at high priority.
+- `prefetch` — fetch a resource you'll likely use **on the next page**, at low priority, ahead of time.
+
+Worth noting here is the preload scanner. Even while the main parser is stalled in front of a script, the browser uses a separate lightweight scanner to skim ahead through the rest of the HTML, find `src`/`href`, and start downloading first. Thanks to this, the network isn't idle even while the parser is stalled. That said, this scanner only sees static HTML. It can't find resources injected dynamically by JS, so for a truly important resource it's safer to declare it explicitly with `preload`.
+
+## DOMContentLoaded vs load
+
+You need to distinguish the firing times of the two events precisely.
+
+- `DOMContentLoaded` — right after HTML parsing finishes **and all `defer` scripts have finished executing**. It fires even if external resources like images haven't been fetched yet.
+- `load` — after **all resource loading is done**, including images, stylesheets, and subframes.
+
+```js
+document.addEventListener('DOMContentLoaded', () => {
+  // The DOM is ready. Image dimensions may not be known yet
+});
+window.addEventListener('load', () => {
+  // Everything including images is fully loaded
+});
+```
+
+The important point is that `defer` scripts run **before** `DOMContentLoaded`. That's why the pattern of waiting for `DOMContentLoaded` inside a `defer` script works safely. `async`, on the other hand, can run anywhere before or after this event depending on arrival timing. Loading performance metrics overall are best read alongside [[core-web-vitals]].
+
+## Common Misconceptions
+
+- **Misconception: `async` is always faster than `defer`.** → Reality: the download is parallel in both cases, so the fetch speed is the same. `async` cuts in and executes the moment it arrives, which actually interrupts parsing mid-stream and doesn't preserve order. For most app scripts, `defer` is safer and feels better too.
+- **Misconception: adding `defer` makes the download start late.** → Reality: the download starts immediately (in parallel), exactly like `async`. What's delayed is not the download but only the **execution**.
+- **Misconception: `async`/`defer` work on inline scripts.** → Reality: both attributes apply only to external scripts that have a `src`. If you add them to an inline script with no `src`, they're ignored and it runs immediately at that spot.
+- **Misconception: CSS has nothing to do with scripts.** → Reality: preceding CSS blocks the execution of a following script, because the script can read computed styles.
+
+## Check Yourself
+
+- Can you explain the fundamental reason the parser stops in front of a `<script>`, using `document.write` as an example?
+- For an external script, what are the "two segments that block parsing"?
+- What's the advantage of the "scripts at the end of body" prescription, and what limitation still remains (what gets delayed)?
+- `async` and `defer` have the same download timing—what alone differs? Which one guarantees order?
+- Why is `type="module"` designed to default to defer?
+- Why does CSS block the execution of a following script, and what's the difference in firing time between `DOMContentLoaded` and `load`?
+
+## Related Notes
+
+- [[browser-rendering-pipeline]]
+- [[core-web-vitals]]
+- [[js-event-loop]]
+- [[frontend-browser]]
+
+## References
+
+- [MDN — The `<script>` element (async, defer)](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script)
+- [web.dev — Efficiently load third-party JavaScript](https://web.dev/articles/efficiently-load-third-party-javascript)
+- [web.dev — Preload critical assets](https://web.dev/articles/preload-critical-assets)
+- [HTML Standard — Scripting](https://html.spec.whatwg.org/multipage/scripting.html)

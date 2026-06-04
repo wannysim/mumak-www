@@ -1,0 +1,255 @@
+---
+title: '메모이제이션 전략: memo, useMemo, useCallback의 실체'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'memoization', 'performance']
+---
+
+`React.memo`를 붙였는데 왜 자식이 여전히 리렌더되는가? 그리고 애초에 리렌더는 항상 나쁜가? 이 노트는 메모이제이션 3종 세트(`memo`, `useMemo`, `useCallback`)가 실제로 무엇을 보존하는지, 그리고 언제 손대지 않는 게 맞는지를 정리한다.
+
+> 한 줄 요약: **메모이제이션은 "참조 동일성"을 사고파는 거래다. 리렌더 자체는 대부분 싸고, 비싼 건 따로 있다.**
+
+## 전제부터 바로잡기: 리렌더 ≠ DOM 갱신
+
+가장 흔한 오해부터 깨자. React에서 "리렌더(re-render)"는 **컴포넌트 함수를 다시 호출하는 일**일 뿐이다. 그 결과로 만들어진 가상 트리를 이전 트리와 비교(reconciliation)한 뒤, **실제로 달라진 부분만** DOM에 반영한다.
+
+```
+state 변경
+  → 컴포넌트 함수 재호출 (= 리렌더, 보통 싸다)
+  → 새 가상 트리 생성
+  → 이전 트리와 diff (reconciliation)
+  → 달라진 노드만 DOM commit (비싸다, 하지만 최소화됨)
+```
+
+즉 리렌더가 100번 일어나도 DOM이 안 바뀌면 화면은 그대로다. 자세한 흐름은 [[react-virtual-dom-and-reconciliation]]에서 다룬다.
+
+**왜 이게 중요한가?** 사람들은 "리렌더 = 느림"이라 믿고 `memo`를 남발하는데, 함수 한 번 더 호출하는 비용은 대개 무시할 만하다. 진짜 비용은 (1) 거대한 서브트리를 매번 다시 만들거나, (2) 렌더 안에서 비싼 계산을 반복할 때 생긴다. 최적화는 이 둘을 찾는 일이지, 모든 함수 호출을 막는 일이 아니다.
+
+## React.memo: props를 얕은 비교해서 렌더를 스킵한다
+
+`React.memo`로 감싼 컴포넌트는, 부모가 리렌더돼도 **props가 이전과 같으면** 자기 자신의 렌더를 건너뛴다. 여기서 "같다"는 `Object.is`로 prop 하나하나를 비교하는 **얕은 비교(shallow comparison)**다.
+
+```tsx
+const Child = React.memo(function Child({ count }: { count: number }) {
+  console.log('Child 렌더');
+  return <p>{count}</p>;
+});
+
+function Parent() {
+  const [n, setN] = React.useState(0);
+  const [, force] = React.useState(0);
+  return (
+    <>
+      <Child count={n} />
+      <button onClick={() => force(v => v + 1)}>부모만 리렌더</button>
+    </>
+  );
+}
+```
+
+버튼을 눌러 `Parent`가 리렌더돼도 `count`(원시값 `number`)는 그대로라서 `Child`는 렌더를 스킵한다. 콘솔에 "Child 렌더"가 안 찍힌다.
+
+**왜 얕은 비교만 하는가?** 깊은 비교는 객체 전체를 재귀 순회해야 해서, 렌더를 스킵해서 아끼는 비용보다 비교 비용이 더 커질 수 있다. React는 "비교는 싸야 한다"는 원칙으로 얕은 비교를 택했다. 이 선택이 다음 함정의 원인이 된다.
+
+## 참조 동일성의 함정: 인라인 객체가 memo를 즉시 무력화한다
+
+원시값(number, string, boolean)은 값으로 비교되니 문제없다. 문제는 **객체·배열·함수**다. JSX 안에서 인라인으로 만든 값은 매 렌더마다 **새 참조**가 된다.
+
+```tsx
+const Child = React.memo(function Child({ style }: { style: object }) {
+  console.log('Child 렌더');
+  return <div style={style}>hi</div>;
+});
+
+function Parent() {
+  const [, force] = React.useState(0);
+  return (
+    <>
+      {/* 렌더할 때마다 새 객체 {} 가 생성된다 */}
+      <Child style={{ color: 'red' }} />
+      <button onClick={() => force(v => v + 1)}>리렌더</button>
+    </>
+  );
+}
+```
+
+버튼을 누를 때마다 "Child 렌더"가 찍힌다. `{ color: 'red' }`는 매번 메모리 주소가 다른 새 객체라서, `Object.is(이전style, 새style)`가 `false`가 되고 `memo`는 무력화된다. 내용이 같아도 참조가 다르면 React 입장에선 "다른 prop"이다.
+
+```
+1번 렌더: style → 0x1234  ┐
+2번 렌더: style → 0x5678  ┘ Object.is → false → 렌더 스킵 실패
+```
+
+함수 prop(`onClick={() => ...}`)도 똑같다. 화살표 함수는 매 렌더마다 새로 만들어진다. **`memo`만 붙이고 끝내면 거의 항상 이 함정에 빠진다.** 그래서 `memo`는 단독으로 거의 의미가 없고, 참조를 안정화하는 도구와 한 세트로 움직인다.
+
+## useCallback과 useMemo: 무엇의 참조를 보존하는가
+
+위 함정을 푸는 도구가 둘이다. 핵심은 둘 다 **참조를 렌더 사이에 보존**한다는 것이고, 차이는 "무엇의 참조냐"뿐이다.
+
+| 훅          | 보존하는 것   | 반환값          |
+| ----------- | ------------- | --------------- |
+| useCallback | 함수 그 자체  | 메모된 함수     |
+| useMemo     | 계산 결과 값  | 메모된 값       |
+| React.memo  | 컴포넌트 렌더 | 메모된 컴포넌트 |
+
+```tsx
+function Parent() {
+  const [n, setN] = React.useState(0);
+
+  // 의존성([])이 안 바뀌면 같은 함수 참조를 계속 돌려준다
+  const handleClick = React.useCallback(() => {
+    console.log('clicked');
+  }, []);
+
+  // 의존성([n])이 바뀔 때만 다시 계산. 아니면 이전 결과 재사용
+  const doubled = React.useMemo(() => n * 2, [n]);
+
+  return <Child onClick={handleClick} value={doubled} />;
+}
+```
+
+사실 둘은 형제다. `useCallback(fn, deps)`는 `useMemo(() => fn, deps)`와 정확히 같다. 함수도 값이니까, 함수 보존이라는 흔한 경우를 위한 전용 단축이 `useCallback`일 뿐이다.
+
+**왜 의존성 배열이 필요한가?** "언제 캐시를 버려야 하는가"를 React가 알 수 없기 때문에, 개발자가 "이 값들이 바뀌면 다시 만들어라"라고 명시하는 계약이다. 이 계약이 거짓이면(필요한 의존성을 빠뜨리면) 오래된 값을 붙잡는 stale closure 버그가 난다. 클로저가 값을 어떻게 가두는지는 [[js-closure-and-scope]] 참고.
+
+## useMemo의 두 얼굴: 비싼 계산 캐싱 vs 참조 안정화
+
+같은 `useMemo`인데 쓰는 목적이 두 가지라서 헷갈린다. 구분해두면 "이걸 메모할 이유가 있나?"를 스스로 판단할 수 있다.
+
+```tsx
+// 용도 1: 비싼 계산을 매 렌더마다 반복하지 않기 (값 자체가 목적)
+const sorted = React.useMemo(
+  () => hugeList.slice().sort(compareFn), // 수천 건 정렬
+  [hugeList]
+);
+
+// 용도 2: 참조 안정화 — 값이 싸도 "같은 참조"가 필요해서 (memo 자식에게 넘길 때)
+const config = React.useMemo(() => ({ theme: 'dark' }), []);
+return <MemoizedChild config={config} />;
+```
+
+용도 1은 "계산 시간"을 아끼고, 용도 2는 "참조 동일성"을 지켜서 아래쪽 `memo`가 작동하게 한다. 둘은 다른 문제를 푼다. 용도 2가 필요 없는데(자식이 `memo`가 아니거나 prop으로 안 내려감) `useMemo`로 객체를 감쌌다면, 그건 순전히 비용만 더한 셈이다.
+
+## 메모이제이션은 공짜가 아니다
+
+여기서 가장 자주 빠지는 함정. 메모이제이션은 무료가 아니라 **거래**다. 무엇을 내주는가:
+
+- **비교 비용**: 렌더 스킵 여부를 판단하려고 매 렌더마다 의존성/props를 비교한다. 비교가 스킵으로 아끼는 것보다 비쌀 수 있다.
+- **메모리**: 이전 값/함수/결과를 계속 들고 있어야 한다.
+- **의존성 관리 부담**: 배열이 틀리면 stale 버그. 맞추려고 또 다른 값을 메모하게 되는 연쇄 반응.
+- **코드 복잡도**: `useCallback`/`useMemo`로 도배된 컴포넌트는 읽기 어렵다.
+
+그래서 원칙은 단순하다. **측정 없이 메모하지 마라.** 원시값 하나 내려보내는 작은 컴포넌트에 `memo`를 붙이는 건 거의 항상 손해다. 렌더가 정말 느리다는 증거(Profiler)가 먼저고, 메모이제이션은 그 다음이다.
+
+## children prop이 memo를 깨는 패턴
+
+흔히 놓치는 케이스. `children`도 결국 prop이고, JSX 엘리먼트는 객체다. 매 렌더마다 새로 만들어지므로 `memo`를 깬다.
+
+```tsx
+const Box = React.memo(function Box({ children }: { children: React.ReactNode }) {
+  console.log('Box 렌더');
+  return <div className="box">{children}</div>;
+});
+
+function Parent() {
+  const [, force] = React.useState(0);
+  return (
+    <>
+      <Box>
+        <span>안녕</span> {/* 리렌더마다 새 엘리먼트 객체 */}
+      </Box>
+      <button onClick={() => force(v => v + 1)}>부모만 리렌더</button>
+    </>
+  );
+}
+```
+
+버튼을 눌러 `Parent`가 리렌더될 때마다 `<span>안녕</span>` 엘리먼트가 새로 만들어져서 `children` 참조가 바뀌고, `Box`는 매번 리렌더된다. 이건 `useMemo`로 억지로 막기보다 **composition으로 푸는 게 정석**이다. 비싼 부분을 부모에서 만들어 children으로 내려주면, 그 부분은 부모 state 변화와 무관해진다.
+
+```tsx
+// 느린 컴포넌트를 children으로 받으면, Wrapper의 state가 바뀌어도
+// SlowTree는 부모(=Wrapper 바깥)에서 한 번만 만들어진 같은 엘리먼트라 리렌더되지 않는다
+function App() {
+  return (
+    <Wrapper>
+      <SlowTree /> {/* App이 안 바뀌면 이 엘리먼트도 그대로 */}
+    </Wrapper>
+  );
+}
+```
+
+## 더 나은 첫 수: 메모이제이션은 마지막 수단
+
+메모이제이션에 손대기 전에 거의 항상 더 싸고 효과 좋은 수가 있다. **리렌더를 빠르게 만드는 것보다, 리렌더 범위 자체를 줄이는 것**이다.
+
+- **상태 내리기(state colocation)**: 자주 바뀌는 state를 그 state를 진짜 쓰는 작은 컴포넌트 안으로 내린다. 그러면 부모 전체가 아니라 그 작은 부분만 리렌더된다.
+- **컴포넌트 분리**: 빠르게 바뀌는 영역과 무거운 영역을 다른 컴포넌트로 쪼갠다. state 변경의 파급이 작은 영역에 갇힌다.
+
+```tsx
+// Before: input이 바뀔 때마다 무거운 <Chart>까지 같이 리렌더
+function Dashboard() {
+  const [query, setQuery] = React.useState('');
+  return (
+    <>
+      <input value={query} onChange={e => setQuery(e.target.value)} />
+      <Chart /> {/* query와 무관한데도 매 타이핑마다 리렌더 */}
+    </>
+  );
+}
+
+// After: query를 쓰는 부분만 분리 → Chart는 Dashboard 리렌더와 무관
+function Dashboard() {
+  return (
+    <>
+      <SearchBox /> {/* query state를 여기로 내림 */}
+      <Chart />
+    </>
+  );
+}
+```
+
+이렇게 하면 `memo`도 `useMemo`도 없이 문제가 사라진다. 리렌더가 왜 일어나고 어디까지 번지는지는 [[react-state-batching-and-rerender]]에서 더 다룬다.
+
+## React Compiler: 이 수동 작업의 자동화
+
+지금까지의 `memo`/`useMemo`/`useCallback`은 본질적으로 **컴파일러가 할 일을 사람이 손으로 한 것**에 가깝다. React Compiler는 빌드 시점에 컴포넌트를 분석해 "이 값은 이 의존성이 바뀔 때만 다시 만들면 된다"를 자동으로 메모이제이션해준다.
+
+방향성은 분명하다. 참조 안정화를 위한 기계적인 `useCallback`/`useMemo` 도배는 점점 컴파일러의 몫이 되고, 개발자는 로직에 집중한다. 다만 컴파일러가 깔린 환경에서도 "리렌더 ≠ DOM 갱신", "참조 동일성이 비교의 기준"이라는 멘탈 모델은 그대로 유효하다. 자동화되는 건 손작업이지, 원리가 아니다.
+
+## 흔한 오해
+
+- **오해: 리렌더는 무조건 나쁘니 막아야 한다.**
+  실제: 리렌더는 함수 재호출일 뿐 DOM 갱신이 아니다. 대부분 충분히 싸고, 막는 비용이 더 클 때가 많다.
+
+- **오해: `React.memo`만 붙이면 그 컴포넌트는 안 리렌더된다.**
+  실제: props에 인라인 객체/배열/함수가 하나라도 있으면 매번 새 참조라서 `memo`가 즉시 무력화된다. 참조 안정화가 동반돼야 한다.
+
+- **오해: `useMemo`/`useCallback`은 붙일수록 빨라진다.**
+  실제: 비교·메모리·복잡도 비용이 따라온다. 이득이 측정되지 않으면 순손해다.
+
+- **오해: 비싼 계산 캐싱과 참조 안정화는 같은 일이다.**
+  실제: 전자는 계산 시간을, 후자는 참조 동일성을 지킨다. 푸는 문제가 다르므로 "왜 메모하는지"를 구분해야 한다.
+
+## 스스로 점검하기
+
+- 리렌더가 일어나도 화면(DOM)이 안 바뀔 수 있는 이유를 한 문장으로 설명할 수 있는가?
+- `React.memo`가 사용하는 비교 방식은 무엇이고, 왜 깊은 비교가 아닌가?
+- `<Child style={{ color: 'red' }} />`에서 `Child`가 `memo`인데도 매번 리렌더되는 이유는?
+- `useCallback(fn, deps)`를 `useMemo`로 바꿔 쓰면 어떻게 되는가?
+- `useMemo`의 두 가지 용도를 구분하고, 각각 어떤 비용/이득을 다루는지 말할 수 있는가?
+- 무거운 자식이 부모 state 변경 때문에 리렌더되는 문제를, `memo` 없이 푸는 방법은?
+
+## 함께 보기
+
+- [[react-state-batching-and-rerender|상태 업데이트와 리렌더가 번지는 범위]]
+- [[react-virtual-dom-and-reconciliation|가상 DOM과 재조정 과정]]
+- [[react-hooks-under-the-hood|훅이 렌더 사이에 값을 기억하는 원리]]
+- [[js-closure-and-scope|클로저와 stale closure]]
+
+## 참고
+
+- [React 공식 문서 - memo](https://react.dev/reference/react/memo)
+- [React 공식 문서 - useMemo](https://react.dev/reference/react/useMemo)
+- [React 공식 문서 - useCallback](https://react.dev/reference/react/useCallback)
+- [React Compiler 소개](https://react.dev/learn/react-compiler)

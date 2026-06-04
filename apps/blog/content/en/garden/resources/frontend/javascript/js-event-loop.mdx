@@ -1,0 +1,215 @@
+---
+title: 'The Event Loop: How Single-Threaded JS Does Many Things at Once'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-javascript'
+tags: ['frontend', 'javascript', 'event-loop', 'async']
+---
+
+How does single-threaded JS appear to handle timers, networking, and clicks "at the same time"? This note uses the event loop to explain how an engine that runs only one line at a time keeps rolling without stalling.
+
+> One-line summary: **The JS engine does only one thing at a time. The "at the same time" illusion comes from handing waiting work off to the world outside the engine (the browser) and pulling finished callbacks off a queue one by one.**
+
+## The Call Stack: One Line at a Time
+
+JS runs functions using a **stack**. When you call a function, that call is pushed onto the stack; when it returns, it is popped off. Only whatever sits at the top runs.
+
+```js
+function a() {
+  b();
+}
+function b() {
+  console.log('b');
+}
+a();
+// Stack: [a] → [a, b] → run b → [a] → []
+```
+
+There is only one stack, and it never runs two slots at once. This is the starting point of "single-threaded." That is also why endlessly stacking recursion overflows the stack and throws `RangeError: Maximum call stack size exceeded`.
+
+**Why a stack?** Because functions follow a last-in, first-out order: "the most recently called finishes first." When `a` calls `b`, `b` must finish before `a` can continue. A stack guarantees this ordering for free.
+
+## What "JS Is Single-Threaded" Actually Means
+
+People often say "JS is single-threaded," but more precisely it means **there is a single stack that runs JS code**. It does not mean the entire engine or the entire browser runs on one thread.
+
+The browser counts timers, sends network requests, and detects user input **separately**. It is only the channel that runs JS functions that is single.
+
+**Why design it this way?** The DOM is shared state. If two threads touched the same node simultaneously, you would open the door to concurrency hell: locks, race conditions, and all that. Funneling execution into a single channel guarantees that "at any given moment, only one piece of my code touches the DOM," so developers never have to worry about locks. It is a constraint chosen deliberately for simplicity.
+
+## Waiting Work Is Done Outside the Engine (Web APIs)
+
+`setTimeout`, `fetch`, and DOM event listeners **are not features of the JS engine.** They are Web APIs provided by the browser (the runtime).
+
+```js
+console.log('1');
+setTimeout(() => console.log('2'), 1000);
+console.log('3');
+// Output: 1 → 3 → 2
+```
+
+When you call `setTimeout`, the engine effectively says to the browser, "put this callback on the queue in one second," **hands it off, and returns immediately.** The stack does not stall; it moves on to `console.log('3')`. Counting that one second is done by a timer outside the engine.
+
+```
+┌─────────────┐        ┌──────────────────┐
+│  Call Stack │        │   Web APIs        │
+│  (JS engine)│──hand──▶│  timer/fetch/DOM  │
+└─────────────┘   off  └──────────────────┘
+       ▲                        │ (when done, the callback)
+       │                        ▼
+       │  ┌──────────────── Task Queue ─────────┐
+       └──│  finished callbacks line up          │
+          └──────────────────────────────────────┘
+```
+
+**Why push it outside?** If the stack sat blocked while counting that second, clicks, scrolling, and all other code would be blocked along with it. Sending the waiting outside is what lets the engine keep doing other work.
+
+## Task Queue vs. Microtask Queue
+
+The line (queue) that finished callbacks join is actually **two kinds**.
+
+| Queue Kind         | What Goes In                                            | Priority |
+| ------------------ | ------------------------------------------------------- | -------- |
+| Microtask queue    | Promise.then/catch/finally, queueMicrotask, after await | High     |
+| Task queue (macro) | setTimeout, setInterval, DOM events, I/O                | Low      |
+
+**Why split it into two?** For async results like Promises, it is intuitive that they are handled "the instant the current work finishes, before the screen is repainted." If a `then` callback joined the same line as setTimeout, rendering or another timer could slip in between, leaving state inconsistent. By giving microtasks their own priority line, you guarantee that "cleanup of the current task" finishes before the next task begins.
+
+## One Tick of the Event Loop
+
+What the event loop does is simple. **When the stack is empty,** it looks at the queues.
+
+```
+loop:
+  1. Take one task from the task queue and run it (until the stack is empty)
+  2. Drain the microtask queue completely (including ones newly created along the way)
+  3. Render if needed (style → layout → paint)
+  → back to step 1
+```
+
+The key is the asymmetry. **It takes only one task at a time,** but it **drains microtasks until the queue is empty.** So if `then` callbacks are chained one after another, the next task and rendering both wait until all of them are done.
+
+## Why setTimeout(fn, 0) Does Not Run Immediately
+
+```js
+setTimeout(() => console.log('later'), 0);
+console.log('first');
+// Output: first → later
+```
+
+Even at `0ms`, the callback **goes into the task queue and waits in line.** It is only pulled from the queue after all the currently running synchronous code finishes and the stack is empty. On top of that, the spec applies a **minimum delay (about 4ms)** to nested timers. `0` means "as soon as possible," not "immediately."
+
+**Why?** Interrupting running code midway would break the consistency of the call stack. The queue is the mechanism that keeps the promise of "once the current work is fully done."
+
+## Why Promise.then Always Comes Before setTimeout
+
+```js
+setTimeout(() => console.log('timeout'), 0);
+Promise.resolve().then(() => console.log('promise'));
+// Output: promise → timeout
+```
+
+When the synchronous code finishes, the event loop **drains the entire microtask queue first**, then goes to the task queue. The `then` callback is a microtask, so it comes first; the `setTimeout` callback is a task, so it comes later. Even when both are queued, microtasks are always processed first.
+
+## Execution Order Quiz
+
+Trace it yourself. Predict the output order, then check it against the trace below.
+
+```js
+console.log('1');
+
+setTimeout(() => console.log('2'), 0);
+
+Promise.resolve().then(() => console.log('3'));
+
+async function run() {
+  console.log('4');
+  await null;
+  console.log('5');
+}
+run();
+
+console.log('6');
+```
+
+Step-by-step trace:
+
+```
+[synchronous run]
+  console.log('1')        → "1"
+  setTimeout(...)         → callback to the task queue
+  Promise.then(...)       → callback to the microtask queue
+  call run()
+    console.log('4')      → "4"
+    await null            → function suspends here,
+                            the rest (5) goes to the microtask queue
+  console.log('6')        → "6"
+[stack empty]
+
+[drain all microtasks]
+  "3"  (then callback)
+  "5"  (after await)
+
+[one task]
+  "2"  (setTimeout callback)
+```
+
+Final output: **1 → 4 → 6 → 3 → 5 → 2**
+
+`await` is not magic. `the code after await` is the same as `.then(() => the code after)`. That is why `5` joins the same batch of microtasks as `3` and comes out before `2` (a task). For the details of how Promises work, see the [[js-promise-and-async-await]] note.
+
+## Relationship with Rendering: A Long Task Drops Frames
+
+The browser normally tries to draw 60 frames per second (once every ~16.6ms). But rendering can only slip in **between tasks**. If a single task runs longer than 16.6ms, the screen cannot update during that time and **frames are dropped (jank).**
+
+```js
+// Hog the main thread for 200ms → clicks and scrolling freeze meanwhile
+const end = Date.now() + 200;
+while (Date.now() < end) {}
+```
+
+The callback of `requestAnimationFrame(cb)` runs **right before rendering**. So if you make visual changes like position or size here, the calculation and the drawing are bundled cleanly within a single frame. The rendering pipeline itself is covered in the [[browser-rendering-pipeline]] note.
+
+## Microtask Starvation: Rendering Goes Hungry
+
+The microtask queue is processed "until it is completely empty." But if a microtask **spawns yet another microtask**, the queue never empties.
+
+```js
+function spin() {
+  Promise.resolve().then(spin); // endlessly re-queues itself
+}
+spin();
+// Rendering and setTimeout never get their turn → the tab freezes
+```
+
+The event loop moves on to rendering and the next task **only after** the microtasks are fully drained. So if microtasks are created infinitely, every later stage starves. If you need to break a repeated job into small pieces, you should yield with a task (`setTimeout`) instead of a microtask, so rendering gets a chance.
+
+## Common Misconceptions
+
+- **Misconception**: "JS is single-threaded, so it can't do async." → **Reality**: Only the engine's execution channel is single; the browser handles waiting work in parallel. That is exactly why async is possible.
+- **Misconception**: "setTimeout(fn, 0) runs right away." → **Reality**: It goes into the task queue and waits for the current synchronous code to finish. A minimum delay is attached, too.
+- **Misconception**: "await halts the code and blocks the thread." → **Reality**: await suspends the function and hands control back. Other code runs in the meantime, and the rest resumes as a microtask.
+- **Misconception**: "Promises run on a new thread." → **Reality**: A Promise's callback also ultimately runs on the same call stack, as a microtask. It is not a separate thread.
+
+## Check Yourself
+
+- Why does the fact that there is a single call stack prevent the "DOM concurrency problem"?
+- What are the two reasons `setTimeout(fn, 0)` does not run immediately?
+- How is the processing of the task queue and the microtask queue asymmetric?
+- Can you trace the output order by hand when `console.log` / `setTimeout` / `Promise.then` / `await` are mixed together?
+- What happens on screen when a single task exceeds 16.6ms?
+- What are the conditions under which microtask starvation occurs, and how do you avoid it?
+
+## Related Notes
+
+- [[js-promise-and-async-await]]
+- [[browser-rendering-pipeline]]
+- [[js-v8-under-the-hood]]
+- [[frontend-javascript]]
+
+## References
+
+- [The event loop - MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Execution_model)
+- [In depth: Microtasks and the JavaScript runtime environment - MDN](https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide/In_depth)
+- [Using microtasks in JavaScript with queueMicrotask() - MDN](https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide)
+- [Tasks, microtasks, queues and schedules - Jake Archibald](https://jakearchibald.com/2015/tasks-microtasks-queues-and-schedules/)

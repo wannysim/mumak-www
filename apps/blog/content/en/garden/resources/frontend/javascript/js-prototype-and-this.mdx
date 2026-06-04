@@ -1,0 +1,251 @@
+---
+title: 'Prototypes and this: The Two Pillars of the JavaScript Object System'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-javascript'
+tags: ['frontend', 'javascript', 'prototype', 'this']
+---
+
+How did a language designed without any notion of classes end up implementing inheritance, and why does `this` take on a different value every time you call a function? This note traces the two pillars that hold up the JavaScript object system, prototypes and `this`, focusing on "why it was designed this way."
+
+> One-line summary: **JavaScript fakes inheritance by linking objects to other objects (prototypes), and `this` is not a value baked into a function but is decided by "how the function was called."**
+
+## Prototypes: linking objects, not classes
+
+Most object-oriented languages use a "class as blueprint → instance as product" model. JavaScript is different. Designed quickly as a lightweight scripting language, it chose a simpler idea over a heavy class system. **It just links one object to another.**
+
+The name of that link is an internal slot called `[Prototype]` (the spec writes it with double brackets, but here we use backticks so it does not clash with wikilinks). When you try to read a property from an object and it is not there, the engine follows this slot link upward, looking for a property of the same name. This chain is the **prototype chain**.
+
+```js
+const animal = {
+  breathe() {
+    return 'breathing';
+  },
+};
+const dog = {
+  bark() {
+    return 'woof';
+  },
+};
+
+Object.setPrototypeOf(dog, animal); // dog's [Prototype] = animal
+
+dog.bark(); // 'woof'    (dog has it itself)
+dog.breathe(); // 'breathing' (not on dog → found on animal)
+```
+
+Here is a diagram of the path the engine follows the moment you call `dog.breathe`.
+
+```
+dog ──[Prototype]──▶ animal ──[Prototype]──▶ Object.prototype ──▶ null
+ │                       │
+ breathe? no             breathe? yes → use it
+```
+
+It stops as soon as it finds the property, and if it reaches the end (`null`) without finding it, the result is `undefined`. The key point is that inheritance here is "delegation," not "copying." If you change `animal`'s `breathe`, the value `dog` sees changes immediately too, because it points at the same object rather than a copy.
+
+## `__proto__` vs `prototype`: the most confusing point
+
+These two get mixed up every time because their names are so similar. But their roles are completely different.
+
+- `prototype`: **a property that exists only on constructor functions**. A box that holds, in advance, the object that will become the `[Prototype]` of instances created with `new`.
+- `__proto__`: **an accessor that exists on instances**. The channel for reading and writing an object's own `[Prototype]`. (In practice, `Object.getPrototypeOf` is the standard way to do this.)
+
+`new` connects these two. When you do `new Foo()`, the engine creates a new object and plugs `Foo.prototype` into that object's `[Prototype]`.
+
+```js
+function Dog(name) {
+  this.name = name;
+}
+Dog.prototype.bark = function () {
+  return `${this.name}: woof`;
+};
+
+const d = new Dog('Choco');
+
+d.bark(); // 'Choco: woof'
+Object.getPrototypeOf(d) === Dog.prototype; // true
+d.__proto__ === Dog.prototype; // true (same thing)
+```
+
+```
+       prototype                       [Prototype]
+Dog ───────────────▶ Dog.prototype ◀───────────────── d
+(function)            (method store)                  (instance)
+```
+
+To sum up: **`prototype` is the box where a function stores "what it will pass on to the instances it creates"**, and **`__proto__` is the arrow that points to "who an instance is looking at."** The arrow (`d.__proto__`) points at the box (`Dog.prototype`).
+
+## Why you can use `map` on an array
+
+The reason you can use `map` on every array, even though you never defined it yourself, is exactly this chain.
+
+```js
+const arr = [1, 2, 3];
+arr.map(x => x * 2); // where did map come from?
+
+// chain: arr → Array.prototype → Object.prototype → null
+//             map, filter, …    toString, …
+```
+
+`arr` itself has no `map`. The engine climbs up to `Array.prototype` and finds `map` there. Something like `arr.toString` is found one level higher, on `Object.prototype`. Because methods are kept in a single place on the prototype rather than copied onto each instance, even if you create ten thousand arrays, there is only one `map` function in memory. This is the practical benefit the delegation model gives you.
+
+## `class` is syntactic sugar over prototypes
+
+The `class` from ES2015 is not a new object model. It is merely **syntactic sugar** that lets you write the prototype code you used to hand-write above in a nicer way. It becomes clear when you write the same result two ways.
+
+```js
+// prototype style
+function Dog(name) {
+  this.name = name;
+}
+Dog.prototype.bark = function () {
+  return `${this.name}: woof`;
+};
+
+// class style — the result is essentially identical to the above
+class Dog2 {
+  constructor(name) {
+    this.name = name;
+  }
+  bark() {
+    return `${this.name}: woof`;
+  }
+}
+
+typeof Dog2; // 'function' (a class is a function too)
+Object.getPrototypeOf(new Dog2('x')) === Dog2.prototype; // true
+```
+
+Methods declared with `class` ultimately end up on `Dog2.prototype`. `extends` connects the prototype chain, and `super` points to the parent prototype. That is why people say "JavaScript has no real classes." It only looks like a class on the surface; underneath it is still prototypes. Knowing this lets you trace the cause down at the prototype level when you run into strange behavior with `class` syntax.
+
+## `this`: decided by the call, not the function
+
+You need to replace your mental model here. In many languages, `this` (or `self`) is fixed to "the instance I belong to." JavaScript's `this` is **decided not when the function is declared but at the moment it is called.** The same function can have a different `this` depending on how you call it. Why was it built this way? Because it is a language where you freely attach and detach functions from objects, it was natural to decide "in whose capacity is this running right now" at call time.
+
+There are four rules. Priority increases from top to bottom.
+
+| Rule            | When                                   | What this points to                     |
+| --------------- | -------------------------------------- | --------------------------------------- |
+| Default binding | called as a plain function             | global object (loose mode) or undefined |
+| Implicit        | when there is an object before the dot | the object before the dot               |
+| Explicit        | using call / apply / bind              | the object you passed directly          |
+| new binding     | called with new                        | the newly created instance              |
+
+```js
+function who() {
+  return this?.label ?? '(none)';
+}
+
+const obj = { label: 'obj', who };
+
+who(); // default binding → (none)  (strict: this is undefined)
+obj.who(); // implicit       → 'obj'    (obj before the dot)
+who.call({ label: 'call' }); // explicit → 'call'
+new who(); // new binding → this inside who is the new object
+```
+
+## Priority: new > explicit > implicit > default
+
+Once you know who wins when the rules collide, you can untangle confusing code at a glance. The key comparison is between `bind` (explicit) and implicit.
+
+```js
+function show() {
+  return this.tag;
+}
+
+const bound = show.bind({ tag: 'bound' });
+const o = { tag: 'o', m: bound };
+
+bound(); // 'bound'  (bind fixed it)
+o.m(); // 'bound'  (bind wins even though o is before the dot)
+new bound(); // this is a new instance, not the bound object → new is on top
+```
+
+In `o.m()`, `this` is `bound` rather than `o` even though `o` is before the dot, and that shows the priority. Once a function has been tied with `bind`, calling it through a dot does not unbind it.
+
+## Why `this` breaks when you store a method in a variable and call it
+
+This is the trap people step on most often. Implicit binding only works **when there is "an object before the dot,"** and pulling the function out into a variable makes that dot disappear.
+
+```js
+const user = {
+  name: 'Younha',
+  greet() {
+    return `Hi, ${this.name}`;
+  },
+};
+
+user.greet(); // 'Hi, Younha'   (user before the dot)
+const g = user.greet;
+g(); // 'Hi, undefined' — this is broken!
+```
+
+Only the function itself was copied into `g`; the connection to `user` did not come along. The call `g()` has no object before the dot, so it falls back to default binding. For the same reason, `setTimeout(user.greet, 0)` or `button.onclick = user.greet` also lose `this`. The fix is to tie it with `user.greet.bind(user)` before passing it, or wrap it in an arrow function like `() => user.greet()` to preserve the call site.
+
+## Arrow functions: no `this` at all
+
+Before ES2015, it was a common idiom to stash the outer `this` in advance with `var self = this` in order to use it inside a callback. A `function` inside a callback falls back to default binding at call time because there is no object before the dot (the global object in loose mode, `undefined` in strict). Either way, it cannot point to the outer object. Arrow functions were created precisely to eliminate this pattern at the language level. **An arrow function has no `this` of its own; it lexically uses the outer `this` from where it was declared, as is.**
+
+```js
+function Timer() {
+  this.count = 0;
+  setInterval(() => {
+    this.count++; // uses the outer Timer's this as is → no need for a 'self' variable
+  }, 1000);
+}
+```
+
+Here, "lexical" follows the same principle as how [[js-closure-and-scope|scope]] is decided. It means it is determined by where the code is written. So changing `this` with `call`/`apply`/`bind` on an arrow function has no effect. Since it has no `this` of its own to begin with, there is nothing to change. Conversely, watch out: if you define an object method as an arrow function, `this` will point to the outer scope rather than that object.
+
+## How strict mode affects default binding
+
+The result of default binding differs by mode. In loose mode, `this` is filled with the global object (`window` / `globalThis`), but in strict mode it stays `undefined`.
+
+```js
+function loose() {
+  return this;
+}
+loose(); // loose mode: globalThis
+
+function strictFn() {
+  'use strict';
+  return this;
+}
+strictFn(); // undefined
+```
+
+Why the change? In loose mode, automatically filling `this` with the global object silently hid mistakes. As in the trap above, even when a function was called with a broken `this`, a value got written to the global object, so the bug surfaced late. Strict mode leaves it as `undefined` so that accessing `this.x` throws immediately. ES modules and `class` bodies are always strict, so in modern code a broken `this` does not leak into the global scope but blows up right away.
+
+## Common Misconceptions
+
+- **Misconception: JavaScript's `class` is the same thing as a class in other languages.**
+  Reality: `class` is syntactic sugar layered over prototypes. Methods land on `prototype` and `extends` merely connects the prototype chain; there is no separate class system running on the side.
+
+- **Misconception: `this` is decided by where a function is defined.**
+  Reality: arrow functions aside, `this` is decided by how it is called, not where it is defined. The same function has a different `this` in `obj.fn()` and `fn()`.
+
+- **Misconception: an arrow function's `this` can be changed with `bind`.**
+  Reality: an arrow function has no `this` of its own, so `bind`/`call`/`apply` are ignored. It is fixed to the `this` of the outer scope.
+
+## Check Yourself
+
+- Can you explain, using `[Prototype]` links, the path the engine takes to find `breathe` when you call `dog.breathe()`?
+- Can you state in one sentence who `prototype` and `__proto__` are each attached to, and how `new` connects the two?
+- Can you explain via the chain why you can use `map` even though it was not defined directly on the array?
+- In `const g = user.greet; g();`, why does `this` break, and how do you fix it?
+- When `new`, `bind`, implicit, and default binding collide, who wins?
+- When you call the same function plainly in loose mode versus strict mode, what does `this` become in each case?
+
+## Related Notes
+
+- [[js-closure-and-scope|Closures and Scope]]
+- [[js-v8-under-the-hood|How V8 Works Under the Hood]]
+- [[frontend-javascript|Frontend JavaScript]]
+
+## References
+
+- [Inheritance and the prototype chain - MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Inheritance_and_the_prototype_chain)
+- [this - MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/this)
+- [Arrow function expressions - MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Arrow_functions)
+- [Classes - MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes)

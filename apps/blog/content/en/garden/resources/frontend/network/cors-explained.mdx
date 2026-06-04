@@ -1,0 +1,180 @@
+---
+title: 'CORS: Why Only the Browser Blocks You, and What Preflight Really Is'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'cors', 'security']
+---
+
+The same API works fine with `curl`, yet only the browser console lights up with a red CORS error. Who exactly is blocking what, and why? Let's work through it step by step, from the same-origin policy all the way to preflight.
+
+> One-line summary: **The one doing the blocking is the browser, not the server. The server returned a normal response; the browser just refuses to hand that response to your JS. CORS is the protocol that safely lifts that block, with the server's consent.**
+
+## Where it starts: why does the Same-Origin Policy exist?
+
+The web's baseline security rule is the **Same-Origin Policy (SOP)**. The rule is: "A script from my origin can only read responses from the same origin."
+
+Why was something like this needed? Let's follow one scenario.
+
+```
+1. The user logs in to bank.com → an auth cookie is stored in the browser
+2. The same user opens evil.com in another tab
+3. evil.com's JS calls fetch('https://bank.com/account')
+4. The browser "automatically" attaches the bank.com cookie and sends it along
+```
+
+The problem is step 3. Cookies are bound to an origin (bank.com) and follow along automatically. Without SOP, a script on `evil.com` could borrow your authenticated state as-is, read your balance, and siphon it off to its own server.
+
+**So what SOP does is simple.** It does not block sending the request itself (that was already possible via forms and the like). Instead, it blocks **JS from reading the cross-origin response**. evil.com's script may be able to send a request to bank.com, but it cannot read the returned response body. The data it wants to steal stays out of reach.
+
+## What exactly is an origin?
+
+The origin in "same origin" is the combination of three things: **scheme + host + port**. If even one of the three differs, it's a different origin. The path and query string are not part of the origin.
+
+Examples compared against the reference URL `https://shop.com:443/page`:
+
+| Comparison URL           | Same origin? | Reason                              |
+| ------------------------ | ------------ | ----------------------------------- |
+| `https://shop.com/other` | O            | scheme/host/port all identical      |
+| `https://shop.com/a?x=1` | O            | path/query are irrelevant to origin |
+| `http://shop.com`        | X            | scheme differs (https vs http)      |
+| `https://api.shop.com`   | X            | host differs (subdomain)            |
+| `https://shop.com:8080`  | X            | port differs                        |
+
+There are two especially confusing points. First, `api.shop.com` is a **different origin even though it's a subdomain**. Second, the default https port is 443, so `https://shop.com` and `https://shop.com:443` are the same origin. Let's be clear: "same domain" does not mean "same origin."
+
+## Key insight 1: the one blocking you is the browser, not the server
+
+This is the point that trips people up most often when debugging CORS.
+
+```
+browser fetch ──request──▶ server
+browser        ◀─response(200 OK, data included)── server
+                ↑
+        here the browser intercepts and goes
+        "no allowed-origin header?" → doesn't hand the response to JS
+        → CORS error in the console
+```
+
+The server processed the request normally and returned 200 with the data. **The request arrived and the response came back.** The browser simply sees that the response has no `Access-Control-Allow-Origin` header (or that it doesn't match) and refuses to pass that response to the JS code. The `fetch` Promise rejects — the server didn't refuse anything.
+
+**That's why `curl` works fine.** With curl, Postman, or server-to-server calls, there's no browser enforcing SOP. SOP is a rule the browser voluntarily upholds to protect the user; it is not a block at the network-protocol level. "It works with curl but only fails in the browser" is an almost certain sign that you have a CORS problem.
+
+## Key insight 2: CORS doesn't "tighten" security — it safely "relaxes" SOP
+
+The name invites misunderstanding. CORS (Cross-Origin Resource Sharing) sounds like a mechanism that imposes a restriction, but in reality it's **the opposite.**
+
+The default is SOP, and SOP blocks all cross-origin access. Yet in practice there are many cases where `app.com` legitimately wants to call `api.com`. CORS is a protocol where, **once the server explicitly states "this origin may read my responses,"** the browser lifts SOP for that origin only.
+
+```
+SOP        = blocks everything by default (a safe default)
+CORS       = a handshake that unlatches the gate only for origins the server allows
+```
+
+So a "CORS error" isn't a security feature attacking you — it **means the gate hasn't been unlatched yet.** The direction of the fix is not "work around the browser" but "get the server to allow it."
+
+## simple request: a request that just goes through
+
+Not every cross-origin request gets scrutinized. If it meets certain conditions, it's classified as a **simple request** and is sent right away with no extra steps. Roughly speaking, the conditions are:
+
+- The method is one of `GET`, `HEAD`, or `POST`
+- Manually set headers are only within the safe list (`Accept`, `Content-Language`, `Content-Type`, etc.)
+- The `Content-Type` is one of `application/x-www-form-urlencoded`, `multipart/form-data`, or `text/plain`
+
+The origin of these criteria is the key. **Those conditions are exactly the shape of "requests an old-school HTML `<form>` could send without any JS."** Forms could send GET/POST to other origins long before CORS existed. In other words, requests like these have always existed on the web anyway, so blocking them with preflight now would gain nothing security-wise. So "what was always possible" is just let through, and only reading the response is controlled by SOP.
+
+```js
+// simple request — sent right away
+fetch('https://api.com/items'); // GET, no custom headers
+```
+
+## preflight (OPTIONS): asking "may I send this?" first
+
+Conversely, if it's a `PUT`/`DELETE`, or `Content-Type: application/json`, or carries a custom header like `Authorization`, it falls outside the simple request conditions. In that case, **before** sending the actual request, the browser sends a preliminary query (preflight) using the `OPTIONS` method.
+
+```
+1. browser ──▶ OPTIONS /items                (the preliminary question)
+                Origin: https://app.com
+                Access-Control-Request-Method: DELETE
+                Access-Control-Request-Headers: authorization
+
+2. server  ──▶ 204 No Content                (the permission response)
+                Access-Control-Allow-Origin: https://app.com
+                Access-Control-Allow-Methods: GET, POST, DELETE
+                Access-Control-Allow-Headers: authorization
+
+3. browser ──▶ DELETE /items                  (now the real request)
+```
+
+Why bother asking in advance? Requests like `DELETE` or an `application/json` POST have **side effects (deleting or changing data)**. If you sent the actual request to the server first and only hid the response afterward, the block would be meaningless — **the deletion would already have happened.** The purpose of preflight is to "stop a request with side effects from reaching the server at all." If the server doesn't allow it, the actual request never leaves.
+
+## What the CORS response headers do
+
+The headers the server attaches to the preflight or the actual response are what the browser bases its decision on.
+
+- `Access-Control-Allow-Origin`: which origin is allowed to read the response. A single value like `https://app.com`, or `*`.
+- `Access-Control-Allow-Methods`: the list of allowed methods. Used in the preflight response.
+- `Access-Control-Allow-Headers`: the list of allowed request headers.
+- `Access-Control-Max-Age`: **how long to cache** the preflight result (in seconds). During this time, OPTIONS won't be sent again for the same request.
+
+The reason `Max-Age` exists is performance. A request that requires preflight incurs two round trips each time — the OPTIONS and the actual request — and without caching, this OPTIONS round trip repeats every time you send the same request. By caching a once-approved result for a while, requests of the same kind during that window skip OPTIONS and go straight to the actual request.
+
+## credentials mode: to carry cookies, both sides must explicitly consent
+
+By default, a cross-origin `fetch` **does not carry cookies.** To send cookies along, the client must say so explicitly.
+
+```js
+fetch('https://api.com/me', { credentials: 'include' });
+```
+
+And the server has to play along too.
+
+```
+Access-Control-Allow-Origin: https://app.com   // ← * not allowed
+Access-Control-Allow-Credentials: true
+```
+
+There's a decisive constraint here. **In credentials mode, `Access-Control-Allow-Origin: *` is forbidden** — you must specify an exact origin.
+
+Why? Let's go back to the bank scenario at the top. If cookies are carried automatically and you also open the response to any origin (`*`), the very attack SOP was meant to prevent (any site reading data using your authenticated state) comes right back to life. So "I'll carry cookies" and "I'll let this response be read" are both blocked off such that they only work when **both sides pinpoint and consent to an exact origin.** The wildcard "anyone" cannot be used together with credentials.
+
+## Common real-world pitfalls
+
+**Why a local dev proxy makes it go away.** Use Vite's or Next's dev proxy and CORS disappears. That's because the browser only ever makes requests to the same origin (`localhost:3000`), and the **dev server that receives that request calls** the real API on its behalf. Server-to-server calls have no browser, so there's no SOP either. It's not a workaround so much as a trick of "taking the browser out of the path."
+
+```
+[no proxy]    browser ─cross-origin→ api.com         (CORS triggers)
+[with proxy]  browser ─same-origin→ localhost ─server-to-server→ api.com   (no CORS)
+```
+
+**The pattern that costs frontend devs days.** When you see a CORS error, your instinct is to fiddle with the frontend code (`fetch` options, headers, mode). But the real fix is almost always the one line where **the server adds the correct `Access-Control-Allow-Origin` to the response.** As long as you hold on to the insight "the browser does the blocking, the server does the unblocking," you can avoid the endless futile attempts on the frontend. The security context that ties in auth and sessions is continued in [[web-security-xss-csrf]].
+
+## Common Misconceptions
+
+- **Misconception**: "If a CORS error occurs, the request never reached the server." → **Reality**: A simple request has already arrived and been processed; the browser merely hid the response. The actual request only fails to leave when a preflight is rejected.
+- **Misconception**: "CORS is a security feature that protects the server from attacks." → **Reality**: CORS is a handshake that relaxes SOP. Protecting the server is the job of authentication/authorization; what CORS blocks is "the user's authenticated state being abused."
+- **Misconception**: "If you set the headers right on the frontend, you can lift CORS." → **Reality**: The allow headers are entirely **response (server)** headers. The frontend only sends requests; the permission comes from the server.
+- **Misconception**: "With `Access-Control-Allow-Origin: *`, everything works in every situation." → **Reality**: In credentials mode, which carries cookies, `*` is forbidden. You must specify an exact origin.
+
+## Check Yourself
+
+- If it works with `curl` but is blocked only in the browser, what is doing the blocking?
+- What are the three elements that make up an origin, and why is `api.shop.com` a different origin from `shop.com`?
+- Why do the conditions for a simple request match "requests an old-school HTML form could send"?
+- Why does a request with side effects send a preflight (OPTIONS) before the actual request?
+- Can you explain, via the bank scenario, why `Access-Control-Allow-Origin: *` is forbidden in credentials mode?
+- What is the principle behind a local dev proxy making CORS go away?
+
+## Related Notes
+
+- [[web-security-xss-csrf]]
+- [[url-to-pixels]]
+- [[http-versions]]
+- [[frontend-network]]
+
+## References
+
+- [Cross-Origin Resource Sharing (CORS) - MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS)
+- [Same-origin policy - MDN](https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy)
+- [CORS - web.dev](https://web.dev/articles/cross-origin-resource-sharing)
+- [Fetch Standard - CORS protocol](https://fetch.spec.whatwg.org/#http-cors-protocol)

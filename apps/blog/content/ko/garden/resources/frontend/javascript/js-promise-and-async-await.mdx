@@ -1,0 +1,227 @@
+---
+title: 'Promise와 async/await: 비동기 코드가 동기처럼 보이는 원리'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-javascript'
+tags: ['frontend', 'javascript', 'promise', 'async']
+---
+
+`await`는 정말로 코드를 "멈추는" 걸까? 멈추지 않는다면 어떻게 멈춘 것처럼 보이는 걸까. 이 노트는 콜백에서 Promise, 그리고 async/await로 이어지는 비동기 모델을 "왜 이렇게 설계됐는가"를 중심으로 따라간다.
+
+> 한 줄 요약: **`await`는 스레드를 멈추지 않는다. 함수를 그 지점에서 잘라 나머지를 마이크로태스크로 미루는 것뿐이고, "멈춘 것처럼 보이는 것"은 착시다.**
+
+## 콜백은 왜 불편했나 — 제어의 역전
+
+비동기 작업의 결과를 받으려고 함수를 넘기던 시절을 떠올려 보자.
+
+```js
+getUser(1, (err, user) => {
+  if (err) return handle(err);
+  getPosts(user.id, (err, posts) => {
+    if (err) return handle(err);
+    getComments(posts[0].id, (err, comments) => {
+      if (err) return handle(err);
+      render(comments); // 피라미드의 끝
+    });
+  });
+});
+```
+
+문제는 들여쓰기가 아니라 **제어의 역전(inversion of control)**이다. "다음에 뭘 할지"를 `getUser`라는 남의 함수에 넘겨줬으니, 그 함수가 콜백을 두 번 부를지·안 부를지·동기로 부를지 나는 알 수 없다. 게다가 에러 처리가 `try/catch`로 묶이지 않고 `if (err)`로 콜백마다 흩어진다. Promise는 이 "결과를 받을 권리"를 콜백에 넘기는 대신 **하나의 객체로 돌려받자**는 발상이다.
+
+## Promise는 상태 머신이다 — 왜 불변인가
+
+Promise는 세 가지 상태 중 하나다.
+
+```
+                 resolve(value)
+            ┌──────────────────▶  fulfilled (성공)
+ pending ───┤
+ (미결정)   └──────────────────▶  rejected  (실패)
+                 reject(error)
+```
+
+핵심 설계 규칙: **`pending`에서 `fulfilled` 또는 `rejected`로 단 한 번만 전이하고, 한 번 결정(settled)되면 상태와 값이 영원히 바뀌지 않는다.**
+
+왜 불변으로 설계했을까. 비동기 결과는 "한 번 일어나는 사건"이다. 값이 나중에 또 바뀔 수 있다면 `.then` 콜백이 몇 번 불릴지 보장할 수 없고, 한 번 도착한 응답이 다른 값으로 둔갑하면 그 위에 쌓은 추론이 전부 무너진다. 불변이기 때문에 "이미 끝난 Promise에 나중에 `.then`을 붙여도 그 값을 받을 수 있다"는 성질도 성립한다.
+
+## `.then`은 항상 새 Promise를 반환한다
+
+체이닝이 동작하는 진짜 이유가 여기 있다. `.then`은 콜백을 등록만 하는 게 아니라 **새로운 Promise를 만들어 반환**한다.
+
+```js
+const p1 = Promise.resolve(1);
+const p2 = p1.then(x => x + 1);
+console.log(p1 === p2); // false — 매번 새 Promise
+```
+
+그 새 Promise가 어떤 값으로 결정되는지는 콜백의 반환값에 따라 갈린다.
+
+| 콜백이 한 것       | 다음 Promise의 결과                        |
+| ------------------ | ------------------------------------------ |
+| 일반 값 `return v` | `v`로 fulfilled                            |
+| Promise를 `return` | 그 Promise가 끝날 때까지 기다렸다가 따라감 |
+| `throw err`        | `err`로 rejected                           |
+
+세 번째 분기 덕분에 `.then` 안에서 던진 에러가 사라지지 않고 다음 `.catch`로 흘러간다. 두 번째 분기(Promise를 반환하면 풀어서 따라감)가 중첩 없이 평평하게 이어지는 비결이다. 그래서 콜백 피라미드가 이렇게 펴진다.
+
+```js
+getUser(1)
+  .then(user => getPosts(user.id)) // Promise 반환 → 자동으로 기다림
+  .then(posts => getComments(posts[0].id))
+  .then(comments => render(comments))
+  .catch(handle); // 어느 단계의 에러든 여기로
+```
+
+## Promise 콜백은 마이크로태스크다 — 이미 끝났어도 동기 실행 안 된다
+
+직접 따라가 보자. 출력 순서는?
+
+```js
+console.log('A');
+Promise.resolve().then(() => console.log('B'));
+console.log('C');
+```
+
+답은 `A C B`다. `Promise.resolve()`는 이미 fulfilled 상태인데도 `.then` 콜백이 즉시 실행되지 않는다. 콜백은 **마이크로태스크 큐**에 들어가고, 지금 실행 중인 동기 코드가 전부 끝난 뒤에야 처리된다.
+
+왜 이미 끝난 Promise조차 동기로 실행하지 않을까. "값이 준비됐으면 동기, 아니면 비동기"라면 같은 함수가 호출 시점에 따라 어떨 땐 콜백보다 먼저, 어떨 땐 나중에 실행된다. 이 비결정성을 **Zalgo**라 부른다. Promise는 "콜백은 무조건 다음 마이크로태스크에서, 항상 비동기로"라는 일관성을 강제해 Zalgo를 원천 차단한다. 마이크로태스크 큐가 이벤트 루프 안에서 언제 비워지는지는 [[js-event-loop]]에서 다룬다.
+
+## async 함수는 항상 Promise를 반환한다
+
+```js
+async function f() {
+  return 42;
+}
+f().then(v => console.log(v)); // 42
+```
+
+`f`는 숫자를 `return`했지만 호출 결과는 `42`가 아니라 **`42`로 fulfilled된 Promise**다. async 함수 안에서 `throw`하면 그 Promise는 rejected가 된다. 즉 async/await는 새 비동기 모델이 아니라, Promise 위에 씌운 **문법 설탕**이다.
+
+## `await`의 실체 — 함수를 자르는 가위
+
+핵심 질문이다. 다음 코드에서 `await`는 스레드를 멈출까? 출력 순서를 예상해 보자.
+
+```js
+async function load() {
+  console.log('1');
+  const user = await getUser(); // 여기서 "멈춘다"?
+  console.log('3');
+  return user;
+}
+console.log('0');
+load();
+console.log('2'); // 0 1 2 3 으로 출력된다
+```
+
+`console.log('2')`가 `'3'`보다 먼저 나온다. 스레드가 진짜 멈췄다면 불가능한 순서다. 실제로 일어나는 일은 이렇다. `await`를 만나면 함수 실행을 **그 지점에서 잘라서** 반환하고 제어권을 호출자에게 돌려준다. 나머지(`console.log('3')`부터 끝까지)는 `getUser()` 결과에 등록되는 **`.then` 콜백**이 된다. 대략 이렇게 변환된다고 생각하면 정확하다.
+
+```js
+function load() {
+  console.log('1');
+  return getUser().then(user => {
+    // ← await 이후 전부가 콜백 속으로
+    console.log('3');
+    return user;
+  });
+}
+```
+
+그래서 `await`는 "멈춤"이 아니라 **"나머지를 미래로 미루기"**다. 멘탈 모델로는 제너레이터가 정확하다. `yield`가 함수를 잠시 빠져나왔다가 다시 들어가게 해주듯, async 함수도 `await` 지점에서 빠져나왔다가 결과가 준비되면 그 지점부터 재개한다. 지역 변수와 위치를 보존했다 복원하는 것이지 스레드를 붙잡는 게 아니다. 이 "보존했다 복원하는" 발상은 클로저가 변수를 가두는 방식과 닮았다 — [[js-closure-and-scope]] 참고.
+
+## 에러 전파 — `try/catch`가 비동기에서 동작하는 이유
+
+콜백 시절엔 `try/catch`가 비동기 에러를 못 잡았다. 콜백이 실행되는 시점엔 이미 `try` 블록을 빠져나온 뒤라서다.
+
+```js
+try {
+  setTimeout(() => {
+    throw new Error('!'); // 이 catch로 안 잡힌다
+  }, 0);
+} catch (e) {
+  /* 도달 못 함 */
+}
+```
+
+async/await에서는 `await`한 Promise가 rejected면, 그 거부가 **`await` 지점에서 throw로 되살아난다.** 그래서 평범한 `try/catch`가 다시 동작한다.
+
+```js
+async function load() {
+  try {
+    const user = await getUser(); // reject되면 여기서 throw로 전환
+    return user;
+  } catch (e) {
+    handle(e); // 동기 코드처럼 잡힌다
+  }
+}
+```
+
+`.then(...).catch(...)`로 흩어 쓰던 에러 처리가 동기 코드와 똑같은 모양으로 돌아온 것 — 이게 async/await가 가독성을 끌어올린 가장 큰 지점이다.
+
+## 순차 await vs Promise.all — 의도치 않은 직렬화 함정
+
+깔끔해 보이지만 느린 코드를 보자. 셋은 서로 무관한 작업이다.
+
+```js
+const a = await getA(); // 1초
+const b = await getB(); // 1초 — a가 끝난 뒤에야 시작
+const c = await getC(); // 1초
+// 총 3초. 그런데 셋은 서로 무관하다.
+```
+
+`await`를 줄줄이 쓰면 각 작업이 앞 작업의 완료를 기다린다. 서로 의존하지 않는 작업까지 **직렬로** 묶이는 함정이다. 동시에 출발시키려면 Promise를 먼저 만들고 한꺼번에 기다려야 한다.
+
+```js
+const [a, b, c] = await Promise.all([getA(), getB(), getC()]);
+// 셋을 동시에 시작 → 가장 느린 하나만큼만 (약 1초)
+```
+
+규칙은 단순하다. **앞 결과가 다음 입력으로 필요하면 순차 `await`, 서로 무관하면 `Promise.all`.** 비슷한 조합 함수들을 정리하면 이렇다.
+
+| 함수                 | 언제 결정되나                           | 결과                       |
+| -------------------- | --------------------------------------- | -------------------------- |
+| `Promise.all`        | 하나라도 reject되면 즉시 reject         | 모두 성공 시 값 배열       |
+| `Promise.allSettled` | 전부 끝날 때 (성공/실패 무관)           | 각각의 상태 객체 배열      |
+| `Promise.race`       | 가장 먼저 결정된 하나 (성공이든 실패든) | 그 하나의 결과             |
+| `Promise.any`        | 가장 먼저 성공한 하나                   | 전부 실패면 AggregateError |
+
+## await를 빼먹으면, 그리고 unhandled rejection
+
+`await`를 빼먹으면 컴파일 에러가 아니라 조용한 버그가 된다. 아래 `save`는 DB 쓰기를 기다리지 않고 반환한다.
+
+```js
+async function save() {
+  writeToDB(); // await 누락 — Promise를 버려버림
+  return 'done'; // DB 쓰기가 끝나기 전에 반환
+}
+```
+
+`writeToDB()`가 던진 Promise를 아무도 받지 않았으니 실패해도 잡히지 않는다. rejected됐는데 처리할 `.catch`나 `try/catch`가 끝까지 없으면 **unhandled rejection**이다. 브라우저는 `window.onunhandledrejection`, Node.js는 `process.on('unhandledRejection')`으로 감지하며 최신 Node는 기본적으로 프로세스를 종료시킨다. "쓰고 버리는" Promise라도 의도한 거라면 명시적으로 `.catch`를 달아두는 편이 안전하다.
+
+## 흔한 오해
+
+- **오해: `await`는 스레드를 멈춘다.** → 멈추지 않는다. 함수를 그 지점에서 잘라 나머지를 마이크로태스크로 미루고 제어권은 즉시 호출자에게 돌아간다. JS는 단일 스레드라 진짜 멈추면 아무것도 못 한다.
+- **오해: 이미 fulfilled된 Promise의 `.then`은 바로 실행된다.** → 항상 다음 마이크로태스크로 미뤄진다. 실행 시점이 섞이는 Zalgo를 막기 위한 일관성 보장이다.
+- **오해: async/await는 Promise보다 빠르거나 다른 메커니즘이다.** → 같은 Promise 위에 얹은 문법 설탕이다. `await`는 `.then` 등록으로 환원된다.
+- **오해: `await`를 여러 줄 쓰는 게 항상 자연스럽다.** → 서로 무관한 작업을 순차 `await`하면 의도치 않게 직렬화되어 느려진다. 독립 작업은 `Promise.all`로 묶는다.
+
+## 스스로 점검하기
+
+- `console.log('A'); Promise.resolve().then(() => console.log('B')); console.log('C');`의 출력 순서와 그 이유를 설명할 수 있는가?
+- Promise를 "한 번 결정되면 불변"으로 설계한 이유는 무엇이고, "이미 fulfilled여도 콜백을 동기 실행하지 않는다"는 왜 중요한가(Zalgo)?
+- `.then`이 새 Promise를 반환한다는 사실이 체이닝과 어떤 관계가 있는가? 콜백이 값/Promise/throw를 했을 때 각각 다음 Promise는 어떻게 되는가?
+- `await`를 `.then` 콜백 등록으로 바꿔 설명할 수 있는가? 왜 "멈추는 것처럼 보이는" 것이 착시인가?
+- 순차 `await`와 `Promise.all`을 언제 각각 써야 하는가? `all`/`allSettled`/`race`/`any`의 차이는?
+
+## 함께 보기
+
+- [[js-event-loop]]
+- [[js-closure-and-scope]]
+- [[frontend-javascript]]
+
+## 참고
+
+- [MDN — Using Promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises)
+- [MDN — async function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function)
+- [V8 — Faster async functions and promises](https://v8.dev/blog/fast-async)
+- [HTML Living Standard — Microtask queuing](https://html.spec.whatwg.org/multipage/webappapis.html#microtask-queuing)

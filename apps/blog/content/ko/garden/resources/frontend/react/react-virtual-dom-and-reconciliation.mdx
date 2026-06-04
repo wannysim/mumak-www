@@ -1,0 +1,216 @@
+---
+title: 'Virtual DOM과 재조정: React가 바뀐 부분만 갱신하는 법'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'virtual-dom', 'reconciliation']
+---
+
+`setState` 한 번에 화면이 바뀌는데, React는 도대체 무엇과 무엇을 비교해서 "여기만 바뀌었네"를 알아내는 걸까? 그 비교 규칙이 어떻게 생겼길래 수천 개 노드짜리 트리에서도 멈추지 않는 걸까?
+
+> 한 줄 요약: **React는 이전 Element 트리와 새 Element 트리를 비교하되, "타입이 다르면 통째로 버린다 + key로 형제를 식별한다" 두 휴리스틱으로 비교 비용을 O(n)으로 깎는다.**
+
+## 왜 DOM을 직접 만지는 게 비싼가
+
+흔히 "DOM 조작이 느리다"고 말하지만, `document.createElement` 한 줄 자체는 느리지 않다. 진짜 비용은 그 뒤에 따라오는 **레이아웃과 페인트**다.
+
+노드 하나의 크기나 위치를 건드리면 브라우저는 그 노드만 다시 계산하지 못한다. 형제, 자식, 부모까지 영향이 번질 수 있어서 트리를 다시 측정(reflow)하고, 다시 칠한다(repaint). 이 파이프라인의 단계별 비용은 [[browser-rendering-pipeline]]에 정리해 뒀다.
+
+문제는 명령형 코드가 이걸 부추긴다는 점이다.
+
+```js
+// 1000개 아이템을 한 줄씩 추가 — append 자체는 브라우저가 레이아웃을 모아서 처리한다
+for (const item of items) {
+  list.appendChild(makeRow(item));
+  // 하지만 루프 중간에 offsetHeight 같은 레이아웃 값을 읽으면, 그 순간 강제 동기 reflow가 발생한다
+}
+```
+
+손으로 최적화하려면 "어디가 바뀌었으니 어디만 건드린다"를 개발자가 직접 추적해야 한다. 화면이 복잡해질수록 이 추적은 사람이 감당하기 어려운 상태 관리 문제로 변한다.
+
+## Virtual DOM의 실체: 그냥 JS 객체다
+
+Virtual DOM은 무슨 특별한 기술이 아니라, **화면을 묘사한 가벼운 JS 객체 트리**다. React에서는 이걸 React Element라고 부른다.
+
+JSX는 문법 설탕일 뿐이고, 빌드 단계에서 `createElement` 호출로 변환된다.
+
+```jsx
+// 우리가 쓰는 것
+const el = <li className="row">윤하</li>;
+
+// 변환된 것
+const el = React.createElement('li', { className: 'row' }, '윤하');
+
+// createElement가 만들어내는 것 (실제 DOM이 아니다!)
+// 핵심 필드만 추린 모습 — 실제로는 key, ref, $$typeof 같은 필드도 함께 붙는다
+const el = {
+  type: 'li',
+  props: { className: 'row', children: '윤하' },
+};
+```
+
+이 객체는 실제 `<li>`가 아니다. 그냥 "이런 `<li>`를 그려 달라"는 **설명서**다. 진짜 DOM 노드를 만드는 것보다 이 객체를 만드는 게 훨씬 싸다. 그래서 React는 렌더할 때마다 이 트리를 부담 없이 새로 만들 수 있다.
+
+## 선언형 UI라는 거래
+
+여기서 React가 제안하는 거래가 드러난다.
+
+> "당신은 매번 화면 전체를 처음부터 그리는 것처럼 코드를 쓰세요. 실제로 무엇을 최소한으로 바꿀지는 제가 책임집니다."
+
+```jsx
+// 명령형: "count가 바뀌면 이 span의 textContent를 갱신해"
+span.textContent = String(count);
+
+// 선언형: "화면은 항상 이렇게 생겼다" — 변경 추적은 React가
+function Counter({ count }) {
+  return <span>{count}</span>;
+}
+```
+
+개발자는 "현재 상태 → 어떤 화면" 매핑만 적는다. 상태가 바뀌면 React는 새 Element 트리를 통째로 만든 뒤, 이전 트리와 비교해서 진짜 DOM에 가할 최소 변경분을 계산한다. 이 비교 과정이 **재조정(reconciliation)**이다.
+
+```
+state 변경
+   │
+   ▼
+새 Element 트리 생성 (싸다)
+   │
+   ▼
+이전 트리와 diff  ◄── 여기가 재조정
+   │
+   ▼
+바뀐 부분만 실제 DOM에 commit (비싼 작업 최소화)
+```
+
+## 왜 일반 트리 diff를 안 쓰는가
+
+두 트리의 최소 차이를 정확히 구하는 일반 알고리즘은 **O(n^3)**이다. 노드 1000개면 10억 번 규모. 매 렌더마다 이걸 돌리는 건 비현실적이다.
+
+그래서 React는 정확성을 포기하고 **두 가지 가정(휴리스틱)**을 받아들여 O(n)으로 깎았다. 대신 이 가정이 깨지는 경우엔 React가 "이상적이지 않게" 동작할 수 있다 — 이게 뒤에 나올 key 사고의 뿌리다.
+
+### 휴리스틱 1: 타입이 다르면 통째로 버린다
+
+같은 위치의 노드가 이전엔 `<div>`였는데 이번엔 `<span>`이면, React는 둘을 비교하지 않는다. **옛 서브트리를 통째로 파괴하고 새로 만든다.**
+
+```jsx
+// 변경 전
+<div><Counter /></div>
+
+// 변경 후 — div가 span으로 바뀜
+<span><Counter /></span>
+```
+
+여기서 안쪽 `<Counter />`가 같아 보여도, 부모 타입이 바뀌었으니 **Counter는 언마운트되고 state가 날아간다**. "타입이 다르면 내용도 다를 가능성이 높다"는 경험적 가정을 받아들인 대가다. 컴포넌트 타입(함수 자체)이 바뀌어도 마찬가지다.
+
+### 휴리스틱 2: key로 형제를 식별한다
+
+같은 부모 밑의 형제 리스트를 비교할 때, React는 기본적으로 **순서(index)**로 짝을 맞춘다. 하지만 리스트는 중간 삽입/삭제/정렬이 흔하다. 순서만으로는 "3번째에 있던 그 아이템이 지금 어디로 갔는지" 알 수 없다.
+
+그래서 React는 형제마다 `key`를 요구한다. key는 "이 아이템이 지난 렌더의 누구와 같은 존재인가"를 알려주는 **신분증**이다.
+
+```jsx
+{
+  items.map(item => (
+    <Row key={item.id} item={item} /> // id로 동일성을 고정
+  ));
+}
+```
+
+## index를 key로 쓰면 생기는 사고
+
+key의 역할을 제대로 이해하면, index를 key로 쓰는 게 왜 위험한지 코드로 재현할 수 있다.
+
+```jsx
+function TodoList() {
+  const [todos, setTodos] = useState(['우유 사기', '청소', '운동']);
+
+  return (
+    <ul>
+      {todos.map((todo, i) => (
+        // (안티패턴) key를 index로 — 동일성을 "위치"에 묶었다
+        <li key={i}>
+          <input defaultValue={todo} /> {/* 사용자가 입력한 값은 DOM에 산다 */}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+지금 화면에서 세 입력칸에 각각 다른 메모를 적어 뒀다고 하자. 이제 맨 앞 항목을 지운다.
+
+```
+삭제 전 (key는 index)          삭제 후
+key 0 → input "메모A"          key 0 → input "메모A"  ← 그대로!?
+key 1 → input "메모B"          key 1 → input "메모B"  ← 그대로!?
+key 2 → input "메모C"          (key 2 없음 → input 제거)
+```
+
+직관적으로는 "메모A가 통째로 사라지고 B, C가 위로 올라와야" 한다. 하지만 key가 index라서, React 입장에선 **key 0/1은 그대로 있고 key 2만 사라진 것**이다. 그래서 위치는 한 칸씩 당겨졌는데 입력값(state)은 그 자리에 그대로 남아, 결국 **메모C가 사라지고 A·B가 엉뚱한 항목에 붙는다.**
+
+```jsx
+// (올바른 방식) 안정적인 식별자를 key로
+{
+  todos.map(todo => (
+    <li key={todo.id}>
+      <input defaultValue={todo.text} />
+    </li>
+  ));
+}
+```
+
+`key={todo.id}`로 바꾸면 React는 "id가 사라진 그 항목"만 정확히 제거한다. **key는 정렬·삽입·삭제가 있는 리스트에서만 진짜 의미가 있고**, 그럴 때 index를 쓰면 state가 다른 아이템에 옮겨 붙는다. 이 state 보존/이동 메커니즘의 더 깊은 동작은 [[react-state-batching-and-rerender]]에서 다룬다.
+
+## 타입이 같을 때: 갱신하고 재귀한다
+
+타입이 같으면 비로소 React가 일을 아낀다.
+
+| 비교 결과          | React의 동작                                       |
+| ------------------ | -------------------------------------------------- |
+| 같은 DOM 타입      | 바뀐 속성만 패치하고 children으로 재귀             |
+| 같은 컴포넌트 타입 | 인스턴스 유지, props 갱신 후 다시 렌더, state 보존 |
+| 타입이 다름        | 옛 서브트리 파괴 + 새로 생성, state 소멸           |
+
+```jsx
+// 같은 li 타입 → className만 바뀐 속성으로 패치, 노드는 재사용
+<li className="row" />     →     <li className="row active" />
+```
+
+이 "타입이 같으면 인스턴스를 유지한다"는 규칙 덕분에, 같은 컴포넌트가 재렌더돼도 `useState`로 담아둔 값이 살아남는다. 부모가 100번 렌더해도 자식 컴포넌트의 타입과 위치가 그대로면 그 state는 보존된다.
+
+## 흔한 오해
+
+**오해 1: "Virtual DOM이라서 무조건 빠르다."**
+실제: diff 자체도 공짜가 아니다. 매 렌더마다 새 트리를 만들고 비교하는 비용이 든다. 정성껏 손으로 최적화한 명령형 코드(바뀐 한 군데만 직접 건드리는)가 더 빠른 경우도 많다. Virtual DOM의 가치는 "최고 속도"가 아니라 **"선언형으로 짜도 충분히 빠르다"**는 데 있다.
+
+**오해 2: "Virtual DOM은 실제 DOM의 복사본이다."**
+실제: 실제 DOM을 복사한 게 아니라, 우리가 반환한 JSX를 묘사한 가벼운 JS 객체 트리다. 실제 DOM보다 훨씬 작고, 레이아웃/페인트 같은 부수효과가 전혀 없다.
+
+**오해 3: "key는 그냥 경고 없애려고 붙이는 것."**
+실제: key는 React가 형제의 동일성을 판단하는 유일한 단서다. 잘못 쓰면 state가 엉뚱한 아이템에 붙는 진짜 버그를 만든다. 경고가 아니라 정확성의 문제다.
+
+**오해 4: "diff가 화면을 바로 그린다."**
+실제: diff(재조정)는 "무엇을 바꿀지"를 계산할 뿐이고, 실제 DOM 반영(commit)은 별개 단계다. 이 둘을 분리하고 작업을 쪼개 끊을 수 있게 만든 게 [[react-fiber-architecture]]의 핵심이다.
+
+## 스스로 점검하기
+
+- DOM 조작이 비싸다고 할 때, 진짜 비싼 단계는 노드 생성인가 그 뒤의 무엇인가?
+- JSX `<li>윤하</li>`는 어떤 함수 호출로, 어떤 모양의 JS 객체로 변환되는가?
+- 일반 트리 diff가 O(n^3)인데 React는 어떤 두 가정으로 O(n)까지 깎았는가?
+- 같은 위치의 노드 타입이 `div`에서 `span`으로 바뀌면 안쪽 컴포넌트의 state는 어떻게 되는가? 왜 그런가?
+- 리스트 맨 앞 항목을 지울 때 key로 index를 쓰면 어떤 사고가 나는가? id를 쓰면 왜 안 나는가?
+- "Virtual DOM이라서 빠르다"가 정확하지 않은 이유는 무엇인가?
+
+## 함께 보기
+
+- [[react-fiber-architecture]]
+- [[react-state-batching-and-rerender]]
+- [[react-memoization-strategy]]
+- [[browser-rendering-pipeline]]
+
+## 참고
+
+- [Reconciliation — React 공식 문서(레거시)](https://legacy.reactjs.org/docs/reconciliation.html)
+- [Preserving and Resetting State — react.dev](https://react.dev/learn/preserving-and-resetting-state)
+- [Rendering Lists: keeping list items in order with key — react.dev](https://react.dev/learn/rendering-lists)
+- [Render and Commit — react.dev](https://react.dev/learn/render-and-commit)

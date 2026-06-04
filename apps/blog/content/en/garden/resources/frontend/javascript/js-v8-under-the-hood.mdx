@@ -1,0 +1,198 @@
+---
+title: 'Under the Hood of the V8 Engine: JIT, Hidden Classes, Garbage Collection'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-javascript'
+tags: ['frontend', 'javascript', 'v8', 'performance']
+---
+
+How does JS — a dynamically typed, interpreted language — reach near-native speed? Let's trace what V8 quietly does behind the scenes while it runs your code.
+
+> One-line summary: **V8 "starts fast, then optimizes only the code that gets used a lot." And every one of those optimizations rests on a single assumption: that types stay consistent.**
+
+## Why Not Compile Everything Up Front
+
+Languages like C++ compile the entire program to machine code before it runs. V8 could do the same if it wanted to, but it deliberately doesn't. The reason is a trade-off.
+
+- **If you optimize and compile everything ahead of time**: startup is slow. On a web page, most functions run exactly once and then they're done. Lovingly optimizing code you'll use a single time is a net loss.
+- **If you only ever interpret everything**: startup is fast, but hot code with lots of loops stays slow forever.
+
+So V8 mixes the two. It starts fast, observes "hey, this function keeps getting called" as it runs, then picks out the hot ones and compiles them with optimization. This is the core motivation behind **JIT (Just-In-Time) compilation**. Another big advantage: by waiting until run time to compile — once you know information like which types are actually coming in — you can optimize far more aggressively than you ever could ahead of time.
+
+## The Execution Pipeline: From Parsing to Optimization
+
+Here's the flow from V8 receiving a source string to actually running it.
+
+```
+source code
+   │  parse
+   ▼
+  AST (Abstract Syntax Tree)
+   │  Ignition compiles
+   ▼
+ bytecode  ───────► Ignition interpreter runs it
+   │                      │
+   │              collects "type feedback" while running
+   │              (e.g. this variable always holds a number)
+   │                      │
+   │  if judged hot code     │
+   ▼                      ▼
+ TurboFan generates optimized machine code ◄── uses feedback as assumptions
+   │
+   ▼
+ if assumptions break → deoptimization → back to bytecode
+```
+
+In one line each, here's what every stage does.
+
+| Stage        | Owner       | What it does                                                             |
+| ------------ | ----------- | ------------------------------------------------------------------------ |
+| Parsing      | Parser      | Converts source to an AST (lazily for functions not actually used)       |
+| Bytecode     | Ignition    | Compiles the AST to small, portable bytecode and runs it                 |
+| Optimization | TurboFan    | Compiles hot code to machine code based on type assumptions              |
+| Reverting    | Deoptimizer | If assumptions turn out wrong, throws away optimized code and falls back |
+
+The important point here is that **Ignition doesn't just run the code — it also collects "type feedback."** It leaves notes like "this addition slot has only ever received integers so far." TurboFan reads those notes and decides, "then I'll treat this as integer addition and lay down fast machine code." In other words, the raw material for optimization isn't static analysis — it's the **actual execution record**.
+
+## Hidden Classes: Quietly Giving Structure to Dynamic Objects
+
+JS objects can freely add and remove properties at run time. If you look things up "by key, like a dictionary," every access needs a hash lookup, which is slow. To avoid that, V8 quietly attaches something called a **hidden class** to each object. In V8's source code this is called a `Map`, and in other engines or general explanations it's also called a Shape.
+
+A hidden class is **structural information** saying "in an object of this shape, `x` lives in slot 0 and `y` in slot 1." It's like laying out properties at fixed offsets, the way a C struct does. Objects of the same shape share the same hidden class.
+
+```js
+function Point(x, y) {
+  this.x = x; // here the hidden class goes C0 → C1 (x added)
+  this.y = y; // C1 → C2 (y added)
+}
+
+const a = new Point(1, 2);
+const b = new Point(3, 4);
+// a and b share the same hidden class C2 → fast
+```
+
+Every time you add a property, a **transition** to a new hidden class occurs, and objects that add the same properties in the same order follow the same transition path and eventually arrive at the same hidden class. So when reading `a.x`, V8 can immediately tell, "if it's the C2 shape, then slot 0." The hash lookup disappears.
+
+## Diverge the Property Order, and the Hidden Class Diverges Too
+
+Here's where people commonly trip up. If the **order** of additions differs, the transition paths fork and you end up with different hidden classes.
+
+```js
+const a = {};
+a.x = 1;
+a.y = 2; // hidden class: {} → {x} → {x,y}
+
+const b = {};
+b.y = 2;
+b.x = 1; // hidden class: {} → {y} → {y,x}
+// a and b have the "same properties" but different hidden classes
+```
+
+`a` and `b` both have `x` and `y`, but as far as V8 is concerned they're objects of different shapes. Mix the two through the same function and the inline caching we'll cover next has to deal with more than one shape, which makes it slow.
+
+This is where the advice "initialize all properties in the same order in your constructor" comes from. If you always fill in the same properties in the same order when creating objects, they converge on the same hidden class, and you also do less of the later "change the shape by adding a property with `obj.z = ...`." This ties into the pattern of handling properties through `this` discussed in [[js-prototype-and-this]].
+
+## Inline Caching: "If It's the Shape I Saw Last Time, Use That Offset Directly"
+
+Suppose a property access like `obj.x` runs repeatedly inside a function. Asking "what's obj's hidden class? what slot is x in?" all over again each time is wasteful. An **inline cache (IC)** records, at each access point (call site), "the hidden class and slot number I saw last time."
+
+Next time an object of the same shape comes along, it skips the lookup and uses the cached offset directly. An IC's state changes depending on how many shapes that site has seen.
+
+| State       | Shapes seen | Behavior                                                 |
+| ----------- | ----------- | -------------------------------------------------------- |
+| Monomorphic | 1           | Fastest. Done in a single cache hit                      |
+| Polymorphic | 2–4         | Checks a handful of candidates in order. Slightly slower |
+| Megamorphic | Too many    | Gives up the cache. Falls back to a generic lookup. Slow |
+
+The key point is that **keeping a call site monomorphic is the fastest**. Keep funneling objects of wildly different shapes through a single function and that site degrades to polymorphic, then megamorphic, and the optimization benefit vanishes. This is where the earlier "keep the same shape" pays off.
+
+## Deoptimization: When Assumptions Break, Throw Away the Optimized Code
+
+The optimized machine code TurboFan lays down all rests on assumptions. Say it laid down an integer-only fast path on the assumption that "this argument is always an integer" — and then one day a string comes in. That machine code is no longer safe. V8 discards the optimized code on the spot and reverts to the bytecode interpreter. This is **deoptimization**.
+
+```js
+function add(a, b) {
+  return a + b;
+}
+
+// looping while passing only integers → TurboFan optimizes for "integer addition"
+for (let i = 0; i < 100000; i++) add(i, i);
+
+// suddenly passing strings breaks the assumption → deopt occurs
+add('a', 'b'); // optimization discarded, back to bytecode
+```
+
+If a function gets deopted once, is re-optimized under the same assumption, and breaks again, V8 may decide "this function isn't type-stable" and give up on optimizing it altogether. This is the real story behind the common belief that **mixing several types through the same function makes it slow**. Write your functions so they always receive the same shape and the same type, and no deopt occurs and they stay on the fast path.
+
+## Garbage Collection: When and How Unused Memory Gets Cleared
+
+JS doesn't call `free()` directly. The GC automatically reclaims objects that are no longer reachable (that no variable can reach). V8's GC (Orinoco) is designed around the **generational hypothesis**.
+
+> Generational hypothesis: most objects die young, right after they're created. Objects that have survived a long time are likely to keep surviving even longer.
+
+If this hypothesis holds, then frequently cleaning only the area where freshly created objects gather is efficient. So the heap is split into two areas.
+
+```
+                 V8 Heap
+   ┌──────────────────┬──────────────────────┐
+   │  Young Generation │   Old Generation      │
+   │  (small, cleaned   │   (large, cleaned     │
+   │   often)           │    occasionally)      │
+   │   Scavenger       │   Mark-Sweep-Compact  │
+   └──────────────────┴──────────────────────┘
+     objects that die young   survivors that got promoted
+```
+
+- **Young Generation — Scavenger (copying)**: splits the area in two (From/To), copies only the live objects to the other side, and discards the original area wholesale. It doesn't even touch dead objects, so it's fast. Objects that survive two cleanings get **promoted** to Old.
+- **Old Generation — Mark-Sweep-Compact**: marks the reachable objects (Mark), reclaims the unmarked ones (Sweep), and gathers and compacts memory to reduce fragmentation (Compact). Since the area is large, a single pass is expensive.
+
+Why use two approaches? **Copying is favorable when many objects die** (you only have to copy the live ones), and **marking wastes little memory when many objects are alive**. Object survival patterns differ by generation, so each gets the algorithm that suits it.
+
+### How to Reduce Pauses
+
+Halting JS execution while the GC runs is called stop-the-world. Pausing all at once to clean a large Old Generation makes the screen stutter. V8 chops this up finely and spreads it out.
+
+- **Incremental**: splits a large marking job into many pieces and slips them in between bits of JS execution.
+- **Parallel / concurrent**: cleans on background threads, alongside or simultaneously with the main thread.
+
+The goal is one and the same: instead of one long pause, make many short pauses so a human can't feel the stutter. This sense of "don't block the main thread" is the same concern as the event-loop blocking problem covered in [[js-event-loop]].
+
+## Practical Takeaways: Measure First
+
+By the time you've read this far, you might think, "so I should obsessively line up my object shapes" — and that's the trap.
+
+- **The engine keeps changing.** Today's "do it this way and it's fast" can become meaningless or even reversed in the next V8 version. Tailoring your code to a specific version's internal behavior turns into debt.
+- **Most code isn't on the hot path.** Polishing the object shapes of code that runs once and is done only costs you readability.
+- **Don't guess — measure.** Find the slow spots with a profiler first, and apply shape/type stabilization only when that spot really is a hot path and a deopt or megamorphic state has been confirmed.
+
+The real reason to understand how the engine works isn't to do micro-optimizations — it's to **have a model that can explain "why it's slow" when it is**. Write readable code most of the time, and pull out this knowledge when measurement reveals a bottleneck.
+
+## Common Misconceptions
+
+- **Misconception: JS is an interpreted language, so it's always slow.** → Reality: hot code is compiled to machine code by TurboFan. Interpreting is just the startup stage; frequently running code runs close to native.
+- **Misconception: as long as objects have the same properties, they're treated the same.** → Reality: even the **order** in which properties were added has to match for the hidden class to be the same. `{x,y}` and `{y,x}` are different shapes.
+- **Misconception: `delete obj.prop` is just a lightweight operation that removes one property.** → Reality: deleting a property can break the hidden class transitions and drop the object into slow dictionary mode. Be careful with `delete` on hot-path objects.
+- **Misconception: there's a GC, so there are no memory leaks.** → Reality: reachable objects aren't reclaimed. If a reference is unintentionally left in a closure or a global, you get a leak. References and reachability are covered in [[js-closure-and-scope]].
+
+## Check Yourself
+
+- Can you explain why V8 doesn't optimize-compile all code from the start, in terms of startup speed and peak performance?
+- What is the "type feedback" that Ignition collects, and how does TurboFan use it?
+- Can you say why `{x,y}` and `{y,x}` are different hidden classes, and how that affects inline caching?
+- What's the difference between monomorphic, polymorphic, and megamorphic ICs, and which is fastest?
+- When does deoptimization happen, and why does mixing several types through the same function make it slow?
+- Can you explain, via the generational hypothesis, why the Young Generation uses copying and the Old Generation uses marking?
+
+## Related Notes
+
+- [[js-closure-and-scope]] — references closures leave on the heap, reachability, and memory leaks
+- [[js-event-loop]] — the same concern about not blocking the main thread, pauses and async
+- [[js-prototype-and-this]] — the pattern of handling properties through `this` and object shapes
+- [[frontend-javascript]] — a collection of JavaScript notes
+
+## References
+
+- [Launching Ignition and TurboFan - v8.dev](https://v8.dev/blog/launching-ignition-and-turbofan)
+- [Fast properties in V8 (hidden classes/Shape) - v8.dev](https://v8.dev/blog/fast-properties)
+- [Trash talk: the Orinoco garbage collector - v8.dev](https://v8.dev/blog/trash-talk)
+- [Memory Management - MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Memory_management)

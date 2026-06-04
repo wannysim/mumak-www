@@ -1,0 +1,180 @@
+---
+title: 'CORS: 브라우저만 막는 이유와 preflight의 정체'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'cors', 'security']
+---
+
+같은 API를 `curl`로는 멀쩡히 부르는데 브라우저 콘솔에서만 빨간 CORS 에러가 뜬다. 도대체 누가, 왜, 무엇을 막는 것인가를 동일 출처 정책부터 preflight까지 차근차근 정리한다.
+
+> 한 줄 요약: **막는 주체는 서버가 아니라 브라우저다. 서버는 응답을 정상으로 줬고, 브라우저가 그 응답을 JS에게 안 보여줄 뿐이다. CORS는 그 차단을 서버 동의 아래 안전하게 푸는 프로토콜이다.**
+
+## 출발점: 동일 출처 정책(SOP)은 왜 생겼나
+
+웹의 기본 보안 규칙은 **동일 출처 정책(Same-Origin Policy)**이다. "내 출처에서 온 스크립트는 같은 출처의 응답만 읽을 수 있다"는 규칙이다.
+
+왜 이런 게 필요했을까. 시나리오 하나를 따라가 보자.
+
+```
+1. 사용자가 bank.com에 로그인한다 → 인증 쿠키가 브라우저에 저장됨
+2. 같은 사용자가 다른 탭에서 evil.com을 연다
+3. evil.com의 JS가 fetch('https://bank.com/account')를 호출한다
+4. 브라우저는 bank.com 쿠키를 "자동으로" 함께 실어 보낸다
+```
+
+문제는 3번이다. 쿠키는 출처(bank.com)에 묶여 자동으로 따라간다. SOP가 없다면 `evil.com`의 스크립트가 당신의 인증 상태를 그대로 빌려 잔액을 읽어다 자기 서버로 빼돌릴 수 있다.
+
+**그래서 SOP가 한 일은 단순하다.** 요청을 보내는 것 자체는 막지 않는다(이미 form 등으로 가능했으니까). 대신 **교차 출처 응답을 JS가 읽는 것**을 막는다. evil.com의 스크립트는 bank.com에 요청은 보낼 수 있어도, 돌아온 응답 본문은 읽을 수 없다. 빼돌릴 데이터에 손이 닿지 않는다.
+
+## origin이란 정확히 무엇인가
+
+"같은 출처"의 출처(origin)는 **scheme + host + port** 세 가지의 조합이다. 셋 중 하나라도 다르면 다른 출처다. 경로(path)나 쿼리스트링은 출처에 포함되지 않는다.
+
+기준 URL `https://shop.com:443/page`와 비교한 예시:
+
+| 비교 대상 URL            | 같은 출처? | 이유                        |
+| ------------------------ | ---------- | --------------------------- |
+| `https://shop.com/other` | O          | scheme/host/port 모두 동일  |
+| `https://shop.com/a?x=1` | O          | path/query는 출처와 무관    |
+| `http://shop.com`        | X          | scheme 다름 (https vs http) |
+| `https://api.shop.com`   | X          | host 다름 (서브도메인)      |
+| `https://shop.com:8080`  | X          | port 다름                   |
+
+특히 헷갈리는 두 가지가 있다. 첫째, `api.shop.com`은 **서브도메인이라도 다른 출처**다. 둘째, https 기본 포트는 443이라 `https://shop.com`과 `https://shop.com:443`은 같은 출처다. "도메인이 같으면 같은 출처"가 아니라는 점을 분명히 해 둔다.
+
+## 핵심 통찰 1: 막는 건 서버가 아니라 브라우저다
+
+이게 CORS 디버깅에서 가장 자주 어긋나는 지점이다.
+
+```
+브라우저 fetch ──요청──▶ 서버
+브라우저       ◀─응답(200 OK, 데이터 들어있음)── 서버
+                ↑
+        여기서 브라우저가 가로채서
+        "출처 허용 헤더가 없네?" → JS에게 응답을 안 넘김
+        → 콘솔에 CORS 에러
+```
+
+서버는 요청을 정상 처리하고 200과 데이터를 돌려줬다. **요청은 도달했고 응답도 왔다.** 다만 브라우저가 응답에 `Access-Control-Allow-Origin` 헤더가 없거나 안 맞는 걸 보고, JS 코드에게 그 응답을 넘겨주지 않을 뿐이다. `fetch`의 Promise가 reject되는 거지, 서버가 거부한 게 아니다.
+
+**그래서 `curl`은 멀쩡히 된다.** curl이나 Postman, 서버 간 호출에는 SOP를 강제하는 브라우저가 없다. SOP는 브라우저가 사용자를 보호하려고 자발적으로 지키는 규칙이지, 네트워크 프로토콜 차원의 차단이 아니다. "curl로는 되는데 브라우저에서만 안 된다"는 말은 곧 "CORS 문제다"라는 거의 확정적인 신호다.
+
+## 핵심 통찰 2: CORS는 보안을 "강화"하는 게 아니라 SOP를 안전하게 "완화"한다
+
+이름이 오해를 부른다. CORS(Cross-Origin Resource Sharing)는 제약을 거는 장치처럼 들리지만, 실제로는 **반대다.**
+
+기본값은 SOP이고, SOP는 교차 출처를 전부 막는다. 그런데 현실에서는 `app.com`이 `api.com`을 정당하게 부르고 싶은 경우가 많다. CORS는 **서버가 "이 출처는 내 응답을 읽어도 된다"고 명시적으로 허락**하면, 브라우저가 그 출처에 한해 SOP를 풀어주는 프로토콜이다.
+
+```
+SOP        = 기본적으로 다 막음 (안전한 기본값)
+CORS       = 서버가 허락한 출처에 한해 빗장을 풀어주는 합의 절차
+```
+
+그러니 "CORS 에러"는 보안 기능이 당신을 공격하는 게 아니라, **아직 빗장을 안 풀었다는 뜻**이다. 해결의 방향은 "브라우저를 우회"가 아니라 "서버가 허락하게" 만드는 것이다.
+
+## simple request: 그냥 보내지는 요청
+
+모든 교차 출처 요청이 까다롭게 검사받는 건 아니다. 일정 조건을 만족하면 **simple request(단순 요청)**로 분류돼, 추가 절차 없이 바로 전송된다. 조건을 거칠게 추리면:
+
+- 메서드가 `GET`, `HEAD`, `POST` 중 하나
+- 수동으로 설정한 헤더가 안전 목록(`Accept`, `Content-Language`, `Content-Type` 등) 안에만 있음
+- `Content-Type`이 `application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain` 중 하나
+
+이 기준의 유래가 핵심이다. **저 조건은 정확히 "옛날 HTML `<form>`이 JS 없이도 보낼 수 있던 요청"의 모양이다.** form은 CORS가 생기기 한참 전부터 다른 출처로 GET/POST를 보낼 수 있었다. 즉 이런 요청은 어차피 웹에 늘 존재했으니, 새삼 preflight로 막아봐야 보안상 얻는 게 없다. 그래서 "원래 가능했던 것"은 그냥 통과시키고, 응답 읽기만 SOP로 제어한다.
+
+```js
+// simple request — 바로 전송된다
+fetch('https://api.com/items'); // GET, 커스텀 헤더 없음
+```
+
+## preflight(OPTIONS): "이거 보내도 되나요?"를 먼저 묻는다
+
+반대로 `PUT`/`DELETE`이거나 `Content-Type: application/json`이거나 `Authorization` 같은 커스텀 헤더가 붙으면, simple request 조건을 벗어난다. 이때 브라우저는 본 요청을 보내기 **전에** `OPTIONS` 메서드로 사전 질의(preflight)를 보낸다.
+
+```
+1. 브라우저 ──▶ OPTIONS /items                (예비 질문)
+                Origin: https://app.com
+                Access-Control-Request-Method: DELETE
+                Access-Control-Request-Headers: authorization
+
+2. 서버      ──▶ 204 No Content                (허락 응답)
+                Access-Control-Allow-Origin: https://app.com
+                Access-Control-Allow-Methods: GET, POST, DELETE
+                Access-Control-Allow-Headers: authorization
+
+3. 브라우저 ──▶ DELETE /items                  (이제 진짜 요청)
+```
+
+왜 굳이 미리 물을까. `DELETE`나 `application/json` POST 같은 요청은 **부수효과(데이터 삭제·변경)**가 있다. 만약 본 요청을 일단 서버로 보내고 나서 응답만 가린다면, 차단이 무색하게 **삭제는 이미 일어난 뒤**다. preflight의 목적은 "부수효과 있는 요청이 서버에 도달하는 것 자체를 막는 것"이다. 서버가 허락하지 않으면 본 요청은 아예 떠나지 않는다.
+
+## CORS 응답 헤더들이 하는 일
+
+서버가 preflight나 본 응답에 붙이는 헤더가 브라우저의 판단 재료다.
+
+- `Access-Control-Allow-Origin`: 어느 출처에게 응답 읽기를 허용할지. `https://app.com` 같은 단일 값 또는 `*`.
+- `Access-Control-Allow-Methods`: 허용 메서드 목록. preflight 응답에서 쓰인다.
+- `Access-Control-Allow-Headers`: 허용할 요청 헤더 목록.
+- `Access-Control-Max-Age`: preflight 결과를 **얼마나 캐시**할지(초). 이 시간 동안은 같은 요청에 대해 OPTIONS를 다시 보내지 않는다.
+
+`Max-Age`가 있는 이유는 성능이다. preflight가 붙는 요청은 OPTIONS와 본 요청으로 매번 왕복이 두 번씩 일어나는데, 캐시가 없으면 같은 요청을 보낼 때마다 이 OPTIONS 왕복이 반복된다. 한 번 허락받은 결과를 잠시 캐시해 두면 그 사이 같은 종류의 요청은 OPTIONS를 건너뛰고 곧장 본 요청만 보낸다.
+
+## credentials 모드: 쿠키를 실으려면 양쪽이 명시 동의해야 한다
+
+기본적으로 교차 출처 `fetch`는 **쿠키를 싣지 않는다.** 쿠키를 함께 보내려면 클라이언트가 명시해야 한다.
+
+```js
+fetch('https://api.com/me', { credentials: 'include' });
+```
+
+그리고 서버도 이에 호응해야 한다.
+
+```
+Access-Control-Allow-Origin: https://app.com   // ← * 불가
+Access-Control-Allow-Credentials: true
+```
+
+여기서 결정적인 제약이 있다. **credentials 모드에서는 `Access-Control-Allow-Origin: *`이 금지**되고, 반드시 정확한 출처를 적어야 한다.
+
+왜일까. 맨 위 은행 시나리오로 돌아가 보자. 쿠키가 자동으로 실리는 상황에서 응답까지 아무 출처(`*`)에게나 열어준다면, SOP가 막으려던 바로 그 공격(아무 사이트나 내 인증 상태로 데이터 읽기)이 그대로 부활한다. 그래서 "쿠키를 싣겠다"와 "이 응답을 읽게 하겠다"는 둘 다, **양쪽 모두 정확한 출처를 콕 집어 동의**해야만 성립하도록 막아 둔 것이다. 와일드카드라는 "아무나"는 인증과 함께 쓸 수 없다.
+
+## 실무 단골 사고
+
+**로컬 개발 프록시로 우회되는 원리.** Vite/Next의 dev 프록시를 쓰면 CORS가 사라진다. 브라우저는 같은 출처(`localhost:3000`)로만 요청하고, 그 요청을 받은 **dev 서버가 대신** 실제 API로 호출하기 때문이다. 서버 간 호출에는 브라우저가 없으니 SOP도 없다. 우회가 아니라 "브라우저를 경로에서 빼는" 트릭이다.
+
+```
+[프록시 없음]  브라우저 ─교차출처→ api.com         (CORS 발동)
+[프록시 있음]  브라우저 ─동일출처→ localhost ─서버간→ api.com   (CORS 없음)
+```
+
+**프론트에서 며칠 헤매는 패턴.** CORS 에러를 보면 본능적으로 프론트 코드(`fetch` 옵션, 헤더, mode)를 만지작거리게 된다. 하지만 본질적 해결은 거의 항상 **서버가 응답에 올바른 `Access-Control-Allow-Origin`을 추가**하는 한 줄이다. "막는 주체는 브라우저, 푸는 주체는 서버"라는 통찰만 잡고 있으면, 프론트에서 끝없이 시도하는 헛수고를 피할 수 있다. 인증·세션이 얽힌 보안 맥락은 [[web-security-xss-csrf]]에서 이어 본다.
+
+## 흔한 오해
+
+- **오해**: "CORS 에러가 나면 요청이 서버에 도달 못 한 거다." → **실제**: simple request는 이미 도달해 처리됐고, 브라우저가 응답만 가린 것이다. preflight가 거부된 경우에만 본 요청이 안 떠난다.
+- **오해**: "CORS는 서버를 공격으로부터 지키는 보안 기능이다." → **실제**: CORS는 SOP를 완화하는 합의 절차다. 서버를 지키는 건 인증/인가의 몫이고, CORS가 막는 대상은 "사용자의 인증 상태가 악용되는 것"이다.
+- **오해**: "프론트에서 헤더를 잘 설정하면 CORS를 풀 수 있다." → **실제**: 허용 헤더는 전적으로 **응답(서버)** 쪽 헤더다. 프론트는 요청만 보낼 뿐, 허락은 서버가 한다.
+- **오해**: "`Access-Control-Allow-Origin: *`이면 모든 상황이 다 된다." → **실제**: 쿠키를 싣는 credentials 모드에서는 `*`가 금지된다. 정확한 출처를 명시해야 한다.
+
+## 스스로 점검하기
+
+- `curl`로는 되는데 브라우저에서만 막힌다면, 무엇이 차단하고 있는 것인가?
+- origin을 구성하는 세 요소는 무엇이고, `api.shop.com`이 `shop.com`과 다른 출처인 이유는?
+- simple request의 조건이 "옛날 HTML form이 보낼 수 있던 요청"과 일치하는 이유는?
+- 왜 부수효과 있는 요청은 본 요청 전에 preflight(OPTIONS)를 먼저 보내는가?
+- credentials 모드에서 `Access-Control-Allow-Origin: *`이 금지되는 이유를 은행 시나리오로 설명할 수 있는가?
+- 로컬 dev 프록시가 CORS를 사라지게 하는 원리는 무엇인가?
+
+## 함께 보기
+
+- [[web-security-xss-csrf]]
+- [[url-to-pixels]]
+- [[http-versions]]
+- [[frontend-network]]
+
+## 참고
+
+- [Cross-Origin Resource Sharing (CORS) - MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS)
+- [Same-origin policy - MDN](https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy)
+- [CORS - web.dev](https://web.dev/articles/cross-origin-resource-sharing)
+- [Fetch Standard - CORS protocol](https://fetch.spec.whatwg.org/#http-cors-protocol)

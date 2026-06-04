@@ -1,0 +1,28 @@
+---
+title: 'React 내부 동작'
+created: '2026-06-05'
+status: 'seedling'
+parent: 'frontend'
+tags: ['frontend', 'react']
+---
+
+React를 "쓸 줄 아는 것"과 React가 "왜 그렇게 설계됐는지 아는 것" 사이의 간극을 메우는 노트 모음이다.
+
+`setState`를 호출하면 화면이 바뀐다는 건 누구나 안다.
+그 사이에 React가 무엇을 비교하고, 왜 한 번에 모아서 처리하고, 어떤 순서로 화면에 반영하는지를 다룬다.
+
+## 하위 노트
+
+- [[react-virtual-dom-and-reconciliation|Virtual DOM과 재조정: React가 바뀐 부분만 갱신하는 법]]
+- [[react-fiber-architecture|Fiber 아키텍처: React가 렌더링을 쪼개는 이유]]
+- [[react-hooks-under-the-hood|훅의 동작 원리: 왜 조건문 안에서 쓰면 안 되는가]]
+- [[react-state-batching-and-rerender|상태 업데이트와 배칭: setState가 비동기처럼 보이는 이유]]
+- [[react-memoization-strategy|메모이제이션 전략: memo, useMemo, useCallback의 실체]]
+
+## 읽는 순서 제안
+
+Virtual DOM → Fiber → 훅 → 배칭 → 메모이제이션 순서로 읽으면
+"무엇을 비교하나 → 어떻게 일정을 관리하나 → 상태는 어디에 사나 → 언제 다시 그리나 → 어떻게 줄이나"로 이어진다.
+
+자바스크립트 기반기가 필요하면 [[frontend-javascript|자바스크립트 동작 원리]]를 먼저 보는 것을 권한다.
+특히 훅을 이해하려면 [[js-closure-and-scope|클로저]]가 선행 지식이다.

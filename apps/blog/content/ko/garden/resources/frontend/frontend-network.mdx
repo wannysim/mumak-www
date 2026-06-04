@@ -1,0 +1,24 @@
+---
+title: '네트워크와 웹 보안'
+created: '2026-06-05'
+status: 'seedling'
+parent: 'frontend'
+tags: ['frontend', 'network', 'security']
+---
+
+프론트엔드는 네트워크 위에서 산다.
+주소창에 URL을 입력하는 순간부터 화면이 뜨기까지의 전 과정, HTTP가 진화해온 이유,
+브라우저가 요청을 막거나 허용하는 규칙을 다루는 노트 모음이다.
+
+## 하위 노트
+
+- [[url-to-pixels|URL 입력부터 화면까지: 한 번의 내비게이션에서 일어나는 모든 일]]
+- [[http-versions|HTTP 1.1에서 3까지: 버전이 계속 바뀌는 단 하나의 이유]]
+- [[http-caching|HTTP 캐싱: 브라우저는 언제 서버에 다시 물어보는가]]
+- [[cors-explained|CORS: 브라우저만 막는 이유와 preflight의 정체]]
+- [[web-security-xss-csrf|XSS와 CSRF: 브라우저 보안 모델이 막으려는 두 가지 공격]]
+
+## 읽는 순서 제안
+
+URL 입력부터 화면까지를 큰 지도로 먼저 읽고, HTTP 버전 → 캐싱으로 프로토콜을 깊게 판 뒤,
+CORS → XSS·CSRF로 보안 모델을 묶어 읽는 흐름을 권한다.

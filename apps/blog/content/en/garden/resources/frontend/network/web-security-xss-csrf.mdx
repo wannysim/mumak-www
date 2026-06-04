@@ -1,0 +1,198 @@
+---
+title: 'XSS and CSRF: The Two Attacks the Browser Security Model Tries to Stop'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'xss', 'csrf']
+---
+
+XSS and CSRF are the two pillars of frontend security incidents. What does each target, and what do the browser and we rely on to stop them? Both exploit "trust," but the kind of trust they break is exactly opposite.
+
+> One-line summary: **XSS is "my page trusting someone else's code," and CSRF is "my server trusting a request someone else forged."**
+
+## What Makes the Two Attacks Different
+
+Let's start with the big picture. Both are incidents where a "trust boundary" is breached, but the location of the breach differs.
+
+```
+XSS:  attacker's code ──runs──▶ [inside my page] ──▶ takes over cookies, tokens, the DOM
+                                 (the browser believes "this is our site's code")
+
+CSRF: attacker's site ──request──▶ [my server] ──▶ cookies auto-attached, looks authenticated
+                                 (the server believes "this is a request from a logged-in user")
+```
+
+XSS steals **code execution** privileges. Once it succeeds, the attacker can do anything that page can do. CSRF cannot execute code. It merely forges and sends a **single request** in the user's name. This difference drives the defense strategy.
+
+## XSS: Someone Else's Script Runs on My Site
+
+XSS (Cross-Site Scripting) is when a script planted by an attacker runs **in the victim's browser, with that site's privileges**. The key part is "with that site's privileges." Because the browser treats scripts from the same origin as family, any code running inside my page can read cookies, modify the DOM, and send fetch requests.
+
+### Why It Happens — The Moment Data Masquerades as Code
+
+The root cause is a single thing: **the boundary where a string that came in as data gets interpreted as code collapses.** A user's input `"<script>..."` should be plain characters, but when it meets the HTML parser, it turns into an executable script.
+
+It splits into three branches, and the dividing criterion is "through which path the malicious string enters and where it executes."
+
+| Type      | Where it enters        | Who gets hit            | Goes through server? |
+| --------- | ---------------------- | ----------------------- | -------------------- |
+| Reflected | Carried in URL params  | Whoever clicks the link | Yes                  |
+| Stored    | Saved in the DB        | Everyone who views it   | Yes                  |
+| DOM-based | URL/input → front code | Whoever runs that code  | No                   |
+
+Reflected is when "a value carried in the request is immediately reflected back in the response," like a search results page echoing the search term verbatim. Stored is the most dangerous. Plant it once in a comment and it fires at **every** visitor who reads that post. DOM-based blows up when the server response is fine but the frontend JS takes a value like `location.hash` and injects it straight into the DOM. That's why server-side defenses alone can't stop it.
+
+### Why innerHTML Is Dangerous
+
+`innerHTML` **parses the received string as HTML**. In other words, it's the channel that promotes "data" to "code."
+
+```js
+// If the URL is ...#<img src=x onerror=alert(1)>, location.hash is "#<img...>",
+// and slice(1) strips the leading # so name = "<img src=x onerror=alert(1)>"
+const name = location.hash.slice(1);
+
+el.innerHTML = name; // dangerous: an img tag is created and onerror executes
+el.textContent = name; // safe: it goes in as plain text, never read as a tag
+```
+
+`textContent` nails down "this is text" no matter what string arrives. The reason the same input yields different results is that `innerHTML` passes through the parser while `textContent` does not. Trace it yourself and it clicks. Given `#<img src=x onerror=alert(1)>`, the first line creates a broken image and runs `onerror`, while the second line shows the literal characters `<img ...>` on screen.
+
+### What It Targets
+
+When code runs inside my page, it can grab basically everything.
+
+- Cookie/session/token theft → sending `document.cookie` to an external server (though httpOnly cookies can't be read — more on this later)
+- Keylogging → intercepting input events to collect passwords
+- Phishing UI → overlaying a fake login form on top of the real page
+
+### What React Protects and the Gap That Remains
+
+The reason React is strong against XSS is that it **escapes by default** every value that goes into a JSX `{value}` slot. `<` becomes `&lt;`, so it's drawn as text rather than a tag. In other words, keeping data bound as data is the default.
+
+```jsx
+// safe: even if comment is "<script>...", it's drawn as text
+<div>{comment}</div>
+
+// dangerous: an API whose very name warns you it's "dangerous"
+<div dangerouslySetInnerHTML={{ __html: comment }} />
+```
+
+The long, scary name `dangerouslySetInnerHTML` is **intentional friction**. It forces you to be conscious at every call site that "this turns off escaping, and it's dangerous." When you use such an API, you must sanitize with a library like `DOMPurify` before inserting.
+
+Another gap that escaping doesn't cover is the **attribute context**, especially slots where a URL goes. Escaping the text doesn't validate the "meaning" of a URL.
+
+```jsx
+// userProvidedUrl goes into href as-is, whatever scheme it has
+<a href={userProvidedUrl}>link</a>
+```
+
+From React 19 onward, if a `javascript:` URL goes into `href`/`src`, React throws an error to block it (older versions only printed a console warning). But this only closes the single branch of the `javascript:` scheme; the attribute context as a whole is still something you must handle yourself. For example, React won't filter out a page starting with a `data:` URL or an open redirect to an external domain a user supplied. This is a concrete instance of the principle that "escaping must differ by context." HTML body, attribute values, URLs, JS strings, and CSS each have different dangerous characters. When you accept a URL, you must first verify it's an `http`/`https` scheme.
+
+### Defense Is Not One Layer but Many
+
+XSS can't be stopped by a single defense. You stack layers that reduce the damage even when one is breached.
+
+| Layer            | What it does                           | What the defense targets             |
+| ---------------- | -------------------------------------- | ------------------------------------ |
+| Output escaping  | Stops data from being promoted to code | Blocks the intrusion itself          |
+| CSP              | Blocks inline and external scripts     | Blocks execution even if breached    |
+| httpOnly cookies | Stops JS from reading cookies          | Reduces theft damage even if it runs |
+
+CSP (Content Security Policy) declares via a response header that "only scripts from this origin are allowed, inline `<script>` is forbidden." Then even if an attacker succeeds in planting a script in the body, the browser refuses to execute it. httpOnly cookies are the last safety net. Even when code execution has been allowed, they prevent the session from being siphoned off via `document.cookie`.
+
+## CSRF: An Unintended Request Goes Out Already Authenticated
+
+CSRF (Cross-Site Request Forgery) is an attack where a request the user sent **without their knowledge** is processed normally by the server simply because the user is already logged in.
+
+### Why It Happens — Cookies Are Sent Automatically Regardless of Origin
+
+The core weakness is an old habit of the browser: **a cookie automatically tags along with any request to its domain, no matter who initiated it.** Whether it's a request I made or one fired by a hidden form on a malicious site, if the destination is `bank.com`, `bank.com`'s session cookie rides along automatically.
+
+```html
+<!-- A form planted on evil.com. It auto-submits the instant the page opens -->
+<form action="https://bank.com/transfer" method="POST">
+  <input type="hidden" name="to" value="attacker" />
+  <input type="hidden" name="amount" value="1000000" />
+</form>
+<script>
+  document.forms[0].submit();
+</script>
+```
+
+If the victim merely opens `evil.com` while logged in to `bank.com`, this form fires a POST to `bank.com` and the browser kindly attaches the session cookie. From the server's point of view, it looks like "a normal transfer sent by a logged-in user."
+
+### The Essential Difference from XSS
+
+| Aspect              | XSS                                | CSRF                                    |
+| ------------------- | ---------------------------------- | --------------------------------------- |
+| Attacker gains      | Code execution (near-full control) | One forged request                      |
+| Reads the response? | Yes                                | No (same-origin policy)                 |
+| Trust it exploits   | Page trusting the code             | Server trusting the cookie              |
+| Required condition  | Input interpreted as code          | Victim holding an authenticated session |
+
+The most important difference is that **CSRF cannot read the response**. Because of the same-origin policy, `evil.com`'s script cannot see the response body that `bank.com` sent. That's why CSRF targets not "reads" but "requests that change state" (transfers, password changes, deletions). Even without seeing the result, it can still get the deed done.
+
+### Defense — Make the Request Prove Its Origin
+
+The shared idea behind CSRF defenses is to demand proof that "this request **really originated from our site**." A malicious site can't produce that proof, so it's blocked.
+
+- **SameSite cookies**: Attaching `SameSite=Lax`/`Strict` to a cookie limits the cookie from being automatically attached to requests originating from another origin. In other words, it narrows the auto-send weakness itself (the exception `Lax` leaves open is covered below).
+- **CSRF tokens**: The server makes you include an unpredictable token it issued in the form/header. A malicious site doesn't know this token value, so it can't complete the forged request.
+- **Origin/Referer validation**: The server checks whether the request header's origin is our domain.
+
+### How SameSite Lax Changed the Game, and the Hole That Still Remains
+
+Modern browsers effectively treat cookies with an unspecified `SameSite` as `Lax`. This default change blocked **cross-origin POSTs** like the transfer form above by default. It was a decisive event that greatly shrank CSRF's classic attack surface.
+
+That said, `Lax` isn't complete. It still attaches cookies to **top-level GET navigations** (a user clicking a link to navigate to a page directly). So if the server was built to change state on a GET request — say `GET /logout` or `GET /delete?id=1` — an attacker can trigger that side effect with a single line, `<img src="https://bank.com/delete?id=1">`.
+
+```html
+<!-- Lax cookies attach to top-level GETs too, so if GET changes state, this gets you -->
+<img src="https://bank.com/delete?id=1" />
+```
+
+Here you can see that the HTTP principle "don't put side effects on safe methods like GET" is not a mere recommendation but has a **security basis**. If you keep GET truly read-only, nothing can come in through this hole that `Lax` left. The meaning of HTTP methods is also covered in [[http-versions]].
+
+## Revisiting the Token Storage Debate: localStorage vs httpOnly Cookies
+
+Where to keep an auth token ultimately comes down to choosing "which attack you reduce your exposure to." The two options have exactly opposite weaknesses.
+
+| Aspect                     | localStorage                          | httpOnly cookies                  |
+| -------------------------- | ------------------------------------- | --------------------------------- |
+| Exposure to XSS            | High (JS reads it directly)           | Low (JS can't read it)            |
+| Exposure to CSRF           | Low (not auto-sent)                   | High (auto-sent)                  |
+| How it's added to requests | Code attaches it to the header itself | Browser attaches it automatically |
+
+`localStorage` has no auto-send, so it's free from CSRF, but once XSS goes off, the token is read out as-is. `httpOnly` cookies can't be read by JS, so they're strong against XSS theft, but since they're auto-sent, you must always pair them with CSRF countermeasures (SameSite, CSRF tokens).
+
+So the question "which is more secure" is itself slightly wrong. The answer is closer to **knowing which attack each storage location is strong and weak against, and shoring up the weak side with another layer**. The trade-offs between tokens and storage are covered in more depth in [[browser-storage]].
+
+## Common Misconceptions
+
+- **Misconception**: "If I use React, I don't need to worry about XSS." → **Reality**: Default escaping is powerful, but `dangerouslySetInnerHTML`, attribute/URL contexts (such as external URLs whose scheme isn't validated), and DOM-based paths are still open. React 19 blocking the `javascript:` scheme is just one of those branches.
+- **Misconception**: "If I just validate input, XSS is done." → **Reality**: The key is **context-specific escaping at output time** rather than input filtering. The same data has different dangerous characters in HTML body, attributes, and URLs.
+- **Misconception**: "With SameSite=Lax, CSRF is completely over." → **Reality**: It blocks cross-origin POSTs but cookies still attach to top-level GETs. If GET changes state, you can still be hit.
+- **Misconception**: "CSRF can read my data too." → **Reality**: CSRF can't read the response (same-origin policy). It only forges state-changing requests; it can't take away the query results.
+
+## Check Yourself
+
+- Why do `el.innerHTML = x` and `el.textContent = x` yield different results for the same input?
+- On what basis are Reflected, Stored, and DOM-based XSS distinguished, and why can't DOM-based be stopped by server-side defenses?
+- Can you name two XSS gaps that React's default escaping doesn't cover?
+- Why can't CSRF read the response body, and how does that constraint determine the attack target (reads vs. state changes)?
+- What requests does `SameSite=Lax` block and not block, and why does "don't put side effects on GET" become a security principle?
+- Which attack is keeping an auth token in localStorage versus in an httpOnly cookie strong and weak against?
+
+## Related Notes
+
+- [[browser-storage]]
+- [[cors-explained]]
+- [[http-versions]]
+- [[frontend-network]]
+
+## References
+
+- [Cross-site scripting (XSS) - MDN](https://developer.mozilla.org/en-US/docs/Web/Security/Attacks/XSS)
+- [Cross-site request forgery (CSRF) - MDN](https://developer.mozilla.org/en-US/docs/Web/Security/Attacks/CSRF)
+- [Content Security Policy (CSP) - MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP)
+- [SameSite cookies explained - web.dev](https://web.dev/articles/samesite-cookies-explained)
