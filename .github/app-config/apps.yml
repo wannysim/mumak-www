@@ -21,4 +21,4 @@ apps:
 
   - app: mumak-native
     type: expo
-    hasE2E: false
+    hasE2E: true # web export(react-native-web) 기반 Playwright E2E

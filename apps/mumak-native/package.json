@@ -1,6 +1,6 @@
 {
   "name": "mumak-native",
-  "version": "1.6.2",
+  "version": "0.1.0",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -9,16 +9,23 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "reset-project": "node ./scripts/reset-project.js",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --check .",
     "format:check": "oxfmt --check .",
     "format:fix": "oxfmt .",
     "check-types": "tsc --noEmit",
-    "test:ci": "jest --ci --coverage --passWithNoTests",
+    "test:ci": "jest --ci --coverage",
+    "export:web": "expo export --platform web --output-dir dist",
+    "serve:web": "serve dist --listen 3002 --no-port-switching",
+    "preview:e2e": "pnpm export:web && pnpm serve:web",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "verify": "pnpm check-types && pnpm lint && pnpm format:check && pnpm test:ci && pnpm export:web",
     "build": "echo 'mumak-native: native build is delegated to EAS' && exit 0",
-    "clean": "rm -rf .expo .turbo coverage node_modules/.cache"
+    "clean": "rm -rf .expo .turbo coverage dist node_modules/.cache"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -47,12 +54,14 @@
   },
   "devDependencies": {
     "@mumak/typescript-config": "workspace:*",
+    "@playwright/test": "^1.58.2",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.14",
     "@types/react": "^19.2.10",
     "jest": "^29.7.0",
     "jest-expo": "~56.0.4",
     "react-test-renderer": "19.2.3",
+    "serve": "^14.2.4",
     "typescript": "^6.0.3"
   }
 }

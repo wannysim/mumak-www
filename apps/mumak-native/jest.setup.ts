@@ -1,4 +1,4 @@
-// React Native + Expo Jest setup.
+// React Native + Expo Jest setup (jest-expo SDK 56 + jest 29).
 // Mocks applied per test file. Extend as components start exercising real router/haptics behavior.
 
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
