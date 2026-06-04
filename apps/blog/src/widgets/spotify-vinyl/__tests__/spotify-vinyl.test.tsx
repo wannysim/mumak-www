@@ -151,22 +151,23 @@ describe('SpotifyVinyl', () => {
   it('should show playing indicator when isPlaying is true', async () => {
     const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
 
-    const { container } = render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" />);
+    render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" />);
 
-    // Playing indicator should be visible (ping animation next to status label)
-    const playingIndicator = container.querySelector('.animate-ping');
+    // Playing indicator should be visible (equalizer bars next to status label)
+    const playingIndicator = screen.getByTestId('playing-indicator');
     expect(playingIndicator).toBeInTheDocument();
+    expect(playingIndicator).toHaveAttribute('aria-hidden', 'true');
+    expect(playingIndicator.children).toHaveLength(3);
   });
 
   it('should hide playing indicator when isPlaying is false', async () => {
     const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
 
     const notPlayingData = { ...mockSongData, isPlaying: false };
-    const { container } = render(<SpotifyVinyl data={notPlayingData} statusLabel="Last played" />);
+    render(<SpotifyVinyl data={notPlayingData} statusLabel="Last played" />);
 
     // Playing indicator should not be visible
-    const playingIndicator = container.querySelector('.animate-ping');
-    expect(playingIndicator).not.toBeInTheDocument();
+    expect(screen.queryByTestId('playing-indicator')).not.toBeInTheDocument();
   });
 
   it('should show explicit badge when isExplicit is true', async () => {
