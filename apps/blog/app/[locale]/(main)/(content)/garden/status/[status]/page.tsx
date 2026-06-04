@@ -42,8 +42,7 @@ export default async function GardenStatusPage({ params }: GardenStatusPageProps
     notFound();
   }
 
-  const t = await getTranslations('garden');
-  const tCommon = await getTranslations('common');
+  const [t, tCommon] = await Promise.all([getTranslations('garden'), getTranslations('common')]);
   const notes = getNotesByStatus(locale as Locale, status as NoteStatus);
 
   const statusLabels = {

@@ -27,8 +27,7 @@ export default async function BlogPage({ params }: BlogPageProps) {
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const t = await getTranslations('blog');
-  const tCommon = await getTranslations('common');
+  const [t, tCommon] = await Promise.all([getTranslations('blog'), getTranslations('common')]);
 
   const posts = getPosts(locale as Locale);
   const categories = getCategories();

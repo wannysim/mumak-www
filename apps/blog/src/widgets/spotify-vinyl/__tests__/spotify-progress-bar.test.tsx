@@ -61,40 +61,35 @@ describe('SpotifyProgressBar', () => {
     expect(screen.getByText('3:00')).toBeInTheDocument();
   });
 
-  it('clamps the bar width to 0 when durationMs is 0', () => {
-    const { container } = render(<SpotifyProgressBar progressMs={1_000} durationMs={0} isPlaying />);
+  it('clamps the bar value to 0 when durationMs is 0', () => {
+    render(<SpotifyProgressBar progressMs={1_000} durationMs={0} isPlaying />);
 
-    const fill = container.querySelector('div[role="progressbar"] > div') as HTMLElement;
-    expect(fill).toBeInTheDocument();
-    expect(fill.style.width).toBe('0%');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('value', '0');
   });
 
-  it('clamps the bar width to 100% when progressMs exceeds durationMs', () => {
-    const { container } = render(<SpotifyProgressBar progressMs={500_000} durationMs={100_000} isPlaying />);
+  it('fills the bar when progressMs exceeds durationMs', () => {
+    render(<SpotifyProgressBar progressMs={500_000} durationMs={100_000} isPlaying />);
 
-    const fill = container.querySelector('div[role="progressbar"] > div') as HTMLElement;
-    expect(fill.style.width).toBe('100%');
+    const bar = screen.getByRole('progressbar');
+    expect(bar.getAttribute('value')).toBe(bar.getAttribute('max'));
   });
 
-  it('clamps negative progressMs to 0% width', () => {
-    const { container } = render(<SpotifyProgressBar progressMs={-1_000} durationMs={100_000} isPlaying />);
+  it('clamps negative progressMs to value 0', () => {
+    render(<SpotifyProgressBar progressMs={-1_000} durationMs={100_000} isPlaying />);
 
-    const fill = container.querySelector('div[role="progressbar"] > div') as HTMLElement;
-    expect(fill.style.width).toBe('0%');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('value', '0');
   });
 
   it('applies a faded class when paused', () => {
-    const { container } = render(<SpotifyProgressBar {...baseProps} isPlaying={false} />);
+    render(<SpotifyProgressBar {...baseProps} isPlaying={false} />);
 
-    const fill = container.querySelector('div[role="progressbar"] > div') as HTMLElement;
-    expect(fill.className).toContain('opacity-60');
+    expect(screen.getByRole('progressbar').className).toContain('opacity-60');
   });
 
   it('does not apply a faded class when playing', () => {
-    const { container } = render(<SpotifyProgressBar {...baseProps} isPlaying />);
+    render(<SpotifyProgressBar {...baseProps} isPlaying />);
 
-    const fill = container.querySelector('div[role="progressbar"] > div') as HTMLElement;
-    expect(fill.className).not.toContain('opacity-60');
+    expect(screen.getByRole('progressbar').className).not.toContain('opacity-60');
   });
 
   it('merges a custom className onto the wrapper', () => {

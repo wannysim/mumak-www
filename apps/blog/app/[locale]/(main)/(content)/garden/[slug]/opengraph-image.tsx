@@ -38,9 +38,7 @@ interface Props {
 }
 
 export default async function Image({ params }: Props) {
-  const { locale, slug } = await params;
-
-  const fontOptions = await fontOptionsPromise;
+  const [{ locale, slug }, fontOptions] = await Promise.all([params, fontOptionsPromise]);
 
   const note = getNote(locale as Locale, slug);
 

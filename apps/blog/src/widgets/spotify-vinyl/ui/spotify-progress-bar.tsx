@@ -10,26 +10,25 @@ interface SpotifyProgressBarProps {
 }
 
 export function SpotifyProgressBar({ progressMs, durationMs, isPlaying, className }: SpotifyProgressBarProps) {
-  const ratio = durationMs > 0 ? Math.min(1, Math.max(0, progressMs / durationMs)) : 0;
-  const percent = ratio * 100;
+  const hasDuration = durationMs > 0;
+  const value = hasDuration ? Math.min(durationMs, Math.max(0, progressMs)) : 0;
 
   return (
     <div className={cn('w-full', className)} aria-label="Track progress">
-      <div
-        className="relative h-1 w-full rounded-full bg-neutral-200/60 dark:bg-neutral-700/50 overflow-hidden"
-        role="progressbar"
+      <progress
+        className={cn(
+          'block h-1 w-full appearance-none overflow-hidden rounded-full border-0 bg-neutral-200/60 dark:bg-neutral-700/50',
+          '[&::-webkit-progress-bar]:bg-transparent',
+          '[&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[#1DB954] [&::-webkit-progress-value]:transition-[width] [&::-webkit-progress-value]:duration-1000 [&::-webkit-progress-value]:ease-linear',
+          '[&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[#1DB954]',
+          !isPlaying && 'opacity-60'
+        )}
+        value={value}
+        max={hasDuration ? durationMs : 1}
         aria-valuenow={Math.round(progressMs / 1000)}
         aria-valuemin={0}
         aria-valuemax={Math.round(durationMs / 1000)}
-      >
-        <div
-          className={cn(
-            'h-full rounded-full bg-[#1DB954] transition-[width] duration-1000 ease-linear',
-            !isPlaying && 'opacity-60'
-          )}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
+      />
       <div className="mt-1 flex items-center justify-between text-[10px] tabular-nums text-muted-foreground">
         <span>{formatTime(progressMs)}</span>
         <span>{formatTime(durationMs)}</span>
