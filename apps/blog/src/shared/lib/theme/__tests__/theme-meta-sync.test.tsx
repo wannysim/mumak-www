@@ -1,9 +1,13 @@
 import { render } from '@testing-library/react';
+import { useServerInsertedHTML } from 'next/navigation';
+import { isValidElement } from 'react';
 
 import { themeColors } from '../theme-config';
 import { ThemeMetaSyncScript, themeMetaSync, themeMetaSyncInlineScript } from '../theme-meta-sync';
 
 import '@testing-library/jest-dom';
+
+const mockUseServerInsertedHTML = useServerInsertedHTML as jest.Mock;
 
 describe('themeMetaSyncInlineScript', () => {
   it('should include theme colors in the script', () => {
@@ -37,6 +41,31 @@ describe('themeMetaSyncInlineScript', () => {
 });
 
 describe('ThemeMetaSyncScript', () => {
+  afterEach(() => {
+    // 전역 mock(no-op jest.fn)으로 복원
+    mockUseServerInsertedHTML.mockReset();
+  });
+
+  it('should insert the inline script element on the first SSR flush only', () => {
+    // useServerInsertedHTML 콜백은 스트리밍 flush마다 재호출될 수 있다 — SSR 환경을 흉내내 두 번 호출
+    const flushedNodes: unknown[] = [];
+    mockUseServerInsertedHTML.mockImplementation((callback: () => unknown) => {
+      flushedNodes.push(callback());
+      flushedNodes.push(callback());
+    });
+
+    render(<ThemeMetaSyncScript />);
+
+    const [firstFlush, secondFlush] = flushedNodes;
+    if (!isValidElement<{ dangerouslySetInnerHTML: { __html: string } }>(firstFlush)) {
+      throw new Error('first SSR flush did not return a React element');
+    }
+    expect(firstFlush.type).toBe('script');
+    expect(firstFlush.props.dangerouslySetInnerHTML.__html).toBe(themeMetaSyncInlineScript);
+    // 두 번째 flush부터는 중복 삽입을 막기 위해 null
+    expect(secondFlush).toBeNull();
+  });
+
   it('should not render a script tag on client render (React 19 warning regression)', () => {
     // locale 전환 등 클라이언트 내비게이션에서 script 노드를 만들면
     // "Encountered a script tag while rendering React component" 경고가 발생한다.
