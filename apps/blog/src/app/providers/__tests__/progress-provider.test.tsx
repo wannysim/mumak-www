@@ -206,7 +206,7 @@ describe('ProgressProvider', () => {
 
       const bar = screen.getByTestId('page-transition-progress');
       expect(bar).toHaveAttribute('aria-hidden', 'false');
-      expect((bar.firstElementChild as HTMLElement).style.backgroundColor).toBe('var(--ring)');
+      expect(bar.tagName).toBe('PROGRESS');
     });
 
     it('should NOT preventDefault on the observed click (real navigation must proceed)', () => {
@@ -407,7 +407,7 @@ describe('ProgressProvider', () => {
 
       const bar = screen.getByTestId('page-transition-progress');
       expect(bar).toHaveAttribute('aria-hidden', 'true');
-      expect((bar.firstElementChild as HTMLElement).style.transition).toBe('opacity 200ms linear');
+      expect(bar.style.transition).toBe('opacity 200ms linear');
 
       act(() => {
         jest.advanceTimersByTime(200);

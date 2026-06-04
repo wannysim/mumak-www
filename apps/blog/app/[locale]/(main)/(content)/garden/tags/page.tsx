@@ -30,9 +30,11 @@ export default async function GardenTagsPage({ params }: GardenTagsPageProps) {
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const t = await getTranslations('garden.tags');
-  const tGarden = await getTranslations('garden');
-  const tCommon = await getTranslations('common');
+  const [t, tGarden, tCommon] = await Promise.all([
+    getTranslations('garden.tags'),
+    getTranslations('garden'),
+    getTranslations('common'),
+  ]);
   const tags = getAllNoteTags(locale as Locale).map(tag => ({
     ...tag,
     slug: encodeURIComponent(tag.name),

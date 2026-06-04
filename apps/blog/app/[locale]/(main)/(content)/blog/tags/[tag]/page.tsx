@@ -47,8 +47,7 @@ export default async function TagPage({ params }: TagPageProps) {
 
   setRequestLocale(locale);
 
-  const t = await getTranslations('tags');
-  const tCommon = await getTranslations('common');
+  const [t, tCommon] = await Promise.all([getTranslations('tags'), getTranslations('common')]);
 
   const decodedTag = decodeURIComponent(tag);
   const posts = getPostsByTag(locale as Locale, tag);

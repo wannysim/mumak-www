@@ -26,9 +26,7 @@ interface Props {
 }
 
 export default async function Image({ params }: Props) {
-  const { locale, category, slug } = await params;
-
-  const fontOptions = await fontOptionsPromise;
+  const [{ locale, category, slug }, fontOptions] = await Promise.all([params, fontOptionsPromise]);
 
   if (!isValidCategory(category)) {
     return new ImageResponse(

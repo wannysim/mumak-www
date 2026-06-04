@@ -3,6 +3,8 @@
 import { usePathname, useSearchParams } from 'next/navigation';
 import * as React from 'react';
 
+import { cn } from '@mumak/ui/lib/utils';
+
 const LOADING_GROW_MS = 6000;
 const DONE_FADE_MS = 200;
 const SAFETY_TIMEOUT_MS = 8000;
@@ -57,31 +59,37 @@ function PageTransitionBar({ phase, scale, reducedMotion }: { phase: Phase; scal
 
   const isLoading = phase === 'loading';
   const opacity = phase === 'done' ? 0 : 1;
-  const transition = reducedMotion
-    ? `opacity ${DONE_FADE_MS}ms linear`
+  // The fill is the native progress value, so its growth transition lives on the
+  // ::-webkit-progress-value / ::-moz-progress-bar pseudo-elements and is fed in via
+  // a CSS variable (pseudo-elements can't take inline styles). Opacity still
+  // transitions on the element itself.
+  const valueTransition = reducedMotion
+    ? 'none'
     : isLoading
-      ? `transform ${LOADING_GROW_MS}ms cubic-bezier(0.1, 0.5, 0.2, 1), opacity ${DONE_FADE_MS}ms linear`
-      : `transform ${DONE_FADE_MS}ms ease-out, opacity ${DONE_FADE_MS}ms linear`;
+      ? `width ${LOADING_GROW_MS}ms cubic-bezier(0.1, 0.5, 0.2, 1)`
+      : `width ${DONE_FADE_MS}ms ease-out`;
 
   return (
-    <div
+    <progress
       data-testid="page-transition-progress"
-      className="pointer-events-none fixed top-0 right-0 left-0 z-70 h-1"
-      role="progressbar"
+      className={cn(
+        'pointer-events-none fixed top-0 right-0 left-0 z-70 h-1 w-full appearance-none border-0 bg-transparent',
+        '[&::-webkit-progress-bar]:bg-transparent',
+        '[&::-webkit-progress-value]:bg-[var(--ring)] [&::-webkit-progress-value]:shadow-[0_0_8px_var(--ring),0_0_2px_var(--ring)] [&::-webkit-progress-value]:[transition:var(--ptb-value-transition)]',
+        '[&::-moz-progress-bar]:bg-[var(--ring)] [&::-moz-progress-bar]:shadow-[0_0_8px_var(--ring),0_0_2px_var(--ring)] [&::-moz-progress-bar]:[transition:var(--ptb-value-transition)]'
+      )}
       aria-label="Page transition progress"
       aria-hidden={phase === 'done'}
-    >
-      <div
-        className="h-full w-full origin-left"
-        style={{
-          backgroundColor: 'var(--ring)',
-          boxShadow: '0 0 8px var(--ring), 0 0 2px var(--ring)',
-          transform: `scaleX(${scale})`,
+      value={scale}
+      max={1}
+      style={
+        {
           opacity,
-          transition,
-        }}
-      />
-    </div>
+          transition: `opacity ${DONE_FADE_MS}ms linear`,
+          '--ptb-value-transition': valueTransition,
+        } as React.CSSProperties
+      }
+    />
   );
 }
 
@@ -142,6 +150,12 @@ function PageTransitionIndicator() {
     timersRef.current.push(setTimeout(() => setPhase('idle'), DONE_FADE_MS));
   }, [clearTimers]);
 
+  // startLoading is recreated whenever its deps change. Wrapping it as an Effect
+  // Event lets the click observer call the latest version without listing it as a
+  // reactive dependency, so the document listener isn't torn down and re-added on
+  // every render — the subscription only depends on reducedMotion.
+  const onStartLoading = React.useEffectEvent(() => startLoading());
+
   // Observe internal anchor clicks to surface the bar *during* navigation.
   // Why this is safe on webkit (unlike the previous @bprogress integration):
   //  - capture phase, passive — no preventDefault, no stopPropagation
@@ -153,12 +167,12 @@ function PageTransitionIndicator() {
 
     const onClick = (event: MouseEvent) => {
       if (!isInternalNavigationClick(event)) return;
-      queueMicrotask(() => startLoading());
+      queueMicrotask(() => onStartLoading());
     };
 
     document.addEventListener('click', onClick, { capture: true, passive: true });
     return () => document.removeEventListener('click', onClick, { capture: true } as EventListenerOptions);
-  }, [reducedMotion, startLoading]);
+  }, [reducedMotion]);
 
   // Settle the bar when the new route commits (or trigger a brief flash for
   // programmatic navigations that bypassed the click observer).
