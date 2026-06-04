@@ -1,3 +1,8 @@
+'use client';
+
+import { useServerInsertedHTML } from 'next/navigation';
+import { useRef } from 'react';
+
 import { themeColors } from './theme-config';
 
 // theme-color 메타 태그를 html 클래스 변경에 맞춰 동기화
@@ -40,12 +45,22 @@ export function themeMetaSync(colors: { light: string; dark: string }) {
   updateThemeColor();
 }
 
+// 스트리밍 중 콜백이 flush마다 재호출되거나 스크립트가 중복 삽입돼도
+// observer가 한 번만 등록되도록 window 플래그로 가드한다.
+export const themeMetaSyncInlineScript = `if(!window.__themeMetaSynced){window.__themeMetaSynced=true;(${themeMetaSync.toString()})(${JSON.stringify(themeColors)})}`;
+
+// 초기 SSR 스트림에만 인라인 스크립트를 삽입한다 (paint 전 실행 보장).
+// locale 전환 같은 클라이언트 내비게이션에서는 아무것도 렌더하지 않으므로
+// React 19의 "script tag while rendering" 경고가 발생하지 않고,
+// 최초 로드에 등록된 MutationObserver가 계속 동작한다.
 export function ThemeMetaSyncScript() {
-  return (
-    <script
-      dangerouslySetInnerHTML={{
-        __html: `(${themeMetaSync.toString()})(${JSON.stringify(themeColors)})`,
-      }}
-    />
-  );
+  const isInsertedRef = useRef(false);
+
+  useServerInsertedHTML(() => {
+    if (isInsertedRef.current) return null;
+    isInsertedRef.current = true;
+    return <script dangerouslySetInnerHTML={{ __html: themeMetaSyncInlineScript }} />;
+  });
+
+  return null;
 }

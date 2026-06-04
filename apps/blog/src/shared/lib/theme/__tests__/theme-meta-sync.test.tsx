@@ -1,66 +1,50 @@
 import { render } from '@testing-library/react';
 
 import { themeColors } from '../theme-config';
-import { ThemeMetaSyncScript, themeMetaSync } from '../theme-meta-sync';
+import { ThemeMetaSyncScript, themeMetaSync, themeMetaSyncInlineScript } from '../theme-meta-sync';
 
 import '@testing-library/jest-dom';
 
-describe('ThemeMetaSyncScript', () => {
-  it('should render a script tag', () => {
-    const { container } = render(<ThemeMetaSyncScript />);
-
-    const script = container.querySelector('script');
-    expect(script).toBeInTheDocument();
-  });
-
+describe('themeMetaSyncInlineScript', () => {
   it('should include theme colors in the script', () => {
-    const { container } = render(<ThemeMetaSyncScript />);
-
-    const script = container.querySelector('script');
-    const scriptContent = script?.innerHTML || '';
-
-    expect(scriptContent).toContain(themeColors.light);
-    expect(scriptContent).toContain(themeColors.dark);
+    expect(themeMetaSyncInlineScript).toContain(themeColors.light);
+    expect(themeMetaSyncInlineScript).toContain(themeColors.dark);
   });
 
   it('should include theme-color meta tag selector in the script', () => {
-    const { container } = render(<ThemeMetaSyncScript />);
-
-    const script = container.querySelector('script');
-    const scriptContent = script?.innerHTML || '';
-
-    expect(scriptContent).toContain('meta[name="theme-color"]');
+    expect(themeMetaSyncInlineScript).toContain('meta[name="theme-color"]');
   });
 
   it('should include dark class detection logic', () => {
-    const { container } = render(<ThemeMetaSyncScript />);
-
-    const script = container.querySelector('script');
-    const scriptContent = script?.innerHTML || '';
-
-    expect(scriptContent).toContain('classList.contains');
-    expect(scriptContent).toContain('dark');
+    expect(themeMetaSyncInlineScript).toContain('classList.contains');
+    expect(themeMetaSyncInlineScript).toContain('dark');
   });
 
   it('should use setAttribute to update meta tag content (Safari iOS compatibility)', () => {
-    const { container } = render(<ThemeMetaSyncScript />);
-
-    const script = container.querySelector('script');
-    const scriptContent = script?.innerHTML || '';
-
     // Safari iOS 호환성을 위해 메타 태그를 삭제/생성하지 않고 setAttribute 사용
-    expect(scriptContent).toContain('setAttribute');
-    expect(scriptContent).toContain('content');
+    expect(themeMetaSyncInlineScript).toContain('setAttribute');
+    expect(themeMetaSyncInlineScript).toContain('content');
   });
 
   it('should use MutationObserver to watch for class changes', () => {
+    expect(themeMetaSyncInlineScript).toContain('MutationObserver');
+    expect(themeMetaSyncInlineScript).toContain('observe');
+  });
+
+  it('should guard against duplicate execution within the same document', () => {
+    expect(themeMetaSyncInlineScript).toContain('window.__themeMetaSynced');
+  });
+});
+
+describe('ThemeMetaSyncScript', () => {
+  it('should not render a script tag on client render (React 19 warning regression)', () => {
+    // locale 전환 등 클라이언트 내비게이션에서 script 노드를 만들면
+    // "Encountered a script tag while rendering React component" 경고가 발생한다.
+    // 인라인 스크립트는 useServerInsertedHTML로 초기 SSR 스트림에만 삽입된다.
     const { container } = render(<ThemeMetaSyncScript />);
 
-    const script = container.querySelector('script');
-    const scriptContent = script?.innerHTML || '';
-
-    expect(scriptContent).toContain('MutationObserver');
-    expect(scriptContent).toContain('observe');
+    expect(container.querySelector('script')).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
   });
 });
 
