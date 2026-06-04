@@ -103,10 +103,9 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
 
   return (
     <html lang={locale} suppressHydrationWarning className={pretendard.variable}>
-      <head>
-        <ThemeMetaSyncScript />
-      </head>
       <body className="antialiased">
+        {/* useServerInsertedHTML 기반이라 렌더 위치와 무관하게 초기 SSR 스트림에 삽입된다 */}
+        <ThemeMetaSyncScript />
         <ThemeProvider>
           <IntlProvider locale={locale} messages={messages}>
             <ProgressProvider>
