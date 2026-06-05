@@ -1,0 +1,140 @@
+---
+title: 'Tests That Pin Behavior: Refactoring Without Fear'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'testing']
+---
+
+If you gut a component's internals and every test still passes, is that luck or design? And why does some codebase see its tests shatter every single time you refactor?
+
+> One-line summary: **A test should pin down the "behavior" a user can observe and leave the "implementation" free. Only then is it a safety net for refactoring; the moment it's tied to implementation, it becomes a shackle instead.**
+
+## Why the Tests Survived a Total Internal Rewrite
+
+Let's generalize from something that actually happened. I overhauled the internals of three things: a progress bar (the top bar that signals navigation), a polling hook (a hook that periodically re-asks the server), and a canvas widget. How the state was split, how many effects (React's mechanism for running side effects after a render) were arranged—all of it was rewritten from scratch. And yet 738 unit tests and 128 E2E tests (tests that verify behavior by clicking through the browser like a real user) all passed without a single failure.
+
+The reason this isn't luck is simple: those tests weren't looking at "how the internals were built." They only checked **facts visible from the outside**, like "click an internal link and the progress bar appears; once navigation finishes, it disappears." The internal structure was never under examination, so no matter how thoroughly I tore the internals apart, the tests stayed silent as long as those facts held.
+
+> Why design it this way? The purpose of a test is not to prove "the code didn't change" but to prove "the result the user sees didn't change." Refactoring is, by definition, "changing only the internals while keeping the behavior." So a test that pins only behavior never collides with refactoring, while a test that also pins implementation collides with it head-on.
+
+## The Smell of Implementation-Coupled Tests
+
+To tell whether the tests you wrote are a safety net or a shackle, check for the following smells.
+
+| Smell                               | What it checks                                     | Why it's a problem                                             |
+| ----------------------------------- | -------------------------------------------------- | -------------------------------------------------------------- |
+| Spying on internal function calls   | "Was this function called?"                        | Produce the same result via a different function and it breaks |
+| Inspecting component state directly | "Is the internal state exactly this shape?"        | Change only the state structure and it breaks                  |
+| `.class` / `nth-child` selectors    | "Is the DOM exactly this shape?"                   | Tidy up the markup alone and it breaks                         |
+| Overusing full-screen snapshots     | "Is the render identical down to every character?" | Every trivial change spews a giant diff                        |
+
+What these tests have in common is that they all **check "whether the code changed."** That sets the following vicious cycle in motion.
+
+```
+implementation-coupled test
+  │ breaks on every refactor
+  ▼
+cost of fixing > value the test provides
+  │
+  ▼
+"red again, whatever" — you start ignoring it
+  │
+  ▼
+red tests become the norm → real regressions get buried
+  │
+  ▼
+the safety net disappears
+```
+
+A test that uses a spy to confirm an internal function was called breaks the instant you accomplish the same task with a different function. The user sees the same result, nothing has actually changed for them, yet the test alone screams. As these false alarms pile up, people stop trusting the tests, and eventually a real bug can slip in unnoticed.
+
+## What a Behavior-Pinning Test Looks Like
+
+Testing Library's guiding principle boils down to one sentence: **"Find things the way a user would find them."** A user doesn't locate a button with `div.list-item:nth-child(2)`. They look for "the button that says Confirm." That's why selectors have a priority order.
+
+```
+getByRole        ← 1st: role + accessible name (how users and assistive tech see it)
+getByLabelText   ← 2nd: form elements by their label
+getByText        ← 3rd: by the text visible on screen
+getByTestId      ← last resort: only when none of the above can grab it
+```
+
+Follow this order and you get accessibility verification **for free**. The fact that `getByRole('button', { name: 'Save' })` passes means a screen reader user also perceives that button as the "Save button." Structure-coupled selectors throw this benefit away entirely.
+
+What you verify should be a **scenario**, not the DOM's shape. For a progress bar: "click an internal link and the progress bar appears; when the route changes, it disappears." For a hook: the input-output contract that "given this input, you get this return value and this state transition."
+
+```tsx
+// Bad: peeks at internal state and calls
+it('handleClick calls setLoading(true)', () => {
+  const setLoading = jest.fn();
+  // a test you can only write if you know the internals → breaks when internals change
+  // the user has no idea whether setLoading was called
+});
+
+// Good: checks only the behavior the user sees
+it('shows the progress bar when an internal link is clicked', async () => {
+  render(<App />);
+  await userEvent.click(screen.getByRole('link', { name: 'About' }));
+  expect(screen.getByRole('progressbar')).toBeVisible();
+});
+```
+
+The second example doesn't care what function makes the progress bar appear, nor whether the state is held as a boolean or an object. It pins only the user fact that "click the link and the progress bar shows." That's why it survives an internal rewrite.
+
+> Why is `getByTestId` the last resort? `data-testid` is a marker neither the user nor assistive tech can see—one that exists solely for the test. Use it as your first choice and the principle of "finding things the way a user would" collapses, and the free bonus of accessibility verification vanishes. Reserve it as an escape hatch only for elements that genuinely can't be grabbed by role or text.
+
+## So When Should You Fix a Test?
+
+The rule isn't "never touch a behavior test." When a refactor changes the **contract itself**, fixing the test is justified. Here "contract" means "the promise the user or caller depends on."
+
+For example, say a hook used to pass the changed value directly as an event payload every time it changed, then switched to giving subscribers only a "it changed" signal and having them re-read the actual value from the store. This isn't a mere internal change—it's a **shift of the mock (fake dependency) boundary**. The point the test has to imitate with a fake has moved, so the test must move with it.
+
+There's exactly one criterion for the call.
+
+> **"Did the behavior change from the user's perspective?"** — If the behavior is the same but the test broke, the test was wrong (it was tied to implementation). If the behavior itself changed or the contract moved, updating the test is legitimate work.
+
+## Tools Are a Hypothesis; Tests Are the Verdict
+
+Warnings from a static analyzer (a tool that scans code without running it to find problems) or a linter are a **starting point, not a verdict**. One diagnostic tool spewed 80 warnings, and roughly a third of them were false positives that didn't understand framework constraints. For instance, an OG image (the preview image for social sharing) renderer only supports inline styles, yet the rule flatly flagged "don't use inline styles" across the board. Had I followed the rule literally, I'd have broken perfectly good code.
+
+So I keep the operating order like this.
+
+```
+[tool] throws a warning = proposes a hypothesis
+  │
+  ▼
+[human] reads the rule docs and judges by code context
+  │  (checks whether it's a framework constraint or an intended exception)
+  ▼
+[test] after the fix, all behavior tests pass = final verdict
+```
+
+A tool's warning is merely a hypothesis that says "something looks suspicious here," and the final basis for whether to apply a change is "do all the behavior tests still pass after the fix." The realistic approach is to wire the tool itself into CI (the automated verification pipeline) to **block the influx of new warnings**, and to pay down the accumulated debt incrementally rather than trying to clear it all at once.
+
+## Common Misconceptions
+
+- **Misconception**: high coverage means you're safe. → **Reality**: coverage filled with implementation-coupled tests breaks on every refactor while still failing to catch bugs. Coverage is only the quantity of "how much you checked," not a guarantee of the quality of "whether you checked the right thing."
+- **Misconception**: the more snapshot tests, the better. → **Reality**: a snapshot doesn't tell you "what matters and why." Diff noise grows while meaning stays unknown, and people end up wholesale-updating without reading the change.
+- **Misconception**: once you write a test, you must never touch it. → **Reality**: when behavior or a contract changes, updating the test is the natural thing to do. The only thing you shouldn't touch is an implementation-coupled test that "breaks even though the behavior is the same."
+- **Misconception**: E2E is slow, so it's low value. → **Reality**: E2E verifies from the perspective of an end user who knows nothing about the internals, so it has the strongest resistance to refactoring. It is indeed slow, so you have to be selective about how many you write, but that doesn't make it low value.
+
+## Check Yourself
+
+- Does the last test you wrote check "whether the code changed," or "whether the behavior changed"?
+- If a test breaks when you change a component's internal state structure, is that a good sign or a bad one?
+- Can you explain why the selector priority (getByRole > getByLabelText > getByText > getByTestId) gives you accessibility verification as a bonus?
+- Can you distinguish the cases where fixing a test is justified from those where it isn't, using the word "contract"?
+- Can you give one example of a situation where you shouldn't follow a linter warning as-is? What is the final basis for whether to apply it?
+- If you have 90% coverage yet tests break on every refactor, where should you start your suspicion?
+
+## Related Notes
+
+- [[react-you-might-not-need-an-effect|The effect-removal refactor that was safe thanks to this testing principle]]
+- [[react-hydration-and-flicker|Hydration and Flicker]]
+
+## References
+
+- [Guiding Principles - Testing Library](https://testing-library.com/docs/guiding-principles/)
+- [Testing Implementation Details - Kent C. Dodds](https://kentcdodds.com/blog/testing-implementation-details)
+- [Query Priority - Testing Library](https://testing-library.com/docs/queries/about/#priority)

@@ -17,8 +17,12 @@ tags: ['frontend', 'network', 'security']
 - [[http-caching|HTTP 캐싱: 브라우저는 언제 서버에 다시 물어보는가]]
 - [[cors-explained|CORS: 브라우저만 막는 이유와 preflight의 정체]]
 - [[web-security-xss-csrf|XSS와 CSRF: 브라우저 보안 모델이 막으려는 두 가지 공격]]
+- [[json-in-script-xss|script 안의 JSON: JSON.stringify가 못 막는 탈출]]
+- [[oauth-callback-security|OAuth 콜백 보안: state는 왜 1회용이어야 하는가]]
 
 ## 읽는 순서 제안
 
 URL 입력부터 화면까지를 큰 지도로 먼저 읽고, HTTP 버전 → 캐싱으로 프로토콜을 깊게 판 뒤,
 CORS → XSS·CSRF로 보안 모델을 묶어 읽는 흐름을 권한다.
+XSS·CSRF를 읽었다면 실전 사례 둘 — script 안의 JSON(XSS의 변종)과
+OAuth 콜백 보안(CSRF의 변종) — 으로 이어 읽으면 일반론이 손에 잡힌다.
