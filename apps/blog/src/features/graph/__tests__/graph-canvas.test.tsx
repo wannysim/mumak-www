@@ -31,14 +31,14 @@ const fakeForceGraphInstance = {
 };
 
 jest.mock('react-force-graph-3d', () => {
-  const ForwardedFakeForceGraph = React.forwardRef<unknown, CapturedProps>((props, ref) => {
+  // React 19: ref는 일반 prop으로 전달되므로 forwardRef가 필요 없다.
+  const FakeForceGraph = ({ ref, ...props }: CapturedProps & { ref?: React.Ref<unknown> }) => {
     lastForceGraphProps.current = props;
     lastForceGraphRef.current = ref;
     React.useImperativeHandle(ref, () => fakeForceGraphInstance);
     return <div data-testid="force-graph" />;
-  });
-  ForwardedFakeForceGraph.displayName = 'FakeForceGraph';
-  return { __esModule: true, default: ForwardedFakeForceGraph };
+  };
+  return { __esModule: true, default: FakeForceGraph };
 });
 
 jest.mock('three-spritetext', () => {

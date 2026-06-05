@@ -102,20 +102,17 @@ function collectNeighborIds(data: GraphData, seedIds: Set<string>): Set<string> 
 
 function buildHighlightIds(data: GraphData, filters: string[], searchQuery: string): Set<string> {
   const ids = new Set<string>();
-
-  if (searchQuery) {
-    const query = searchQuery.toLowerCase();
-    data.nodes.filter(node => node.name.toLowerCase().includes(query)).forEach(node => ids.add(node.id));
-  }
-
-  const matchingTagFilters = filters.filter(f => f.startsWith('tag:'));
+  const query = searchQuery.toLowerCase();
+  const tagFilters = filters.filter(f => f.startsWith('tag:'));
   const nonTagFilters = filters.filter(f => !f.startsWith('tag:'));
+  const tagMatchIds = new Set<string>();
 
-  data.nodes.filter(node => nonTagFilters.some(f => nodeMatchesFilter(node, f))).forEach(node => ids.add(node.id));
-
-  const tagMatchIds = new Set(
-    data.nodes.filter(node => matchingTagFilters.some(f => nodeMatchesFilter(node, f))).map(node => node.id)
-  );
+  // 검색·필터·태그 매칭을 노드 리스트 한 번의 순회로 모두 수집한다.
+  for (const node of data.nodes) {
+    if (searchQuery && node.name.toLowerCase().includes(query)) ids.add(node.id);
+    if (nonTagFilters.some(f => nodeMatchesFilter(node, f))) ids.add(node.id);
+    if (tagFilters.some(f => nodeMatchesFilter(node, f))) tagMatchIds.add(node.id);
+  }
 
   if (tagMatchIds.size > 0) {
     for (const id of collectNeighborIds(data, tagMatchIds)) {
