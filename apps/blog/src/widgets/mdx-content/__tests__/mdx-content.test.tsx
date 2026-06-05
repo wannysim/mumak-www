@@ -29,7 +29,7 @@ describe('MDXContent', () => {
   });
 
   it('forwards components and options to MDXRemote', () => {
-    const components = { h1: () => <h1 data-testid="custom-h1" /> };
+    const components = { h1: () => <h1 data-testid="custom-h1">Custom Heading</h1> };
     const options = { parseFrontmatter: true };
 
     render(<MDXContent source="content" components={components} options={options} />);
