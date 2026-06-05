@@ -1,0 +1,270 @@
+---
+title: 'Access + Refresh 토큰: 새로고침해도 로그인이 유지되는 이유'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'auth', 'jwt', 'react']
+---
+
+JWT는 한번 발급하면 만료 전까지 회수할 수 없다는 약점이 있다([[web-auth-session-vs-token]]). 그래서 실무는 access token 수명을 아주 짧게(15분) 가져가는데, 그러면 15분마다 다시 로그인해야 하나? 그 모순을 푸는 게 **Access + Refresh 토큰** 패턴이다. 그리고 이 패턴을 SPA에서 구현할 때 사람들이 가장 헷갈려하는 지점이 "그럼 access는 대체 어디에 두느냐"와 "새로고침하면 왜 로그아웃이 안 되느냐"다.
+
+> 한 줄 요약: **수명 짧은 access(메모리)로 평소 요청을 처리하고, 수명 긴 refresh(httpOnly 쿠키)로 access를 조용히 재발급한다. access는 새로고침에 날아가지만 refresh 쿠키가 살아 있어 부팅 때 한 번 호출로 복원된다 — 그래서 메모리에 둬도 로그인이 유지된다.**
+
+## 먼저 Bearer: "소지자를 믿는다"
+
+access token을 서버에 보낼 때 쓰는 게 Bearer 스킴이다. **Bearer = "이 토큰 가진 사람(소지자)을 그냥 믿겠다"** 는 인증 방식이다. 단어 뜻 그대로 "소지자"이며, 무기명 채권이나 현금처럼 **누가 가졌든 안 따지고 토큰 자체가 유효하면 통과**시킨다.
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjQyfQ.dBjftJeZ4CVP
+```
+
+- `Authorization` = 헤더 이름
+- `Bearer` = 인증 **스킴(scheme)**. 다른 스킴으로 `Basic`(아이디:비번을 base64), `Digest` 등이 있다.
+- **토큰은 통째로 다 붙인다** — `header.payload.signature` 세 덩어리를 자르거나 변형 없이 `Bearer ` 뒤에 그대로.
+
+```js
+fetch('/api/me', {
+  headers: { Authorization: `Bearer ${token}` },
+});
+```
+
+"소지자를 믿는다"는 점이 곧 [[web-auth-session-vs-token]]의 "증표는 훔치면 끝"과 같은 이야기다. **Bearer 토큰은 신분증이 아니라 현금이다.** 주운 사람이 임자이므로, 어디에 보관하느냐가 곧 보안 문제가 된다.
+
+## 토큰을 어디에 둘까 — 메모리 + httpOnly 쿠키
+
+보관 위치는 흔히 떠올리는 세 개(쿠키 / localStorage / sessionStorage)가 아니라 **네 개**다. 자주 잊히는 선택지가 **메모리(JS 변수)** 다.
+
+| 보관 위치       | JS 접근 | 서버 전송 | XSS       | 새로고침       |
+| --------------- | ------- | --------- | --------- | -------------- |
+| 쿠키(httpOnly)  | 불가    | 자동 첨부 | 안전      | 유지           |
+| 메모리(JS 변수) | 가능    | 수동      | 피해 최소 | **소멸**       |
+| localStorage    | 가능    | 수동      | **취약**  | 유지           |
+| sessionStorage  | 가능    | 수동      | **취약**  | 탭 닫으면 소멸 |
+
+저장 위치별 XSS·CSRF 트레이드오프(특히 "localStorage는 CSRF 안전하니 더 안전"이 왜 착각인지)는 [[web-security-xss-csrf]]와 [[browser-storage]]에서 깊게 다룬다. 여기서 필요한 결론만 추리면 이렇다.
+
+- **refresh = httpOnly 쿠키**: 수명이 길어 가장 민감하다. JS가 못 읽게 httpOnly로 잠그고, 자동 첨부되니 `sameSite`로 CSRF를 막는다.
+- **access = 메모리**: 수명이 짧고 매 요청 헤더로 직접 싣는다. 디스크에 안 남고 새로고침에 사라진다는 점이 오히려 탈취 피해를 줄인다.
+
+> 왜 access를 메모리에 두면서 "새로고침에 사라진다"는 단점을 감수하나?
+>
+> 그 "단점"이 바로 이 패턴의 핵심 장치다. 새로고침에 사라지더라도 refresh 쿠키로 곧장 복원되므로 사용자 체감은 멀쩡하고, 대신 디스크에 영구히 남는 localStorage보다 통째 탈취 면이 작아진다.
+
+## 전체 흐름
+
+```
+[로그인]      서버 → refresh(httpOnly 쿠키) + access(응답 body)
+[평소 요청]   access를 Bearer로 첨부 → 서버 검증
+[access 만료] 서버가 401 → 프론트가 /refresh 호출 → 쿠키로 새 access 받음 → 재시도
+[새로고침]    메모리 날아감 → 부팅 시 /refresh 한 번 → access 복원 (쿠키는 살아있으니까)
+[로그아웃]    서버가 refresh 쿠키 삭제
+```
+
+핵심은 마지막 두 줄이다. **refresh는 httpOnly 쿠키라 새로고침해도 안 죽고, access는 메모리라 죽지만 부팅 때 쿠키로 다시 받아오면 된다.** 이래서 access를 메모리에 둬도 로그인이 유지된다.
+
+## 백엔드 (Express)
+
+```js
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import cookieParser from 'cookie-parser';
+
+const ACCESS_SECRET = process.env.ACCESS_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
+
+app.use(cookieParser());
+
+const issueAccess = user => jwt.sign({ userId: user.id, role: user.role }, ACCESS_SECRET, { expiresIn: '15m' });
+const issueRefresh = user => jwt.sign({ userId: user.id }, REFRESH_SECRET, { expiresIn: '14d' });
+
+// 로그인
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await db.user.findByEmail(email);
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    return res.status(401).json({ error: '인증 실패' });
+  }
+
+  res.cookie('refreshToken', issueRefresh(user), {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/auth/refresh', // ← 이 경로 요청에만 쿠키 붙음 (노출 최소화)
+    maxAge: 14 * 24 * 60 * 60 * 1000,
+  });
+
+  res.json({ accessToken: issueAccess(user) }); // ← access는 body로
+});
+
+// 재발급
+app.post('/auth/refresh', async (req, res) => {
+  const token = req.cookies.refreshToken;
+  if (!token) return res.status(401).json({ error: '리프레시 토큰 없음' });
+  try {
+    const payload = jwt.verify(token, REFRESH_SECRET);
+    const user = await db.user.findById(payload.userId); // role 최신값 위해 조회
+    if (!user) return res.status(401).json({ error: '유저 없음' });
+    res.json({ accessToken: issueAccess(user) });
+  } catch {
+    return res.status(401).json({ error: '리프레시 토큰 무효' });
+  }
+});
+
+// 로그아웃
+app.post('/auth/logout', (req, res) => {
+  res.clearCookie('refreshToken', { path: '/auth/refresh' }); // path 똑같이 줘야 지워짐
+  res.json({ ok: true });
+});
+
+// 보호 라우트용 미들웨어
+function auth(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) return res.status(401).json({ error: '토큰 없음' });
+  try {
+    req.user = jwt.verify(header.slice(7), ACCESS_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ error: '토큰 만료/무효' });
+  }
+}
+```
+
+**짚을 점 세 가지**
+
+- **secret을 access/refresh 따로** 둔 이유: refresh로 보호 라우트를 통과하거나 그 반대가 안 되게. 키가 다르면 서로 검증에서 터진다.
+- **`path: '/auth/refresh'`**: refresh 쿠키를 모든 요청이 아니라 _재발급 요청에만_ 붙여 노출을 줄인다. `clearCookie`도 같은 path를 줘야 지워진다.
+- **refresh에서 DB 조회**: refresh payload엔 userId만 있으니, 새 access에 최신 `role`을 넣으려면 유저를 다시 읽어야 한다(권한 변경도 이때 반영된다).
+
+## 프론트엔드 (React)
+
+핵심은 **access를 모듈 변수에 두고, fetch를 감싸 "401이면 자동 refresh 후 재시도"** 하게 만드는 것이다.
+
+```js
+// api.js
+let accessToken = null; // ← 메모리. localStorage 아님
+let refreshPromise = null; // ← 동시 refresh 중복 방지용
+
+export const setAccessToken = t => {
+  accessToken = t;
+};
+
+function refreshAccessToken() {
+  // 이미 refresh 진행 중이면 그 promise 재사용 (중복 호출 방지)
+  if (!refreshPromise) {
+    refreshPromise = fetch('/auth/refresh', {
+      method: 'POST',
+      credentials: 'include', // ← httpOnly 쿠키 자동 첨부되게 필수
+    })
+      .then(async res => {
+        if (!res.ok) throw new Error('refresh failed');
+        const { accessToken: t } = await res.json();
+        accessToken = t;
+        return t;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+// fetch 래퍼: access 붙이고, 401이면 refresh 후 1회 재시도
+export async function apiFetch(url, options = {}) {
+  const call = token =>
+    fetch(url, {
+      ...options,
+      headers: { ...options.headers, Authorization: `Bearer ${token}` },
+    });
+
+  let res = await call(accessToken);
+
+  if (res.status === 401) {
+    try {
+      const newToken = await refreshAccessToken();
+      res = await call(newToken); // 새 토큰으로 재시도
+    } catch {
+      accessToken = null;
+      throw new Error('세션 만료, 재로그인 필요');
+    }
+  }
+  return res;
+}
+```
+
+```js
+// 로그인
+export async function login(email, password) {
+  const res = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // refresh 쿠키 받기
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error('로그인 실패');
+  const { accessToken } = await res.json();
+  setAccessToken(accessToken); // 메모리에 저장
+}
+
+// 앱 부팅 시 (새로고침으로 메모리 날아간 상태 복원)
+export async function bootstrap() {
+  try {
+    await refreshAccessToken(); // 쿠키 살아있으면 access 복원 → 로그인 유지
+    return true;
+  } catch {
+    return false; // 로그인 안 된 상태
+  }
+}
+```
+
+```jsx
+function App() {
+  const [status, setStatus] = useState('loading'); // loading | in | out
+  useEffect(() => {
+    bootstrap().then(ok => setStatus(ok ? 'in' : 'out'));
+  }, []);
+
+  if (status === 'loading') return <Splash />; // 깜빡임 방지
+  return status === 'in' ? <Home /> : <Login />;
+}
+```
+
+부팅 시 `bootstrap()`을 부르는 자리에서 `loading` 상태를 거치는 건, 인증 상태가 정해지기 전에 화면을 그렸다가 뒤늦게 뒤집히는 깜빡임을 막기 위함이다. 이 "한 박자 늦는 보정"의 일반 원리는 [[react-hydration-and-flicker]]에서, "이걸 정말 effect로 해야 하나"라는 질문은 [[react-you-might-not-need-an-effect]]에서 더 다룬다(부팅 시 1회 외부 시스템 동기화는 effect가 맞는 드문 경우다).
+
+## 짚어야 할 포인트
+
+- **새로고침해도 로그아웃 안 된다**: access는 날아가지만 refresh 쿠키(httpOnly)는 살아있어, `bootstrap()`의 `/refresh` 한 번으로 access를 조용히 복원한다.
+- **`refreshPromise` 중복 방지**: access 만료 순간 여러 요청이 동시에 401을 맞으면 refresh를 여러 번 쏜다. 진행 중 promise를 재사용하면 refresh는 딱 한 번만 나가고 나머지는 그 결과를 함께 기다린다.
+- **refresh 엔드포인트 CSRF**: refresh 쿠키가 `sameSite: 'lax'`라 크로스 사이트 POST엔 안 붙어 기본 방어가 된다(원리는 [[web-security-xss-csrf]]).
+- **솔직한 한계**: "access를 메모리에 두면 XSS 안전"은 *완전히*는 아니다. 페이지에서 실행되는 악성 JS가 fetch를 가로채거나 클로저에 접근할 여지가 이론상 있다. 메모리 보관의 진짜 이득은 **"디스크에 안 남고(통째 탈취 불가) + 새로고침하면 사라진다"** 는 것이지, XSS를 0으로 만드는 게 아니다. XSS 자체는 입력 이스케이프·CSP 같은 별도 방어로 막아야 하며, 토큰 보관 위치는 _피해를 줄이는_ 레이어다.
+
+## 흔한 오해
+
+- **오해**: "access를 메모리에 두면 XSS로부터 완전히 안전하다." → **실제**: 페이지에서 도는 악성 JS는 fetch를 가로채거나 클로저에 접근할 수 있다. 메모리는 _피해를 줄이는_ 레이어지 XSS를 0으로 만드는 장치가 아니다.
+- **오해**: "refresh 토큰도 그냥 응답 body로 주고 localStorage에 저장하면 편하다." → **실제**: 가장 수명이 길고 민감한 토큰을 XSS에 무방비인 곳에 두는 셈이다. refresh는 httpOnly 쿠키가 기본이다.
+- **오해**: "access·refresh secret은 하나로 통일해도 된다." → **실제**: 키를 분리해야 refresh로 보호 라우트를 통과하거나 그 반대가 막힌다. 같은 키면 둘의 역할 경계가 사라진다.
+- **오해**: "동시에 여러 요청이 401이면 refresh를 여러 번 해도 그만이다." → **실제**: 불필요한 중복 재발급에 더해, 서버가 refresh rotation을 쓰면 경쟁 상태로 일부 요청이 무효 토큰을 쥘 수 있다. 진행 중 promise 재사용으로 한 번만 나가게 한다.
+
+## 스스로 점검하기
+
+- access를 메모리에 두는데도 새로고침 후 로그인이 유지되는 메커니즘을 한 문장으로 설명할 수 있나?
+- refresh를 httpOnly 쿠키에, access를 메모리에 두는 결정은 각각 어떤 공격면을 줄이려는 선택인가?
+- `refreshPromise`가 없으면 access 만료 순간 무슨 일이 벌어지나? 이게 왜 문제인가?
+- access·refresh secret을 분리하지 않으면 어떤 경계가 무너지나?
+- `path: '/auth/refresh'`는 무엇을 줄이려는 설정이고, `clearCookie`에 같은 path를 줘야 하는 이유는?
+- "메모리에 두면 XSS 안전"이 왜 절반만 맞는 말인가?
+
+## 함께 보기
+
+- [[web-auth-session-vs-token]]
+- [[web-security-xss-csrf]]
+- [[browser-storage]]
+- [[oauth-callback-security]]
+- [[react-you-might-not-need-an-effect]]
+- [[frontend-network]]
+
+## 참고
+
+- [RFC 6750 — Bearer Token Usage](https://datatracker.ietf.org/doc/html/rfc6750)
+- [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://datatracker.ietf.org/doc/html/rfc9700)
+- [Authorization header - MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Authorization)
+- [Refresh Token Rotation - Auth0](https://auth0.com/docs/secure/tokens/refresh-tokens/refresh-token-rotation)

@@ -19,6 +19,8 @@ tags: ['frontend', 'network', 'security']
 - [[web-security-xss-csrf|XSS와 CSRF: 브라우저 보안 모델이 막으려는 두 가지 공격]]
 - [[json-in-script-xss|script 안의 JSON: JSON.stringify가 못 막는 탈출]]
 - [[oauth-callback-security|OAuth 콜백 보안: state는 왜 1회용이어야 하는가]]
+- [[web-auth-session-vs-token|웹 인증: 세션과 토큰은 같은 문제를 어떻게 다르게 푸는가]]
+- [[access-refresh-token-pattern|Access + Refresh 토큰: 새로고침해도 로그인이 유지되는 이유]]
 
 ## 읽는 순서 제안
 
@@ -26,3 +28,5 @@ URL 입력부터 화면까지를 큰 지도로 먼저 읽고, HTTP 버전 → �
 CORS → XSS·CSRF로 보안 모델을 묶어 읽는 흐름을 권한다.
 XSS·CSRF를 읽었다면 실전 사례 둘 — script 안의 JSON(XSS의 변종)과
 OAuth 콜백 보안(CSRF의 변종) — 으로 이어 읽으면 일반론이 손에 잡힌다.
+인증을 처음부터 잡고 싶다면 세션 vs 토큰으로 증표의 본질을 먼저 세우고,
+그 위에서 Access + Refresh 토큰 패턴으로 실전 구현(메모리 + httpOnly 조합)까지 이어 읽는 흐름을 권한다.
