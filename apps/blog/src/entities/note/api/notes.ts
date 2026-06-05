@@ -251,7 +251,7 @@ export function getNoteAnchorIndex(locale: Locale, slug: string): NoteAnchorInde
 
   const headingLines = extractHeadingLines(note.content);
   return {
-    headings: new Set(headingLines.map(item => item.anchor).filter(Boolean)),
+    headings: new Set(headingLines.flatMap(item => (item.anchor ? [item.anchor] : []))),
     blocks: extractBlockIds(note.content),
   };
 }

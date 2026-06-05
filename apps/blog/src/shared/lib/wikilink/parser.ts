@@ -117,7 +117,7 @@ export function parseWikilinks(content: string): WikiLink[] {
 
 export function extractWikilinkSlugs(content: string): string[] {
   const wikilinks = parseWikilinks(content);
-  return [...new Set(wikilinks.map(link => link.slug).filter(Boolean))];
+  return [...new Set(wikilinks.flatMap(link => (link.slug ? [link.slug] : [])))];
 }
 
 export function hasWikilinks(content: string): boolean {
