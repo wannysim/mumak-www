@@ -3,7 +3,8 @@ import { useServerInsertedHTML } from 'next/navigation';
 import { isValidElement } from 'react';
 
 import { themeColors } from '../theme-config';
-import { ThemeMetaSyncScript, themeMetaSync, themeMetaSyncInlineScript } from '../theme-meta-sync';
+import { themeMetaSync, themeMetaSyncInlineScript } from '../theme-meta-sync';
+import { ThemeMetaSyncScript } from '../theme-meta-sync-script';
 
 import '@testing-library/jest-dom';
 

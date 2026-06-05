@@ -1,0 +1,212 @@
+---
+title: 'Hydration and Flicker: Why the mounted Pattern Is One Beat Late'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'ssr', 'hydration']
+---
+
+Have you ever seen a theme-toggle button or the year in a footer start out blank and then flicker into view? The `mounted` pattern that people commonly reach for to avoid hydration warnings can be the very culprit behind that flicker.
+
+> One-line summary: **The `mounted` pattern comes with a flicker, because useEffect runs after paint. To swap to the real UI before paint, use `suppressHydrationWarning` or `useSyncExternalStore`.**
+
+## What Hydration Is
+
+With SSR (server-side rendering—drawing components into HTML on the server ahead of time and sending it down), the flow looks like this.
+
+1. The server runs your components and sends down **finished HTML** first. The browser can paint the screen right away without waiting for JS (fast first paint), and search engines can read the content (SEO).
+2. Then, once the JS bundle arrives, React attaches event handlers **on top of the DOM that's already on screen**, taking ownership: "I manage this DOM now." This process is **hydration** ("pouring water in").
+
+By analogy, the server tapes up a detailed, un-colored line drawing first, and React paints (interactivity) precisely on top of those lines. So one premise underlies it all—**the client's first render result must be identical to the HTML the server sent.**
+
+```
+[Server] component → HTML string → sent to browser
+                                    │
+                                    ▼
+[Browser] HTML shown immediately (still a dead screen)
+                                    │
+                          JS bundle arrives
+                                    ▼
+[React] hydrateRoot → attach events to existing DOM (hydration)
+                                    │
+                                    ▼
+            live screen (clicks and input work)
+```
+
+If the two differ (a mismatch), React logs a warning to the console and pays a **recovery cost** to redraw the parts that disagree. In bad cases it throws the whole subtree away and redraws it on the client.
+
+> Why force them to match? Hydration is an optimization that skips expensive re-creation on the assumption that "the DOM the server drew is the same as the one I'd draw." Once that assumption breaks, the premise of the optimization collapses, so React has no choice but to warn.
+
+## Values the Server Can't Know Create Mismatches
+
+The trouble blows up with **values the server can't know**.
+
+| Value         | Server?                  | Client?                  |
+| ------------- | ------------------------ | ------------------------ |
+| Current theme | can't read localStorage  | reads `'dark'` and knows |
+| Current year  | build/request-time value | the real "now" year      |
+| Viewport size | no `window`              | knows it's `1280px`      |
+
+If you use such a value directly in render, the server HTML (say, light theme, empty year) and the client's first render (dark theme, 2026) disagree and a mismatch occurs.
+
+To avoid this, the most widely spread approach is the **`mounted` pattern**.
+
+```tsx
+function ThemeButton() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Unify the server render and the client's first render with a placeholder
+  if (!mounted) return <ButtonPlaceholder />;
+
+  return <RealThemeDropdown />; // the real UI only after mount
+}
+```
+
+Because both the server render and the client's **first** render are `<ButtonPlaceholder />`, the mismatch warning disappears. It works. But the catch is timing.
+
+`useEffect` runs **after** the browser has drawn the screen (**paint**). So the order is this—the placeholder is committed to the screen once → it paints and the user sees it → the effect runs and `mounted` becomes `true` → it re-renders and swaps in the real UI → it paints again. To the user, this looks like the placeholder showing briefly and then **flickering** into the real UI.
+
+This is something you actually see all the time. The footer is blank and then the year pops in; the theme button is a fake gray box and then turns into a dropdown.
+
+## Solution 1 — Just Allow the Difference: suppressHydrationWarning
+
+When a value is "almost always the same and only occasionally different," there's no need to defer it to a placeholder. The classic example is the current year. Apart from the brief window around New Year's when build time and viewing time differ, it's almost always the same.
+
+In that case, compute the value directly in render and attach `suppressHydrationWarning` to that element, telling React "don't warn about this one spot even if server and client differ."
+
+```tsx
+function FooterYear() {
+  const currentYear = new Date().getFullYear();
+
+  return <span suppressHydrationWarning>© {currentYear} mumak</span>;
+}
+```
+
+Since `new Date().getFullYear()` is called right in the render phase, there's no placeholder and no effect. The year is baked in from the first paint, with no flicker.
+
+> Why isn't `suppressHydrationWarning` a "dirty workaround"? It's an **escape hatch** that React officially provides. It's a deliberate device for allowing a single mismatched piece of text—like a timestamp or a year—that is bound to differ between server and client.
+
+There's one thing to watch out for. When a mismatch actually happens, React **keeps the text the server sent.** It does not correct it to the client's value. In other words, if you view a page built at midnight on New Year's Eve in the new year, you may briefly see the old year. So use this tool **only for "values that are harmless to the user even when they occasionally differ."** It's a poor fit for values like the theme, where being wrong is a problem.
+
+## Solution 2 — Swap Before Paint: a useHydrated Built on useSyncExternalStore
+
+For cases like the theme where "the client value must be correct but you also hate the flicker," use a small hook built on `useSyncExternalStore`.
+
+```tsx
+import { useSyncExternalStore } from 'react';
+
+const emptySubscribe = () => () => {};
+
+function useHydrated() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true, // client snapshot: always true
+    () => false // server snapshot: always false
+  );
+}
+```
+
+The server snapshot is `false`, the client snapshot is `true`. The key is that React handles this difference **synchronously during hydration**, re-rendering **before paint happens**. So the user sees the real UI from the start, with no chance to glimpse the placeholder.
+
+Put side by side with the `mounted` pattern (effect-based), the difference is clear in a timeline.
+
+```
+[mounted pattern — swap after paint]
+server HTML shown → paint (placeholder visible) → effect runs → re-render → paint (real UI)
+                       └── user sees the placeholder (flicker) ──┘
+
+[useHydrated — swap before paint]
+server HTML shown → hydration (synchronous re-render here) → paint (real UI)
+                                                  └── never sees the placeholder ──┘
+```
+
+It's the same "server = placeholder, client = real UI" transition, but whether the swap happens **before or after paint** decides whether there's a flicker. Usage is nearly identical to `mounted`.
+
+```tsx
+function ThemeButton() {
+  const hydrated = useHydrated();
+  if (!hydrated) return <ButtonPlaceholder />;
+  return <RealThemeDropdown />;
+}
+```
+
+## useSyncExternalStore, the Standard Gateway
+
+`useHydrated` is just one use of `useSyncExternalStore`. This hook is the standard gateway for safely subscribing to **values from the world outside React** (browser APIs, external stores, and so on). It takes three arguments.
+
+| Argument            | Role                                                                       |
+| ------------------- | -------------------------------------------------------------------------- |
+| `subscribe`         | registers a change notification. Must return an **unsubscribe function**   |
+| `getSnapshot`       | reads the current value (for the client)                                   |
+| `getServerSnapshot` | the value to use at server/hydration time (effectively required under SSR) |
+
+The core division of labor is this. `subscribe` only sends a **signal** that "the value changed," and React reads the actual value by calling `getSnapshot` again. The event callback doesn't need to carry the value around.
+
+Let's look at two practical examples.
+
+```tsx
+// 1) Reduced-motion preference (accessibility setting)
+function useReducedMotion() {
+  return useSyncExternalStore(
+    callback => {
+      const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+      query.addEventListener('change', callback); // pass only the change signal
+      return () => query.removeEventListener('change', callback);
+    },
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    () => false // false on the server for now
+  );
+}
+
+// 2) Is the tab currently visible
+function useDocumentVisible() {
+  return useSyncExternalStore(
+    callback => {
+      document.addEventListener('visibilitychange', callback);
+      return () => document.removeEventListener('visibilitychange', callback);
+    },
+    () => document.visibilityState === 'visible',
+    () => true // assume visible on the server
+  );
+}
+```
+
+Compared with subscribing manually with `useState` + `useEffect`, the advantages are clear.
+
+- **The code is shorter.** Subscribing, unsubscribing, and holding state all gather into one hook.
+- **SSR is safe by default.** `getServerSnapshot` forces you to specify the server-side value.
+- **It prevents tearing.** Tearing (a torn screen) is the phenomenon where an external value changes in the middle of a single render pass, so part of the screen is drawn with the old value and another part with the new one—contradictory and torn. It can happen under concurrent rendering, and `useSyncExternalStore`, true to its name, **synchronizes** external-store reads with the render so that the value stays consistent within one screen.
+
+> Why do we need a dedicated hook? Under concurrent rendering, React can pause a render midway and resume it. If an external value changes in between, plain `useState` subscriptions struggle to prevent tearing. `useSyncExternalStore` provides an "official path for reading external values" so that React takes responsibility for consistency.
+
+## Common Misconceptions
+
+- **Misconception**: the `mounted` pattern is the standard solution for hydration mismatches. → **Reality**: it works, but because the effect runs after paint, it comes with a flicker where the placeholder is seen once. If you know that cost, you can pick better tools like `suppressHydrationWarning` or `useSyncExternalStore`.
+- **Misconception**: `suppressHydrationWarning` is a dirty workaround that forcibly buries the warning. → **Reality**: it's an official escape hatch React made for a single piece of text—like a timestamp or year—that inevitably differs between server and client. Overusing it is wrong, but it's justified for its intended purpose.
+- **Misconception**: `useSyncExternalStore` is a hook only state-management library authors use. → **Reality**: there's plenty of occasion to use it right in app code—`matchMedia`, tab visibility, a hydration flag. If you think "I'm subscribing to a value outside React," it's a candidate.
+- **Misconception**: flicker is an unavoidable phenomenon caused by a slow network. → **Reality**: the `mounted` flicker is a structural problem caused by the effect's execution timing (after paint), independent of the network. Change the tool and it goes away.
+
+## Check Yourself
+
+- Can you explain in one sentence what hydration is exactly, and why the server HTML and the client's first render must match?
+- Why does the `mounted` pattern get rid of the mismatch warning yet still produce a flicker? Answer by tying it to when `useEffect` runs.
+- Why is `suppressHydrationWarning` appropriate for displaying the year but inappropriate for displaying the theme?
+- When a mismatch actually happens, which value—the server's or the client's—remains on an element with `suppressHydrationWarning`?
+- Can you draw a timeline to explain the difference between `useHydrated` swapping before paint and `mounted` swapping after paint?
+- What does each of the three arguments to `useSyncExternalStore` do? Why does `subscribe` send only a signal rather than passing the value directly?
+- What is tearing, and why is it dangerous to read an external value with plain `useState` under concurrent rendering?
+
+## Related Notes
+
+- [[react-you-might-not-need-an-effect|Do You Really Need This Effect]]
+- [[react-state-batching-and-rerender|State Updates and Batching]]
+- [[browser-rendering-pipeline|The Browser Rendering Pipeline]]
+
+## References
+
+- [useSyncExternalStore - react.dev](https://react.dev/reference/react/useSyncExternalStore)
+- [hydrateRoot - react.dev](https://react.dev/reference/react-dom/client/hydrateRoot)

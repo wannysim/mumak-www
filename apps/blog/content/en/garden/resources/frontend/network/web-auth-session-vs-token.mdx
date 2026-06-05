@@ -1,0 +1,220 @@
+---
+title: 'Web Authentication: How Sessions and Tokens Solve the Same Problem Differently'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'auth', 'jwt', 'session']
+---
+
+Login implementation feels hard usually because people try to memorize a library's API first. Sessions, JWT, next-auth — they're all just tools that solve **one single problem**, each in their own way. Grab that problem first and every fork in the road resolves into "ah, so that's how this one solves it."
+
+> One-line summary: **HTTP is stateless, so the server forgets who you are on every request. That's why each request needs a ticket that proves "this is me," and login is the act of creating that ticket. The difference between a session and a token is exactly one thing — whether the information lives inside the ticket or not.**
+
+## The Essence of Login: HTTP Doesn't Remember You
+
+Every HTTP request stands on its own. Even if you just logged in, to the server receiving your next request two seconds later it's "who are you?" all over again. To the server, every request is a stranger.
+
+So "login" isn't a single action; it refers to this **whole** flow.
+
+```
+1. Authenticate  prove once, with a password, that "I really am OOO"
+2. Issue         the server hands you a ticket in return
+3. Attach        from then on, attach the ticket to every request → the server restores "ah, it's OOO" from the ticket alone
+4. Authorize     OOO, sure — but do you have the right to do this action?
+```
+
+You could send the password on every request, but that's risky and inefficient, so nobody does. Hence the structure **"authenticate once → issue a ticket → travel with the ticket,"** and **"what shall the ticket be made of?"** is where every fork begins.
+
+### Authentication vs Authorization
+
+The two get used as if they were one word, but they ask different questions.
+
+| Term           | Question               | Example                       |
+| -------------- | ---------------------- | ----------------------------- |
+| Authentication | "Who are you?"         | Login (ID/PW check)           |
+| Authorization  | "So, can you do this?" | A page only admins can access |
+
+The ticket is the product of authentication, and authorization is a separate step that judges whether the bearer of that ticket has the right to a given action.
+
+## How Does the Ticket Ride Along on Every Request: Cookies
+
+Even after you've issued a ticket, it only matters if it rides along automatically on every request. The most basic answer is the **cookie**. Plant a cookie once and the browser attaches it to every request going to that domain on its own.
+
+```
+1. The server plants a cookie via Set-Cookie in the response
+2. The browser stores it
+3. From then on, for every request to that domain → the browser auto-attaches it in the Cookie header
+```
+
+Why this "auto-attach" is a double-edged sword, and how a cookie differs from other storage (localStorage, memory), is covered in depth in [[browser-storage]]; the mechanism by which auto-attach gets abused into CSRF is covered in [[web-security-xss-csrf]]. Here it's enough to carry forward just this: **the most common vehicle for a ticket is the cookie.**
+
+## The Session Approach — the Server Remembers
+
+**Core idea**: the server itself holds the list of logged-in people, and the client only gets a locker number (the session ID).
+
+- **A session ID is a meaningless random number tag.** It's just a value like `a3f9-bc12-...`; it carries no information on its own.
+- The real information (who you are, what permissions you have) all lives in **server-side storage** (memory / Redis / DB).
+- The number tag is merely the _key_ that finds that storage.
+
+```js
+const sessions = {}; // Redis in practice. kept in memory just to show the principle
+
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await db.user.findByEmail(email);
+  // never compare passwords in plaintext. hash comparison
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    return res.status(401).json({ error: 'authentication failed' });
+  }
+  const sid = crypto.randomUUID();
+  sessions[sid] = { userId: user.id }; // ← the server "remembers"
+  res.cookie('sid', sid, { httpOnly: true, sameSite: 'lax', secure: true });
+  res.json({ ok: true });
+});
+
+function auth(req, res, next) {
+  const session = sessions[req.cookies.sid]; // ← look it up in the list
+  if (!session) return res.status(401).json({ error: 'login required' });
+  req.userId = session.userId;
+  next();
+}
+```
+
+- **Pros**: instant logout / forced revocation is possible (just delete the record), and no information is exposed to the client.
+- **Cons**: the server must keep storage. With multiple servers you need shared storage (Redis).
+
+## The Token / JWT Approach — the Server Only Verifies
+
+**Core idea**: the information lives whole inside the ticket. So the server doesn't dig through storage; it **only verifies the signature**. This is called **self-contained**.
+
+```js
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await db.user.findByEmail(email);
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    return res.status(401).json({ error: 'authentication failed' });
+  }
+  // the server stores nothing. it only issues a signed token
+  const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '15m' });
+  res.cookie('token', token, { httpOnly: true, sameSite: 'lax', secure: true });
+  res.json({ ok: true });
+});
+
+function auth(req, res, next) {
+  try {
+    const payload = jwt.verify(req.cookies.token, process.env.JWT_SECRET); // ← verify the signature only
+    req.userId = payload.userId;
+    next();
+  } catch {
+    return res.status(401).json({ error: 'login required' });
+  }
+}
+```
+
+Put it side by side with the session code and the difference is sharp. The session's `auth` **queries storage** with `sessions[...]`, while the JWT's `auth` only **computes a signature** with `jwt.verify` and queries nothing anywhere.
+
+### JWT Structure
+
+A JWT is three chunks separated by dots: `xxxxx.yyyyy.zzzzz`
+
+```
+eyJhbGciOiJIUzI1NiJ9 . eyJ1c2VySWQiOjQyfQ . dBjftJeZ4CVP-mB92K27uhbUJU1p1r
+   └─ Header              └─ Payload           └─ Signature
+```
+
+| Part      | Contents                              | Example                                         |
+| --------- | ------------------------------------- | ----------------------------------------------- |
+| Header    | signing algorithm info                | `{"alg":"HS256","typ":"JWT"}`                   |
+| Payload   | the actual data (claims)              | `{"userId":42,"role":"admin","exp":1699999999}` |
+| Signature | Header+Payload signed with the secret | for tamper protection                           |
+
+Claims come in standard claims (`sub` subject, `exp` expiry, `iat` issued-at, `iss` issuer) and custom claims you add yourself (`userId`, `role`).
+
+### The Most Common Misconception — a JWT Is Not Encryption
+
+**A JWT is not encryption; it's just base64 encoding.** Anyone can decode and read the payload without the secret.
+
+```js
+const token = 'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjQyfQ.xxx';
+JSON.parse(atob(token.split('.')[1]));
+// → { userId: 42 }   ← readable without the secret
+```
+
+Two things follow.
+
+- **Don't put sensitive data in it** — passwords, national IDs, personal info. Assume the payload is fully visible.
+- **Forgery is impossible** — change a single character and the signature no longer matches, so `jwt.verify` throws. Without the secret you can't re-sign.
+
+> What a JWT guarantees isn't "secrecy (confidentiality)" but **"untampered (integrity)."** Miss this one line and you slide into the dangerous illusion that "it's safe because I put it in a token."
+
+## Session vs JWT — Head to Head
+
+The essence of the difference is exactly one thing: **whether the information lives inside the ticket or not.** Everything else derives from there.
+
+|               | Session                              | JWT                                        |
+| ------------- | ------------------------------------ | ------------------------------------------ |
+| Info location | server storage                       | inside the token                           |
+| Verification  | storage lookup (DB/Redis round-trip) | signature computation only (no round-trip) |
+| Invalidation  | **instant** (delete the record)      | **impossible until expiry**                |
+| Scalability   | multiple servers need shared storage | just share the secret                      |
+| Size          | small (~32B)                         | large (hundreds of B), sent every request  |
+| Info exposure | none (only the tag is visible)       | the whole payload is visible               |
+
+The two decisive axes are invalidation and scalability.
+
+- **Invalidation**: "log this person out right now" → for a session, delete the record and done. A JWT has no way to recall a token already issued (valid until expiry). That's why JWT keeps the access token's lifetime short (15 min). If you absolutely need instant revocation, you have to keep a blacklist on the server — and the moment you do, JWT's advantage of "the server stores nothing" disappears (a contradiction). This is JWT's fundamental weakness.
+- **Scalability**: 10 servers → for sessions, all 10 must look at the same storage (Redis). For JWT, just share the secret and each verifies independently. So at large scale / in microservices, JWT wins.
+
+> It's not a question of superiority but of situation. Single-to-mid scale + instant logout matters → session. Large-scale distributed + want stateless → JWT. And many real services blend the two (the access(JWT) + refresh pattern covered in [[access-refresh-token-pattern]] is exactly that compromise).
+
+## The Essence of Security — Steal the Ticket and It's Over
+
+The most important insight, and the one that breaks a common misconception.
+
+**A ticket, whether a session ID or a JWT, is equally over once stolen.** If someone steals your session ID (= **session hijacking**), they can send requests pretending to be you without a password. JWT is the same. Whoever holds the tag opens the locker.
+
+So **"tokens are safer" is wrong.** The difference is only in _how you respond once it's stolen_.
+
+- Session ID stolen → delete the session on the server and it's **instantly neutralized**
+- JWT stolen → **nothing you can do until it expires** (hence the short access token lifetime)
+
+Real security is **"making it un-stealable in the first place,"** and that defense is three-tiered.
+
+```
+1. Can't steal it       httpOnly (XSS can't read it), secure (blocks HTTPS eavesdropping)
+2. Can't use it even if stolen   sameSite (blocks CSRF)
+3. Quickly neutralized even if stolen   short expiry, session deletion, re-auth on suspicious device/IP change
+```
+
+What each cookie option in tiers 1 and 2 (httpOnly, secure, sameSite) blocks is covered concretely in [[web-security-xss-csrf]]. The one sentence to carry away here is: **a ticket is over once stolen, and security is multi-layered defense before, during, and after the theft.**
+
+## Common Misconceptions
+
+- **Misconception**: "Tokens are safer than sessions." → **Reality**: a ticket, session ID or JWT, is equally over once stolen. If anything, sessions allow instant invalidation, so after-the-fact response is better. It's a trade-off, not a hierarchy.
+- **Misconception**: "A JWT is encrypted, so it's fine to put info in the payload." → **Reality**: a JWT is encoding, not encryption. One line of `atob` reads it all. No sensitive data.
+- **Misconception**: "A JWT is invalidated immediately on logout." → **Reality**: a JWT already issued can't be recalled before expiry. If you need instant invalidation you need a server-side blacklist, and the moment you do, the stateless advantage collapses.
+- **Misconception**: "A session ID is short and meaningless, so it's fine if it leaks." → **Reality**: the session ID is the locker key. Meaningless or not, holding it opens the locker (session hijacking). You have to prevent the leak itself.
+
+## Check Yourself
+
+- Why does HTTP being stateless force the concept of a "ticket"?
+- What question does each of authentication and authorization answer? Why can't one ticket settle both at once?
+- What is the one decisive line, at the code level, that differs between the session's `auth` and the JWT's `auth`?
+- Does a JWT guarantee confidentiality or integrity? How does that difference lead to "don't put X in the payload"?
+- Can you explain why pure JWT becomes awkward for a service where "instant logout" matters?
+- Why is "tokens are safer" wrong? Where does the real difference between sessions and JWT split?
+
+## Related Notes
+
+- [[access-refresh-token-pattern]]
+- [[web-security-xss-csrf]]
+- [[browser-storage]]
+- [[oauth-callback-security]]
+- [[frontend-network]]
+
+## References
+
+- [RFC 7519 — JSON Web Token (JWT)](https://datatracker.ietf.org/doc/html/rfc7519)
+- [Introduction to JSON Web Tokens - jwt.io](https://jwt.io/introduction)
+- [HTTP cookies - MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Cookies)
+- [Session hijacking - OWASP](https://owasp.org/www-community/attacks/Session_hijacking_attack)

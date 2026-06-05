@@ -1,0 +1,270 @@
+---
+title: 'Access + Refresh Tokens: Why You Stay Logged In Across a Refresh'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'auth', 'jwt', 'react']
+---
+
+A JWT has the weakness that once issued, it can't be recalled before expiry ([[web-auth-session-vs-token]]). So in practice you keep the access token's lifetime very short (15 min) — but then do you have to log in again every 15 minutes? The pattern that resolves that contradiction is **Access + Refresh tokens**. And when implementing it in an SPA, the points people most often get confused about are "so where exactly do I put the access token?" and "why doesn't a page refresh log me out?"
+
+> One-line summary: **handle normal requests with a short-lived access token (in memory), and quietly re-issue it with a long-lived refresh token (in an httpOnly cookie). The access token vanishes on refresh, but the refresh cookie survives, so a single call at boot restores it — which is why it stays logged in even though it lives in memory.**
+
+## First, Bearer: "Trust the Holder"
+
+The scheme you use to send the access token to the server is Bearer. **Bearer = "I'll just trust whoever holds this token (the bearer)."** Literally "the holder" — like a bearer bond or cash, it **doesn't care who holds it; if the token itself is valid, you pass.**
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjQyfQ.dBjftJeZ4CVP
+```
+
+- `Authorization` = the header name
+- `Bearer` = the authentication **scheme**. Other schemes include `Basic` (id:password as base64), `Digest`, etc.
+- **You attach the whole token** — the three chunks `header.payload.signature`, uncut and unmodified, right after `Bearer `.
+
+```js
+fetch('/api/me', {
+  headers: { Authorization: `Bearer ${token}` },
+});
+```
+
+"Trust the holder" is the same story as "steal the ticket and it's over" from [[web-auth-session-vs-token]]. **A Bearer token isn't an ID card; it's cash.** Whoever finds it owns it, so where you keep it is itself a security question.
+
+## Where to Keep the Token — Memory + an httpOnly Cookie
+
+There aren't the three locations people usually think of (cookie / localStorage / sessionStorage) but **four**. The often-forgotten option is **memory (a JS variable)**.
+
+| Location             | JS access | Sent to server | XSS            | Refresh              |
+| -------------------- | --------- | -------------- | -------------- | -------------------- |
+| Cookie (httpOnly)    | no        | auto-attached  | safe           | survives             |
+| Memory (JS variable) | yes       | manual         | minimal damage | **vanishes**         |
+| localStorage         | yes       | manual         | **vulnerable** | survives             |
+| sessionStorage       | yes       | manual         | **vulnerable** | gone when tab closes |
+
+The XSS/CSRF trade-offs per storage location (in particular, why "localStorage is CSRF-safe so it's safer" is a misconception) are covered in depth in [[web-security-xss-csrf]] and [[browser-storage]]. The only conclusion we need here is this.
+
+- **refresh = httpOnly cookie**: long-lived and the most sensitive. Lock it from JS with httpOnly, and since it's auto-attached, block CSRF with `sameSite`.
+- **access = memory**: short-lived and carried directly in the header each request. Not left on disk and gone on refresh — which actually reduces the blast radius of theft.
+
+> Why keep access in memory and accept the "vanishes on refresh" downside?
+>
+> That "downside" is precisely the key mechanism of this pattern. Even if it vanishes on refresh, it's restored right away via the refresh cookie, so the user feels nothing, and you get a smaller wholesale-theft surface than localStorage, which persists on disk.
+
+## The Full Flow
+
+```
+[Login]          server → refresh (httpOnly cookie) + access (response body)
+[Normal request] attach access as Bearer → server verifies
+[Access expired] server returns 401 → frontend calls /refresh → gets new access via cookie → retries
+[Refresh page]   memory wiped → one /refresh at boot → access restored (the cookie is still alive)
+[Logout]         server deletes the refresh cookie
+```
+
+The key is the last two lines. **The refresh token is an httpOnly cookie so it doesn't die on refresh, and the access token is in memory so it does die — but you just fetch it again via the cookie at boot.** That's why keeping access in memory still keeps you logged in.
+
+## Backend (Express)
+
+```js
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import cookieParser from 'cookie-parser';
+
+const ACCESS_SECRET = process.env.ACCESS_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
+
+app.use(cookieParser());
+
+const issueAccess = user => jwt.sign({ userId: user.id, role: user.role }, ACCESS_SECRET, { expiresIn: '15m' });
+const issueRefresh = user => jwt.sign({ userId: user.id }, REFRESH_SECRET, { expiresIn: '14d' });
+
+// login
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await db.user.findByEmail(email);
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    return res.status(401).json({ error: 'authentication failed' });
+  }
+
+  res.cookie('refreshToken', issueRefresh(user), {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/auth/refresh', // ← cookie attaches only to requests on this path (minimize exposure)
+    maxAge: 14 * 24 * 60 * 60 * 1000,
+  });
+
+  res.json({ accessToken: issueAccess(user) }); // ← access goes in the body
+});
+
+// re-issue
+app.post('/auth/refresh', async (req, res) => {
+  const token = req.cookies.refreshToken;
+  if (!token) return res.status(401).json({ error: 'no refresh token' });
+  try {
+    const payload = jwt.verify(token, REFRESH_SECRET);
+    const user = await db.user.findById(payload.userId); // look up for the latest role
+    if (!user) return res.status(401).json({ error: 'no user' });
+    res.json({ accessToken: issueAccess(user) });
+  } catch {
+    return res.status(401).json({ error: 'invalid refresh token' });
+  }
+});
+
+// logout
+app.post('/auth/logout', (req, res) => {
+  res.clearCookie('refreshToken', { path: '/auth/refresh' }); // same path is required to clear it
+  res.json({ ok: true });
+});
+
+// middleware for protected routes
+function auth(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) return res.status(401).json({ error: 'no token' });
+  try {
+    req.user = jwt.verify(header.slice(7), ACCESS_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ error: 'token expired/invalid' });
+  }
+}
+```
+
+**Three things to note**
+
+- **Separate secrets for access/refresh**: so that a refresh can't pass a protected route, or vice versa. With different keys, each fails the other's verification.
+- **`path: '/auth/refresh'`**: attach the refresh cookie only to _re-issue requests_, not every request, to reduce exposure. `clearCookie` must use the same path to clear it.
+- **DB lookup on refresh**: the refresh payload holds only userId, so to put the latest `role` into the new access you have to read the user again (permission changes are reflected here too).
+
+## Frontend (React)
+
+The key is to **keep access in a module variable and wrap fetch so that "on 401, refresh automatically and retry."**
+
+```js
+// api.js
+let accessToken = null; // ← memory. not localStorage
+let refreshPromise = null; // ← prevents concurrent duplicate refreshes
+
+export const setAccessToken = t => {
+  accessToken = t;
+};
+
+function refreshAccessToken() {
+  // if a refresh is already in flight, reuse that promise (prevent duplicate calls)
+  if (!refreshPromise) {
+    refreshPromise = fetch('/auth/refresh', {
+      method: 'POST',
+      credentials: 'include', // ← required so the httpOnly cookie is auto-attached
+    })
+      .then(async res => {
+        if (!res.ok) throw new Error('refresh failed');
+        const { accessToken: t } = await res.json();
+        accessToken = t;
+        return t;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+// fetch wrapper: attaches access, and on 401 refreshes then retries once
+export async function apiFetch(url, options = {}) {
+  const call = token =>
+    fetch(url, {
+      ...options,
+      headers: { ...options.headers, Authorization: `Bearer ${token}` },
+    });
+
+  let res = await call(accessToken);
+
+  if (res.status === 401) {
+    try {
+      const newToken = await refreshAccessToken();
+      res = await call(newToken); // retry with the new token
+    } catch {
+      accessToken = null;
+      throw new Error('session expired, re-login required');
+    }
+  }
+  return res;
+}
+```
+
+```js
+// login
+export async function login(email, password) {
+  const res = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // to receive the refresh cookie
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error('login failed');
+  const { accessToken } = await res.json();
+  setAccessToken(accessToken); // store in memory
+}
+
+// at app boot (restore the state wiped by a refresh)
+export async function bootstrap() {
+  try {
+    await refreshAccessToken(); // if the cookie is alive, restore access → stay logged in
+    return true;
+  } catch {
+    return false; // not logged in
+  }
+}
+```
+
+```jsx
+function App() {
+  const [status, setStatus] = useState('loading'); // loading | in | out
+  useEffect(() => {
+    bootstrap().then(ok => setStatus(ok ? 'in' : 'out'));
+  }, []);
+
+  if (status === 'loading') return <Splash />; // prevent flicker
+  return status === 'in' ? <Home /> : <Login />;
+}
+```
+
+Going through the `loading` state where `bootstrap()` is called exists to prevent the flicker of rendering a screen before the auth state is decided and then flipping it late. The general principle of this "beat-late correction" is covered in [[react-hydration-and-flicker]], and the question "should this really be done in an effect?" is covered in [[react-you-might-not-need-an-effect]] (a one-time external-system sync at boot is one of the rare cases where an effect is correct).
+
+## Points to Nail
+
+- **A refresh doesn't log you out**: access is wiped, but the refresh cookie (httpOnly) survives, so a single `/refresh` in `bootstrap()` quietly restores the access.
+- **`refreshPromise` deduplication**: the moment access expires, several requests can hit 401 at once and fire refresh multiple times. Reusing the in-flight promise means refresh goes out exactly once and the rest await its result together.
+- **CSRF on the refresh endpoint**: the refresh cookie is `sameSite: 'lax'`, so it doesn't attach to a cross-site POST, giving baseline defense (principle in [[web-security-xss-csrf]]).
+- **An honest limitation**: "keeping access in memory is XSS-safe" isn't _entirely_ true. Malicious JS running on the page can, in theory, intercept fetch or reach into the closure. The real benefit of memory storage is **"not left on disk (no wholesale theft) + gone on refresh,"** not making XSS zero. XSS itself must be blocked with separate defenses like input escaping and CSP; the token's storage location is a layer that _reduces_ damage.
+
+## Common Misconceptions
+
+- **Misconception**: "Keeping access in memory makes it completely XSS-safe." → **Reality**: malicious JS on the page can intercept fetch or reach the closure. Memory is a layer that _reduces_ damage, not a device that makes XSS zero.
+- **Misconception**: "It's easier to just return the refresh token in the response body and store it in localStorage." → **Reality**: that puts the longest-lived, most sensitive token in a place defenseless to XSS. The refresh token defaults to an httpOnly cookie.
+- **Misconception**: "The access and refresh secrets can be unified into one." → **Reality**: you must separate the keys so a refresh can't pass a protected route, or vice versa. With the same key, the boundary between their roles disappears.
+- **Misconception**: "If several requests hit 401 at once, refreshing multiple times is fine." → **Reality**: beyond the unnecessary duplicate re-issues, if the server uses refresh rotation, a race can leave some requests holding an invalid token. Reuse the in-flight promise so it goes out once.
+
+## Check Yourself
+
+- Can you explain, in one sentence, the mechanism by which you stay logged in after a refresh even though access lives in memory?
+- The decision to put refresh in an httpOnly cookie and access in memory — which attack surface is each choice trying to reduce?
+- What happens the moment access expires if there's no `refreshPromise`? Why is that a problem?
+- What boundary collapses if you don't separate the access and refresh secrets?
+- What does `path: '/auth/refresh'` try to reduce, and why must `clearCookie` use the same path?
+- Why is "keeping it in memory is XSS-safe" only half true?
+
+## Related Notes
+
+- [[web-auth-session-vs-token]]
+- [[web-security-xss-csrf]]
+- [[browser-storage]]
+- [[oauth-callback-security]]
+- [[react-you-might-not-need-an-effect]]
+- [[frontend-network]]
+
+## References
+
+- [RFC 6750 — Bearer Token Usage](https://datatracker.ietf.org/doc/html/rfc6750)
+- [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://datatracker.ietf.org/doc/html/rfc9700)
+- [Authorization header - MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Authorization)
+- [Refresh Token Rotation - Auth0](https://auth0.com/docs/secure/tokens/refresh-tokens/refresh-token-rotation)

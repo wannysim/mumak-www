@@ -11,6 +11,15 @@ interface SpotifyTokenResponse {
   refresh_token: string;
 }
 
+// state 쿠키를 1회 소비해 같은 콜백 URL 재사용(replay)을 차단한다.
+// 검증 통과 이후의 모든 응답 경로에서 호출해야 한다.
+function consumeStateCookie(res: NextResponse): NextResponse {
+  res.cookies.delete('spotify_auth_state');
+  return res;
+}
+
+// OAuth 콜백은 스펙상 GET이어야 한다. CSRF는 state 파라미터-쿠키 대조로 방어하고,
+// authorization code는 Spotify 측에서 일회성이므로 prefetch로 재실행돼도 부작용이 없다.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
@@ -64,12 +73,16 @@ export async function GET(request: Request) {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: params.toString(),
+      // 토큰 교환 응답은 절대 캐시되면 안 된다.
+      cache: 'no-store',
     });
 
     if (!response.ok) {
       const errorData = await response.text();
       console.error('[Spotify] 토큰 발급 실패:', response.status, errorData);
-      return NextResponse.json({ error: '토큰 발급 실패', details: errorData }, { status: response.status });
+      return consumeStateCookie(
+        NextResponse.json({ error: '토큰 발급 실패', details: errorData }, { status: response.status })
+      );
     }
 
     const data = (await response.json()) as SpotifyTokenResponse;
@@ -146,15 +159,13 @@ SPOTIFY_REFRESH_TOKEN=${data.refresh_token}</code></pre>
       </html>
     `;
 
-    // 쿠키 삭제
-    const res = new NextResponse(html, {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
-    res.cookies.delete('spotify_auth_state');
-
-    return res;
+    return consumeStateCookie(
+      new NextResponse(html, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
+    );
   } catch (err) {
     console.error('[Spotify] 토큰 요청 중 예외:', err);
-    return NextResponse.json({ error: '토큰 요청 중 오류 발생' }, { status: 500 });
+    return consumeStateCookie(NextResponse.json({ error: '토큰 요청 중 오류 발생' }, { status: 500 }));
   }
 }

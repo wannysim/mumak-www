@@ -29,7 +29,7 @@ export function TagCloud({ tags, activeTag, showCount = true, basePath = '/blog/
               )}
             >
               {tag.name}
-              {showCount && <span className="ml-1 text-xs opacity-70">{tag.count}</span>}
+              {showCount ? <span className="ml-1 text-xs opacity-70">{tag.count}</span> : null}
             </Badge>
           </Link>
         );

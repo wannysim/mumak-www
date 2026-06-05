@@ -62,9 +62,14 @@ function NoteTreeItem({
   const isAncestorOfActive = hasChildren && hasActiveDescendant(node, pathname);
   const [open, setOpen] = React.useState(isAncestorOfActive);
 
-  React.useEffect(() => {
+  // 활성 노트가 하위로 들어오면 펼친다. effect 대신 render 중 prev 비교로
+  // 조정해 닫힌 채로 한 프레임 그려지는 일이 없다. 사용자가 수동으로 닫는
+  // 것은 그대로 유지된다 (전환 시점에만 강제로 연다).
+  const [prevAncestorOfActive, setPrevAncestorOfActive] = React.useState(isAncestorOfActive);
+  if (isAncestorOfActive !== prevAncestorOfActive) {
+    setPrevAncestorOfActive(isAncestorOfActive);
     if (isAncestorOfActive) setOpen(true);
-  }, [isAncestorOfActive]);
+  }
 
   const link = (
     <Link

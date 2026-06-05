@@ -42,9 +42,9 @@ const toTagLinks = (sourceId: string, tags: string[]): GraphLink[] =>
   tags.map(tag => ({ source: sourceId, target: `tag:${tag}`, type: 'tag' as const }));
 
 const toWikilinkTargets = (sourceId: string, targets: string[], validSlugs: Set<string>): GraphLink[] =>
-  targets
-    .filter(slug => validSlugs.has(slug))
-    .map(slug => ({ source: sourceId, target: `note:${slug}`, type: 'wikilink' as const }));
+  targets.flatMap(slug =>
+    validSlugs.has(slug) ? [{ source: sourceId, target: `note:${slug}`, type: 'wikilink' as const }] : []
+  );
 
 function withLinkCounts(data: GraphData): GraphData {
   const counts = data.links.reduce((acc, link) => {

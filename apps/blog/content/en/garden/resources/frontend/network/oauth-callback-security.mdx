@@ -1,0 +1,182 @@
+---
+title: 'OAuth Callback Security: Why state Must Be Single-Use'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'oauth', 'csrf']
+---
+
+If you've ever wired up a "Connect Spotify" or "Sign in with Google" button, you've run into a URL like `/callback?code=...&state=...`. Why does this callback endpoint become an attack surface, and what exactly does that random `state` prove that it must be used only once on every path?
+
+> One-line summary: **state is a proof of origin that shows "this callback is the end of the flow I started," and that proof must succeed only once so a replay can't break it.**
+
+## The Authorization Code Flow, Drawn Out
+
+Let's first follow the most common OAuth flow, the Authorization Code Flow, all the way through. There are three players: my server, the provider (Spotify, Google, etc.), and the user's browser.
+
+```
+[Browser]            [My Server]                    [Provider: Spotify]
+    │                    │                                │
+    │ 1. GET /login      │                                │
+    ├───────────────────▶│ generate random state          │
+    │                    │ → store in cookie (Set-Cookie) │
+    │ 2. 302 redirect    │                                │
+    │◀───────────────────┤ Location: spotify.com?state=.. │
+    │                                                      │
+    │ 3. log in & consent at the provider                  │
+    ├─────────────────────────────────────────────────────▶│
+    │                                                      │
+    │ 4. 302 redirect (the browser follows it)              │
+    │◀─────────────────────────────────────────────────────┤
+    │   Location: myserver/callback?code=AUTH&state=..      │
+    │                    │                                │
+    │ 5. GET /callback   │                                │
+    ├───────────────────▶│ cookie state == URL state ?    │
+    │                    │ if they match ↓                │
+    │                    │ 6. POST /token (server-to-server, code) │
+    │                    ├───────────────────────────────▶│
+    │                    │◀────── access_token ───────────┤
+```
+
+Two things matter. The `state` is created by my server in step 1, planted in **the user's browser cookie**, and at the same time sent along in the URL handed to the provider. And the token exchange in step 6 (code → access_token) happens directly **between servers** via POST, not through the browser. The point is to swap the briefly exposed `code` for a token immediately so the real secret, the access_token, never passes through the browser.
+
+## Why Is the Callback a GET of All Things
+
+There's something awkward here. In step 4 the provider redirects the user to my server, but **in OAuth's default authorization response mode (`response_mode=query`) it's a browser-navigation redirect, so the callback arrives as a GET.** That's why, in the most common Authorization Code Flow, you effectively receive the callback endpoint as a GET.
+
+The problem is that this clashes with an old, fundamental principle of the web: "don't put side effects on safe methods like GET." Everyone assumes a GET is just a read, so GETs fly around constantly even when the user didn't intend them.
+
+- **Prefetch**, where the browser pulls the next page in advance
+- Search engine **crawlers**
+- **Link-preview bots** that generate a preview when you paste a link into a messenger or social app
+
+Yet an OAuth callback is a GET with an **obvious side effect**: "swap the code for a token and log the user in." In other words, the callback lands in the exception of a "GET with side effects," so it doesn't get the protection the browser gives for free. That's exactly why we have to reinforce the safeguards ourselves.
+
+> Why was it designed this way?
+>
+> Even if you'd like the token exchange to be a POST, the provider→my-server step that kicks off the flow is, in the default and most common response mode (query), a redirect that "brings the user back," so the callback arrives as a GET. That's why OAuth nailed the reinforcing mechanism `state` into the flow on the premise of a GET callback.
+
+## Two Risks of an Exposed Callback
+
+What goes wrong if a GET with side effects sits open and defenseless? Let's split it into two strands.
+
+### Risk 1 — Unintended Invocation
+
+Merely exposing the callback URL somewhere is enough for the bots above to hit that URL with a GET without any user intent. The moment someone pastes the whole `/callback?code=...` into a messenger to debug, the preview bot calls that address and can unintentionally trigger the token exchange. The user never pressed a button, yet the flow runs halfway through.
+
+### Risk 2 — Login CSRF
+
+This is the subtler one. The attacker **starts the flow from their own account** and obtains a callback URL carrying a `code` bound to their own account. Then they get the victim to follow that URL (via an image tag, a link, etc.). When the victim's browser sends that callback to my server, my server binds the victim's session to the **attacker's account**.
+
+This isn't an attack that steals a password. It's an attack that **binds** the victim's session to the attacker's account. By analogy, it's like sticking your own name tag on someone else's mailbox in advance so you get to read every letter that household receives. If the victim uploads photos or a payment method to that account, the attacker sees all of it. It's a variant of the CSRF covered in [[web-security-xss-csrf|XSS and CSRF]].
+
+## What state Proves
+
+The two risks share one thing: the party that **started the flow** and the party that **completes the callback** can be different. `state` is precisely the mechanism that checks whether those two are the same.
+
+In step 1, where the flow began, my server planted a random `state` in **that browser's cookie**. The cookie is a secret only that browser holds. When the callback comes back, the URL's `state` matching the cookie's `state` reads as exactly this:
+
+> "The browser trying to complete this callback is the very same browser that started this flow."
+
+```ts
+function verifyState(req: Request): boolean {
+  const fromCookie = readStateCookie(req); // the value we planted when the flow started
+  const fromUrl = new URL(req.url).searchParams.get('state');
+
+  // both must exist and be exactly equal to pass
+  return Boolean(fromCookie) && fromCookie === fromUrl;
+}
+```
+
+An attacker can't plant their own `state` in the victim browser's cookie, so the forged callback of Risk 2 gets filtered out by this comparison. In principle it's identical to the CSRF token of [[web-security-xss-csrf|XSS and CSRF]]: "match an unpredictable secret on both sides to prove the request originated from our flow." `state` is, in effect, a CSRF token slotted into the OAuth callback.
+
+## The Key Insight — Single-Use Consumption on "Every" Path
+
+Up to here, plenty of people get it right. The trap is what comes next: **when do you clear the state cookie?**
+
+A common mistake is to clear the cookie only on the path where the token exchange **succeeds**.
+
+```ts
+// dangerous: the cookie is consumed only on the success path
+async function handleCallback(req: Request, res: Response) {
+  if (!verifyState(req)) return res.redirect('/login?error=state');
+
+  const code = new URL(req.url).searchParams.get('code');
+  const token = await exchangeCodeForToken(code); // what if this throws here?
+
+  clearStateCookie(res); // only reached on success
+  return res.redirect('/');
+}
+```
+
+If `exchangeCodeForToken` fails with a network error or exception, it never reaches `clearStateCookie`. Then **the state cookie survives.** Follow the same callback URL again and it passes `verifyState` once more, making the verification meaningless. This is a reuse attack, a **replay**. The state should carry meaning only once per flow, but if a cookie that has already passed verification is still alive on the second attempt, the "single-use" premise collapses.
+
+The fix is simple but takes discipline: **from the instant verification passes, consume the cookie on every path that emits a response (success, failure, exception).**
+
+```ts
+async function handleCallback(req: Request, res: Response) {
+  if (!verifyState(req)) return res.redirect('/login?error=state');
+
+  // once verification passes, this state is spent no matter the outcome
+  const done = (to: string) => {
+    clearStateCookie(res); // every return passes through this
+    return res.redirect(to);
+  };
+
+  try {
+    const code = new URL(req.url).searchParams.get('code');
+    await exchangeCodeForToken(code);
+    return done('/'); // success
+  } catch {
+    return done('/login?error=exchange'); // failure / exception
+  }
+}
+```
+
+Wrap every `return` in a helper like `done`, and whichever branch you fall into, the cookie is guaranteed to be cleared exactly once. The key sentence is this: **not "clear it on success," but "once verification passes, clear it unconditionally."**
+
+## Layers Upon Layers of Safeguards
+
+Single-use consumption of the state cookie is only one layer of defense. An OAuth callback is guarded by several layers together. Let's lay out which layer is whose responsibility and what each one defends against.
+
+| Safeguard                          | Who guarantees it | What it blocks                   |
+| ---------------------------------- | ----------------- | -------------------------------- |
+| Single-use state cookie            | Our server        | Login CSRF · callback replay     |
+| One-time authorization code        | Provider server   | Reuse of a stolen code           |
+| Token exchange `cache: 'no-store'` | Our code          | Tokens lingering in a cache      |
+| Minimal token exposure in URL/HTML | Our code          | Leaks via logs, history, the DOM |
+
+The `code` itself is made single-use by the provider too. Submit a `code` that has already been exchanged for a token and the provider rejects it. Give the token exchange response `cache: 'no-store'` so the token isn't left on disk or in an intermediate cache (for the general principles of cache control, see [[http-caching]]). Finally, don't embed the access_token directly in a URL query string or in the HTML body. URLs leak easily through server logs, browser history, and the Referer header, and a token embedded in HTML overlaps with the risk of [[json-in-script-xss]].
+
+> Why isn't one layer enough?
+>
+> Even if state cookie verification is implemented perfectly, if the token leaks through the URL or the response lingers in a cache, you get breached through an entirely different channel. Security is designed not as a single defense but as a multi-layered structure where "if one layer is breached, the next one backs it up."
+
+## Common Misconceptions
+
+- **Misconception**: "state is RECOMMENDED in the spec, so it works without it." → **Reality**: The feature works. But without state there's no mechanism to stop login CSRF. It's nominally a recommendation, yet in practice it's an essentially mandatory defense.
+- **Misconception**: "Since code is single-use anyway, state is redundant defense." → **Reality**: Login CSRF isn't an attack that steals a code; it **binds the attacker's own valid code to the victim's session**. Even if the code is single-use, that doesn't stop the binding "the first time around." Filtering out that first binding is what state does.
+- **Misconception**: "Switching the callback to POST makes this headache disappear cleanly." → **Reality**: There is a standard mode like `response_mode=form_post` that returns the authorization response as a POST (the authorization server returns HTML with an auto-submitting form that POSTs to the callback). But most providers and default configurations use a GET query callback, so in practice you reinforce it on the premise of GET with state and single-use consumption.
+- **Misconception**: "I clear the cookie on success, so single-use is preserved." → **Reality**: If the cookie survives the exchange-failure or exception path, you can replay by following the same callback again. Only by consuming it on every path after verification passes do you get true single-use.
+
+## Check Yourself
+
+- Why must an OAuth callback structurally be a GET, and why does that create the exception of a "GET with side effects"?
+- Why does a link-preview bot calling the callback URL lead to a risk?
+- How does login CSRF differ from password theft? Can you explain the term "binding attack" in your own words?
+- What exactly does it prove that the cookie's state and the URL's state match? Why is this the same principle as a CSRF token?
+- What attack becomes possible if you clear the state cookie "only on the success path"? Why must it be consumed on every response path?
+- Why is there still an attack that state blocks even though code is single-use?
+
+## Related Notes
+
+- [[web-security-xss-csrf]]
+- [[json-in-script-xss]]
+- [[http-caching]]
+- [[frontend-network]]
+
+## References
+
+- [RFC 6749 §10.12 — Cross-Site Request Forgery](https://datatracker.ietf.org/doc/html/rfc6749#section-10.12)
+- [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://datatracker.ietf.org/doc/html/rfc9700)
+- [Cross Site Request Forgery (CSRF) - OWASP](https://owasp.org/www-community/attacks/csrf)
