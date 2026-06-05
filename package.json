@@ -30,7 +30,8 @@
     "affected:dry": "pnpm turbo run build test --filter='[HEAD^1]' --dry-run",
     "prepare": "husky",
     "version:sync": "node scripts/sync-versions.mjs",
-    "version:check": "node scripts/sync-versions.mjs --check"
+    "version:check": "node scripts/sync-versions.mjs --check",
+    "doctor": "npx react-doctor@latest"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
