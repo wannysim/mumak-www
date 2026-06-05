@@ -424,6 +424,9 @@ describe('ProgressProvider', () => {
         </ProgressProvider>
       );
 
+      // useSyncExternalStore는 change 이벤트를 신호로만 쓰고 값은 matchMedia를
+      // 다시 읽으므로, 스냅샷 소스를 먼저 바꾼 뒤 구독자에게 알린다.
+      mockMatchMedia(true);
       emitReducedMotionChange(listeners, true);
 
       mockPathname = '/ko/about';

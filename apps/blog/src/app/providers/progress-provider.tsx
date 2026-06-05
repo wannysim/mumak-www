@@ -13,20 +13,20 @@ const INITIAL_SCALE = 0.08;
 
 type Phase = 'idle' | 'loading' | 'done';
 
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+function subscribeReducedMotion(onStoreChange: () => void) {
+  const query = window.matchMedia(REDUCED_MOTION_QUERY);
+  query.addEventListener('change', onStoreChange);
+  return () => query.removeEventListener('change', onStoreChange);
+}
+
 function usePrefersReducedMotion() {
-  const [reduced, setReduced] = React.useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  });
-
-  React.useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const onChange = (event: MediaQueryListEvent) => setReduced(event.matches);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-  }, []);
-
-  return reduced;
+  return React.useSyncExternalStore(
+    subscribeReducedMotion,
+    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
+    () => false
+  );
 }
 
 function isInternalNavigationClick(event: MouseEvent): boolean {
@@ -102,13 +102,14 @@ function PageTransitionIndicator() {
   const searchParams = useSearchParams();
   const reducedMotion = usePrefersReducedMotion();
 
-  const [phase, setPhase] = React.useState<Phase>('idle');
-  const [scale, setScale] = React.useState(INITIAL_SCALE);
+  // phase와 scale은 항상 함께 바뀌므로 하나의 상태로 묶어 단계마다
+  // setState가 한 번만 일어나도록 한다 (중간 상태 노출 방지).
+  const [bar, setBar] = React.useState<{ phase: Phase; scale: number }>({ phase: 'idle', scale: INITIAL_SCALE });
   const firstMountRef = React.useRef(true);
   const timersRef = React.useRef<ReturnType<typeof setTimeout>[]>([]);
   const rafRef = React.useRef<number | null>(null);
   const phaseRef = React.useRef<Phase>('idle');
-  phaseRef.current = phase;
+  phaseRef.current = bar.phase;
 
   const clearTimers = React.useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -125,19 +126,17 @@ function PageTransitionIndicator() {
     // the next frame so the CSS transform transition actually animates (it can't
     // animate from an initial mount value). Without this the bar snaps to 85% and
     // freezes there, which reads as "stuck", not "loading".
-    setScale(INITIAL_SCALE);
-    setPhase('loading');
+    setBar({ phase: 'loading', scale: INITIAL_SCALE });
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = requestAnimationFrame(() => {
-        if (phaseRef.current === 'loading') setScale(TRICKLE_TARGET);
+        if (phaseRef.current === 'loading') setBar(prev => ({ ...prev, scale: TRICKLE_TARGET }));
       });
     });
     timersRef.current.push(
       setTimeout(() => {
         if (phaseRef.current === 'loading') {
-          setScale(1);
-          setPhase('done');
-          timersRef.current.push(setTimeout(() => setPhase('idle'), DONE_FADE_MS));
+          setBar({ phase: 'done', scale: 1 });
+          timersRef.current.push(setTimeout(() => setBar(prev => ({ ...prev, phase: 'idle' })), DONE_FADE_MS));
         }
       }, SAFETY_TIMEOUT_MS)
     );
@@ -145,9 +144,8 @@ function PageTransitionIndicator() {
 
   const completeLoading = React.useCallback(() => {
     clearTimers();
-    setScale(1);
-    setPhase('done');
-    timersRef.current.push(setTimeout(() => setPhase('idle'), DONE_FADE_MS));
+    setBar({ phase: 'done', scale: 1 });
+    timersRef.current.push(setTimeout(() => setBar(prev => ({ ...prev, phase: 'idle' })), DONE_FADE_MS));
   }, [clearTimers]);
 
   // startLoading is recreated whenever its deps change. Wrapping it as an Effect
@@ -176,6 +174,9 @@ function PageTransitionIndicator() {
 
   // Settle the bar when the new route commits (or trigger a brief flash for
   // programmatic navigations that bypassed the click observer).
+  // cleanup으로 clearTimers를 반환해, 이전 내비게이션이 남긴 타이머/raf가
+  // 다음 커밋이나 언마운트 시점에 항상 정리되도록 한다 (200ms 내 연속
+  // 내비게이션에서 이전 done→idle 타이머가 새 flash를 끊는 것도 방지).
   React.useEffect(() => {
     if (firstMountRef.current) {
       firstMountRef.current = false;
@@ -183,30 +184,25 @@ function PageTransitionIndicator() {
     }
 
     if (reducedMotion) {
-      clearTimers();
-      setScale(1);
-      setPhase('done');
-      timersRef.current.push(setTimeout(() => setPhase('idle'), DONE_FADE_MS));
-      return;
-    }
-
-    if (phaseRef.current === 'loading') {
+      completeLoading();
+    } else if (phaseRef.current === 'loading') {
       completeLoading();
     } else {
-      setScale(INITIAL_SCALE);
-      setPhase('loading');
+      setBar({ phase: 'loading', scale: INITIAL_SCALE });
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = requestAnimationFrame(() => {
-          if (phaseRef.current === 'loading') setScale(TRICKLE_TARGET);
+          if (phaseRef.current === 'loading') setBar(prev => ({ ...prev, scale: TRICKLE_TARGET }));
         });
       });
       timersRef.current.push(setTimeout(() => completeLoading(), 80));
     }
+
+    return clearTimers;
   }, [pathname, searchParams, reducedMotion, clearTimers, completeLoading]);
 
   React.useEffect(() => clearTimers, [clearTimers]);
 
-  return <PageTransitionBar phase={phase} scale={scale} reducedMotion={reducedMotion} />;
+  return <PageTransitionBar phase={bar.phase} scale={bar.scale} reducedMotion={reducedMotion} />;
 }
 
 export function ProgressProvider({ children }: { children: React.ReactNode }) {
