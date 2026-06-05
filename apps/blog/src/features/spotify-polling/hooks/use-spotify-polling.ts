@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import useSWR from 'swr';
 
 import type { NowPlaying } from '@/src/entities/spotify';
@@ -46,6 +46,19 @@ const fetcher = async (url: string): Promise<NowPlayingResponse> => {
   return response.json();
 };
 
+function subscribeVisibility(onStoreChange: () => void) {
+  document.addEventListener('visibilitychange', onStoreChange);
+  return () => document.removeEventListener('visibilitychange', onStoreChange);
+}
+
+function useDocumentVisible(): boolean {
+  return useSyncExternalStore(
+    subscribeVisibility,
+    () => document.visibilityState === 'visible',
+    () => true
+  );
+}
+
 /**
  * Spotify 재생 정보를 폴링하는 커스텀 훅
  *
@@ -60,25 +73,9 @@ export function useSpotifyPolling({
   pausedInterval = 30000,
   enabled = true,
 }: UseSpotifyPollingOptions = {}): UseSpotifyPollingReturn {
-  const [isVisible, setIsVisible] = useState(true);
+  const isVisible = useDocumentVisible();
   const [previousData, setPreviousData] = useState<NowPlaying | null>(null);
-  const [hasTrackChanged, setHasTrackChanged] = useState(false);
   const [hasPlayStateChanged, setHasPlayStateChanged] = useState(false);
-
-  // 이전 데이터 참조 (비교용)
-  const lastDataRef = useRef<NowPlaying | null>(initialData ?? null);
-
-  // Visibility API 처리
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      setIsVisible(document.visibilityState === 'visible');
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
 
   // 재생 중이면 playingInterval, 그 외엔 pausedInterval. 트랙 종료 시점은 별도 useEffect 의 예측 fetch 가 잡는다.
   const getRefreshInterval = useCallback(
@@ -130,31 +127,29 @@ export function useSpotifyPolling({
     return () => window.clearTimeout(timerId);
   }, [enabled, isVisible, currentData, fetchedAt, mutate]);
 
-  // 상태 변화 감지
-  useEffect(() => {
-    const lastData = lastDataRef.current;
-
-    if (!currentData) {
-      lastDataRef.current = null;
-      return;
+  // 상태 변화 감지: useEffect 대신 render 중 prev 비교로 조정한다.
+  // effect 경유는 "변경 전 상태"로 한 프레임을 먼저 그린 뒤 다시 그리지만,
+  // render 중 조정은 React가 커밋 전에 즉시 재렌더해 중간 프레임이 없다.
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  const [lastSeen, setLastSeen] = useState<NowPlaying | null>(initialData ?? null);
+  if (currentData !== lastSeen) {
+    setLastSeen(currentData);
+    if (currentData && lastSeen) {
+      // 곡 변경 감지 (songUrl로 비교)
+      if (lastSeen.songUrl !== currentData.songUrl) {
+        setPreviousData(lastSeen);
+      }
+      // 재생 상태 변경 감지
+      if (lastSeen.isPlaying !== currentData.isPlaying) {
+        setHasPlayStateChanged(true);
+      }
     }
+  }
 
-    // 곡 변경 감지 (songUrl로 비교)
-    if (lastData && lastData.songUrl !== currentData.songUrl) {
-      setPreviousData(lastData);
-      setHasTrackChanged(true);
-    }
-
-    // 재생 상태 변경 감지
-    if (lastData && lastData.isPlaying !== currentData.isPlaying) {
-      setHasPlayStateChanged(true);
-    }
-
-    lastDataRef.current = currentData;
-  }, [currentData]);
+  // 곡 변경 플래그는 previousData 존재 여부에서 파생된다 (중복 상태 제거).
+  const hasTrackChanged = previousData !== null;
 
   const resetChangeState = useCallback(() => {
-    setHasTrackChanged(false);
     setHasPlayStateChanged(false);
     setPreviousData(null);
   }, []);
