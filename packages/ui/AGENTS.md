@@ -15,7 +15,7 @@ shadcn/ui 기반 공유 컴포넌트 패키지. 루트 [`AGENTS.md`](../../AGENT
   "exports": {
     "./components/*": "./src/components/*.tsx",
     "./lib/utils": "./src/lib/utils.ts",
-    "./globals.css": "./src/globals.css"
+    "./globals.css": "./src/styles/globals.css"
   }
 }
 ```

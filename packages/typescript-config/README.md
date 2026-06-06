@@ -10,7 +10,7 @@ Monorepo 전체에서 공유되는 TypeScript 설정을 제공합니다.
 
 **특징**:
 
-- Target: ES2022
+- Target: ES2023
 - 엄격한 타입 체크 (`strict: true`)
 - Linting 규칙 활성화
 - 선택적 체이닝 등 최신 TypeScript 기능 지원
@@ -42,7 +42,7 @@ Next.js 애플리케이션을 위한 설정입니다. `base.json`을 상속하�
       "@mumak/ui/*": ["../../packages/ui/src/*"]
     }
   },
-  "include": ["next-env.d.ts", "next.config.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]
 }
 ```
@@ -91,7 +91,7 @@ React + Vite 환경을 위한 설정입니다. `base.json`을 상속하고 Vite 
       "@mumak/ui/*": ["../../packages/ui/src/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "vitest.config.js"],
+  "include": ["src", "vite.config.ts", "vitest.config.js", "playwright.config.ts"],
   "exclude": ["node_modules"]
 }
 ```
@@ -154,7 +154,7 @@ base.json #기본 컴파일러 옵션
       "@mumak/ui/*": ["../../packages/ui/src/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "vitest.config.js"],
+  "include": ["src", "vite.config.ts", "vitest.config.js", "playwright.config.ts"],
   "exclude": ["node_modules"]
 }
 ```

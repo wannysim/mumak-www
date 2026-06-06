@@ -5,7 +5,7 @@ description: React와 Next.js 애플리케이션의 렌더링 성능을 최적�
 
 # Performance Optimization Guide
 
-React 19 + Next.js 15 환경에서의 성능 최적화 전략입니다.
+React + Next.js 환경에서의 성능 최적화 전략입니다.
 
 ## 렌더링 최적화
 
