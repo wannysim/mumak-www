@@ -1,7 +1,7 @@
 # Codecov 설정
 # - 변동 없는 PR에는 코멘트 안 달리도록 (require_changes: true)
 # - 새/변경된 라인은 80%+ 커버리지 권장 (patch.target)
-# - 앱별 flag로 PR 코멘트가 분리되어 가독성 향상
+# - 앱별 flag는 PR 코멘트/Codecov UI에서 분리하되 status check는 전역 project/patch만 노출
 # 참고: https://docs.codecov.com/docs/codecov-yaml
 
 codecov:
@@ -32,14 +32,12 @@ comment:
   require_base: false
   require_head: true
 
-# 앱별 커버리지를 분리해 PR 코멘트와 status를 독립 추적
+# 앱별 커버리지는 flag로 분리해 PR 코멘트와 Codecov UI에서 추적한다.
+# GitHub Checks 노이즈를 줄이기 위해 per-flag status는 만들지 않고,
+# 전역 `codecov/project`, `codecov/patch` status만 유지한다.
 flag_management:
   default_rules:
     carryforward: true
-    statuses:
-      - type: project
-        target: auto
-        threshold: 1%
   individual_flags:
     - name: blog
       paths:
