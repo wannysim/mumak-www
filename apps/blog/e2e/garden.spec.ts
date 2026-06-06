@@ -22,6 +22,11 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
 
     const sidebar = page.locator('aside').filter({ hasText: 'PARA 가든' });
     const tree = sidebar.getByRole('navigation', { name: 'Garden notes' });
+
+    // The note lives under the "디지털 가든" parent node, collapsed by default; expand it first.
+    const parentRow = tree.getByRole('link', { name: '디지털 가든', exact: true }).locator('xpath=..');
+    await parentRow.getByRole('button', { name: 'Expand' }).click();
+
     const noteLink = tree.getByRole('link', { name: '디지털 가든과 Second Brain' });
 
     await expect(noteLink).toBeVisible();
@@ -94,6 +99,10 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
 
     const drawer = page.getByRole('dialog').filter({ hasText: 'PARA 가든' });
     await expect(drawer).toBeVisible();
+
+    // The note lives under the "디지털 가든" parent node, collapsed by default; expand it first.
+    const parentRow = drawer.getByRole('link', { name: '디지털 가든', exact: true }).locator('xpath=..');
+    await parentRow.getByRole('button', { name: 'Expand' }).click();
 
     const noteLink = drawer.getByRole('link', { name: '디지털 가든과 Second Brain' });
     await expect(noteLink).toBeVisible();
