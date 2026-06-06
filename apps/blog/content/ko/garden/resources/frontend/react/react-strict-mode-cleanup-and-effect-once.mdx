@@ -1,0 +1,145 @@
+---
+title: 'Strict Mode cleanup와 useEffectOnce: 한 번만 실행하려다 다시는 못 하는 함정'
+created: '2026-06-06'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'effect', 'lifecycle']
+---
+
+비-React 라이브러리(차트, 3D, 지도 등)를 effect로 한 번만 초기화하려고 가드를 걸었다가, 진짜 언마운트 후 다시 마운트되면 영영 초기화되지 않는 일이 있다. "한 번만 실행"하려던 가드가 어쩌다 "다시는 실행하지 않음"으로 새어 나갈까?
+
+> 한 줄 요약: **Strict Mode의 개발 전용 더블 인보크를 피하려고 ref 플래그로 "이미 했음"을 기록하면, 진짜 cleanup 이후 그 플래그를 reset하지 않는 한 다음 마운트가 자신을 "초기화 끝난 인스턴스"로 착각한다. setup만 보지 말고 cleanup이 다음 lifecycle을 위한 상태를 되돌리는지까지 봐야 한다.**
+
+## Strict Mode는 왜 effect를 두 번 부르나
+
+개발 모드 Strict Mode는 마운트 직후 effect를 의도적으로 한 번 더 돌린다. 순서는 이렇다.
+
+```
+mount → setup → cleanup → setup
+              └ 개발 모드에서만 추가되는 가짜 1회전
+```
+
+목적은 **cleanup이 setup을 정확히 되돌리는지 강제로 검증**하는 것이다. cleanup이 부실하면(리스너 누수, 중복 구독 등) 이 더블 인보크에서 증상이 일찍 드러난다. 프로덕션에서는 한 번만 돈다. effect의 실행 타이밍 자체는 [[react-you-might-not-need-an-effect]]에서 render → commit → paint → effect 순서로 정리해 두었다.
+
+문제는 초기화가 무거운 외부 위젯이다. 3D 씬을 만들고 WebGL 컨텍스트를 잡는 일을 개발 모드에서 두 번 돌리면 느리거나 깜빡인다. 그래서 라이브러리들은 "진짜로는 한 번만 초기화한다"는 가드를 둔다.
+
+## "한 번만 실행" 가드의 전형
+
+흔한 구현은 ref 플래그다. ref는 리렌더로 초기화되지 않고 컴포넌트 인스턴스가 사는 동안 값을 유지한다 -- 이 성질은 [[react-hooks-under-the-hood]]에서 다룬다.
+
+```js
+const effectCalled = useRef(false);
+
+useEffect(() => {
+  if (effectCalled.current) return; // 두 번째 호출이면 건너뛴다
+  effectCalled.current = true;
+
+  const instance = createWidget(domEl.current); // 무거운 초기화
+  return () => instance.destroy();
+}, []);
+```
+
+개발 모드 더블 인보크는 이걸로 막힌다. 두 번째 setup이 그냥 return하니까.
+하지만 여기엔 조용한 함정이 있다.
+
+## 함정: cleanup이 플래그를 되돌리지 않는다
+
+시간 순으로 따라가 보자.
+
+1. 첫 마운트: `effectCalled = true`, 위젯 초기화.
+2. **진짜 언마운트**: `destroy()`가 돈다. 그런데 `effectCalled`는 `true`로 남는다.
+3. **재마운트** -- 단, React가 같은 hook state/ref를 재사용하는 경로일 때: `effectCalled`가 이미 `true`라서 초기화를 **건너뛴다.**
+4. 결과: 위젯이 다시 만들어지지 않는다. DOM 컨테이너는 다시 보여도 내부 인스턴스(컨트롤·렌더러·리스너)는 없다.
+
+증상은 "보이는데 안 만져진다"로 나타난다. 컨테이너는 거기 있는데 그 위에 살아야 할 것이 죽어 있다.
+
+핵심은 **가드가 막으려던 것과 실제로 막은 것이 다르다**는 점이다.
+
+- 막으려던 것: 같은 lifecycle 안에서의 개발 전용 더블 setup.
+- 실제로 막은 것: 진짜 cleanup 이후의 정당한 재초기화까지.
+
+## 왜 언마운트만으로 ref가 reset되지 않나
+
+직관적으로는 "언마운트되면 ref도 사라지는 것 아닌가" 싶다. 보통은 맞다. 컴포넌트가 진짜로 사라지면 hook state도 버려진다.
+문제는 React가 같은 자리의 컴포넌트를 다시 그릴 때 **fiber와 hook state를 재사용할 수 있는 경로**가 있다는 것이다(특정 네비게이션·재진입 패턴 등). 이때 ref는 이전 값을 그대로 들고 온다. `effectCalled`는 `true`인 채로.
+
+예전에는 이 fiber 재사용을 "가끔 재현되는, 명시적으로 트리거하기 어려운 상태"로 다뤘다. 하지만 React `<Activity>`가 바로 그 상태를 **결정론적으로** 만들어 준다. `<Activity mode="hidden">`은 자식을 언마운트하면서도 **fiber와 hook state는 보존**한다 -- 즉 "destructor는 돌았는데 ref는 살아 있는" 상황을 손으로 만들 수 있다.
+
+```tsx
+// visible → hidden: destructor가 돈다 (fiber/ref는 보존)
+// hidden → visible: 같은 ref를 들고 다시 setup = 재초기화가 막히는 그 경로
+<Activity mode={visible ? 'visible' : 'hidden'}>
+  <Widget />
+</Activity>
+```
+
+그래서 이 가드 함정을 테스트로 고정할 때는 브라우저 history를 E2E로 흉내 내기보다 `<Activity>`로 `hidden → visible` 전환을 만들고 "초기화가 다시 실행되는가"를 검증하는 편이 훨씬 단순하고 안정적이다. [[react-fiber-architecture]]에서 React가 작업 단위로 fiber를 다루는 큰 그림을 볼 수 있다.
+
+## 고치는 두 갈래
+
+### 갈래 1 — cleanup에서 플래그를 reset (라이브러리/근본)
+
+내가 가드를 소유한 쪽이라면, 진짜 cleanup 끝에 플래그를 되돌린다. 그러면 다음 setup이 다시 초기화할 수 있다.
+
+```js
+return () => {
+  if (isStrictModeDummyCleanup) return; // 개발 전용 더미 cleanup은 그대로 건너뛴다
+
+  try {
+    instance.destroy();
+  } finally {
+    effectCalled.current = false; // 다음 마운트에서 초기화가 다시 돌도록 reset
+  }
+};
+```
+
+지켜야 할 불변식:
+
+- 개발 전용 더미 cleanup에서는 destructor를 실행하지 않는다.
+- 진짜 cleanup에서는 destructor를 정확히 한 번 실행한다.
+- 진짜 cleanup 이후엔 다음 setup이 돌도록 플래그를 reset한다.
+- destructor가 throw해도 플래그는 reset한다(`finally`) -- 다음 lifecycle 복구가 우선이다.
+
+### 갈래 2 — key로 강제 remount (소비자/임시)
+
+내가 라이브러리를 못 고치는 소비자라면, 문제 컴포넌트의 `key`를 바꿔 새 인스턴스로 강제 교체한다. key가 바뀌면 hook state/ref가 통째로 버려지므로 가드 플래그도 새로 `false`에서 시작한다.
+
+```tsx
+<Widget key={remountKey} />
+```
+
+근본 수정은 갈래 1이고, 갈래 2는 그때까지의 임시 처방이다. 임시 처방엔 나중에 제거할 표식(플래그/주석)을 남겨 두는 게 좋다.
+
+## 일반화한 교훈
+
+이건 특정 라이브러리만의 버그가 아니라 lifecycle 가드의 패턴 함정이다.
+
+- "한 번만 실행"을 보장하는 플래그는, reset을 안 하면 "다시는 실행 못 함"이 된다.
+- setup만 보고 cleanup을 setup의 거울로만 생각하면 놓친다. **cleanup은 다음 lifecycle의 출발점도 준비해야 한다.**
+- Strict Mode 더블 인보크를 "방어"하는 코드일수록, 진짜 재마운트 경로를 막지 않는지 의심해야 한다.
+
+| 구분             | 막아야 할 것                        | 막으면 안 되는 것                 |
+| ---------------- | ----------------------------------- | --------------------------------- |
+| 더블 인보크 가드 | 같은 lifecycle 내 개발용 중복 setup | 진짜 cleanup 이후의 재초기화      |
+| cleanup 책임     | 리스너·인스턴스 누수                | 다음 setup을 위한 상태 reset 누락 |
+
+## 스스로 점검하기
+
+- Strict Mode가 effect를 두 번 부르는 이유와, 그것이 검증하려는 게 무엇인지 말할 수 있는가?
+- ref 플래그로 "한 번만 초기화"를 구현하면, 어떤 마운트 경로에서 다음 초기화가 막히는가?
+- 진짜 cleanup과 Strict Mode 더미 cleanup을 코드에서 어떻게 구분하는가?
+- "보이는데 안 만져진다"는 증상을 보면 어느 레이어부터 의심하겠는가?
+- cleanup에서 플래그를 reset할 때 `try/finally`를 쓰는 이유는?
+
+## 함께 보기
+
+- [[react-you-might-not-need-an-effect|useEffect가 필요 없을지도]]
+- [[react-hooks-under-the-hood|훅의 동작 원리]]
+- [[react-fiber-architecture|Fiber 아키텍처]]
+- [[react-state-batching-and-rerender|상태 배칭과 렌더/커밋 구분]]
+
+## 참고
+
+- [Synchronizing with Effects -- react.dev](https://react.dev/learn/synchronizing-with-effects)
+- [You Might Not Need an Effect -- react.dev](https://react.dev/learn/you-might-not-need-an-effect)
+- [react-force-graph #596](https://github.com/vasturiano/react-force-graph/issues/596) -- 이 노트의 출발점이 된 실제 버그
