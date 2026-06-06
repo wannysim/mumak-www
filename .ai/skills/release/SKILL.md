@@ -29,7 +29,7 @@ Git Flow와 버전 동기화 스크립트를 사용한 릴리즈 워크플로우
 
 - `main` release PR은 **merge commit**으로 머지한다.
 - `develop` back-sync PR은 태그가 붙은 `origin/main` 기준 브랜치를 만들어 **merge commit**으로 머지한다.
-- `develop` ruleset은 release 태그 커밋의 ancestry 보존을 위해 PR merge method를 `merge`만 허용한다.
+- `develop` ruleset은 일반 feature PR의 squash merge와 release back-sync PR의 merge commit을 모두 지원하기 위해 `squash`, `merge` 둘 다 허용한다.
 - `delete_branch_on_merge: true`라서 `release/<version>` PR이 `main`에 merge되면 원격 release 브랜치가 자동 삭제될 수 있다.
 - 따라서 **release 브랜치를 develop back-sync의 head로 쓰지 않는다**. main merge와 태그 생성 후 `origin/main`에서 별도 sync 브랜치를 만든다.
 - 보호 브랜치에 직접 push하거나 `git flow release finish`로 로컬에서 main/develop을 직접 머지하지 않는다.

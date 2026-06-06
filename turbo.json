@@ -21,9 +21,13 @@
       "outputs": []
     },
     "blog#build": {
+      // blog의 standalone .next 산출물은 remote cache 업로드 시 413을 유발한다(#384).
+      // 과거엔 `cache: false`로 막았으나(#389), 이는 LOCAL task cache까지 꺼버려
+      // 한 job 안에서 check-types→test:ci→build가 매번 next build를 재실행했다(#403).
+      // 이제 task cache는 그대로 두고, CI에서 blog turbo 호출에만 `--cache=local:rw,remote:r`로
+      // remote write만 차단한다(413 회피 + local 캐시 재사용). `cache: false`를 다시 넣지 말 것.
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "cache": false,
       "env": ["NEXT_PUBLIC_*", "ANALYZE"],
       "passThroughEnv": [
         "NODE_ENV",
