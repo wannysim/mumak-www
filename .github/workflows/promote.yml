@@ -74,7 +74,7 @@ jobs:
 
       - name: Install Vercel CLI
         if: steps.gate.outputs.proceed == 'true'
-        run: pnpm add -g vercel@latest
+        run: npm install --global vercel@latest
 
       - name: Pull Vercel production environment
         if: steps.gate.outputs.proceed == 'true'
