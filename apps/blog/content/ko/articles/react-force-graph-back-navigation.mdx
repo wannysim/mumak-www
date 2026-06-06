@@ -3,7 +3,7 @@ title: 'Next.js 뒤로가기 후 죽어버린 3D 그래프 -- react-kapsule clea
 date: '2026-06-06'
 description: '뒤로가기로 돌아오면 캔버스는 보이는데 조작이 안 된다. 증상에서 react-kapsule의 useEffectOnce까지 한 겹씩 내려간 기록.'
 tags: ['react', 'nextjs', 'debugging']
-draft: false
+draft: true
 ---
 
 이 블로그에는 글들을 노드로 잇는 [3D 그래프 페이지](/ko/graph)가 있다.
@@ -173,16 +173,32 @@ maintainer도 이슈 #596에서 "언마운트 후 다시 remount되는 동작은
 
 PR 본문에는 `Refs vasturiano/react-force-graph#596`을 넣어 이슈와 명시적으로 연결했다.
 
-## 6. 남은 일
+## 6. PR이 머지된 뒤: 우리 코드 정리 순서
 
-upstream이 merge·release되면 우리 쪽 후속 작업이 기다린다.
+이 글은 PR이 release된 뒤 공개할 예정이라, 머지 이후 `apps/blog`에서 밟을 순서를 체크리스트로 남긴다.
 
-- `apps/blog`의 `react-kapsule` lock을 새 버전으로 끌어올리기 (필요하면 override).
-- `FORCE_GRAPH_REMOUNT_WORKAROUND` 제거 검토 -- **제거 전에** 뒤로가기/앞으로가기 인터랙션 복구를 E2E나 수동으로 확인.
-- 리소스 정리 개선을 위해 `3d-force-graph` 업데이트는 별개 작업으로 검토.
+**1) `react-kapsule` 버전 끌어올리기**
 
-E2E는 DOM이 보이는지만 확인하면 부족하다. 이 버그가 정확히 "보이는데 안 만져지는" 종류였기 때문이다.
-그래서 가능하면 노드 클릭 후 detail 패널이 열리는지, 휠/드래그 후 관찰 가능한 UI 상태가 바뀌는지처럼 **인터랙션의 결과**까지 확인하는 시나리오를 함께 둔다.
+- `react-force-graph-3d`가 새 `react-kapsule`을 dependency range로 자동으로 끌어오는지 `pnpm-lock.yaml`에서 확인한다.
+- 자동 반영이 안 되면 `package.json`의 `pnpm.overrides`로 `react-kapsule`을 새 버전에 고정한다.
+- `pnpm why react-kapsule`로 실제 해석된 버전이 올라갔는지 확인한다.
+
+**2) workaround를 끄고 fix가 실제로 동작하는지 먼저 확인**
+
+- `apps/blog/src/features/graph/ui/graph-canvas.tsx`의 `FORCE_GRAPH_REMOUNT_WORKAROUND`를 임시로 `false`로 둔다.
+- 로컬에서 그래프 진입 → 다른 글로 이동 → 브라우저 뒤로가기로 복귀했을 때 drag/zoom/click이 살아 있는지 수동으로 확인한다.
+
+**3) E2E로 회귀를 고정한 뒤 workaround 제거**
+
+- `apps/blog/e2e/graph.spec.ts`에 "뒤로가기/앞으로가기 후 인터랙션이 살아 있는가" 시나리오를 추가한다.
+- 이때 DOM이 보이는지만 확인하면 부족하다. 이 버그가 정확히 "보이는데 안 만져지는" 종류였기 때문이다. 노드 클릭 후 detail 패널이 열리는지, 휠/드래그 후 관찰 가능한 UI 상태가 바뀌는지처럼 **인터랙션의 결과**까지 본다.
+- 새 E2E가 통과하면 `FORCE_GRAPH_REMOUNT_WORKAROUND` 분기와 `graphKey` 관련 코드를 걷어낸다.
+
+**4) (선택) `3d-force-graph` 업데이트는 별개 작업**
+
+- 리소스 정리 개선을 위한 것이며 이번 fix와 무관하므로, 섞지 말고 별도 PR로 다룬다.
+
+이 순서를 다 밟고 나면 이 글의 `draft`를 해제해 공개한다.
 
 ## 마치며
 

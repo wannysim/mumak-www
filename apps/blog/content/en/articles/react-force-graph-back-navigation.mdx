@@ -3,7 +3,7 @@ title: 'The 3D Graph That Died After Pressing Back -- Tracing a react-kapsule Cl
 date: '2026-06-06'
 description: "Navigate back and the canvas is there, but nothing responds. A trace from the symptom down to react-kapsule's useEffectOnce."
 tags: ['react', 'nextjs', 'debugging']
-draft: false
+draft: true
 ---
 
 This blog has a [3D graph page](/en/graph) that connects posts as nodes.
@@ -173,16 +173,32 @@ Before the change, `hidden → visible` doesn't re-run kapsule init; after it, i
 
 The PR body includes `Refs vasturiano/react-force-graph#596` to link the issue explicitly.
 
-## 6. What's Left
+## 6. After the PR Merges: Cleaning Up Our Code
 
-Once upstream is merged and released, follow-up work waits on our side.
+This post will go live after the PR is released, so here's a checklist of the steps to take in `apps/blog` once it's merged.
 
-- Bump `apps/blog`'s `react-kapsule` lock to the new version (with an override if needed).
-- Consider removing `FORCE_GRAPH_REMOUNT_WORKAROUND` -- but **before removing it**, confirm interaction recovery on back/forward navigation via E2E or manual repro.
-- Treat a `3d-force-graph` update for resource-cleanup improvements as a separate task.
+**1) Bump `react-kapsule`**
 
-A DOM-visibility-only E2E isn't enough, precisely because this bug was the "visible but untouchable" kind.
-So where possible, add scenarios that check **the result of an interaction** -- whether a detail panel opens after a node click, whether observable UI state changes after a wheel/drag.
+- Check in `pnpm-lock.yaml` whether `react-force-graph-3d` pulls in the new `react-kapsule` automatically via its dependency range.
+- If it doesn't, pin `react-kapsule` to the new version via `pnpm.overrides` in `package.json`.
+- Confirm the actually-resolved version went up with `pnpm why react-kapsule`.
+
+**2) Turn off the workaround and confirm the fix actually works first**
+
+- Temporarily set `FORCE_GRAPH_REMOUNT_WORKAROUND` to `false` in `apps/blog/src/features/graph/ui/graph-canvas.tsx`.
+- Locally, enter the graph → navigate to a post → return via browser back, and manually confirm drag/zoom/click are alive.
+
+**3) Pin the regression with E2E, then remove the workaround**
+
+- Add a "do interactions survive back/forward navigation" scenario to `apps/blog/e2e/graph.spec.ts`.
+- A DOM-visibility-only check isn't enough, precisely because this bug was the "visible but untouchable" kind. Check **the result of an interaction** -- whether a detail panel opens after a node click, whether observable UI state changes after a wheel/drag.
+- Once the new E2E passes, strip out the `FORCE_GRAPH_REMOUNT_WORKAROUND` branch and the `graphKey` code.
+
+**4) (Optional) The `3d-force-graph` update is a separate task**
+
+- It's for resource-cleanup improvements and is unrelated to this fix, so handle it in its own PR rather than mixing them.
+
+After all of these steps, clear this post's `draft` flag and publish.
 
 ## Closing
 
