@@ -1,0 +1,27 @@
+{
+  "name": "@mumak/playwright-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./create-playwright-config": "./src/create-playwright-config.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "lint": "oxlint --no-error-on-unmatched-pattern .",
+    "lint:fix": "oxlint --fix --no-error-on-unmatched-pattern .",
+    "format": "oxfmt --check --no-error-on-unmatched-pattern .",
+    "format:check": "oxfmt --check --no-error-on-unmatched-pattern .",
+    "format:fix": "oxfmt --no-error-on-unmatched-pattern .",
+    "clean": "rm -rf node_modules/.cache"
+  },
+  "devDependencies": {
+    "@mumak/typescript-config": "workspace:*",
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^25.9.1",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.58.0"
+  }
+}

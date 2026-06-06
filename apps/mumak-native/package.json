@@ -53,6 +53,7 @@
     "react-native-worklets": "0.8.3"
   },
   "devDependencies": {
+    "@mumak/playwright-config": "workspace:*",
     "@mumak/typescript-config": "workspace:*",
     "@playwright/test": "^1.58.2",
     "@testing-library/react-native": "^13.3.3",
