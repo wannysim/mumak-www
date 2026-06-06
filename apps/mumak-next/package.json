@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name next.mumak next dev",
     "build": "next build",
     "start": "next start --port 3000",
     "start:e2e": "next start --port 3000",

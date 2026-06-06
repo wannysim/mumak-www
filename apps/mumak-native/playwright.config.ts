@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 3002;
+const PORT = 3003;
 const isCI = !!process.env.CI;
 const shouldReuseExistingServer =
   process.env.PLAYWRIGHT_REUSE_SERVER === 'true' || process.env.PLAYWRIGHT_REUSE_SERVER === '1';

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --port 3002",
+    "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name blog.mumak next dev",
     "build": "next build",
     "build:analyze": "ANALYZE=true next build",
     "start": "next start --port 3002",

@@ -25,7 +25,7 @@ apps/mumak-native/
 ├── assets/               # 이미지·폰트
 ├── e2e/                  # Playwright 웹 E2E (web export 대상)
 ├── metro.config.js       # pnpm monorepo 호환 설정
-├── playwright.config.ts  # 웹 E2E 설정 (PORT 3002)
+├── playwright.config.ts  # 웹 E2E 설정 (PORT 3003)
 ├── jest.config.mjs
 └── jest.setup.ts
 ```

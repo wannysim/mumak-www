@@ -4,6 +4,9 @@ import { Navigation } from '../ui/navigation';
 
 import '@testing-library/jest-dom';
 
+const mockThemeSwitcher = jest.fn(() => <div data-testid="theme-switcher">ThemeSwitcher</div>);
+const mockLocaleSwitcher = jest.fn(() => <div data-testid="locale-switcher">LocaleSwitcher</div>);
+
 // Mock next-intl/server
 jest.mock('next-intl/server', () => ({
   getTranslations: jest.fn(async () => (key: string) => {
@@ -28,11 +31,11 @@ jest.mock('@/src/shared/config/i18n', () => ({
 
 // Mock child components
 jest.mock('@/src/features/switch-locale', () => ({
-  LocaleSwitcher: () => <div data-testid="locale-switcher">LocaleSwitcher</div>,
+  LocaleSwitcher: () => mockLocaleSwitcher(),
 }));
 
 jest.mock('@/src/features/switch-theme', () => ({
-  ThemeSwitcher: () => <div data-testid="theme-switcher">ThemeSwitcher</div>,
+  ThemeSwitcher: () => mockThemeSwitcher(),
 }));
 
 jest.mock('../ui/mobile-menu', () => ({
@@ -56,6 +59,11 @@ jest.mock('../ui/nav-links', () => ({
 }));
 
 describe('Navigation', () => {
+  beforeEach(() => {
+    mockThemeSwitcher.mockImplementation(() => <div data-testid="theme-switcher">ThemeSwitcher</div>);
+    mockLocaleSwitcher.mockImplementation(() => <div data-testid="locale-switcher">LocaleSwitcher</div>);
+  });
+
   it('should render logo', async () => {
     const jsx = await Navigation();
     render(jsx);
@@ -87,5 +95,25 @@ describe('Navigation', () => {
 
     expect(screen.getByTestId('theme-switcher')).toBeInTheDocument();
     expect(screen.getByTestId('locale-switcher')).toBeInTheDocument();
+  });
+
+  it('keeps locale switcher available when theme switcher crashes', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockThemeSwitcher.mockImplementation(() => {
+      throw new Error('theme failed');
+    });
+
+    const jsx = await Navigation();
+    render(jsx);
+
+    expect(screen.queryByTestId('theme-switcher')).not.toBeInTheDocument();
+    expect(screen.getByTestId('locale-switcher')).toBeInTheDocument();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[ClientErrorBoundary:ThemeSwitcher]',
+      expect.any(Error),
+      expect.any(Object)
+    );
+
+    consoleErrorSpy.mockRestore();
   });
 });

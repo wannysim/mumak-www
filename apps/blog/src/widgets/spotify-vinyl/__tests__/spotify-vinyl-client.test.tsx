@@ -210,4 +210,23 @@ describe('SpotifyVinylClient', () => {
 
     expect(resetChangeState).not.toHaveBeenCalled();
   });
+
+  it('renders the fallback skeleton when polling render fails', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockUseSpotifyPolling.mockImplementation(() => {
+      throw new Error('polling failed');
+    });
+    const { SpotifyVinylClient } = await import('../ui/spotify-vinyl-client');
+
+    render(<SpotifyVinylClient initialData={null} listeningToLabel="Listening to" lastPlayedLabel="Last played" />);
+
+    expect(screen.getByTestId('spotify-vinyl-skeleton')).toBeInTheDocument();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[ClientErrorBoundary:SpotifyVinylClient]',
+      expect.any(Error),
+      expect.any(Object)
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
 });

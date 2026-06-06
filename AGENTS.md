@@ -359,6 +359,18 @@ import { mockUser } from '@/test/mocks';
 - `apps/blog` E2E는 `output: standalone` 기준으로 실행한다. CI에서는 standalone 산출물이 없을 때 fail-fast 처리한다.
 - E2E workflow는 `test:e2e` 태스크의 `dependsOn: ["build"]`를 신뢰하고, 별도 중복 빌드 step은 지양한다.
 
+## Portless 로컬 개발
+
+- 각 앱의 `dev` 스크립트는 `portless run --name {app}.mumak ...` 패턴을 사용한다.
+- 로컬 proxy는 `PORTLESS_PORT=1355 PORTLESS_HTTPS=0`로 실행한다. 기본 HTTPS/443 모드는 sudo prompt를 유발할 수 있으므로 이 저장소에서는 사용하지 않는다.
+- 개발 URL은 `http://{name}.localhost:1355` 형태다. 예: `http://next.mumak.localhost:1355`, `http://react.mumak.localhost:1355`, `http://blog.mumak.localhost:1355`, `http://native.mumak.localhost:1355`.
+- `portless run`이 프레임워크 명령에 실제 내부 포트를 주입하므로, 앱 `dev` 스크립트에서 별도 고정 포트(`--port 3000` 등)를 섞지 않는다.
+- Next.js 앱을 Portless hostname으로 접근할 때는 해당 hostname을 앱의 `next.config.mjs` `allowedDevOrigins`에 추가한다. 누락되면 dev-only endpoint/HMR cross-origin 차단 때문에 hydration 이후 클라이언트 인터랙션이 깨져 보일 수 있다.
+- Portless 적용 중 클라이언트 기능이 함께 죽어 보이면 dev resource 차단과 앱 코드의 hydration/runtime 오류를 분리해서 본다. Spotify/search/theme/locale 같은 선택적 클라이언트 위젯은 `ClientErrorBoundary` 등으로 실패 단위를 작게 유지한다.
+- `start`, `start:e2e`, `preview:e2e`, Playwright `webServer` 포트는 CI/E2E용 고정 포트로 유지한다. Portless는 로컬 `dev` 전용이고 E2E 서버와 섞지 않는다.
+- 현재 E2E 포트는 `mumak-next: 3000`, `mumak-react: 3001`, `blog: 3002`, `mumak-native: 3003`이다. 새 앱을 추가하면 중복되지 않게 배정한다.
+- dev proxy 상태가 꼬이면 `pnpm exec portless proxy stop` 후 다시 앱 `dev` 스크립트를 실행한다.
+
 ---
 
 ## Editor / Tooling

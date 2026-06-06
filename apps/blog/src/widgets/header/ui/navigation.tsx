@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { LocaleSwitcher } from '@/src/features/switch-locale';
 import { ThemeSwitcher } from '@/src/features/switch-theme';
 import { Link } from '@/src/shared/config/i18n';
+import { ClientErrorBoundary } from '@/src/shared/ui/client-error-boundary';
 
 import { MobileMenu } from './mobile-menu';
 import { NavLinks } from './nav-links';
@@ -38,8 +39,12 @@ export async function Navigation() {
           </div>
 
           <div className="flex items-center gap-2">
-            <ThemeSwitcher />
-            <LocaleSwitcher />
+            <ClientErrorBoundary name="ThemeSwitcher">
+              <ThemeSwitcher />
+            </ClientErrorBoundary>
+            <ClientErrorBoundary name="LocaleSwitcher">
+              <LocaleSwitcher />
+            </ClientErrorBoundary>
           </div>
         </div>
       </div>
