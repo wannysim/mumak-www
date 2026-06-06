@@ -14,8 +14,8 @@ export default {
     '!**/*.d.ts',
     '!**/__tests__/**',
   ],
-  // placeholder 템플릿 단계의 측정 floor로 잠근 baseline(회귀 방지). 측정이 오르면 함께 상향.
+  // 현재 placeholder 앱의 측정 baseline. 화면/네이티브 모듈이 늘어나면 실측 기준으로 조정한다.
   coverageThreshold: {
-    global: { statements: 35, branches: 40, functions: 25, lines: 35 },
+    global: { statements: 90, branches: 70, functions: 90, lines: 90 },
   },
 };
