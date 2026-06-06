@@ -34,6 +34,7 @@
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
+    "@mumak/playwright-config": "workspace:*",
     "@mumak/typescript-config": "workspace:*",
     "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.9.1",
