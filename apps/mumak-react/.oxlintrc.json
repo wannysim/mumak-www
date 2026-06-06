@@ -8,7 +8,8 @@
       "plugins": ["eslint", "typescript", "oxc", "unicorn", "react", "vitest"],
       "rules": {
         "vitest/no-conditional-expect": "off",
-        "vitest/require-mock-type-parameters": "off"
+        "vitest/require-mock-type-parameters": "off",
+        "vitest/no-focused-tests": "error"
       }
     }
   ]

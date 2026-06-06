@@ -7,7 +7,8 @@
       "files": ["**/*.{test,spec}.{ts,tsx,js,jsx}", "**/__tests__/**/*.{ts,tsx,js,jsx}"],
       "plugins": ["eslint", "typescript", "oxc", "unicorn", "react", "nextjs", "jest"],
       "rules": {
-        "jest/no-conditional-expect": "off"
+        "jest/no-conditional-expect": "off",
+        "jest/no-focused-tests": "error"
       }
     }
   ]
