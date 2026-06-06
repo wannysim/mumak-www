@@ -5,6 +5,20 @@ const isCI = !!process.env.CI;
 const shouldReuseExistingServer =
   process.env.PLAYWRIGHT_REUSE_SERVER === 'true' || process.env.PLAYWRIGHT_REUSE_SERVER === '1';
 
+function createWebServerEnv(extraEnv: Record<string, string> = {}): Record<string, string> {
+  const env = Object.fromEntries(
+    Object.entries({ ...process.env, ...extraEnv }).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string'
+    )
+  );
+
+  if ((env.CI || env.FORCE_COLOR) && env.NO_COLOR) {
+    env.NO_COLOR = '';
+  }
+
+  return env;
+}
+
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
@@ -64,6 +78,7 @@ export default defineConfig({
   webServer: {
     // Reuse is opt-in to avoid accidentally attaching to a stale local server.
     command: 'pnpm preview:e2e',
+    env: createWebServerEnv(),
     url: `http://localhost:${PORT}`,
     reuseExistingServer: shouldReuseExistingServer,
     timeout: 120_000,
