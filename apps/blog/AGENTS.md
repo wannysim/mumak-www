@@ -24,15 +24,18 @@ src/widgets/post-card/
 ├── __tests__/
 │   └── post-card.test.tsx
 ├── ui/
-│   └── PostCard.tsx      # PascalCase (FSD ui/ 내부만 예외)
+│   └── post-card.tsx     # kebab-case
 └── index.ts              # barrel export
 ```
 
-## 네이밍 (루트 규칙 대비 차이점)
+## 네이밍
 
-- 폴더: kebab-case (`post-card`, `switch-theme`) — 루트와 동일
-- **`ui/` 디렉터리 내 컴포넌트 파일만 PascalCase** (`PostCard.tsx`)
-- 테스트 파일: kebab-case (`post-card.test.tsx`) — 루트와 동일
+- 폴더: kebab-case (`post-card`, `switch-theme`)
+- 파일: **kebab-case** (`post-card.tsx`, `blog-nav.tsx`) — `ui/` 내부도 동일
+- 컴포넌트 export 이름은 PascalCase named export (`export function PostCard`)
+- 테스트 파일: kebab-case (`post-card.test.tsx`)
+
+> 루트 `AGENTS.md`에는 "`ui/` 파일만 PascalCase 예외"라고 적혀 있으나, 이 앱의 실제 코드는 `ui/` 포함 전 파일이 kebab-case다. 신규 파일도 kebab-case를 따른다.
 
 ## FSD Import 규칙
 
@@ -147,6 +150,59 @@ tags: ['philosophy', 'thought']
 - [[phenomenology]]
 - [[existentialism|실존주의]]
 ```
+
+---
+
+## UI / 디자인 Contract
+
+Blog와 Garden은 같은 사이트의 sibling 섹션이다. 두 섹션의 대응 화면은 **정보 구조와 UI recipe를 의도적으로 공유**하고, drift가 생기면 shared primitive로 흡수한다.
+
+### Blog / Garden 페이지 대응 관계
+
+| 영역          | Blog                           | Garden                         | 공유 방식                         |
+| ------------- | ------------------------------ | ------------------------------ | --------------------------------- |
+| segmented nav | `BlogNav` (전체/카테고리/태그) | `GardenNav` (전체/status/태그) | `ContentSegmentNav` (`shared/ui`) |
+| 카드          | `PostCard`                     | `NoteCard`                     | `ContentCard` shell (`shared/ui`) |
+| 상세 페이지   | `max-w-3xl` + `prose` + MDX    | `max-w-3xl` + `prose` + MDX    | 동일 레이아웃 패턴 유지           |
+| 검색          | nav row 우측 `SearchTrigger`   | sidebar 내부 `SearchTrigger`   | `SearchPalette` / `SearchTrigger` |
+
+### Shared primitive 우선 원칙
+
+- segmented nav를 새로 만들거나 수정할 때는 `ContentSegmentNav`를 쓴다. blog/garden 한쪽만 인라인으로 스타일을 바꾸지 않는다.
+- 콘텐츠 카드(카테고리/날짜/태그 메타 + 제목 + 본문 슬롯)는 `ContentCard` shell을 쓰고, 섹션별로 다른 부분은 `meta`/`tags`/`footer`/`description` 슬롯으로만 표현한다.
+- 두 섹션에서 반복되는 UI recipe를 발견하면 인라인 복제 대신 `shared/ui`로 추출한다.
+
+### `data-slot` 규칙
+
+- shared UI primitive에는 안정적인 `data-slot`을 부여해 테스트/리뷰 anchor로 쓴다.
+  - segmented nav: `data-slot="content-segment-nav"`
+  - 콘텐츠 카드: `data-slot="content-card"`
+- 텍스트(번역 문구)나 구조 의존 selector 대신 `getByRole` + `data-slot`을 우선한다.
+
+### 토큰 / 테마 / 반응형
+
+- 색상은 항상 semantic token(`bg-muted`, `text-muted-foreground`, `border-border`, `bg-background` 등)을 쓴다. raw Tailwind 팔레트(`text-blue-500`, `bg-red-*`)와 임의 `dark:` 색상 override를 직접 쓰지 않는다.
+- 다크/라이트는 token으로 자동 대응한다. 컴포넌트에서 테마별 분기 색상을 하드코딩하지 않는다.
+- 임의 `z-[...]` 값 남용을 피하고, 레이아웃은 Tailwind 빌트인 스케일로 표현한다.
+- 모바일/데스크톱 레이아웃은 blog/garden 간 동등한 경험을 목표로 한다. 한쪽에만 모바일 보조 UI(예: sidebar 검색)를 추가하면 대응 섹션도 함께 검토한다.
+
+### i18n / 접근성
+
+- 사용자에게 보이는 문구는 `messages/{locale}.json`에서 가져온다.
+  - 예외: Garden sidebar의 `PARA_CATEGORIES` label은 PARA 용어를 영어로 유지하는 의도된 하드코딩이다. 이 정책을 바꾸려면 먼저 문서화한다.
+- 활성 nav 항목은 `aria-current="page"`로 표시한다(`ContentSegmentNav`가 처리).
+- nav/dialog/article landmark와 heading 흐름을 유지한다.
+
+### UI 변경 시 검증 기준
+
+- 단위 테스트: 영향받는 widget/primitive의 `__tests__`를 갱신한다. shared primitive 변경은 blog/garden 양쪽 테스트가 모두 그린이어야 한다.
+- E2E: 라우팅·레이아웃·nav·card·검색·메타데이터 변경 시 `e2e/**` 영향 범위를 검토한다.
+- 정적 검사: `pnpm --filter blog validate:design`으로 raw 색상·임의 z-index·recipe drift·data-slot 누락을 점검한다. CI `Validate (blog)` job에 포함된다(새 GitHub check 없음).
+- preflight: `check-types → lint → format:check → test:ci` 순서를 지킨다.
+
+### 알려진 follow-up
+
+- `NoteCard`는 현재 excerpt를 표시하지 않는다. `getNoteEmbedPreview`(`entities/note`)로 짧은 excerpt를 추가하는 안이 있으나, 노트당 파일 read와 truncation 정책이 필요하므로 별도 작업으로 둔다.
 
 ---
 
