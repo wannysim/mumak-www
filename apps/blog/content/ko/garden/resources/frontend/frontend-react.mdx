@@ -1,0 +1,42 @@
+---
+title: 'React 내부 동작'
+created: '2026-06-05'
+status: 'seedling'
+parent: 'frontend'
+tags: ['frontend', 'react']
+---
+
+React를 "쓸 줄 아는 것"과 React가 "왜 그렇게 설계됐는지 아는 것" 사이의 간극을 메우는 노트 모음이다.
+
+`setState`를 호출하면 화면이 바뀐다는 건 누구나 안다.
+그 사이에 React가 무엇을 비교하고, 왜 한 번에 모아서 처리하고, 어떤 순서로 화면에 반영하는지를 다룬다.
+
+## 하위 노트
+
+### 내부 동작
+
+- [[react-virtual-dom-and-reconciliation|Virtual DOM과 재조정: React가 바뀐 부분만 갱신하는 법]]
+- [[react-fiber-architecture|Fiber 아키텍처: React가 렌더링을 쪼개는 이유]]
+- [[react-hooks-under-the-hood|훅의 동작 원리: 왜 조건문 안에서 쓰면 안 되는가]]
+- [[react-state-batching-and-rerender|상태 업데이트와 배칭: setState가 비동기처럼 보이는 이유]]
+- [[react-memoization-strategy|메모이제이션 전략: memo, useMemo, useCallback의 실체]]
+
+### 내부 동작을 알면 보이는 실전 패턴
+
+- [[react-you-might-not-need-an-effect|useEffect가 필요 없을지도: 파생·조정·구독의 세 갈래]]
+- [[react-hydration-and-flicker|하이드레이션과 깜빡임: mounted 패턴은 왜 한 박자 늦는가]]
+- [[react-error-boundary-failure-isolation|Error Boundary: 하나의 위젯 실패가 전체 앱을 끌고 가지 않게 하기]]
+- [[react-testing-behavior-not-implementation|동작을 고정하는 테스트: 리팩터링이 두렵지 않으려면]]
+
+## 읽는 순서 제안
+
+Virtual DOM → Fiber → 훅 → 배칭 → 메모이제이션 순서로 읽으면
+"무엇을 비교하나 → 어떻게 일정을 관리하나 → 상태는 어디에 사나 → 언제 다시 그리나 → 어떻게 줄이나"로 이어진다.
+
+내부 동작을 다 읽었다면 실전 패턴으로 넘어간다. 배칭에서 배운 렌더/커밋/paint 구분이
+"effect로 상태를 보정하면 왜 한 프레임 늦는가"(useEffect 노트)와
+"mounted 패턴이 왜 깜빡이는가"(하이드레이션 노트)의 답이 되고,
+그 리팩터링을 안심하고 할 수 있게 해주는 토대가 테스트 노트다.
+
+자바스크립트 기반기가 필요하면 [[frontend-javascript|자바스크립트 동작 원리]]를 먼저 보는 것을 권한다.
+특히 훅을 이해하려면 [[js-closure-and-scope|클로저]]가 선행 지식이다.

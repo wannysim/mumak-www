@@ -29,6 +29,7 @@ const mockLinkedNotes: LinkedNote[] = [
     created: '2026-03-10',
     status: 'seedling',
     outgoingLinks: ['movie'],
+    readingTime: 1,
     direction: 'bidirectional',
   },
   {
@@ -38,6 +39,7 @@ const mockLinkedNotes: LinkedNote[] = [
     created: '2026-03-10',
     status: 'seedling',
     outgoingLinks: ['movie'],
+    readingTime: 1,
     direction: 'outgoing',
   },
 ];

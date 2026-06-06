@@ -2,20 +2,10 @@ name: CI
 
 on:
   pull_request:
+    # Keep PR CI unfiltered so the `CI Success` summary check is always
+    # created when branch protection requires it. Non-app changes are skipped
+    # inside the workflow by detect-scopes.
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - "apps/**"
-      - "packages/**"
-      - "scripts/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "turbo.json"
-      - "**/.oxlintrc.json"
-      - ".oxfmtrc.jsonc"
-      - ".nvmrc"
-      - ".github/workflows/**"
-      - ".github/actions/**"
-      - ".github/app-config/**"
   push:
     branches: [main, develop]
     paths:
@@ -188,6 +178,7 @@ jobs:
         run: |
           pnpm turbo run validate:content --filter=blog
           pnpm turbo run validate:garden --filter=blog
+          pnpm turbo run validate:design --filter=blog
 
       - name: Build
         run: pnpm turbo run build --filter=${{ matrix.app }}

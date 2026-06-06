@@ -54,6 +54,9 @@ const mockSongData: NowPlaying = {
   albumImageUrl: 'https://i.scdn.co/test.jpg',
   songUrl: 'https://open.spotify.com/track/test',
   isExplicit: false,
+  progressMs: 1000,
+  durationMs: 60000,
+  device: { name: 'MacBook Pro', type: 'Computer' },
 };
 
 describe('useSpotifyPolling', () => {
@@ -253,76 +256,45 @@ describe('useSpotifyPolling', () => {
     });
   });
 
-  describe('compare 함수', () => {
-    it('should return true when both data are null', async () => {
-      // Arrange
-      const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
-      renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
-
+  describe('폴링 간격', () => {
+    function getRefreshIntervalFn(): (latest: { data: NowPlaying | null; timestamp: number } | undefined) => number {
       const swrOptions = mockUseSWR.mock.calls[mockUseSWR.mock.calls.length - 1]![2] as {
-        compare: (
-          a: { data: NowPlaying | null; timestamp: number } | undefined,
-          b: { data: NowPlaying | null; timestamp: number } | undefined
-        ) => boolean;
+        refreshInterval: (latest: { data: NowPlaying | null; timestamp: number } | undefined) => number;
       };
-      const compare = swrOptions.compare;
+      return swrOptions.refreshInterval;
+    }
 
-      // Act & Assert - 둘 다 data가 null인 경우
-      expect(compare({ data: null, timestamp: 1 }, { data: null, timestamp: 2 })).toBe(true);
+    it('returns 0 when polling is disabled', async () => {
+      const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData, enabled: false }));
+
+      expect(getRefreshIntervalFn()({ data: mockSongData, timestamp: Date.now() })).toBe(0);
     });
 
-    it('should return false when only one data is null', async () => {
-      // Arrange
+    it('returns pausedInterval when track is paused', async () => {
       const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
-      renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData, pausedInterval: 30000 }));
 
-      const swrOptions = mockUseSWR.mock.calls[mockUseSWR.mock.calls.length - 1]![2] as {
-        compare: (
-          a: { data: NowPlaying | null; timestamp: number } | undefined,
-          b: { data: NowPlaying | null; timestamp: number } | undefined
-        ) => boolean;
-      };
-      const compare = swrOptions.compare;
-
-      // Act & Assert - 하나만 data가 있는 경우 (lines 103-104 커버)
-      expect(compare({ data: null, timestamp: 1 }, { data: mockSongData, timestamp: 2 })).toBe(false);
-      expect(compare({ data: mockSongData, timestamp: 1 }, { data: null, timestamp: 2 })).toBe(false);
+      const paused: NowPlaying = { ...mockSongData, isPlaying: false };
+      expect(getRefreshIntervalFn()({ data: paused, timestamp: Date.now() })).toBe(30000);
     });
 
-    it('should return true when songUrl, isPlaying, and title are the same', async () => {
-      // Arrange
+    it('returns playingInterval when a track is playing (any progress)', async () => {
       const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
-      renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
+      renderHook(() => useSpotifyPolling({ initialData: mockSongData, playingInterval: 2000 }));
 
-      const swrOptions = mockUseSWR.mock.calls[mockUseSWR.mock.calls.length - 1]![2] as {
-        compare: (
-          a: { data: NowPlaying | null; timestamp: number } | undefined,
-          b: { data: NowPlaying | null; timestamp: number } | undefined
-        ) => boolean;
-      };
-      const compare = swrOptions.compare;
+      const fn = getRefreshIntervalFn();
+      expect(fn({ data: mockSongData, timestamp: Date.now() })).toBe(2000);
 
-      // Act & Assert - 동일한 데이터
-      expect(compare({ data: mockSongData, timestamp: 1 }, { data: mockSongData, timestamp: 2 })).toBe(true);
+      const nearEnd: NowPlaying = { ...mockSongData, progressMs: 195_000, durationMs: 200_000 };
+      expect(fn({ data: nearEnd, timestamp: Date.now() })).toBe(2000);
     });
 
-    it('should return false when data differs', async () => {
-      // Arrange
+    it('falls back to pausedInterval when no current data is available', async () => {
       const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
-      renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
+      renderHook(() => useSpotifyPolling({ pausedInterval: 30000 }));
 
-      const swrOptions = mockUseSWR.mock.calls[mockUseSWR.mock.calls.length - 1]![2] as {
-        compare: (
-          a: { data: NowPlaying | null; timestamp: number } | undefined,
-          b: { data: NowPlaying | null; timestamp: number } | undefined
-        ) => boolean;
-      };
-      const compare = swrOptions.compare;
-
-      const differentSong: NowPlaying = { ...mockSongData, songUrl: 'https://different.url' };
-
-      // Act & Assert
-      expect(compare({ data: mockSongData, timestamp: 1 }, { data: differentSong, timestamp: 2 })).toBe(false);
+      expect(getRefreshIntervalFn()(undefined)).toBe(30000);
     });
   });
 

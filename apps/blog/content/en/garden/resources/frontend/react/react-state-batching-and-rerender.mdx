@@ -1,0 +1,229 @@
+---
+title: 'State Updates and Batching: Why setState Looks Asynchronous'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'state', 'rendering']
+---
+
+Why does reading a piece of state on the line right after you call `setState` give you the old value? And when exactly does React repaint the screen?
+
+> One-line summary: **setState is not "change this now" but "render with this value on the next render"—a reservation. React collects those reservations and processes them all at once.**
+
+## setState Is a "Reservation," Not a "Change"
+
+Let's start by breaking the most common misconception. `setCount(1)` is not a command that changes the `count` variable to 1. It's a **reservation** that says "treat count as 1 on the next render," and at the same time a signal to React that "a repaint is needed."
+
+```tsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  function handleClick() {
+    setCount(count + 1);
+    console.log(count); // 0 — still 0 even though we just set it
+  }
+
+  return <button onClick={handleClick}>{count}</button>;
+}
+```
+
+It looks like a bug that `console.log` prints 0, but it's correct. `count` is a value frozen when this render began, so it doesn't change while the function runs. `setCount` doesn't touch the variable—it merely "reserves the next render." setState isn't truly asynchronous (Promise, setTimeout); the moment it takes effect is simply **deferred to the next render**. "Deferred batch processing" is a more accurate way to put it.
+
+> Why is it designed this way? If state changed immediately, the value of the same variable would shift in the middle of a running function. React makes code predictable with the rule that "within a single render, state is an unchanging snapshot."
+
+## Why Setting the Same Value Three Times Only Adds 1
+
+```tsx
+function handleClick() {
+  setCount(count + 1); // count is 0 → reserves 1
+  setCount(count + 1); // count is still 0 → reserves 1 again
+  setCount(count + 1); // count is still 0 → reserves 1 again
+}
+// Result: 1, not 3
+```
+
+All three lines capture this render's `count` (= 0) in a closure. Calling set doesn't turn `count` into 1, so all three reserve the same thing: "the next value is 1." The queue fills up with `1, 1, 1`, and the last value wins.
+
+The mechanism by which a closure freezes a value is exactly the same story as [[js-closure-and-scope]]. Every render creates a new closure that traps `count`.
+
+## Functional Updates Apply the Queue in Order
+
+If you really want to do "+1 on the previous value" three times, pass a **function** instead of a value.
+
+```tsx
+function handleClick() {
+  setCount(c => c + 1); // queue: (c => c+1)
+  setCount(c => c + 1); // queue: (c => c+1), (c => c+1)
+  setCount(c => c + 1); // queue: ... one more
+}
+// Result: 3
+```
+
+`setCount(count + 1)` puts a **value** in the queue, but `setCount(c => c + 1)` puts a **recipe (function)** in the queue. Just before the next render, React walks the queue from the start, passing the previous result to each function.
+
+```
+initial value 0
+├─ apply (c => c+1) → 1
+├─ apply (c => c+1) → 2
+└─ apply (c => c+1) → 3
+final state = 3
+```
+
+> Rule: when the next state **depends on the previous state**, use a functional updater. For a simple assignment that doesn't depend on it, you can just pass the value.
+
+## Batching: Why Process Them Together
+
+React doesn't repaint immediately every time you call set. It collects updates until a round of work finishes, then repaints **just once**. This is called batching.
+
+```tsx
+function handleClick() {
+  setCount(c => c + 1);
+  setFlag(f => !f);
+  setName('Younha'); // 3 sets → 1 re-render
+}
+```
+
+It does this for three reasons.
+
+| Reason                   | Problem without batching                                                    |
+| ------------------------ | --------------------------------------------------------------------------- |
+| Consistency              | An in-between screen shows count updated while flag still has the old value |
+| Avoid intermediate state | Painting on every set causes flicker and unnecessary intermediate frames    |
+| Performance              | Rendering is expensive—it reduces 3 paints to 1                             |
+
+The key is **consistency**. All the state changes for a single click must be reflected on one screen at once, so that the user never sees a contradictory, half-updated screen.
+
+## React 18 Automatic Batching: What Changed from 17
+
+Up through React 17, batching worked **only inside React event handlers**. Outside a handler—that is, inside `setTimeout`, `Promise.then`, or fetch callbacks—each set painted separately.
+
+```tsx
+function handleClick() {
+  setCount(c => c + 1);
+  setFlag(f => !f); // inside handler → batched in both 17 and 18 (1 re-render)
+}
+
+function fetchAndUpdate() {
+  fetch('/api').then(() => {
+    setCount(c => c + 1);
+    setFlag(f => !f); // outside handler → 17: 2 re-renders / 18: 1
+  });
+}
+```
+
+From React 18, if you mount with `createRoot`, **everything is batched regardless of where it originates**. The same holds inside setTimeout, Promises, and native events.
+
+> Why did it change only in 18? Batching in 17 was a trick that only worked while React held the call stack, so it couldn't touch updates outside that stack—like asynchronous callbacks. React 18 was redesigned on top of concurrent rendering, allowing it to collect and schedule updates from any point in time. This timing connects to the microtask/macrotask concepts in [[js-event-loop]].
+
+## flushSync: When You Need to Break Batching on Purpose
+
+Sometimes batching gets in the way. This happens when you change state and need to read the value **right after it's reflected in the DOM**—for example, when you add an item to a list and need to scroll to its position.
+
+```tsx
+import { flushSync } from 'react-dom';
+
+function addAndScroll() {
+  flushSync(() => {
+    setItems(prev => [...prev, newItem]); // render + commit synchronously here
+  });
+  // by this line the new item is already in the DOM
+  listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+}
+```
+
+`flushSync` renders and commits the updates inside the callback immediately. In exchange, you give up the benefits of batching, so use it **only in the rare cases where synchronous DOM measurement is truly required**. Most of the time you'll never need it.
+
+## The Real Reason Immutability Is Enforced
+
+How does React know whether "state has changed"? Not by a deep comparison, but by comparing **references only** with `Object.is`.
+
+```tsx
+const [user, setUser] = useState({ name: 'Younha', age: 20 });
+
+// Wrong: mutating the same object directly → same reference → React can't see the change
+function wrong() {
+  user.age = 21;
+  setUser(user); // Object.is(prev, next) === true → re-render skipped
+}
+
+// Right: new object → different reference → change detected
+function right() {
+  setUser({ ...user, age: 21 });
+}
+```
+
+If you change it directly with `user.age = 21`, the object stays the same and only the value inside changes. From React's point of view, "what was passed is the same object as before," so it concludes "nothing changed" and skips the render.
+
+> Why compare references only? Deeply comparing the entire object every time would make the comparison itself a bottleneck for large state. With the contract "give a new reference when something changes," the comparison comes down to a single pointer check. Immutability is a precondition for making change detection cheap, and the same principle applies to dependency comparison in `memo` and `useMemo`—see [[react-memoization-strategy]].
+
+## When the Parent Re-renders, the Child Is Called Again Too
+
+The claim "if props don't change, the child doesn't re-render" is **not the default behavior**.
+
+```tsx
+function Parent() {
+  const [count, setCount] = useState(0);
+  return (
+    <div>
+      <button onClick={() => setCount(c => c + 1)}>{count}</button>
+      <Child name="Younha" /> {/* called again every time even if props don't change */}
+    </div>
+  );
+}
+```
+
+When `Parent` re-renders, `Child`'s function is called again even if its props are unchanged. React's default rule is simple: **when the parent repaints, the entire child tree repaints too.** If you want "skip after comparing props," you must explicitly wrap it with `React.memo` to turn on the shallow props comparison. Why this isn't automatic and when you should wrap things is covered in [[react-memoization-strategy]].
+
+## Render (Function Call) and Commit (DOM Update) Are Different
+
+One last misconception. "Re-render = the screen is repainted" is not true. React's work splits into two phases.
+
+| Phase  | What it does                                                                                                                                  | Cost                                |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| Render | Calls the component function to build a new virtual tree, compares it with the previous tree (reconciliation), and picks out **what differs** | JS execution (relatively cheap)     |
+| Commit | Applies only the differences picked out in the render phase to the actual DOM                                                                 | Actual DOM manipulation (expensive) |
+
+```
+setState
+  │
+  ▼
+[render] run component function → new virtual tree
+  │
+  ▼
+[compare] diff against previous tree (reconciliation)
+  │
+  ▼
+[commit] update only the changed nodes in the DOM
+```
+
+In other words, the fact that a component function was called again doesn't mean the DOM necessarily changed. If the result is the same as before, the DOM stays put in the commit phase. This is why the diagnosis "it's slow because it re-renders too often" is often wrong—rendering is usually cheap, and the truly expensive part is the commit and the browser [[browser-rendering-pipeline]] that follows. This diff (reconciliation) process is handled by [[react-fiber-architecture]].
+
+## Common Misconceptions
+
+- **Misconception**: setState is an asynchronous function. → **Reality**: it's not a Promise. It's a synchronous call whose effect is simply deferred to the next render. Something like `await setState()` is meaningless.
+- **Misconception**: calling `setCount(count + 1)` multiple times accumulates accordingly. → **Reality**: they all read the same frozen `count` from the same render, so only the last one takes effect. To accumulate, use a functional updater.
+- **Misconception**: changing one field of a state object updates only that field. → **Reality**: mutating the object directly keeps the reference the same, so React can't see the change. You must create a new object.
+- **Misconception**: if a child's props are unchanged, it won't re-render. → **Reality**: without `memo`, the child is always called again when the parent re-renders.
+
+## Check Yourself
+
+- Can you explain, in terms of closures, why `console.log(count)` right after `setCount(count + 1)` prints the old value?
+- If you call `setCount(count + 1)` three times in the same handler, why does it only go up by 1, and why does the functional updater give you 3?
+- What specifically differs between React 18 automatic batching and 17? Can you describe the difference in behavior inside `setTimeout`?
+- In what situations is `flushSync` justified, and why should you avoid it normally?
+- Why does changing object state with `user.age = 21` fail to trigger a re-render? Explain it in connection with `Object.is`.
+- Why are "it re-rendered" and "the DOM changed" not the same statement?
+
+## Related Notes
+
+- [[react-hooks-under-the-hood|How Hooks Remember State]]
+- [[react-memoization-strategy|memo · useMemo · useCallback Strategy]]
+- [[react-fiber-architecture|Fiber: The Structure That Splits Render and Commit]]
+- [[js-closure-and-scope|Closures and Scope]]
+
+## References
+
+- [State as a Snapshot - react.dev](https://react.dev/learn/state-as-a-snapshot)
+- [Queueing a Series of State Updates - react.dev](https://react.dev/learn/queueing-a-series-of-state-updates)
+- [Automatic batching for fewer renders in React 18](https://github.com/reactwg/react-18/discussions/21)
+- [flushSync - react.dev](https://react.dev/reference/react-dom/flushSync)

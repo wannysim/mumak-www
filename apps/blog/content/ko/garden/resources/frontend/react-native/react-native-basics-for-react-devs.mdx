@@ -1,0 +1,193 @@
+---
+title: 'React 개발자가 처음 만나는 React Native'
+created: '2026-05-28'
+status: 'seedling'
+parent: 'frontend-react-native'
+tags: ['react-native', 'mobile', 'frontend', 'basics']
+---
+
+웹 React/TypeScript를 쓰던 사람이 React Native(RN)에 처음 들어왔을 때, "JSX 쓰는 건 같은데 뭔가 다 다른 것 같다"는 느낌부터 정리한다.
+
+> 한 줄 요약: **React는 그대로다. 바뀌는 건 "무엇을 그리느냐"와 "어디에 그리느냐"다.**
+
+## React vs React Native, 무엇이 같고 다른가
+
+React 자체(=함수형 컴포넌트, hooks, state, props, context, suspense, …)는 거의 그대로 쓴다. 다른 건 그 React가 만들어내는 트리가 **DOM이 아니라는 점**뿐이다.
+
+| 항목      | 웹 React          | React Native                |
+| --------- | ----------------- | --------------------------- |
+| 렌더 대상 | DOM (HTMLElement) | 네이티브 뷰 (UIView 등)     |
+| 최소 단위 | div, span, img …  | View, Text, Image …         |
+| 스타일    | CSS · CSS Modules | JS 객체 (StyleSheet)        |
+| 단위      | px, rem, %, vh …  | 단위 없는 숫자 (dp/pt 기준) |
+| 라우팅    | react-router 등   | expo-router / RN Navigation |
+| 번들러    | Vite · webpack    | Metro                       |
+
+요점은 **React의 멘탈 모델은 그대로 가져가도 된다**는 것. 무엇이 그려지느냐만 바뀐다.
+
+## DOM이 없다 — primitive가 다르다
+
+웹에서 `<div>`로 다 처리하던 것을 RN에서는 용도별로 다른 primitive로 쓴다.
+
+```tsx
+import { View, Text, Image, ScrollView, Pressable } from 'react-native';
+
+export function Profile() {
+  return (
+    <View style={{ padding: 16 }}>
+      <Image source={{ uri: 'https://...' }} style={{ width: 64, height: 64 }} />
+      <Text>이름: 윤하</Text>
+      <Pressable onPress={() => console.log('tap')}>
+        <Text>버튼</Text>
+      </Pressable>
+    </View>
+  );
+}
+```
+
+자주 쓰는 것들만 추리면:
+
+- `View` — 웹의 `<div>`. 레이아웃 컨테이너
+- `Text` — 모든 텍스트는 무조건 이 안에 있어야 한다
+- `Image` — 이미지. **width/height를 명시해야 보인다**
+- `ScrollView` — 스크롤 가능한 영역
+- `FlatList` / `SectionList` — 긴 리스트 (성능을 위해 필수)
+- `Pressable` / `TouchableOpacity` — 클릭(탭) 가능한 영역
+- `TextInput` — 입력 필드
+
+`<div>`, `<span>`, `<button>`, `<a>` 같은 건 **없다**. 헷갈리면 "텍스트는 Text, 박스는 View" 두 개만 기억해도 일단 굴러간다.
+
+## "텍스트는 무조건 Text 안에"가 무슨 뜻인가
+
+웹에서는 그냥 됐던 게 RN에서는 에러난다.
+
+```tsx
+// ❌ 런타임 에러
+<View>안녕</View>
+
+// ✅
+<View>
+  <Text>안녕</Text>
+</View>
+```
+
+이유는 단순하다. View는 "사각형 영역"일 뿐이고, 텍스트를 그릴 줄 모른다. 글자를 그리는 건 `UILabel`/`TextView` 같은 별도 컴포넌트의 일이고, 그 추상화가 `<Text>`다.
+
+## 스크롤이 자동이 아니다
+
+웹에서는 `overflow: auto` 한 줄이면 됐지만 RN에서는 스크롤되는 영역을 명시적으로 만들어야 한다.
+
+```tsx
+import { ScrollView } from 'react-native';
+
+<ScrollView>{/* 길어지면 자동으로 스크롤 */}</ScrollView>;
+```
+
+리스트가 길면(>20개 정도) `ScrollView` 대신 `FlatList`를 써야 한다. 자세한 내용은 [[react-native-conventions]] 참고.
+
+## 스타일은 CSS가 아니라 JS 객체다
+
+```tsx
+import { StyleSheet, View, Text } from 'react-native';
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#fff',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+});
+
+<View style={styles.container}>
+  <Text style={styles.title}>제목</Text>
+</View>;
+```
+
+핵심 차이:
+
+- **단위 없는 숫자**가 기본 (iOS는 pt, Android는 dp로 자동 변환됨)
+- **모든 컴포넌트가 기본적으로 `display: flex`**, 그리고 **`flexDirection`은 기본 `column`** (웹은 `row`)
+- CSS 같은 cascading/inheritance 없음 — 부모 스타일이 자식으로 자동 상속되지 않는다 (예외: `Text` 안의 `Text`는 폰트 속성 상속)
+- `:hover`, `:focus`, `::before` 같은 가상 클래스/요소 없음
+- `className`이 아니라 `style` prop으로 전달
+- Tailwind 같은 거 쓰고 싶으면 `nativewind`라는 별도 라이브러리 필요
+
+웹 CSS 멘탈 모델을 그대로 들고 오면 자꾸 안 맞으니까, **"Flexbox만 있는 인라인 스타일"**이라고 생각하는 게 편하다.
+
+## Flexbox는 거의 같지만 기본값이 다르다
+
+```tsx
+<View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between' }}>
+  <Text>왼쪽</Text>
+  <Text>오른쪽</Text>
+</View>
+```
+
+웹과 다른 기본값들:
+
+- `flexDirection: 'column'` (웹은 `row`)
+- 모든 View가 이미 flex container
+
+이거 두 개만 기억해도 레이아웃이 한결 직관적이다.
+
+## 개발 환경: Metro와 Expo
+
+웹에서 Vite/Webpack을 쓰듯, RN은 **Metro**라는 번들러를 쓴다. 손으로 직접 다룰 일은 거의 없고, 그냥 "RN의 dev server" 정도로 생각하면 된다.
+
+이 저장소(`apps/mumak-native`)는 **Expo** 기반인데, Expo는 거칠게 말하면:
+
+- RN + 자주 쓰는 네이티브 모듈(카메라/위치/푸시/파일 …) 묶음
+- 빌드 인프라 (EAS), 라우팅 (`expo-router`), OTA 업데이트
+
+쉽게 말해 RN의 Next.js 같은 위치. 처음 RN 시작할 때는 거의 무조건 Expo로 시작한다.
+
+`expo-router`는 Next.js의 file-based routing과 거의 동일한 멘탈 모델이다.
+
+```
+app/
+├── _layout.tsx     ← RootLayout
+├── index.tsx       ← /
+├── login.tsx       ← /login
+└── (tabs)/
+    ├── _layout.tsx ← Tab Layout
+    ├── home.tsx
+    └── profile.tsx
+```
+
+Next.js 해본 사람이라면 거의 적응 비용 없이 쓸 수 있다.
+
+## Hot Reload는 그대로 있다
+
+Vite/Next.js의 HMR과 비슷한 **Fast Refresh**가 기본 켜져 있다. 저장하면 시뮬레이터/디바이스에서 즉시 반영. 컴포넌트 state도 가급적 유지된다.
+
+## 그래서 처음에 뭘 신경 쓰면 되나
+
+- React/TS 지식은 그대로 들고 와도 된다
+- `<div>` 대신 `<View>`, 텍스트는 `<Text>` 안에만
+- 스타일은 JS 객체 + Flexbox + 단위 없는 숫자
+- 리스트가 길면 `FlatList`
+- 라우팅은 `expo-router` (Next.js처럼)
+- 막히면 "이건 웹이 아니라 모바일이다"를 떠올리기
+
+내부 작동 원리(왜 같은 JSX가 iOS/Android에서 다 도는가)는 [[react-native-platform-agnostic|크로스플랫폼 작동 원리]] 노트로.
+
+작성하면서 자주 부딪히는 함정과 RN 특유의 컨벤션은 [[react-native-conventions|RN 컨벤션과 함정]] 노트로.
+
+## 관련 노트
+
+- [[react-native-platform-agnostic|RN이 어떻게 iOS/Android를 동시에 다루는가]]
+- [[react-native-core-components|RN 핵심 컴포넌트 지도]]
+- [[react-native-navigation|RN 네비게이션]]
+- [[react-native-animations-and-gestures|RN 애니메이션과 제스처]]
+- [[react-native-performance-and-debugging|RN 성능과 디버깅]]
+- [[react-native-conventions|RN 컨벤션과 함정]]
+- [[frontend]]
+
+## 참고
+
+- [React Native 공식 문서 - The Basics](https://reactnative.dev/docs/getting-started)
+- [Expo Router 문서](https://docs.expo.dev/router/introduction/)

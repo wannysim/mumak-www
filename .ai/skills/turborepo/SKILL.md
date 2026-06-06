@@ -10,7 +10,7 @@ description: Turborepo 모노레포 명령어, 필터 문법, 캐시 관리 가�
 ### 개발
 
 - `pnpm dev`: 모든 앱 개발 서버 실행
-- `pnpm dev --filter=mumak-next`: 특정 앱만 실행
+- `pnpm --filter=mumak-next dev`: 특정 앱만 실행
 
 ### 빌드
 
@@ -79,7 +79,7 @@ GitHub Secrets 필요:
 
 ### 변경 감지 전략
 
-1. **paths 필터**: `apps/**`, `packages/**` 변경 시에만 실행
+1. **workflow trigger**: PR에서는 summary check 생성을 위해 workflow를 실행하고, push에서는 관련 경로 변경 시 실행
 2. **detect-scopes**: 변경된 파일 분석 → 영향받는 앱 감지
 3. **동적 matrix**: 감지된 앱별로 병렬 job 실행
 
@@ -121,7 +121,7 @@ apps:
 
 ## Lint / Format 구조 (oxc)
 
-각 앱/패키지는 자체 `lint`, `format:check` 스크립트를 갖고, root는 `scripts/`, `.cursor/`, `.agents/` 등 패키지 외부 파일을 lint/format합니다.
+각 앱/패키지는 자체 `lint`, `format:check` 스크립트를 갖고, root는 `scripts/`, `.cursor/`, `.ai/` 등 패키지 외부 파일을 lint/format합니다.
 
 - `pnpm lint` → `turbo run lint lint:root` (전 패키지 + root, 병렬 + 캐시)
 - `pnpm format:check` → `turbo run format:check format:root:check`

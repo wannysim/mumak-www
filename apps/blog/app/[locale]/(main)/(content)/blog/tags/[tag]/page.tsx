@@ -6,7 +6,8 @@ import { buildAlternates } from '@/src/app/seo';
 import { getCategories, type Category } from '@/src/entities/post';
 import { getAllTags, getPostsByTag, isValidTag } from '@/src/entities/tag';
 import { locales, type Locale } from '@/src/shared/config/i18n';
-import { BlogNav } from '@/src/widgets/blog-nav';
+import { PageHeader } from '@/src/shared/ui';
+import { BlogNav, getBlogNavCounts } from '@/src/widgets/blog-nav';
 import { PostCard } from '@/src/widgets/post-card';
 import { TagCloud } from '@/src/widgets/tag-cloud';
 
@@ -47,8 +48,7 @@ export default async function TagPage({ params }: TagPageProps) {
 
   setRequestLocale(locale);
 
-  const t = await getTranslations('tags');
-  const tCommon = await getTranslations('common');
+  const [t, tCommon] = await Promise.all([getTranslations('tags'), getTranslations('common')]);
 
   const decodedTag = decodeURIComponent(tag);
   const posts = getPostsByTag(locale as Locale, tag);
@@ -65,12 +65,14 @@ export default async function TagPage({ params }: TagPageProps) {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold mb-2">#{decodedTag}</h1>
-        <p className="text-muted-foreground">{t('postCount', { count: posts.length })}</p>
-      </header>
+      <PageHeader title={`#${decodedTag}`} description={t('postCount', { count: posts.length })} />
 
-      <BlogNav allLabel={tCommon('all')} categoryLabels={categoryLabels} tagsLabel={tCommon('tags')} />
+      <BlogNav
+        allLabel={tCommon('all')}
+        categoryLabels={categoryLabels}
+        tagsLabel={tCommon('tags')}
+        counts={getBlogNavCounts(locale as Locale)}
+      />
 
       <TagCloud tags={allTags} activeTag={decodedTag} showCount />
 

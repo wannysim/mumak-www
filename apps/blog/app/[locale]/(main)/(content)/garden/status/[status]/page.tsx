@@ -5,7 +5,8 @@ import { notFound } from 'next/navigation';
 import { buildAlternates } from '@/src/app/seo';
 import { getNotesByStatus, type NoteStatus } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
-import { GardenNav } from '@/src/widgets/garden-nav';
+import { PageHeader } from '@/src/shared/ui';
+import { GardenNav, getGardenNavCounts } from '@/src/widgets/garden-nav';
 import { NoteCard } from '@/src/widgets/note-card';
 
 const VALID_STATUSES: NoteStatus[] = ['seedling', 'budding', 'evergreen'];
@@ -42,8 +43,7 @@ export default async function GardenStatusPage({ params }: GardenStatusPageProps
     notFound();
   }
 
-  const t = await getTranslations('garden');
-  const tCommon = await getTranslations('common');
+  const [t, tCommon] = await Promise.all([getTranslations('garden'), getTranslations('common')]);
   const notes = getNotesByStatus(locale as Locale, status as NoteStatus);
 
   const statusLabels = {
@@ -54,12 +54,14 @@ export default async function GardenStatusPage({ params }: GardenStatusPageProps
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold mb-2">{t(`status.${status}`)}</h1>
-        <p className="text-muted-foreground">{t('noteCount', { count: notes.length })}</p>
-      </header>
+      <PageHeader title={t(`status.${status}`)} description={t('noteCount', { count: notes.length })} />
 
-      <GardenNav allLabel={tCommon('all')} statusLabels={statusLabels} tagsLabel={tCommon('tags')} />
+      <GardenNav
+        allLabel={tCommon('all')}
+        statusLabels={statusLabels}
+        tagsLabel={tCommon('tags')}
+        counts={getGardenNavCounts(locale as Locale)}
+      />
 
       <section className="space-y-4">
         {notes.length === 0 ? (

@@ -21,14 +21,38 @@ interface SpotifyTrack {
   artists: SpotifyArtist[];
   album: SpotifyAlbum;
   explicit: boolean;
+  duration_ms: number;
   external_urls: {
     spotify: string;
   };
 }
 
+export type SpotifyDeviceType =
+  | 'Computer'
+  | 'Smartphone'
+  | 'Speaker'
+  | 'TV'
+  | 'Tablet'
+  | 'AVR'
+  | 'STB'
+  | 'AudioDongle'
+  | 'GameConsole'
+  | 'CastVideo'
+  | 'CastAudio'
+  | 'Automobile'
+  | 'Unknown';
+
+interface SpotifyDevice {
+  name: string;
+  type: string;
+  is_active: boolean;
+}
+
 interface SpotifyCurrentlyPlayingResponse {
   is_playing: boolean;
   item: SpotifyTrack;
+  progress_ms: number | null;
+  device?: SpotifyDevice;
 }
 
 interface SpotifyRecentlyPlayedResponse {
@@ -36,6 +60,11 @@ interface SpotifyRecentlyPlayedResponse {
     track: SpotifyTrack;
     played_at: string;
   }>;
+}
+
+export interface SpotifyDeviceInfo {
+  name: string;
+  type: SpotifyDeviceType;
 }
 
 export interface NowPlaying {
@@ -46,9 +75,38 @@ export interface NowPlaying {
   albumImageUrl: string;
   songUrl: string;
   isExplicit: boolean;
+  progressMs: number | null;
+  durationMs: number | null;
+  device: SpotifyDeviceInfo | null;
 }
 
-const NOW_PLAYING_ENDPOINT = 'https://api.spotify.com/v1/me/player/currently-playing';
+const KNOWN_DEVICE_TYPES: ReadonlySet<SpotifyDeviceType> = new Set([
+  'Computer',
+  'Smartphone',
+  'Speaker',
+  'TV',
+  'Tablet',
+  'AVR',
+  'STB',
+  'AudioDongle',
+  'GameConsole',
+  'CastVideo',
+  'CastAudio',
+  'Automobile',
+  'Unknown',
+]);
+
+function normalizeDevice(device: SpotifyDevice | undefined): SpotifyDeviceInfo | null {
+  if (!device?.name) {
+    return null;
+  }
+  const type = KNOWN_DEVICE_TYPES.has(device.type as SpotifyDeviceType)
+    ? (device.type as SpotifyDeviceType)
+    : 'Unknown';
+  return { name: device.name, type };
+}
+
+const NOW_PLAYING_ENDPOINT = 'https://api.spotify.com/v1/me/player';
 const RECENTLY_PLAYED_ENDPOINT = 'https://api.spotify.com/v1/me/player/recently-played?limit=1';
 const TOKEN_ENDPOINT = 'https://accounts.spotify.com/api/token';
 
@@ -58,21 +116,48 @@ const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 // 메모리 기반 토큰 캐시
 let cachedToken: string | null = null;
 let tokenExpiresAt: number = 0;
+let hasLoggedMissingSpotifyEnv = false;
+
+type SpotifyEnvState = {
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  hasRefreshToken: boolean;
+};
+
+function getMissingSpotifyEnvState(): SpotifyEnvState | null {
+  const state = {
+    hasClientId: !!process.env.SPOTIFY_CLIENT_ID,
+    hasClientSecret: !!process.env.SPOTIFY_CLIENT_SECRET,
+    hasRefreshToken: !!process.env.SPOTIFY_REFRESH_TOKEN,
+  };
+
+  return state.hasClientId && state.hasClientSecret && state.hasRefreshToken ? null : state;
+}
+
+function isE2eRuntime(): boolean {
+  return process.env.E2E_INCLUDE_DRAFT === 'true' || process.env.E2E_INCLUDE_DRAFT === '1';
+}
+
+function logMissingSpotifyEnvOnce(state: SpotifyEnvState): void {
+  if (hasLoggedMissingSpotifyEnv) {
+    return;
+  }
+
+  hasLoggedMissingSpotifyEnv = true;
+  const log = isE2eRuntime() ? console.warn : console.error;
+  log('[Spotify] 환경 변수 누락:', state);
+}
 
 async function fetchNewToken(): Promise<{ token: string; expiresIn: number } | null> {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN;
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    console.error('[Spotify] 환경 변수 누락:', {
-      hasClientId: !!clientId,
-      hasClientSecret: !!clientSecret,
-      hasRefreshToken: !!refreshToken,
-    });
+  const missingEnvState = getMissingSpotifyEnvState();
+  if (missingEnvState) {
+    logMissingSpotifyEnvOnce(missingEnvState);
     return null;
   }
 
+  const clientId = process.env.SPOTIFY_CLIENT_ID ?? '';
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET ?? '';
+  const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN ?? '';
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
   const params = new URLSearchParams({
@@ -133,10 +218,10 @@ function invalidateTokenCache(): void {
   tokenExpiresAt = 0;
 }
 
-// 테스트에서 토큰 캐시를 초기화하기 위한 함수
-export function __resetTokenCacheForTesting(): void {
+export function resetTokenCacheForTesting(): void {
   cachedToken = null;
   tokenExpiresAt = 0;
+  hasLoggedMissingSpotifyEnv = false;
 }
 
 async function fetchNowPlayingData(accessToken: string): Promise<NowPlaying | null | 'UNAUTHORIZED'> {
@@ -204,6 +289,9 @@ async function fetchNowPlayingData(accessToken: string): Promise<NowPlaying | nu
       albumImageUrl: track.album.images[0]?.url || '',
       songUrl: track.external_urls.spotify,
       isExplicit: track.explicit,
+      progressMs: null,
+      durationMs: null,
+      device: null,
     };
   }
 
@@ -217,6 +305,9 @@ async function fetchNowPlayingData(accessToken: string): Promise<NowPlaying | nu
     albumImageUrl: song.item.album.images[0]?.url || '',
     songUrl: song.item.external_urls.spotify,
     isExplicit: song.item.explicit,
+    progressMs: song.progress_ms ?? null,
+    durationMs: song.item.duration_ms ?? null,
+    device: normalizeDevice(song.device),
   };
 }
 
@@ -226,6 +317,12 @@ async function fetchNowPlayingData(accessToken: string): Promise<NowPlaying | nu
  * - connection() 호출 불필요 (캐시 컴포넌트가 처리)
  */
 export async function getNowPlayingDirect(): Promise<NowPlaying | null> {
+  const missingEnvState = getMissingSpotifyEnvState();
+  if (missingEnvState) {
+    logMissingSpotifyEnvOnce(missingEnvState);
+    return null;
+  }
+
   const accessToken = await getAccessToken();
 
   if (!accessToken) {

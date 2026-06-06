@@ -3,12 +3,13 @@ jest.mock('next/server', () => ({
   connection: jest.fn().mockResolvedValue(undefined),
 }));
 
-import { getNowPlaying, __resetTokenCacheForTesting } from '../api/spotify';
+import { getNowPlaying, resetTokenCacheForTesting } from '../api/spotify';
 
 describe('spotify', () => {
   const originalEnv = process.env;
   const originalConsoleError = console.error;
   const originalConsoleLog = console.log;
+  const originalConsoleWarn = console.warn;
 
   beforeEach(() => {
     jest.resetModules();
@@ -16,8 +17,9 @@ describe('spotify', () => {
     global.fetch = jest.fn();
     console.error = jest.fn();
     console.log = jest.fn();
+    console.warn = jest.fn();
     // 테스트 간 토큰 캐시 초기화
-    __resetTokenCacheForTesting();
+    resetTokenCacheForTesting();
   });
 
   afterEach(() => {
@@ -25,6 +27,7 @@ describe('spotify', () => {
     jest.restoreAllMocks();
     console.error = originalConsoleError;
     console.log = originalConsoleLog;
+    console.warn = originalConsoleWarn;
   });
 
   describe('getNowPlaying', () => {
@@ -36,6 +39,24 @@ describe('spotify', () => {
       const result = await getNowPlaying();
 
       expect(result).toBeNull();
+    });
+
+    it('logs missing environment variables once as a warning during E2E', async () => {
+      process.env.E2E_INCLUDE_DRAFT = '1';
+      delete process.env.SPOTIFY_CLIENT_ID;
+      delete process.env.SPOTIFY_CLIENT_SECRET;
+      delete process.env.SPOTIFY_REFRESH_TOKEN;
+
+      await getNowPlaying();
+      await getNowPlaying();
+
+      expect(console.warn).toHaveBeenCalledTimes(1);
+      expect(console.warn).toHaveBeenCalledWith('[Spotify] 환경 변수 누락:', {
+        hasClientId: false,
+        hasClientSecret: false,
+        hasRefreshToken: false,
+      });
+      expect(console.error).not.toHaveBeenCalledWith('[Spotify] Access token을 가져올 수 없음');
     });
 
     it('should return the current playing song if it is set', async () => {
@@ -51,6 +72,7 @@ describe('spotify', () => {
 
       const mockCurrentlyPlaying = {
         is_playing: true,
+        progress_ms: 30000,
         item: {
           name: 'Test Song',
           artists: [{ name: 'Test Artist' }],
@@ -59,9 +81,15 @@ describe('spotify', () => {
             images: [{ url: 'https://i.scdn.co/test-image.jpg' }],
           },
           explicit: false,
+          duration_ms: 180000,
           external_urls: {
             spotify: 'https://open.spotify.com/track/test',
           },
+        },
+        device: {
+          name: 'MacBook Pro',
+          type: 'Computer',
+          is_active: true,
         },
       };
 
@@ -85,6 +113,9 @@ describe('spotify', () => {
         albumImageUrl: 'https://i.scdn.co/test-image.jpg',
         songUrl: 'https://open.spotify.com/track/test',
         isExplicit: false,
+        progressMs: 30000,
+        durationMs: 180000,
+        device: { name: 'MacBook Pro', type: 'Computer' },
       });
     });
 
@@ -110,6 +141,7 @@ describe('spotify', () => {
                 images: [{ url: 'https://i.scdn.co/recent-image.jpg' }],
               },
               explicit: true,
+              duration_ms: 200000,
               external_urls: {
                 spotify: 'https://open.spotify.com/track/recent',
               },
@@ -142,6 +174,9 @@ describe('spotify', () => {
         albumImageUrl: 'https://i.scdn.co/recent-image.jpg',
         songUrl: 'https://open.spotify.com/track/recent',
         isExplicit: true,
+        progressMs: null,
+        durationMs: null,
+        device: null,
       });
     });
 
@@ -158,6 +193,7 @@ describe('spotify', () => {
 
       const mockCurrentlyPlaying = {
         is_playing: false,
+        progress_ms: 0,
         item: {
           name: 'Collaboration Song',
           artists: [{ name: 'Artist 1' }, { name: 'Artist 2' }],
@@ -166,6 +202,7 @@ describe('spotify', () => {
             images: [{ url: 'https://i.scdn.co/collab-image.jpg' }],
           },
           explicit: false,
+          duration_ms: 150000,
           external_urls: {
             spotify: 'https://open.spotify.com/track/collab',
           },
@@ -246,6 +283,7 @@ describe('spotify', () => {
 
       const mockCurrentlyPlaying = {
         is_playing: true,
+        progress_ms: 30000,
         item: {
           name: 'Test Song',
           artists: [{ name: 'Test Artist' }],
@@ -254,9 +292,15 @@ describe('spotify', () => {
             images: [{ url: 'https://i.scdn.co/test-image.jpg' }],
           },
           explicit: false,
+          duration_ms: 180000,
           external_urls: {
             spotify: 'https://open.spotify.com/track/test',
           },
+        },
+        device: {
+          name: 'MacBook Pro',
+          type: 'Computer',
+          is_active: true,
         },
       };
 
@@ -284,7 +328,7 @@ describe('spotify', () => {
       // 현재 재생 중 API 요청에 cache: 'no-store' 옵션 확인 (실시간 데이터)
       expect(global.fetch).toHaveBeenNthCalledWith(
         2,
-        'https://api.spotify.com/v1/me/player/currently-playing',
+        'https://api.spotify.com/v1/me/player',
         expect.objectContaining({
           cache: 'no-store',
         })
@@ -366,6 +410,7 @@ describe('spotify', () => {
 
       const mockCurrentlyPlaying = {
         is_playing: true,
+        progress_ms: 30000,
         item: {
           name: 'Test Song',
           artists: [{ name: 'Test Artist' }],
@@ -374,9 +419,15 @@ describe('spotify', () => {
             images: [{ url: 'https://i.scdn.co/test-image.jpg' }],
           },
           explicit: false,
+          duration_ms: 180000,
           external_urls: {
             spotify: 'https://open.spotify.com/track/test',
           },
+        },
+        device: {
+          name: 'MacBook Pro',
+          type: 'Computer',
+          is_active: true,
         },
       };
 
@@ -412,6 +463,9 @@ describe('spotify', () => {
         albumImageUrl: 'https://i.scdn.co/test-image.jpg',
         songUrl: 'https://open.spotify.com/track/test',
         isExplicit: false,
+        progressMs: 30000,
+        durationMs: 180000,
+        device: { name: 'MacBook Pro', type: 'Computer' },
       });
 
       // 총 4번의 fetch 호출 확인 (토큰 → 401 → 새 토큰 → 성공)
@@ -439,11 +493,13 @@ describe('spotify', () => {
       const mockTokenResponse = { access_token: 'token-1', token_type: 'Bearer', expires_in: 3600 };
       const mockSong = {
         is_playing: true,
+        progress_ms: 5000,
         item: {
           name: 'Song',
           artists: [{ name: 'A' }],
           album: { name: 'Album', images: [{ url: 'https://i.scdn.co/x.jpg' }] },
           explicit: false,
+          duration_ms: 60000,
           external_urls: { spotify: 'https://open.spotify.com/track/x' },
         },
       };
@@ -476,6 +532,7 @@ describe('spotify', () => {
               artists: [{ name: 'R' }],
               album: { name: 'A', images: [{ url: 'https://i.scdn.co/r.jpg' }] },
               explicit: false,
+              duration_ms: 120000,
               external_urls: { spotify: 'https://open.spotify.com/track/r' },
             },
             played_at: '2024-01-01T00:00:00Z',
@@ -622,6 +679,198 @@ describe('spotify', () => {
 
       expect(result).toBeNull();
       expect(console.error).toHaveBeenCalledWith('[Spotify] 토큰 갱신 후에도 401 에러 발생');
+    });
+
+    it('normalizes unknown device types to "Unknown"', async () => {
+      process.env.SPOTIFY_CLIENT_ID = 'id';
+      process.env.SPOTIFY_CLIENT_SECRET = 'secret';
+      process.env.SPOTIFY_REFRESH_TOKEN = 'refresh';
+
+      const mockToken = { access_token: 't', token_type: 'Bearer', expires_in: 3600 };
+      const mockSong = {
+        is_playing: true,
+        progress_ms: 1234,
+        item: {
+          name: 'Song',
+          artists: [{ name: 'A' }],
+          album: { name: 'Album', images: [{ url: 'https://i.scdn.co/x.jpg' }] },
+          explicit: false,
+          duration_ms: 200000,
+          external_urls: { spotify: 'https://open.spotify.com/track/x' },
+        },
+        device: { name: 'Mystery Device', type: 'AlienSpaceship', is_active: true },
+      };
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
+        .mockResolvedValueOnce({ status: 200, json: async () => mockSong });
+
+      const result = await getNowPlaying();
+
+      expect(result?.device).toEqual({ name: 'Mystery Device', type: 'Unknown' });
+      expect(result?.progressMs).toBe(1234);
+      expect(result?.durationMs).toBe(200000);
+    });
+
+    it('returns null device when the payload omits it', async () => {
+      process.env.SPOTIFY_CLIENT_ID = 'id';
+      process.env.SPOTIFY_CLIENT_SECRET = 'secret';
+      process.env.SPOTIFY_REFRESH_TOKEN = 'refresh';
+
+      const mockToken = { access_token: 't', token_type: 'Bearer', expires_in: 3600 };
+      const mockSong = {
+        is_playing: false,
+        progress_ms: null,
+        item: {
+          name: 'Song',
+          artists: [{ name: 'A' }],
+          album: { name: 'Album', images: [{ url: 'https://i.scdn.co/x.jpg' }] },
+          explicit: false,
+          duration_ms: 100000,
+          external_urls: { spotify: 'https://open.spotify.com/track/x' },
+        },
+      };
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
+        .mockResolvedValueOnce({ status: 200, json: async () => mockSong });
+
+      const result = await getNowPlaying();
+
+      expect(result?.device).toBeNull();
+      expect(result?.progressMs).toBeNull();
+      expect(result?.durationMs).toBe(100000);
+    });
+
+    it('falls back to an empty album image URL when currently-playing has no images', async () => {
+      process.env.SPOTIFY_CLIENT_ID = 'id';
+      process.env.SPOTIFY_CLIENT_SECRET = 'secret';
+      process.env.SPOTIFY_REFRESH_TOKEN = 'refresh';
+
+      const mockToken = { access_token: 't', token_type: 'Bearer', expires_in: 3600 };
+      const mockSong = {
+        is_playing: true,
+        progress_ms: 1000,
+        item: {
+          name: 'Song',
+          artists: [{ name: 'A' }],
+          // images 배열이 비어 있어 album.images[0]?.url 가 undefined → '' fallback
+          album: { name: 'Album', images: [] },
+          explicit: false,
+          duration_ms: 60000,
+          external_urls: { spotify: 'https://open.spotify.com/track/x' },
+        },
+      };
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
+        .mockResolvedValueOnce({ status: 200, json: async () => mockSong });
+
+      const result = await getNowPlaying();
+
+      expect(result?.albumImageUrl).toBe('');
+    });
+
+    it('falls back to an empty album image URL when recently-played has no images', async () => {
+      process.env.SPOTIFY_CLIENT_ID = 'id';
+      process.env.SPOTIFY_CLIENT_SECRET = 'secret';
+      process.env.SPOTIFY_REFRESH_TOKEN = 'refresh';
+
+      const mockToken = { access_token: 't', token_type: 'Bearer', expires_in: 3600 };
+      const mockRecent = {
+        items: [
+          {
+            track: {
+              name: 'R',
+              artists: [{ name: 'A' }],
+              album: { name: 'Album', images: [] },
+              explicit: false,
+              duration_ms: 120000,
+              external_urls: { spotify: 'https://open.spotify.com/track/r' },
+            },
+            played_at: '2024-01-01T00:00:00Z',
+          },
+        ],
+      };
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
+        .mockResolvedValueOnce({ status: 204 })
+        .mockResolvedValueOnce({ status: 200, json: async () => mockRecent });
+
+      const result = await getNowPlaying();
+
+      expect(result?.albumImageUrl).toBe('');
+      expect(result?.isPlaying).toBe(false);
+    });
+
+    it('coerces missing progress_ms (undefined) and duration_ms (undefined) to null', async () => {
+      process.env.SPOTIFY_CLIENT_ID = 'id';
+      process.env.SPOTIFY_CLIENT_SECRET = 'secret';
+      process.env.SPOTIFY_REFRESH_TOKEN = 'refresh';
+
+      const mockToken = { access_token: 't', token_type: 'Bearer', expires_in: 3600 };
+      // progress_ms 자체가 빠진 페이로드 (undefined) → ?? null 로 null 이 되어야 함
+      const mockSong = {
+        is_playing: true,
+        item: {
+          name: 'Song',
+          artists: [{ name: 'A' }],
+          album: { name: 'Album', images: [{ url: 'https://i.scdn.co/x.jpg' }] },
+          explicit: false,
+          // duration_ms 또한 누락
+          external_urls: { spotify: 'https://open.spotify.com/track/x' },
+        },
+      };
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
+        .mockResolvedValueOnce({ status: 200, json: async () => mockSong });
+
+      const result = await getNowPlaying();
+
+      expect(result?.progressMs).toBeNull();
+      expect(result?.durationMs).toBeNull();
+    });
+  });
+
+  describe('getNowPlaying() — PPR connection() handling', () => {
+    afterEach(() => {
+      jest.resetModules();
+    });
+
+    it('returns null when connection() rejects with a prerender-related error', async () => {
+      await jest.isolateModulesAsync(async () => {
+        jest.doMock('next/server', () => ({
+          connection: jest.fn().mockRejectedValue(new Error('Route had a prerender error during build')),
+        }));
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const mod = require('../api/spotify') as typeof import('../api/spotify');
+        const result = await mod.getNowPlaying();
+        expect(result).toBeNull();
+      });
+    });
+
+    it('rethrows non-prerender errors from connection()', async () => {
+      await jest.isolateModulesAsync(async () => {
+        jest.doMock('next/server', () => ({
+          connection: jest.fn().mockRejectedValue(new Error('database is offline')),
+        }));
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const mod = require('../api/spotify') as typeof import('../api/spotify');
+        await expect(mod.getNowPlaying()).rejects.toThrow('database is offline');
+      });
+    });
+
+    it('rethrows non-Error rejections from connection() unchanged', async () => {
+      await jest.isolateModulesAsync(async () => {
+        jest.doMock('next/server', () => ({
+          connection: jest.fn().mockRejectedValue('string rejection'),
+        }));
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const mod = require('../api/spotify') as typeof import('../api/spotify');
+        await expect(mod.getNowPlaying()).rejects.toBe('string rejection');
+      });
     });
   });
 });

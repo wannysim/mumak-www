@@ -5,7 +5,8 @@ import { notFound } from 'next/navigation';
 import { buildAlternates } from '@/src/app/seo';
 import { getCategories, getPosts, isValidCategory, type Category } from '@/src/entities/post';
 import { locales, type Locale } from '@/src/shared/config/i18n';
-import { BlogNav } from '@/src/widgets/blog-nav';
+import { PageHeader } from '@/src/shared/ui';
+import { BlogNav, getBlogNavCounts } from '@/src/widgets/blog-nav';
 import { BlogSearch, type BlogSearchPost } from '@/src/widgets/blog-search';
 import { PostCard } from '@/src/widgets/post-card';
 
@@ -43,8 +44,7 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
 
   setRequestLocale(locale);
 
-  const t = await getTranslations('category');
-  const tCommon = await getTranslations('common');
+  const [t, tCommon] = await Promise.all([getTranslations('category'), getTranslations('common')]);
 
   const posts = getPosts(locale as Locale, category as Category);
   const allPosts = getPosts(locale as Locale);
@@ -68,13 +68,15 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold mb-2">{t(`${category}.title`)}</h1>
-        <p className="text-muted-foreground">{t(`${category}.description`)}</p>
-      </header>
+      <PageHeader title={t(`${category}.title`)} description={t(`${category}.description`)} />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <BlogNav allLabel={tCommon('all')} categoryLabels={categoryLabels} tagsLabel={tCommon('tags')} />
+        <BlogNav
+          allLabel={tCommon('all')}
+          categoryLabels={categoryLabels}
+          tagsLabel={tCommon('tags')}
+          counts={getBlogNavCounts(locale as Locale)}
+        />
         <BlogSearch posts={searchPosts} categoryLabels={categoryLabels} triggerClassName="sm:w-72" />
       </div>
 

@@ -92,32 +92,88 @@ runs:
           exit 0
         fi
 
-        # Check if packages changed (affects all apps)
-        PACKAGES_CHANGED=false
-        if echo "$CHANGED_FILES" | grep -q "^packages/"; then
-          PACKAGES_CHANGED=true
-          echo "packages/** changed - will include all apps"
+        get_app_package_dependencies() {
+          local target_app="$1"
+          awk -v target_app="$target_app" '
+            /^[[:space:]]*-[[:space:]]*app:[[:space:]]*/ {
+              app = $NF
+              gsub(/[[:space:]]/, "", app)
+              in_target = (app == target_app)
+              in_deps = 0
+              next
+            }
+
+            in_target && /^[[:space:]]*packageDependencies:[[:space:]]*$/ {
+              in_deps = 1
+              next
+            }
+
+            in_target && in_deps && /^[[:space:]]*-[[:space:]]*/ {
+              dep = $0
+              sub(/^[[:space:]]*-[[:space:]]*/, "", dep)
+              gsub(/[[:space:]]/, "", dep)
+              if (dep != "") print dep
+              next
+            }
+
+            in_target && in_deps && /^[[:space:]]*[[:alnum:]_-]+:[[:space:]]*/ {
+              in_deps = 0
+            }
+          ' "$APPS_CONFIG"
+        }
+
+        # Workspace-global changes affect every app because cache keys, task graph,
+        # dependency resolution, or root tooling can change beneath all packages.
+        GLOBAL_CHANGED=false
+        if echo "$CHANGED_FILES" | grep -qE "^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|turbo\.json|\.nvmrc|\.oxfmtrc\.jsonc|\.oxlintrc\.json|scripts/)"; then
+          GLOBAL_CHANGED=true
+          echo "workspace/global config changed - will include all apps"
         fi
 
-        # Check if CI-related files changed (affects all apps)
+        # CI-related files affect all apps because they can change detection,
+        # setup, cache, or validation behavior.
         CI_CHANGED=false
         if echo "$CHANGED_FILES" | grep -qE "^\.github/(workflows|actions|app-config)/"; then
           CI_CHANGED=true
           echo ".github CI files changed - will include all apps"
         fi
 
+        CHANGED_PACKAGES=$(echo "$CHANGED_FILES" | sed -n 's#^packages/\([^/]*\)/.*#\1#p' | sort -u | tr '\n' ' ' | xargs || true)
+        if [ -n "$CHANGED_PACKAGES" ]; then
+          echo "Changed workspace packages: $CHANGED_PACKAGES"
+        fi
+
+        KNOWN_PACKAGE_DEPS=$(for APP in $APP_NAMES; do get_app_package_dependencies "$APP"; done | sort -u | tr '\n' ' ' | xargs || true)
+        UNKNOWN_PACKAGE_CHANGED=false
+        for PACKAGE in $CHANGED_PACKAGES; do
+          if ! echo " $KNOWN_PACKAGE_DEPS " | grep -qF " $PACKAGE "; then
+            UNKNOWN_PACKAGE_CHANGED=true
+            echo "packages/${PACKAGE}/ is not mapped in $APPS_CONFIG - will include all apps"
+          fi
+        done
+
         # Detect affected apps
         AFFECTED=""
         for APP in $APP_NAMES; do
           APP_CHANGED=false
+          PACKAGE_AFFECTED=false
 
           # Check if app directory changed
           if echo "$CHANGED_FILES" | grep -q "^apps/${APP}/"; then
             APP_CHANGED=true
           fi
 
-          # Include if packages/CI changed or app changed
-          if [ "$PACKAGES_CHANGED" = true ] || [ "$CI_CHANGED" = true ] || [ "$APP_CHANGED" = true ]; then
+          # Check if a changed workspace package is declared as a dependency of this app
+          if [ -n "$CHANGED_PACKAGES" ]; then
+            APP_PACKAGE_DEPS=$(get_app_package_dependencies "$APP" | tr '\n' ' ' | xargs || true)
+            for PACKAGE in $CHANGED_PACKAGES; do
+              if echo " $APP_PACKAGE_DEPS " | grep -qF " $PACKAGE "; then
+                PACKAGE_AFFECTED=true
+              fi
+            done
+          fi
+
+          if [ "$GLOBAL_CHANGED" = true ] || [ "$CI_CHANGED" = true ] || [ "$UNKNOWN_PACKAGE_CHANGED" = true ] || [ "$APP_CHANGED" = true ] || [ "$PACKAGE_AFFECTED" = true ]; then
             if [ -n "$AFFECTED" ]; then
               AFFECTED="${AFFECTED},${APP}"
             else

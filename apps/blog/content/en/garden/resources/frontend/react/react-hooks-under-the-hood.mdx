@@ -1,0 +1,198 @@
+---
+title: 'How Hooks Work Under the Hood: Why You Cannot Use Them Inside Conditionals'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'hooks', 'closure']
+---
+
+`useState` remembers its value even after the function returns. A function component runs from scratch on every render, so where exactly is that value stored, and how does React tell which value belongs to which of the many hooks?
+
+> One-line summary: **Hooks are identified by their "call order," not by name. That order must be identical on every render, which is why you cannot use them inside conditionals.**
+
+## The Function Ends, So Why Does the State Survive
+
+A function component is, quite literally, a function. Rendering is React calling that function, and once the call returns, every local variable inside it disappears. Yet `count` is still alive and well on the next render.
+
+```jsx
+function Counter() {
+  const [count, setCount] = useState(0); // a line that runs again on every render
+  return <button onClick={() => setCount(count + 1)}>{count}</button>;
+}
+```
+
+The key point is that **the value is not stored inside the component function**. The function is just a disposable form that gets wiped clean and refilled each time. The actual data lives somewhere else, outside React, and on every render React pulls "this component's first piece of state" from there and writes it back onto the form.
+
+That "somewhere else" is the fiber node.
+
+## Where State Really Lives: the Hook List on the Fiber Node
+
+React keeps one internal object, called a fiber, for each component instance. State is stored not in the component function but in a **linked list** attached to this fiber. The fiber structure itself is covered further in [[react-fiber-architecture]]; here we only look at "where hooks live."
+
+```
+Counter's fiber
+  └─ memoizedState ─▶ [hook0] ─▶ [hook1] ─▶ [hook2] ─▶ null
+                       useState   useEffect  useRef
+```
+
+Each time you call a hook, React pulls one node from this list, in order. The first call to `useState` gets `hook0`, the next hook call gets `hook1`, and so on. The form (the function) is redrawn every time, but the values to fill its fields are read from this list in order.
+
+This leads to one decisive fact. **React does not give hooks names.** Whether you received `useState` into a variable called `count` or `total`, React has no idea. All React knows is "which call number this hook is in the current render."
+
+## Why Order, Not Name
+
+Matching by name would require React to look at your variable names, but which variable a function-call result is assigned to is entirely the business of your code, with no way for React to access it. So React chose the simplest, fastest approach: **it uses the call order as an index.**
+
+The price of this design is precisely the Rules of Hooks. Because matching is by order, the call order must not deviate even slightly from render to render. The rule "always call hooks at the top level of your component, in the same order" is not about aesthetics or convention; it is **the essential condition that keeps this index matching from breaking.**
+
+## How It Falls Apart When You Put a Hook Inside a Conditional
+
+Words alone do not land, so let's simulate it directly.
+
+```jsx
+function Form({ isLoggedIn }) {
+  if (isLoggedIn) {
+    const [name, setName] = useState(''); // conditional hook (forbidden)
+  }
+  const [email, setEmail] = useState('');
+  const [theme, setTheme] = useState('light');
+  // ...
+}
+```
+
+Suppose `isLoggedIn` is `true` at first and becomes `false` on the next render. Since React matches purely by index, things slip out of alignment like this.
+
+| Call order | 1st render (`true`) | 2nd render (`false`) |
+| ---------- | ------------------- | -------------------- |
+| index 0    | name state          | email state          |
+| index 1    | email state         | theme state          |
+| index 2    | theme state         | (none)               |
+
+On the second render you call `email`, but React hands back index 0, which holds the field that `name` occupied on the first render. You received it under the name `email`, but the value inside is the old `name`. Every piece of state shifts by one slot. That is why React stops you outright, throwing an error like `Rendered fewer hooks than expected`. Order is identity, so the moment the order wavers, it becomes impossible to know which value belongs to whom.
+
+This is why conditions must live outside hooks. Always call the hook, and handle the condition using the value the hook returns.
+
+## A Mini Implementation: Mimicking useState in 30 Lines
+
+The fastest way to cement the mental model is to build it yourself. With a single array and a single index, the skeleton of `useState` falls out.
+
+```js
+let hooks = []; // plays the role of the fiber's hook list
+let cursor = 0; // which hook this is in the current render
+
+function useState(initial) {
+  const i = cursor; // fix the slot this hook will use, by order
+  hooks[i] = hooks[i] ?? initial; // initial value on first render, otherwise keep the existing value
+  const setState = next => {
+    hooks[i] = next; // thanks to the captured i, it updates only its own slot
+    render(); // trigger a redraw
+  };
+  cursor++; // advance the cursor for the next hook
+  return [hooks[i], setState];
+}
+
+function render() {
+  cursor = 0; // reset the cursor to 0 at the start of every render
+  App(); // run the component function again
+}
+```
+
+The crux is that `render` resets `cursor` to 0 every time and runs the component again. As long as the hooks are called in the same order, `cursor` points right back at the same slot. If a conditional skips a call, `cursor` goes off track from that point on, and the slots misalign just as in the table above. The reason `i` stays alive inside `setState` is closures, which leads straight into the next topic.
+
+## Every Render Is a New Closure
+
+Each time the component function runs again, the `props`, `state`, and event handlers inside it are created as **a new closure that captures the values at that render's moment**. In other words, each render sees its own `count`. The handler from render 1 forever sees render 1's `count`, and the handler from render 2 sees render 2's `count`. The concept of closures itself is covered in more depth in [[js-closure-and-scope]].
+
+```jsx
+function Counter() {
+  const [count, setCount] = useState(0);
+  // this function is created anew on every render and captures the count at the moment of creation
+  const handleClick = () => console.log(count);
+  return <button onClick={handleClick}>{count}</button>;
+}
+```
+
+This is React's intent. In the model UI = f(state), each render is a snapshot of the screen corresponding to a particular state, and that screen's handlers should see the same snapshot to stay consistent. The trouble arises when this snapshot unintentionally "lives too long."
+
+## Stale Closure: the Bug That Clings to Old State
+
+When the closure from the first render freezes in place inside a `setInterval` or a once-registered event listener and keeps seeing old state, that bug is called a stale closure.
+
+```jsx
+function Timer() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(count + 1); // this count is forever 0 (the first render's snapshot)
+    }, 1000);
+    return () => clearInterval(id);
+  }, []); // empty array: the effect runs exactly once, on the first render
+  return <p>{count}</p>;
+}
+```
+
+Because of the empty dependency array, the effect runs only once, on the first render. The callback inside it is the first render's closure, so `count` is forever 0. It calls `setCount(0 + 1)` every second, so the screen goes from 0 to 1 once and then stops.
+
+There are two solutions.
+
+```jsx
+// 1) Functional update: instead of the closure's count, receive the latest value React holds
+setCount(prev => prev + 1);
+
+// 2) Carry the latest value around in a ref (without re-running the effect)
+const countRef = useRef(0);
+countRef.current = count; // sync the latest value on every render
+// reading countRef.current inside the callback always gives the latest value
+```
+
+A functional update never references the value trapped in the closure at all; it only hands React the instruction "take the previous value and add 1." So even if the closure is stale, the result is always correct. How these updates accumulate and lead to re-renders is covered in [[react-state-batching-and-rerender]].
+
+## Why useRef Does Not Trigger a Re-render
+
+`useRef` **keeps returning the same object** on every render. It creates a single box, `{ current: ... }`, on the fiber once, and on subsequent renders it returns the reference to that very same box.
+
+```jsx
+const ref = useRef(0);
+ref.current = 5; // changes only the box's contents; the box itself stays the same
+```
+
+Even if you change `current`, React does not track that change. It is not state, just a mutable box. That makes it well suited for carrying a value around without a re-render. Conversely, `setState` tells React each time it is called, "this is a new value, so redraw."
+
+The comparison rule that decides whether to trigger a re-render is also worth knowing. The dependency array of `useEffect` compares the previous value with the new one **using `Object.is`**. Primitives are considered equal if they are equal by value, but objects and arrays **are considered different if their references differ**. So if you put an object freshly created on every render into the dependencies, the effect re-runs every time. The memoization strategy for avoiding this trap leads into [[react-memoization-strategy]].
+
+## Common Misconceptions
+
+**Misconception: State is stored inside the component function.**
+Reality: The function is wiped clean on every render. State lives in the hook list on the fiber node. The function is just a form that pulls it out and uses it.
+
+**Misconception: React distinguishes hooks by variable name.**
+Reality: It never looks at names. It matches purely by call order (index). That is why the order must not waver.
+
+**Misconception: The ban on conditional hooks is just a style rule that lint catches.**
+Reality: If index matching breaks, state shifts by one slot and receives another hook's value. It is a fundamental constraint that actually breaks behavior.
+
+**Misconception: A stale closure is a React bug.**
+Reality: It is a side effect of the normal behavior in which each render sees its own snapshot. You must deliberately fetch the latest value with a functional update or a ref.
+
+## Check Yourself
+
+- Why does a `useState` value persist even though a function component runs again on every render?
+- What is the only criterion React uses to distinguish hooks, and what rule does that enforce as a result?
+- When you call a hook inside a conditional, what exactly goes out of alignment between the first and second renders?
+- When mimicking `useState` with only an array and an index, why must you reset `cursor` to 0 on every render?
+- Why does the stale closure that pins `count` at 0 inside `setInterval` occur, and what does each of the two solutions do differently?
+- Why does `useRef` not trigger a re-render, and why does the `useEffect` dependency array treat an object as different every time?
+
+## Related Notes
+
+- [[react-fiber-architecture]]
+- [[js-closure-and-scope]]
+- [[react-state-batching-and-rerender]]
+- [[react-memoization-strategy]]
+
+## References
+
+- [React Docs - State: A Component's Memory](https://react.dev/learn/state-a-components-memory)
+- [React Docs - Rules of Hooks](https://react.dev/reference/rules/rules-of-hooks)
+- [React as a UI Runtime - Dan Abramov](https://overreacted.io/react-as-a-ui-runtime/)
+- [MDN - Closures](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Closures)

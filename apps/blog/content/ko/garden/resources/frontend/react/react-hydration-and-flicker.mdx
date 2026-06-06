@@ -1,0 +1,212 @@
+---
+title: '하이드레이션과 깜빡임: mounted 패턴은 왜 한 박자 늦는가'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'ssr', 'hydration']
+---
+
+테마 토글 버튼이나 푸터의 연도가 처음엔 빈칸이었다가 깜빡하며 나타난 경험이 있는가? 하이드레이션 경고를 피하려고 흔히 쓰는 `mounted` 패턴이 바로 그 깜빡임의 범인일 수 있다.
+
+> 한 줄 요약: **`mounted` 패턴은 깜빡임을 동반한다. useEffect가 paint 이후에 돌기 때문이다. paint 전에 진짜 UI로 바꾸려면 `suppressHydrationWarning` 또는 `useSyncExternalStore`를 쓴다.**
+
+## 하이드레이션이란 무엇인가
+
+SSR(서버 사이드 렌더링, 서버에서 컴포넌트를 미리 HTML로 그려 보내는 것)을 쓰면 흐름은 이렇다.
+
+1. 서버가 컴포넌트를 돌려 **완성된 HTML**을 먼저 보낸다. 브라우저는 JS를 기다릴 필요 없이 바로 화면을 그릴 수 있고(빠른 첫 화면), 검색 엔진도 내용을 읽는다(SEO).
+2. 그 다음 JS 번들이 도착하면 React가 **이미 화면에 있는 DOM 위에** 이벤트 핸들러를 연결하며 "이 DOM은 내가 관리한다"고 접수한다. 이 과정이 **하이드레이션**(hydration, "물을 붓는다")이다.
+
+비유하자면 서버는 색칠 안 된 정교한 선화(線畵)를 먼저 붙여두고, React는 그 선 위에 정확히 맞춰 물감(인터랙션)을 칠하는 셈이다. 그래서 한 가지 전제가 깔린다 — **클라이언트의 첫 렌더 결과는 서버가 보낸 HTML과 똑같아야 한다.**
+
+```
+[서버] 컴포넌트 → HTML 문자열 → 브라우저로 전송
+                                    │
+                                    ▼
+[브라우저] HTML 즉시 표시 (아직 죽은 화면)
+                                    │
+                          JS 번들 도착
+                                    ▼
+[React] hydrateRoot → 기존 DOM에 이벤트 연결 (하이드레이션)
+                                    │
+                                    ▼
+            살아있는 화면 (클릭·입력 동작)
+```
+
+둘이 다르면(mismatch, 불일치) React는 콘솔에 경고를 띄우고, 어긋난 부분을 다시 그려 맞추는 **복구 비용**을 치른다. 심하면 그 서브트리를 통째로 버리고 클라이언트에서 다시 그린다.
+
+> 왜 일치를 강제하나? 하이드레이션은 "서버가 그린 DOM이 내가 그릴 것과 같다"는 가정 위에서 비싼 재생성을 건너뛰는 최적화다. 그 가정이 깨지면 최적화의 전제가 무너지므로 React가 경고할 수밖에 없다.
+
+## 서버가 모르는 값이 불일치를 만든다
+
+문제는 **서버가 알 수 없는 값**에서 터진다.
+
+| 값          | 서버는?                  | 클라이언트는?        |
+| ----------- | ------------------------ | -------------------- |
+| 현재 테마   | localStorage를 못 읽는다 | `'dark'`를 읽어 안다 |
+| 현재 연도   | 빌드/요청 시점 값        | 진짜 "지금"의 연도   |
+| 뷰포트 크기 | `window`가 없다          | `1280px`임을 안다    |
+
+이런 값을 render에서 바로 쓰면 서버 HTML(예: 라이트 테마, 빈 연도)과 클라이언트 첫 렌더(다크 테마, 2026)가 어긋나 mismatch가 난다.
+
+이를 피하려고 가장 널리 퍼진 게 **`mounted` 패턴**이다.
+
+```tsx
+function ThemeButton() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // 서버 렌더와 클라 첫 렌더를 placeholder로 통일
+  if (!mounted) return <ButtonPlaceholder />;
+
+  return <RealThemeDropdown />; // 마운트 후에야 진짜 UI
+}
+```
+
+서버 렌더와 클라이언트의 **첫** 렌더가 둘 다 `<ButtonPlaceholder />`라서 불일치 경고는 사라진다. 동작은 한다. 하지만 함정은 타이밍이다.
+
+`useEffect`는 브라우저가 화면을 그린(**paint**) **이후에** 실행된다. 그래서 순서가 이렇다 — placeholder가 화면에 한 번 찍히고 → paint되어 사용자 눈에 보이고 → effect가 돌아 `mounted`가 `true`가 되고 → 다시 렌더되어 진짜 UI로 교체되고 → 다시 paint. 사용자 눈에는 placeholder가 잠깐 보였다가 진짜 UI로 **바뀌는 깜빡임**으로 보인다.
+
+실제로 자주 목격되는 모습이다. 푸터가 빈칸이었다가 연도가 톡 나타나고, 테마 버튼이 회색 가짜 박스였다가 드롭다운으로 바뀐다.
+
+## 해법 1 — 차이를 그냥 허용한다: suppressHydrationWarning
+
+값이 "거의 항상 같고 가끔만 다른" 경우엔 굳이 placeholder로 미룰 필요가 없다. 대표적인 게 현재 연도다. 빌드 시점과 사용자가 보는 시점이 다른 연말/연초의 짧은 구간을 빼면 거의 항상 같다.
+
+이럴 땐 render에서 값을 바로 계산하고, 그 요소에 `suppressHydrationWarning`을 달아 "이 한 곳은 서버·클라가 달라도 경고하지 마라"고 React에 알린다.
+
+```tsx
+function FooterYear() {
+  const currentYear = new Date().getFullYear();
+
+  return <span suppressHydrationWarning>© {currentYear} mumak</span>;
+}
+```
+
+`new Date().getFullYear()`를 render 단계에서 바로 부르므로 placeholder도, effect도 없다. 깜빡임 없이 첫 paint부터 연도가 박혀 나온다.
+
+> 왜 `suppressHydrationWarning`은 "나쁜 우회"가 아닌가? 이것은 React가 공식적으로 제공하는 **escape hatch**(탈출구)다. timestamp·연도처럼 서버와 클라가 다를 수밖에 없는 텍스트 한 곳의 불일치를 의도적으로 허용하라고 만든 장치다.
+
+주의할 점이 하나 있다. 불일치가 실제로 나면 React는 **서버가 보낸 텍스트를 그대로 유지한다.** 클라이언트 값으로 고쳐주지 않는다. 즉 연말 자정에 빌드된 페이지를 새해에 봤다면 잠시 옛 연도가 보일 수 있다. 그래서 이 도구는 **"가끔 달라도 사용자에게 무방한 값"에만** 쓴다. 테마처럼 틀리면 곤란한 값엔 부적합하다.
+
+## 해법 2 — paint 전에 바꾼다: useSyncExternalStore 기반 useHydrated
+
+테마처럼 "반드시 클라이언트 값이 맞아야 하는데 깜빡임도 싫은" 경우엔 `useSyncExternalStore`로 만든 작은 훅을 쓴다.
+
+```tsx
+import { useSyncExternalStore } from 'react';
+
+const emptySubscribe = () => () => {};
+
+function useHydrated() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true, // 클라이언트 스냅샷: 항상 true
+    () => false // 서버 스냅샷: 항상 false
+  );
+}
+```
+
+서버 스냅샷은 `false`, 클라이언트 스냅샷은 `true`다. 핵심은 React가 이 차이를 **하이드레이션 도중 동기적으로** 처리해, **paint가 일어나기 전에** 재렌더한다는 점이다. 그래서 사용자는 placeholder를 볼 틈 없이 처음부터 진짜 UI를 본다.
+
+`mounted` 패턴(effect 기반)과 타임라인을 나란히 두면 차이가 분명하다.
+
+```
+[mounted 패턴 — paint 후 교체]
+서버HTML 표시 → paint(placeholder 보임) → effect 실행 → 재렌더 → paint(진짜 UI)
+                       └── 사용자가 placeholder를 본다 (깜빡임) ──┘
+
+[useHydrated — paint 전 교체]
+서버HTML 표시 → 하이드레이션(여기서 동기 재렌더) → paint(진짜 UI)
+                                                  └── placeholder를 못 본다 ──┘
+```
+
+같은 "서버=placeholder, 클라=진짜 UI" 전환인데, 교체 시점이 **paint 앞이냐 뒤냐**가 깜빡임의 유무를 가른다. 사용법은 `mounted`와 거의 같다.
+
+```tsx
+function ThemeButton() {
+  const hydrated = useHydrated();
+  if (!hydrated) return <ButtonPlaceholder />;
+  return <RealThemeDropdown />;
+}
+```
+
+## useSyncExternalStore라는 표준 창구
+
+`useHydrated`는 `useSyncExternalStore`의 한 가지 활용일 뿐이다. 이 훅은 **React 바깥 세계의 값**(브라우저 API, 외부 스토어 등)을 안전하게 구독하기 위한 표준 창구다. 인자가 셋이다.
+
+| 인자                | 역할                                                   |
+| ------------------- | ------------------------------------------------------ |
+| `subscribe`         | 값 변화 알림을 등록한다. **해제 함수**를 반환해야 한다 |
+| `getSnapshot`       | 현재 값을 읽는다 (클라이언트용)                        |
+| `getServerSnapshot` | 서버·하이드레이션 시점에 쓸 값 (SSR이면 사실상 필수)   |
+
+핵심 분업은 이렇다. `subscribe`는 "값이 바뀌었다"는 **신호만** 보내고, 실제 값은 React가 `getSnapshot`을 다시 불러 읽는다. 이벤트 콜백이 값을 들고 다닐 필요가 없다.
+
+실용 예제 둘을 보자.
+
+```tsx
+// 1) 모션 줄이기 선호 (접근성 설정)
+function useReducedMotion() {
+  return useSyncExternalStore(
+    callback => {
+      const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+      query.addEventListener('change', callback); // 변화 신호만 전달
+      return () => query.removeEventListener('change', callback);
+    },
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    () => false // 서버에선 일단 false
+  );
+}
+
+// 2) 탭이 지금 보이는가
+function useDocumentVisible() {
+  return useSyncExternalStore(
+    callback => {
+      document.addEventListener('visibilitychange', callback);
+      return () => document.removeEventListener('visibilitychange', callback);
+    },
+    () => document.visibilityState === 'visible',
+    () => true // 서버에선 보인다고 가정
+  );
+}
+```
+
+`useState` + `useEffect`로 직접 구독하던 방식과 비교하면 장점이 분명하다.
+
+- **코드가 짧다.** 구독·해제·상태 보관이 한 훅에 모인다.
+- **SSR이 기본으로 안전하다.** `getServerSnapshot`이 서버용 값을 명시하게 강제한다.
+- **tearing을 막아준다.** tearing(화면 찢김)이란, 한 번의 렌더 패스가 도는 도중에 외부 값이 바뀌어 화면의 일부는 옛 값으로·다른 일부는 새 값으로 그려져 모순되게 찢기는 현상이다. 동시성 렌더링에서 일어날 수 있는데, `useSyncExternalStore`는 이름 그대로 외부 스토어 읽기를 렌더와 **동기화**해 한 화면 안에서 값이 일관되도록 보장한다.
+
+> 왜 별도 훅이 필요한가? 동시성 렌더링에서 React는 한 렌더를 중간에 멈췄다 재개할 수 있다. 그 사이 외부 값이 바뀌면 일반 `useState` 구독으로는 찢김을 막기 어렵다. `useSyncExternalStore`는 "외부 값을 읽는 공식 경로"를 제공해 React가 일관성을 책임지게 한다.
+
+## 흔한 오해
+
+- **오해**: `mounted` 패턴이 하이드레이션 불일치의 표준 해법이다. → **실제**: 동작은 하지만 effect가 paint 이후에 돌아 placeholder가 한 번 보이는 깜빡임을 동반한다. 그 비용을 안다면 `suppressHydrationWarning`이나 `useSyncExternalStore` 같은 더 나은 도구를 고를 수 있다.
+- **오해**: `suppressHydrationWarning`은 경고를 억지로 덮는 나쁜 우회다. → **실제**: timestamp·연도처럼 서버·클라가 불가피하게 다른 텍스트 한 곳에 쓰라고 React가 만든 공식 escape hatch다. 남발은 금물이지만 제 용도엔 정당하다.
+- **오해**: `useSyncExternalStore`는 상태관리 라이브러리 제작자나 쓰는 훅이다. → **실제**: `matchMedia`, 탭 가시성, 하이드레이션 플래그처럼 앱 코드에서도 바로 쓸 일이 많다. "React 밖 값을 구독한다" 싶으면 후보다.
+- **오해**: 깜빡임은 네트워크가 느려서 생기는 어쩔 수 없는 현상이다. → **실제**: `mounted` 깜빡임은 네트워크와 무관하게 effect의 실행 타이밍(paint 이후) 때문에 생기는 구조적 문제다. 도구를 바꾸면 사라진다.
+
+## 스스로 점검하기
+
+- 하이드레이션이 정확히 무슨 과정인지, 왜 서버 HTML과 클라 첫 렌더가 일치해야 하는지 한 문장으로 설명할 수 있는가?
+- `mounted` 패턴이 불일치 경고는 없애면서도 왜 깜빡임을 만드는가? `useEffect`의 실행 시점과 엮어 답해 보라.
+- 연도 표시엔 `suppressHydrationWarning`이 적합하고 테마 표시엔 부적합한 이유는 무엇인가?
+- 불일치가 실제로 났을 때 `suppressHydrationWarning`이 달린 요소에 서버 값과 클라 값 중 무엇이 남는가?
+- `useHydrated`가 paint 전에 교체되는 반면 `mounted`는 paint 후에 교체되는 차이를 타임라인으로 그려 설명할 수 있는가?
+- `useSyncExternalStore`의 세 인자가 각각 무슨 일을 하는가? `subscribe`가 값을 직접 넘기지 않고 신호만 보내는 이유는?
+- tearing이 무엇이며, 왜 동시성 렌더링에서 외부 값을 그냥 `useState`로 읽으면 위험한가?
+
+## 함께 보기
+
+- [[react-you-might-not-need-an-effect|이 Effect, 정말 필요한가]]
+- [[react-state-batching-and-rerender|상태 업데이트와 배칭]]
+- [[browser-rendering-pipeline|브라우저 렌더링 파이프라인]]
+
+## 참고
+
+- [useSyncExternalStore - react.dev](https://react.dev/reference/react/useSyncExternalStore)
+- [hydrateRoot - react.dev](https://react.dev/reference/react-dom/client/hydrateRoot)

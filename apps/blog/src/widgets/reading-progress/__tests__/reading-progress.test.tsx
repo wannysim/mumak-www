@@ -24,17 +24,17 @@ describe('ReadingProgress', () => {
   });
 
   it.each([
-    [0, '0', 'scaleX(0)'],
-    [37.4, '37', 'scaleX(0.374)'],
-    [100, '100', 'scaleX(1)'],
-  ])('reflects progress %s as aria-valuenow=%s and transform=%s', (progress, ariaNow, transform) => {
+    [0, '0'],
+    [37.4, '37'],
+    [100, '100'],
+  ])('reflects progress %s as aria-valuenow and value %s', (progress, expected) => {
     mockUseScrollProgress.mockReturnValue(progress);
 
     render(<ReadingProgress />);
 
     const bar = screen.getByRole('progressbar');
-    expect(bar).toHaveAttribute('aria-valuenow', ariaNow);
-    expect(bar.querySelector('div')).toHaveStyle({ transform });
+    expect(bar).toHaveAttribute('aria-valuenow', expected);
+    expect(bar).toHaveAttribute('value', expected);
   });
 
   it('rounds aria-valuenow to nearest integer', () => {

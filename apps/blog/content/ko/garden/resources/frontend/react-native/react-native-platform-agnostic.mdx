@@ -1,0 +1,151 @@
+---
+title: 'React Native는 어떻게 iOS와 Android를 동시에 다룰까'
+created: '2026-05-28'
+status: 'seedling'
+parent: 'frontend-react-native'
+tags: ['react-native', 'mobile', 'frontend', 'architecture']
+---
+
+웹 프론트엔드만 하다가 React Native(RN)에 처음 발 담그면 가장 먼저 드는 질문.
+
+> 같은 JSX를 썼는데 어떻게 iOS에서는 `UIView`로, Android에서는 `android.view.View`로 그려질까?
+
+RN이 "플랫폼을 신경 쓰지 않는 것처럼" 보이는 이유를 한 번 정리한다.
+
+## 핵심 아이디어: "View"는 추상 인터페이스다
+
+웹에서 `<div>`는 결국 `HTMLDivElement` 하나로 매핑된다. RN에서 `<View>`는 다르다.
+
+```tsx
+import { View, Text } from 'react-native';
+
+export function Hello() {
+  return (
+    <View>
+      <Text>안녕</Text>
+    </View>
+  );
+}
+```
+
+여기서 `View`는 "사각형 영역"이라는 **추상 컴포넌트**일 뿐이다. 실제로 화면에 떠 있는 객체는:
+
+- iOS → `RCTView` (UIView 서브클래스)
+- Android → `ReactViewGroup` (android.view.ViewGroup 서브클래스)
+
+내가 쓴 JS는 두 네이티브 객체 어느 쪽에도 직접 닿지 않는다. 그 사이를 잇는 게 RN의 런타임이다.
+
+## 구조: JS 세계와 Native 세계가 분리되어 있다
+
+크게 두 세상이 있다.
+
+| 세계   | 무엇이 사는가                                        |
+| ------ | ---------------------------------------------------- |
+| JS     | 내 React 코드, 상태, 컴포넌트 트리                   |
+| Native | UIKit/Android View, 카메라, 센서, GPS, 파일시스템 등 |
+
+이 둘은 별도의 스레드에서 돌고, **직접 함수 호출이 안 된다**. 대신 메시지를 주고받는다. 옛날 구조에서는 이게 "Bridge"라는 큐 기반 비동기 통로였고, 새로운 구조에서는 JSI(JavaScript Interface)를 통한 동기 호출이 가능해졌다.
+
+```
+[JS Thread]   ──messages──>   [Native Modules]
+   React                          UIKit / Android
+   diff/reconcile               ─ Camera, GPS, FS
+   "shadow tree"                ─ UIView / View
+```
+
+## 렌더링 흐름: 그림을 그리는 건 누구인가
+
+RN은 React로 만든 "그려야 할 트리"의 명세를 JS 쪽에서 들고 있다가, 네이티브에게 "이런 모양으로 그려줘"라고 지시한다.
+
+1. React가 컴포넌트 트리를 계산한다 (웹과 동일)
+2. RN이 그 트리를 **Shadow Tree**라는 중간 표현으로 만든다
+3. Shadow Tree에서 레이아웃(Flexbox · Yoga 엔진)이 계산된다
+4. 결과가 네이티브로 넘어가서 실제 `UIView` / `ViewGroup` 트리로 만들어진다
+
+여기서 중요한 점: **레이아웃 계산은 플랫폼 독립적이다.** Yoga라는 C++ 라이브러리가 Flexbox 규칙대로 좌표를 계산하고, 그 좌표를 받은 iOS와 Android가 자기 방식대로 그릴 뿐이다. 그래서 같은 JSX가 양쪽에서 거의 똑같이 보인다.
+
+## 그래서 "플랫폼을 신경 쓰지 않는다"는 말의 진짜 의미
+
+내가 쓴 JS 입장에서는:
+
+- `<View>`, `<Text>`, `<Image>`, `<ScrollView>` 같은 **공통 인터페이스**만 다룬다
+- 스타일은 CSS 비슷한 JS 객체로 쓴다 (`{ flex: 1, padding: 16 }`)
+- 레이아웃은 Yoga가 양쪽에서 동일 규칙으로 푼다
+
+플랫폼 차이는 RN 코어와 네이티브 모듈 쪽에서 흡수한다. 그래서 **앱 코드의 90%는 진짜로 플랫폼을 모른다**.
+
+남는 10%가 진짜 플랫폼 종속 영역인데, 이건 RN도 숨길 수 없어서 명시적인 탈출구를 제공한다.
+
+## 플랫폼이 새어 나오는 순간들
+
+### 1. Platform 모듈로 런타임 분기
+
+```tsx
+import { Platform, StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 44 : 24,
+  },
+});
+```
+
+### 2. 파일명 자체로 플랫폼 분기
+
+번들러가 같은 폴더의 `Foo.ios.tsx`와 `Foo.android.tsx`를 자동으로 골라준다.
+
+```
+components/
+├── status-bar.ios.tsx
+├── status-bar.android.tsx
+└── index.ts          ← `import './status-bar'` 만 쓰면 됨
+```
+
+### 3. 네이티브 모듈
+
+카메라, 블루투스, 보안 키체인 같은 건 RN 코어가 다 못 감춘다. `expo-camera`, `react-native-keychain` 같은 패키지가 양쪽 네이티브 코드를 들고 있다가 같은 JS API로 노출한다.
+
+## New Architecture: 왜 갈아엎고 있나
+
+옛 Bridge 구조는 JS ↔ Native 통신이 전부 비동기 + JSON 직렬화였다. 빠르고 정밀한 상호작용(제스처, 애니메이션)에서 한계가 보였다.
+
+요즘 RN(0.68+, 특히 0.74+)은 다음을 표준으로 밀고 있다.
+
+- **JSI**: JS 엔진(Hermes 등)이 네이티브 C++ 객체를 직접 들고 호출 — 직렬화 없음
+- **Fabric**: 새 렌더러. Shadow Tree와 네이티브 뷰를 더 일관되게 묶음
+- **TurboModules**: 네이티브 모듈을 lazy 로드 + 타입 안전하게 호출
+
+결과적으로 "내가 쓰는 JSX는 그대로인데, 그 밑의 통신 방식만 더 빨라진다". 추상화 인터페이스(`<View>`, `<Text>`)는 그대로라는 점이 중요하다.
+
+## Expo가 끼면 뭐가 달라지나
+
+이 저장소의 `apps/mumak-native`도 Expo 기반이다. Expo는 거칠게 말하면:
+
+- RN + 자주 쓰는 네이티브 모듈(카메라/위치/푸시/파일/오디오 …) 묶음
+- 빌드 인프라 (EAS) + 라우팅 (expo-router) + OTA 업데이트
+
+플랫폼 추상화 측면에서 보면 Expo는 RN의 "플랫폼 모르는 척" 범위를 더 넓혀준다. `expo-camera` 한 줄이 양쪽 OS에서 다 도는 게 그래서다.
+
+## 처음 RN 코드를 짤 때 기억해 둘 것
+
+- JSX 대부분은 플랫폼 무관 — 웹 React처럼 짜도 된다
+- 단, **DOM이 아니다**: `div`/`span` 없음, `View`/`Text`만 있음
+- 텍스트는 무조건 `<Text>` 안에 — 바깥에서 문자열은 못 그린다
+- 스크롤은 자동이 아니다 — `<ScrollView>`나 `<FlatList>`로 명시
+- 스타일은 CSS가 아니라 JS 객체 — 단위 없는 px가 기본
+- 플랫폼 차이가 진짜로 필요하면 `.ios.tsx` / `.android.tsx`로 분리하는 게 if 문보다 깔끔하다
+
+## 관련 노트
+
+- [[react-native-basics-for-react-devs|RN 기초 (React 개발자용)]] — 처음 시작할 때 알아야 할 기초
+- [[react-native-core-components|RN 핵심 컴포넌트 지도]]
+- [[react-native-performance-and-debugging|RN 성능과 디버깅]] — JS/UI 스레드 모델 확장
+- [[react-native-conventions|RN 컨벤션과 함정]] — 작성하면서 자주 부딪히는 것들
+- [[browser-rendering-pipeline]] — 비교를 위해 웹 쪽 파이프라인
+- [[frontend]] — 프론트엔드 전반
+
+## 참고
+
+- [React Native Architecture (공식)](https://reactnative.dev/architecture/overview)
+- [Yoga Layout](https://www.yogalayout.dev/)
+- [Why we built the new architecture](https://reactnative.dev/blog/2022/06/21/version-070)

@@ -27,6 +27,8 @@ jest.mock('next/navigation', () => ({
   usePathname() {
     return '/';
   },
+  // 실제 구현은 SSR 스트림에서만 콜백을 실행하므로 클라이언트(jsdom)에서는 no-op
+  useServerInsertedHTML: jest.fn(),
 }));
 
 // Mock Next.js image component

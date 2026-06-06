@@ -1,0 +1,136 @@
+---
+title: '디지털 가든 확장 계획: 개인 노트 · Obsidian · 웹 에디터'
+created: '2026-06-02'
+status: 'budding'
+tags: ['digital-garden', 'architecture', 'project', 'pkm']
+---
+
+[[what-is-digital-garden|디지털 가든]]을 한 단계 확장하기 위한 설계 메모. 당장 구현하는 건 아니고,
+나중에 이 문서를 기반으로 이어서 구현하기 위한 기록이다. (Claude와 논의한 결과 정리)
+
+## 무엇을 만들고 싶은가
+
+지금은 모든 노트가 git에 커밋된 `.mdx` 파일이고, 블로그가 빌드 시 파일시스템에서 읽어 정적 렌더링한다.
+여기에 세 가지를 더하고 싶다.
+
+1. **개인(비공개) 노트** — 공개 가든과 별개로, 나만 볼 수 있는 노트. 보려면 인증 필요.
+2. **Obsidian에서도 보기/쓰기** — 그 노트들을 Obsidian vault로 열어 편집.
+3. **웹 에디터** — 같은 노트를 웹에서 작성·수정.
+
+세 surface(블로그 / Obsidian / 웹 에디터)가 같은 노트를 일관되게 가리켜야 한다.
+
+## 핵심 결정: git을 단 하나의 원천(source of truth)으로
+
+이 영역을 죽이는 함정은 기능이 아니라 **Obsidian(파일) ↔ DB(행)의 양방향 동기화**다.
+둘 다 쓰기 권한을 가지면 충돌 해결·삭제 전파·rename·frontmatter 정규화가 분산 시스템 문제가 되고,
+동기화 엔진을 새로 만드는 데 몇 달이 갈 수 있다.
+
+결정적 단순화: **작성자는 나 혼자**다. 같은 노트를 같은 순간에 두 곳에서 고칠 일이 없으니
+정교한 충돌 해결이 필요 없다. "마지막 push가 이김 + 히스토리 보존"이면 충분하다.
+
+따라서 원천을 하나로 정하고 나머지를 거기서 파생시킨다 → **git을 원천으로** 둔다.
+git 자체가 이미 검증된 동기화 계층이라, 동기화 엔진을 만들 필요가 없어진다.
+
+### 세 surface가 수렴하는 그림
+
+```
+        [ 개인 노트용 private git repo ]   ← 단 하나의 원천
+         /            |               \
+   Obsidian        웹 에디터          블로그 빌드
+  (이 repo를      (이 repo에         (submodule/토큰으로
+   vault로 염,     GitHub API로       끌어와 인증 뒤에서
+   Git 플러그인    commit, 같은       정적 렌더 + isPublic
+   자동 sync)      OAuth로 게이트)     필터로 유출 차단)
+```
+
+private repo 하나가 **Obsidian vault이자, 웹 에디터의 백엔드이자, 블로그가 끌어오는 소스**가 된다.
+
+## 전제: 이 저장소(wannysim/mumak-www)는 PUBLIC이다
+
+개인 노트 `.mdx`를 **평문으로 이 repo에 커밋하면, 사이트에 인증을 걸어도 GitHub에서 누구나 원문을 읽는다.**
+사이트 인증만으로는 비밀이 보장되지 않는다. 따라서 개인 노트의 소스는:
+
+- **별도 private repo + git submodule** (권장): 개인 노트만 비공개 저장소에 두고, Vercel 빌드 때 토큰으로
+  끌어와 합친다. 가장 견고. 이 repo가 곧 Obsidian vault.
+- 또는 **git-crypt / age 암호화 커밋**: 같은 repo에 두되 GitHub엔 암호문만. 로컬 작업트리는 자동 복호화돼
+  Obsidian 편집은 그대로. 빌드에 키(env) 주입해 복호화.
+
+## 가장 놓치기 쉬운 함정: 집계 경로 유출
+
+노트 하나만 비공개로 두고 본문 페이지만 막으면, **sitemap · RSS · graph · OG 이미지에 제목과 링크가 샌다.**
+`getNotes()` / `getPosts()` 가 아래를 전부 먹이기 때문:
+
+- `app/sitemap.ts` (URL · 태그 · status 전부)
+- `app/[locale]/feed.xml/route.ts` (RSS)
+- `app/[locale]/(immersive)/graph/page.tsx` (3D 그래프)
+- `app/[locale]/(main)/(content)/garden/[slug]/opengraph-image.tsx` (제목·발췌를 이미지로 렌더)
+- garden 사이드바 / 태그 / status 페이지
+
+→ **데이터 레이어 한 곳에서 막아야 한다.** `src/entities/note/api/notes.ts` 의 `isPublishable(note)` 가
+이미 draft를 거르는 봉합 지점이다. 여기에 `isPublic` 개념을 더해, 공개 집계는 전부 비공개를 거르고
+인증된 뷰만 별도 함수(예: `getPrivateNotes`)로 포함시킨다.
+
+## 인증(접근 제어)
+
+- Vercel 자체 Password Protection은 유료(Pro)이고 배포 전체 단위라 "일부 노트만"엔 안 맞음 → **직접 구현**.
+- **선례가 이미 있다**: Spotify OAuth가 `app/api/spotify/login/route.ts` 에서
+  `httpOnly` + `secure` + `sameSite` 쿠키 + crypto state 패턴을 쓴다. 이걸 응용.
+- 단일 사용자라 계정 시스템 불필요. 둘 중 하나:
+  - **단일 비밀번호 게이트**: 로그인 → API route가 env 비번과 constant-time 비교 → HMAC 서명 쿠키 →
+    `middleware.ts` 가 `/private/**` 만 보호. 가장 가벼움. (단, next-intl 라우팅과 matcher 충돌 주의)
+  - **GitHub OAuth로 본인만 통과** (Auth.js): 비번 관리 없음. 웹 에디터가 GitHub에 commit하므로
+    "로그인 = 커밋 신원"으로 자연스럽게 합쳐짐.
+
+### 렌더링 제약 (정적/동적)
+
+블로그는 `useCache` + static-by-default (`next.config.ts`). 개인 노트를 그냥 정적으로 구우면 공개 캐시에 노출된다.
+→ 개인 노트 라우트만 `export const dynamic = 'force-dynamic'` 로 빼서 요청 시 인증을 거친다.
+공개 노트의 정적 렌더링은 그대로 유지 (최근 정적/동적 포스트모템으로 안정화한 부분을 건드리지 않음).
+
+## 단계별 로드맵
+
+| 단계          | 내용                                                                              | 비고                                                   |
+| ------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 0             | 개인 노트 = 별도 private repo, 사이트 인증 게이트 + 데이터 레이어 `isPublic` 필터 | 여기서부터 시작                                        |
+| 1             | 그 repo를 Obsidian vault로 + Obsidian Git 플러그인 자동 sync                      | 거의 설정만                                            |
+| 2             | 웹 에디터 라우트(같은 OAuth 게이트)에서 그 repo에 commit                          | 이걸로 핵심 목표(웹 작성·수정) 달성                    |
+| 3 (선택)      | push 시 파생 DB / 검색 인덱스 생성 (권위 없음, git에서 재생성 가능)               | 쿼리·검색·그래프 가속용                                |
+| 4 (필요 시만) | 원천을 DB로 이전, Obsidian은 단방향 export로 강등                                 | 진짜 어려운 sync는 여기서야 등장 — 한계 닿기 전엔 보류 |
+
+**0~2단계만으로 목표(개인 노트 + Obsidian + 웹 편집 + 블로그 노출)가 충족된다.**
+각 단계는 거의 되돌릴 수 있고, DB-as-truth(4단계)는 모바일·실시간·수천 개 규모가 진짜 목표가 될 때만 검토한다.
+
+### 파생 인덱스(3단계) 선례
+
+`src/features/graph/lib/build-graph-data.ts` 가 이미 파일에서 그래프 데이터를 빌드 시 생성한다.
+3단계의 DB/검색 인덱스도 같은 패턴의 확장 — git이 원천이고 DB는 언제든 재생성 가능한 캐시라 역방향 sync 문제가 없다.
+
+## 웹 에디터: 기성품 vs 자작
+
+- 기성품(Git-based CMS): Keystatic / TinaCMS / Decap 계열. 빠르게 검증하기 좋음.
+- **주의**: 우리 노트는 `.mdx` + 커스텀 위키링크 · transclusion · garden frontmatter라,
+  기성 CMS가 위키링크·MDX를 매끄럽게 다루는지 직접 검증해야 함 (보통 markdown은 잘, MDX·커스텀 문법은 약함).
+- 길게 보면 **CodeMirror 기반 얇은 자작 에디터**(마크다운 + wikilink 자동완성, GitHub API로 commit)가
+  오히려 더 맞을 수 있음. 일단 기성품으로 개념 검증 → 부족하면 자작.
+
+## 아직 안 정한 것
+
+- 웹 에디터 우선순위: 0~2를 한 번에 vs 0~1 먼저(Obsidian으로 충분, 웹은 나중).
+- 에디터 형태: 기성품 검증 vs 처음부터 wikilink 지원 자작.
+- 비밀 수준: "검색엔진·캐주얼 방문자 차단"(가벼움) vs "네트워크 까봐도 안 샘"(엄격, private repo 전제).
+
+## 구현 시작점 (이어서 작업할 때 볼 것)
+
+- 데이터 레이어 봉합: `src/entities/note/api/notes.ts` → `isPublishable` 옆에 `isPublic`
+- 유출 차단 대상: `app/sitemap.ts`, `app/[locale]/feed.xml/route.ts`,
+  `app/[locale]/(immersive)/graph/page.tsx`, `garden/[slug]/opengraph-image.tsx`
+- 인증 패턴 참고: `app/api/spotify/login/route.ts` (쿠키 + crypto)
+- 렌더링 모드: 개인 노트 라우트에 `dynamic = 'force-dynamic'`
+- 소스 분리: private repo를 submodule로, Vercel 빌드에 토큰 주입
+
+## 관련 노트
+
+- [[what-is-digital-garden]]
+- [[my-garden-principles]]
+- [[pkm]]
+- [[digital-garden-and-pkm]]

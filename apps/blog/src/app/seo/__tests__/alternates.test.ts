@@ -17,9 +17,9 @@ describe('buildAlternates', () => {
   });
 
   it('should set x-default to the default locale URL', () => {
-    const result = buildAlternates({ locale: 'ko', path: '/about' });
+    const result = buildAlternates({ locale: 'en', path: '/about' });
 
-    expect(result.languages['x-default']).toBe(`${BASE_URL}/en/about`);
+    expect(result.languages['x-default']).toBe(`${BASE_URL}/ko/about`);
   });
 
   it('should treat empty path as the locale root', () => {
@@ -28,7 +28,7 @@ describe('buildAlternates', () => {
     expect(result.canonical).toBe(`${BASE_URL}/en`);
     expect(result.languages.en).toBe(`${BASE_URL}/en`);
     expect(result.languages.ko).toBe(`${BASE_URL}/ko`);
-    expect(result.languages['x-default']).toBe(`${BASE_URL}/en`);
+    expect(result.languages['x-default']).toBe(`${BASE_URL}/ko`);
   });
 
   it('should treat "/" path same as empty', () => {
@@ -52,7 +52,7 @@ describe('buildAlternates', () => {
   });
 
   it('should omit x-default when default locale is excluded from availableLocales', () => {
-    const result = buildAlternates({ locale: 'ko', path: '/garden/foo', availableLocales: ['ko'] });
+    const result = buildAlternates({ locale: 'en', path: '/garden/foo', availableLocales: ['en'] });
 
     expect(result.languages['x-default']).toBeUndefined();
   });
@@ -60,6 +60,6 @@ describe('buildAlternates', () => {
   it('should preserve x-default when default locale is included in availableLocales', () => {
     const result = buildAlternates({ locale: 'en', path: '/garden/foo', availableLocales: ['en', 'ko'] });
 
-    expect(result.languages['x-default']).toBe(`${BASE_URL}/en/garden/foo`);
+    expect(result.languages['x-default']).toBe(`${BASE_URL}/ko/garden/foo`);
   });
 });

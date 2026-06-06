@@ -2,16 +2,10 @@ name: E2E Tests
 
 on:
   pull_request:
+    # Keep PR E2E unfiltered so the `E2E Success` summary check is always
+    # created when branch protection requires it. Non-app changes are skipped
+    # inside the workflow by detect-scopes.
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - "apps/**"
-      - "packages/**"
-      - "pnpm-lock.yaml"
-      - "turbo.json"
-      - ".nvmrc"
-      - ".github/workflows/e2e.yml"
-      - ".github/actions/**"
-      - ".github/app-config/**"
   push:
     branches: [main, develop]
     paths:
@@ -86,9 +80,11 @@ jobs:
           scopes: ${{ needs.detect-scopes.outputs.scopes }}
           filter_e2e: "true"
 
-  # Step 3: Run E2E tests for each app x browser combination
+  # Step 3: Run E2E tests for each affected app.
+  # Each app's Playwright config fans out to chromium/firefox/webkit in CI,
+  # keeping browser coverage while exposing one GitHub check per app.
   e2e:
-    name: E2E (${{ matrix.app }} / ${{ matrix.browser }})
+    name: E2E (${{ matrix.app }})
     needs: [detect-scopes, prepare-matrix]
     if: needs.detect-scopes.outputs.has_changes == 'true' && needs.prepare-matrix.outputs.count != '0'
     timeout-minutes: 20
@@ -100,7 +96,6 @@ jobs:
       fail-fast: false
       matrix:
         app: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
-        browser: [chromium, firefox, webkit]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -128,10 +123,10 @@ jobs:
             ${{ runner.os }}-turbo-
 
       - name: Run E2E tests
-        run: pnpm turbo run test:e2e --filter=${{ matrix.app }} -- --project=${{ matrix.browser }}
+        run: pnpm turbo run test:e2e --filter=${{ matrix.app }}
 
       - name: Save Turbo cache
-        if: success() && matrix.browser == 'chromium' && steps.turbo-cache.outputs.cache-hit != 'true'
+        if: success() && steps.turbo-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
           path: .turbo
@@ -141,7 +136,7 @@ jobs:
         uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-report-${{ matrix.app }}-${{ matrix.browser }}
+          name: playwright-report-${{ matrix.app }}
           path: |
             apps/${{ matrix.app }}/playwright-report/
             apps/${{ matrix.app }}/test-results/

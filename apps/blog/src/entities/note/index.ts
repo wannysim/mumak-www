@@ -10,12 +10,15 @@ export {
   getNoteAnchorIndex,
   getNoteEmbedPreview,
   getNotes,
+  getNotesByCategory,
   getNotesByStatus,
   getNotesByTag,
   getOutgoingNotes,
   hasBlockAnchor,
   hasHeadingAnchor,
 } from './api/notes';
+
+export { PARA_CATEGORY_KEYS, PARA_LABELS, isValidParaCategory, type ParaCategoryKey } from './para';
 
 export type {
   LinkDirection,

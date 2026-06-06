@@ -1,0 +1,202 @@
+---
+title: 'You Might Not Need That Effect: Derive, Adjust, or Subscribe'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'state', 'effect']
+---
+
+"When a prop or state changes, use a `useEffect` to bring another piece of state in line." Why does this well-worn habit so reliably end up being the cause of flicker and sync bugs? And what are the ways to do the same thing without reaching for an effect?
+
+> One-line summary: **Ask "can I compute this state from another value?" first. If you can, derive it; if you only need to nudge it at a transition, compare against the previous value during render; if it's a value from the world outside React, subscribe to it. Patching state with an effect is almost always the last resort.**
+
+## Why You Shouldn't "Patch" State with an Effect
+
+An effect doesn't run at the timing we usually imagine. Let's look at the actual order. (An effect is the side-effect function you pass to `useEffect`, which runs after the render.)
+
+```
+user click / prop change
+  │
+  ▼
+[render]  run component function → new virtual tree
+  │
+  ▼
+[commit]  apply the diff to the actual DOM
+  │
+  ▼
+[paint]   browser draws to the screen ← the moment the user sees it
+  │
+  ▼
+[effect]  only now does useEffect run
+  │
+  └─ if you setState in here ↓
+     [render] → [commit] → [paint]  (a second cycle)
+```
+
+When you patch the on-screen value with `setState` inside an effect, the user sees the **pre-patch screen for one frame first** and only then sees the patched screen. On top of that, the render runs twice. The data flow lags by one beat, so if you get the dependency array wrong, that lag turns straight into a sync bug.
+
+> Why is it designed this way? An effect's natural home is "after the render result is reflected on screen, sync with the outside world." That's why it's deferred until after paint. Touching on-screen state from this spot is using the tool outside its intended purpose.
+
+The way React splits render and commit is covered in detail in [[react-state-batching-and-rerender]]. To borrow just the key point: **the render is invisible, only commit and paint are visible**—and that fact is the fork in the road for the three branches below.
+
+## Branch 1 — Derive: If You Can Compute It, Delete the State
+
+The first question to ask is this: **"Can that state be computed from other values I already have?"** If it can, it isn't state—it's a **derived value**. There's no reason to hold it as separate state.
+
+### Example A: Setting a boolean via an effect
+
+Say a music-playback widget holds "has the track changed?" as a boolean state and updates it through an effect.
+
+```tsx
+// Before: when the track changes, an effect follows and patches the boolean
+const [hasTrackChanged, setHasTrackChanged] = useState(false);
+
+useEffect(() => {
+  if (previousData !== null) setHasTrackChanged(true);
+}, [previousData]);
+```
+
+Look closely and `hasTrackChanged` is always equal to `previousData !== null`. So you need neither the state nor the effect. Just compute it during render.
+
+```tsx
+// After: both the state and the effect disappear, derived in one line
+const hasTrackChanged = previousData !== null;
+```
+
+### Example B: Driving a progress value with an effect
+
+Storing a playback-progress display value in state and updating it every tick with an effect is another common pattern. The key here is distinguishing the **facts** from the **displayed value**. The facts are what the server told you—which track it is, the progress at the time you received it, and the moment you received it—while the displayed value is that fact plus the time elapsed since.
+
+```tsx
+// Keep only the facts (baseline) in state: track ID, baseline progress, fetch time
+const [baseline, setBaseline] = useState({
+  trackId,
+  progressMs,
+  fetchedAt: Date.now(),
+});
+// Keep only the last tick time in state to trigger a render
+const [tickNow, setTickNow] = useState(() => Date.now());
+
+// Don't store the displayed value—compute it during render
+const displayedProgressMs = baseline.progressMs + (tickNow - baseline.fetchedAt);
+```
+
+If you keep the displayed value in state, an "effect that re-syncs the displayed value every time the facts change" tags along, and that effect quickly becomes a breeding ground for bugs. Turn the displayed value into a derived one and that effect vanishes entirely.
+
+> Rule: **store only the 'facts' in state, and derive the value you show on screen.** Duplicate state inevitably summons an effect to keep it in sync, and that effect is where sync bugs nest. Every time you delete a piece of state, the effect that patched it disappears along with it—that's the payoff of this branch.
+
+## Branch 2 — Adjust by Comparing the Previous Value During Render: Nudge Only at the Transition
+
+Sometimes deriving is blocked. That happens when **the state is something the user can also change directly**, so computing it wholesale from another value would overwrite what the user did. In that case you need to "adjust just once, only at the moment a specific transition happens."
+
+For example, say a sidebar tree has this requirement: "When the note you're currently viewing moves under this folder, expand the folder. But respect it if the user closed it themselves." Since the expanded/collapsed state is also toggled by the user, deriving is impossible.
+
+The pattern the official React docs recommend is to **compare against the previous value during render**.
+
+```tsx
+function FolderNode({ isAncestorOfActive }: { isAncestorOfActive: boolean }) {
+  const [open, setOpen] = useState(isAncestorOfActive);
+  // Remember the previous prop in state
+  const [prevAncestor, setPrevAncestor] = useState(isAncestorOfActive);
+
+  // During render, adjust only at the "moment" the prop changed
+  if (isAncestorOfActive !== prevAncestor) {
+    setPrevAncestor(isAncestorOfActive);
+    if (isAncestorOfActive) setOpen(true); // expand only when entering (don't touch closing)
+  }
+
+  // ...
+}
+```
+
+Two things matter here.
+
+First, **why `setState` during render is legal.** You usually learn that "render must be pure," but React does allow conditionally setting a component's own state. In this case React **immediately re-renders the same component before commit (the DOM update)**. So a frame holding the in-between value is never painted to the screen. This is exactly the decisive difference from going through an effect—an effect runs after paint so a frame leaks through, whereas a set during render is absorbed before paint.
+
+```
+setState during render          setState inside effect
+──────────────────              ──────────────────
+render → (set) → render          render → commit → paint (in-between value shows!)
+  → commit → paint                 → effect(set) → render → commit → paint
+       └ no in-between frame             └ one frame of flicker + 2 renders
+```
+
+Second, **you must wrap it in a condition guard.** If you set unconditionally without `if (isAncestorOfActive !== prevAncestor)`, the render endlessly re-invokes itself in an infinite loop. The "only at the moment it changed" guard breaks the loop.
+
+The distinction between render and commit, and "why a set doesn't immediately become the screen," is the same story as the render/commit phases in [[react-state-batching-and-rerender]].
+
+## Branch 3 — External Subscription: Values from the World Outside React
+
+Sometimes you need to read **a value from the outside world that React doesn't manage**, like `window.matchMedia(...)` (media-query match state) or `document.visibilityState` (whether the tab is visible). This is a legitimate area for subscribing via an effect. That said, React has a dedicated tool for exactly this purpose, `useSyncExternalStore`. It protects against flicker and tearing (where different parts get painted with different values) better than hand-rolling an effect does.
+
+We'll leave only a pointer here. External store subscriptions and the flicker caused by server/client value mismatches are covered in [[react-hydration-and-flicker]].
+
+## When an Effect Is Justified After All
+
+There's no need to treat effects as sinful. An effect's true home is **synchronizing with an external system**.
+
+| Justified effect case | Description                                          |
+| --------------------- | ---------------------------------------------------- |
+| Timers                | polling/countdown with `setInterval`                 |
+| Subscriptions         | external stores, websockets, browser event listeners |
+| Manual DOM work       | chart libraries, focus, and other non-React widgets  |
+| Analytics/logging     | side effects going outward, like sending page views  |
+
+What these cases have in common is "stepping outside React to turn something on"—and if you turned it on, you have to turn it off. **Returning a cleanup function is mandatory.**
+
+```tsx
+useEffect(() => {
+  const id = setInterval(() => poll(), 1000);
+  return () => clearInterval(id); // turn off what you turned on — omit it and you get leaks/duplicate runs
+}, []);
+```
+
+## The Decision Flowchart
+
+Before your hand moves to write a new effect, ask yourself in this order.
+
+```
+why do I want to keep this value in state?
+        │
+        ▼
+┌─ computable from another value?  ── yes ─▶ derive it (delete state & effect)     [Branch 1]
+│        │ no
+│        ▼
+├─ adjust only at a specific transition? ─ yes ─▶ compare prev during render + guard  [Branch 2]
+│        │ no
+│        ▼
+├─ a value from outside React?     ── yes ─▶ useSyncExternalStore                 [Branch 3]
+│        │                                   (or effect + cleanup)
+│        ▼
+└─ a response to a user event?      yes ─▶ not an effect—handle it in the event handler
+```
+
+Don't forget the last branch. "Do something when a button is pressed" is handled in a **handler**, not an effect. An effect is the tool for "when you need to sync with the outside as a result of rendering," not the tool for "reacting to this user action."
+
+## Common Misconceptions
+
+- **Misconception**: `setState` inside an effect is batched anyway, so it's free. → **Reality**: batching only groups the sets within a single cycle. Since an effect runs after paint, the render cycle runs one more time, and the in-between frame is visible on screen during that. It's not free—it's flicker.
+- **Misconception**: `setState` during render is a hacky workaround. → **Reality**: it's an official pattern recommended by the React docs. Wrapped in a condition guard, it's absorbed before commit with no infinite loop, and is actually safer and flicker-free compared to an effect.
+- **Misconception**: a derived value must always be wrapped in `useMemo`. → **Reality**: if the computation is cheap, just computing it on every render is simpler and faster. Use `useMemo` only for expensive computations—for the criteria, see [[react-memoization-strategy]].
+- **Misconception**: to read an external value (like a media query) you have to hand-roll an effect subscription. → **Reality**: there's a dedicated tool, `useSyncExternalStore`, and it guards against tearing and flicker better.
+
+## Check Yourself
+
+- Can you draw the render → commit → paint → effect order? If you `setState` in an effect, what does the user see one frame earlier?
+- When you ask "can this be computed from another value?" about some state you're holding, can you spot state you can delete?
+- How do you distinguish "facts" from "displayed value"? In the progress example, can you name what to keep as state and what to derive?
+- What must absolutely be present so that `setState` during render doesn't cause an infinite loop?
+- Why do a set during render and a set inside an effect produce different on-screen results? Explain it in terms of commit/paint timing.
+- What do the justified effect cases have in common, and what must you never leave out in those cases?
+
+## Related Notes
+
+- [[react-state-batching-and-rerender|State Updates and Batching]]
+- [[react-hydration-and-flicker|Hydration and Flicker]]
+- [[react-memoization-strategy|memo · useMemo · useCallback Strategy]]
+- [[react-testing-behavior-not-implementation|Testing Behavior, Not Implementation]]
+
+## References
+
+- [You Might Not Need an Effect - react.dev](https://react.dev/learn/you-might-not-need-an-effect)
+- [Adjusting some state when a prop changes - react.dev](https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)

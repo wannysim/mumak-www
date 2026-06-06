@@ -2,7 +2,7 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
   "globalDependencies": ["package.json", "pnpm-lock.yaml", "turbo.json", ".env*"],
-  "globalEnv": ["NODE_ENV", "CI", "VERCEL", "EXPO_OS"],
+  "globalEnv": ["NODE_ENV", "CI", "VERCEL", "VERCEL_ENV", "EXPO_OS"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -19,6 +19,19 @@
     },
     "mumak-native#build": {
       "outputs": []
+    },
+    "blog#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "cache": false,
+      "env": ["NEXT_PUBLIC_*", "ANALYZE"],
+      "passThroughEnv": [
+        "NODE_ENV",
+        "E2E_INCLUDE_DRAFT",
+        "SPOTIFY_CLIENT_ID",
+        "SPOTIFY_CLIENT_SECRET",
+        "SPOTIFY_REFRESH_TOKEN"
+      ]
     },
     "lint": {
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"],
@@ -120,6 +133,10 @@
     },
     "validate:garden": {
       "inputs": ["content/**/garden/**/*.mdx", "scripts/validate-garden.mjs"],
+      "outputs": []
+    },
+    "validate:design": {
+      "inputs": ["src/**/*.ts", "src/**/*.tsx", "scripts/validate-design-system.mjs"],
       "outputs": []
     },
     "clean": {

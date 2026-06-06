@@ -2,10 +2,10 @@
 
 import { LaptopIcon, MoonIcon, SunIcon } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 
+import { useHydrated } from '@/src/shared/hooks';
 import { type ThemeValue } from '@/src/shared/lib/theme';
 import { SwitcherDropdown } from '@/src/shared/ui/switcher-dropdown';
 
@@ -26,11 +26,10 @@ function ThemeIcon() {
 
 export function ThemeSwitcher() {
   const { theme, resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // next-themes의 theme 값은 서버에서 알 수 없으므로 하이드레이션 전에는
+  // placeholder 버튼을 그린다. useHydrated는 하이드레이션 중 동기 전환되어
+  // mounted-state 패턴과 달리 paint 후 깜빡임이 없다.
+  const mounted = useHydrated();
 
   const selectedTheme: ThemeValue = mounted && theme ? (theme as ThemeValue) : 'system';
 

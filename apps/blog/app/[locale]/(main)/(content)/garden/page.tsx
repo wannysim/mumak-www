@@ -2,8 +2,14 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { buildAlternates } from '@/src/app/seo';
-import { getNotes } from '@/src/entities/note';
+import { getNotes, PARA_CATEGORY_KEYS, PARA_LABELS } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
+import { PageHeader } from '@/src/shared/ui';
+import { GardenNav, getGardenNavCounts } from '@/src/widgets/garden-nav';
+import { GardenOverview } from '@/src/widgets/garden-overview';
+import { NoteCard } from '@/src/widgets/note-card';
+
+const LATEST_NOTE_COUNT = 8;
 
 interface GardenPageProps {
   params: Promise<{ locale: string }>;
@@ -29,37 +35,52 @@ export default async function GardenPage({ params }: GardenPageProps) {
   setRequestLocale(locale);
 
   const notes = getNotes(locale as Locale);
-  const t = await getTranslations('garden');
+  const [t, tCommon] = await Promise.all([getTranslations('garden'), getTranslations('common')]);
+
+  const statusLabels = {
+    seedling: t('status.seedling'),
+    budding: t('status.budding'),
+    evergreen: t('status.evergreen'),
+  };
+
+  const overviewItems = PARA_CATEGORY_KEYS.map(key => ({
+    key,
+    label: PARA_LABELS[key],
+    description: t(`categories.${key}.description`),
+    count: notes.filter(note => (note.category || 'garden') === key).length,
+  })).filter(item => item.count > 0);
+
+  const latestNotes = notes.toSorted((a, b) => b.created.localeCompare(a.created)).slice(0, LATEST_NOTE_COUNT);
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold mb-2">{t('title')}</h1>
-        <p className="text-muted-foreground">{t('noteCount', { count: notes.length })}</p>
-      </header>
+      <PageHeader title={t('title')} description={t('noteCount', { count: notes.length })} />
 
-      <section className="prose dark:prose-invert max-w-none">
-        <p>
-          {t('intro.line1')} <br />
-          {t('intro.line2')} <br />
-          {t('intro.line3')}
-        </p>
+      <GardenNav
+        allLabel={tCommon('all')}
+        statusLabels={statusLabels}
+        tagsLabel={tCommon('tags')}
+        counts={getGardenNavCounts(locale as Locale)}
+      />
 
-        <h3 className="text-xl font-semibold mt-8 mb-4">{t('categories.title')}</h3>
-        <ul className="space-y-4">
-          <li>
-            <strong>{t('categories.projects.label')}</strong>: {t('categories.projects.description')}
-          </li>
-          <li>
-            <strong>{t('categories.areas.label')}</strong>: {t('categories.areas.description')}
-          </li>
-          <li>
-            <strong>{t('categories.resources.label')}</strong>: {t('categories.resources.description')}
-          </li>
-          <li>
-            <strong>{t('categories.archives.label')}</strong>: {t('categories.archives.description')}
-          </li>
-        </ul>
+      {overviewItems.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold tracking-tight">{t('overviewTitle')}</h2>
+          <GardenOverview items={overviewItems} />
+        </section>
+      )}
+
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold tracking-tight">{t('latestTitle')}</h2>
+        {latestNotes.length === 0 ? (
+          <p className="text-muted-foreground">{t('empty')}</p>
+        ) : (
+          <div className="space-y-4">
+            {latestNotes.map(note => (
+              <NoteCard key={note.slug} note={note} locale={locale} />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

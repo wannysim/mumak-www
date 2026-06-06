@@ -79,51 +79,61 @@ type ForceGraphNode = GraphNode & { x?: number; y?: number; z?: number };
  */
 const FORCE_GRAPH_REMOUNT_WORKAROUND = true;
 
+function detectWebGL(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    return !!(canvas.getContext('webgl2') || canvas.getContext('webgl'));
+  } catch {
+    return false;
+  }
+}
+
 function GraphCanvas({ data, onNodeClick, selectedNodeId, highlightNodeIds, unsupportedLabels }: GraphCanvasProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const fgRef = useRef<ForceGraphInstance | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [ForceGraph, setForceGraph] = useState<React.ComponentType<Record<string, unknown>> | null>(null);
-  const [SpriteText, setSpriteText] = useState<{ new (): unknown } | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const [isSupported, setIsSupported] = useState(true);
+  // 두 라이브러리는 Promise.all로 함께 도착하므로 하나의 상태로 묶는다.
+  const [libs, setLibs] = useState<{
+    ForceGraph: React.ComponentType<Record<string, unknown>>;
+    SpriteText: { new (): unknown };
+  } | null>(null);
+  // 이 컴포넌트는 dynamic(ssr: false)로만 로드되므로 첫 render에서 바로 감지한다.
+  // mount effect 경유보다 한 render 빠르고, 미지원 기기에서 skeleton 깜빡임이 없다.
+  const [isSupported, setIsSupported] = useState(detectWebGL);
 
   const hasMountedRef = useRef(false);
   const [graphKey, setGraphKey] = useState(0);
 
+  // fiber 재사용 감지 (위 WORKAROUND 주석 참고)
   useEffect(() => {
     if (FORCE_GRAPH_REMOUNT_WORKAROUND && hasMountedRef.current) {
       setGraphKey(prev => prev + 1);
     }
     hasMountedRef.current = true;
+  }, []);
 
-    setMounted(true);
+  useEffect(() => {
+    if (!isSupported) return;
 
-    const webGLAvailable = (() => {
-      try {
-        const canvas = document.createElement('canvas');
-        return !!(canvas.getContext('webgl2') || canvas.getContext('webgl'));
-      } catch {
-        return false;
-      }
-    })();
-
-    if (!webGLAvailable) {
-      setIsSupported(false);
-      return;
-    }
-
+    let cancelled = false;
     Promise.all([import('react-force-graph-3d'), import('three-spritetext')])
       .then(([fg, st]) => {
-        setForceGraph(() => fg.default as unknown as React.ComponentType<Record<string, unknown>>);
-        setSpriteText(() => st.default as unknown as { new (): unknown });
+        if (cancelled) return;
+        setLibs({
+          ForceGraph: fg.default as unknown as React.ComponentType<Record<string, unknown>>,
+          SpriteText: st.default as unknown as { new (): unknown },
+        });
       })
       .catch(() => {
-        setIsSupported(false);
+        if (!cancelled) setIsSupported(false);
       });
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSupported]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -204,6 +214,8 @@ function GraphCanvas({ data, onNodeClick, selectedNodeId, highlightNodeIds, unsu
     [isDark, highlightNodeIds, selectedNodeId]
   );
 
+  const SpriteText = libs?.SpriteText ?? null;
+
   const nodeThreeObject = useCallback(
     (node: ForceGraphNode) => {
       if (!SpriteText) return undefined;
@@ -230,7 +242,7 @@ function GraphCanvas({ data, onNodeClick, selectedNodeId, highlightNodeIds, unsu
     [data]
   );
 
-  if (mounted && !isSupported) {
+  if (!isSupported) {
     return (
       <div ref={containerRef} className="w-full h-full">
         <GraphUnsupported title={unsupportedLabels.title} description={unsupportedLabels.description} />
@@ -238,7 +250,7 @@ function GraphCanvas({ data, onNodeClick, selectedNodeId, highlightNodeIds, unsu
     );
   }
 
-  if (!mounted || !ForceGraph) {
+  if (!libs) {
     return (
       <div ref={containerRef} className="w-full h-full flex items-center justify-center">
         <Skeleton className="w-full h-full rounded-none" />
@@ -248,7 +260,7 @@ function GraphCanvas({ data, onNodeClick, selectedNodeId, highlightNodeIds, unsu
 
   return (
     <div ref={containerRef} className="w-full h-full">
-      <ForceGraph
+      <libs.ForceGraph
         key={FORCE_GRAPH_REMOUNT_WORKAROUND ? graphKey : undefined}
         ref={fgRef}
         width={dimensions.width}

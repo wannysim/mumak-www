@@ -1,0 +1,109 @@
+---
+title: 'Browser Rendering Pipeline'
+created: '2026-02-06'
+updated: '2026-05-19'
+status: 'budding'
+parent: 'frontend-browser'
+tags: ['browser', 'performance', 'frontend', 'rendering']
+---
+
+How browsers turn HTML into pixels. Every frontend developer should know this.
+
+## Critical Rendering Path
+
+From HTML to pixels:
+
+```
+HTML → DOM → CSSOM → Render Tree → Layout → Paint → Composite
+```
+
+### 1. Parsing
+
+**DOM Tree**: Parse HTML into Document Object Model
+
+```html
+<body>
+  <div class="container">
+    <p>Hello</p>
+  </div>
+</body>
+```
+
+**CSSOM Tree**: Parse CSS into CSS Object Model
+
+```css
+.container {
+  width: 100%;
+}
+p {
+  color: black;
+}
+```
+
+### 2. Render Tree
+
+Combine DOM + CSSOM into a tree of **visible elements only**.
+
+- `display: none` elements are excluded
+- `visibility: hidden` elements are included (they take space)
+
+### 3. Layout (Reflow)
+
+Calculate the **exact position and size** of each element.
+
+- Convert % values based on viewport
+- Calculate box model (margin, padding, border)
+- Determine relative positions
+
+**Expensive operation**. One element change can affect children, siblings, and parents.
+
+### 4. Paint
+
+Draw the calculated layout into **actual pixels**.
+
+- Background colors, borders, shadows
+- Text, images
+- Layer order based on z-index
+
+### 5. Composite
+
+**Merge layers** into the final screen.
+
+- `transform`, `opacity` get promoted to separate layers
+- GPU handles layer compositing
+
+## Performance Perspective
+
+Different CSS properties trigger different stages:
+
+| Property           | Layout | Paint | Composite |
+| ------------------ | ------ | ----- | --------- |
+| `width`, `height`  | O      | O     | O         |
+| `background-color` | -      | O     | O         |
+| `transform`        | -      | -     | O         |
+| `opacity`          | -      | -     | O         |
+
+**Key insight**: Use only `transform` and `opacity` for animations.
+
+See [CSS Animation Performance](/en/blog/articles/css-animation-performance) for practical example.
+
+## Things That Trigger Layout
+
+- Adding/removing elements
+- Size changes (`width`, `height`, `padding`, `margin`, `border`)
+- Position changes (`top`, `left`, `position`)
+- Font changes
+- Window resize
+- **Reading offsetWidth, scrollTop** (forced synchronous layout)
+
+## Optimization Tips
+
+1. **Minimize DOM manipulation**: Batch changes (DocumentFragment, classList)
+2. **Avoid forced synchronous layout**: Don't read layout properties right after style changes
+3. **Use will-change**: Hint the browser about upcoming changes
+4. **Animate with transform**: Leverage GPU acceleration
+
+## Resources
+
+- [Rendering Performance - web.dev](https://web.dev/rendering-performance/)
+- [CSS Triggers](https://csstriggers.com/)

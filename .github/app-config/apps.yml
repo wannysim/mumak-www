@@ -5,20 +5,35 @@
 # - app: 앱 디렉토리 이름 (apps/{app})
 # - type: 앱 타입 (next, vite, node 등)
 # - hasE2E: E2E 테스트 포함 여부
+# - packageDependencies: packages/{name} 변경 시 영향을 받는 앱 매핑
+#   - workspace package를 새로 의존하면 여기에 package 디렉터리명을 추가한다.
+#   - packageDependencies에 없는 package가 바뀌면 안전을 위해 전체 앱 검증을 고려한다.
 
 apps:
   - app: blog
     type: next
     hasE2E: true
+    packageDependencies:
+      - ui
+      - typescript-config
 
   - app: mumak-next
     type: next
     hasE2E: true
+    packageDependencies:
+      - ui
+      - typescript-config
 
   - app: mumak-react
     type: vite
     hasE2E: true
+    packageDependencies:
+      - ui
+      - typescript-config
 
   - app: mumak-native
     type: expo
-    hasE2E: false
+    hasE2E: true # web export(react-native-web) 기반 Playwright E2E
+    packageDependencies:
+      - shared
+      - typescript-config

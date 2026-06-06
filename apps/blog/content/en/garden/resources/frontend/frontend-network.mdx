@@ -1,0 +1,30 @@
+---
+title: 'Networking and Web Security'
+created: '2026-06-05'
+status: 'seedling'
+parent: 'frontend'
+tags: ['frontend', 'network', 'security']
+---
+
+The frontend lives on top of the network.
+This is a collection of notes covering everything that happens from the moment you type a URL into the address bar until the page appears, why HTTP keeps evolving, and the rules by which the browser blocks or allows requests.
+
+## Child Notes
+
+- [[url-to-pixels|From URL to Pixels: Everything That Happens in a Single Navigation]]
+- [[http-versions|From HTTP 1.1 to 3: The One Reason the Version Keeps Changing]]
+- [[http-caching|HTTP Caching: When Does the Browser Ask the Server Again]]
+- [[cors-explained|CORS: Why It Only Blocks the Browser, and What Preflight Really Is]]
+- [[web-security-xss-csrf|XSS and CSRF: The Two Attacks the Browser Security Model Aims to Stop]]
+- [[json-in-script-xss|JSON Inside a Script Tag: The Escape JSON.stringify Cannot Stop]]
+- [[oauth-callback-security|OAuth Callback Security: Why state Must Be Single-Use]]
+- [[web-auth-session-vs-token|Web Authentication: How Sessions and Tokens Solve the Same Problem Differently]]
+- [[access-refresh-token-pattern|Access + Refresh Tokens: Why You Stay Logged In Across a Refresh]]
+
+## Suggested Reading Order
+
+Start with "From URL to Pixels" as the big-picture map, then dig deep into the protocol with HTTP versions followed by caching, and finally tie the security model together by reading CORS followed by XSS and CSRF.
+Once you've read XSS and CSRF, follow up with the two field cases — JSON inside a script tag (a variant
+of XSS) and OAuth callback security (a variant of CSRF) — to make the general principles concrete.
+To grasp authentication from the ground up, first establish the essence of the ticket with sessions vs tokens,
+then build on it with the Access + Refresh token pattern for the real-world implementation (the memory + httpOnly combo).

@@ -8,7 +8,7 @@
     }
   ],
   "categories": {
-    "correctness": "warn",
+    "correctness": "error",
     "suspicious": "warn"
   },
   "env": {
@@ -33,7 +33,8 @@
     "eslint/no-shadow": "off",
     "unicorn/consistent-function-scoping": "off",
     "eslint/no-useless-constructor": "off",
-    "turbo/no-undeclared-env-vars": "warn"
+    "turbo/no-undeclared-env-vars": "warn",
+    "jsx-a11y/prefer-tag-over-role": "off"
   },
   "overrides": [
     {
@@ -43,7 +44,8 @@
     {
       "files": ["**/scripts/**/*.{ts,js,mjs,cjs}"],
       "rules": {
-        "unicorn/no-process-exit": "off"
+        "unicorn/no-process-exit": "off",
+        "eslint/no-underscore-dangle": ["warn", { "allow": ["__dirname", "__filename"] }]
       }
     }
   ]

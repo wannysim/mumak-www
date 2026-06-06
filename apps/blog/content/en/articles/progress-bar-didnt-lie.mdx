@@ -1,0 +1,182 @@
+---
+title: 'Fixing a Loading Bar Bug, I Discovered the Whole Site Was Dynamic'
+date: '2026-06-01'
+description: 'How one line of cacheComponents and a getLocale() in the root layout turned the entire site dynamic'
+tags: ['nextjs', 'performance', 'debugging', 'frontend']
+draft: false
+---
+
+I built a page-transition loading bar myself. A few days later, I noticed that every time I navigated, the bar would freeze at around 80%. It didn't look like loading at all.
+
+I thought it was a single bug to squash. But as I traced the cause, the loading bar turned out to be fine -- and instead **I uncovered a much bigger problem I'd been missing.** What looked like a small fix spiraled into rethinking the site's entire rendering model. This post is a record of that journey.
+
+## 1. The First Suspect: The Loading Bar Itself
+
+The progress bar is structured so that on click it slowly fills to 85% (trickle), and when the route changes it finishes at 100%.
+I'd set a CSS transition to move from 0 to 85% over 6 seconds.
+
+But in reality, the trickle never played once. The cause was a single line.
+
+```tsx
+// When idle, the bar is unmounted (null). When it becomes loading, this div mounts 'fresh'.
+<div style={{ transform: `scaleX(0.85)`, transition: 'transform 6000ms' }} />
+```
+
+**A CSS transition only fires when there's a "change in value." It doesn't apply to the initial value on mount.**
+So the bar didn't change from 0 -- it rendered in the `scaleX(0.85)` state from the very start.
+The 6-second transition was dead code, and the bar jumped instantly to 85% and stayed frozen there until the new page appeared.
+
+The fix is to mount it first with a small value, then raise it to the target value **on the next frame.**
+
+```tsx
+setScale(0.08); // mount with a small value first
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => setScale(0.85)); // change on the next frame -> transition fires
+});
+```
+
+Once I fixed this, the bar smoothly filled from 0.08 to 0.85.
+**But if I'd stopped here, I would have missed the real problem.**
+
+## 2. "But Why Does It Linger at 85% So Long?"
+
+For the bar to reach 85% and appear stuck, navigation has to **take that long.**
+On local dev, page transitions took 130ms, so it finished before the bar even reached 80%. But in production, it would freeze for 1-3 seconds.
+
+At first I tried to brush it off: "This is ISR, right? So maybe it's just unavoidable?"
+
+**It wasn't.** And confirming this hypothesis was wrong is the heart of this post.
+
+When I opened the route table in the build log, all the content pages were marked like this:
+
+```
+├ ƒ /[locale]/garden/[slug]
+├ ƒ /[locale]/blog/[category]/[slug]
+```
+
+`ƒ` means **Dynamic (server-rendered on every request).** It was neither `○` (static) nor `●` (SSG).
+Our content is MDX fixed at build time. **It should be static, but it was being served dynamically.**
+
+Looking at the cache headers of the RSC requests during navigation made it even clearer.
+
+```
+# Same page, but there were two kinds of requests
+prefetch (<Link>)        -> Cache-Control: s-maxage=31536000   (1 year, cached)
+actual click navigation  -> Cache-Control: private, no-store    (uncacheable, hits server every time)
+```
+
+The body content hit the server fresh with `no-store` on every click.
+In production, this can't ride the CDN edge cache and makes a round trip all the way to the origin/serverless.
+Add network RTT plus a cold start, and you get 1-3 seconds.
+**The progress bar was faithfully showing that delay.**
+
+## 3. The Culprit Wasn't a Single Person
+
+Why did pages that should be static become dynamic? There were two culprits, and both were **things I'd carelessly created myself.**
+
+### Culprit 1 -- cacheComponents, Enabled Without Intent
+
+```js
+// the "perf" commit from some day
+-  cacheComponents: false,
++  cacheComponents: true,
+```
+
+I'd enabled `cacheComponents` to use `'use cache'` on a Spotify widget.
+But `cacheComponents` (formerly `dynamicIO`) makes **every page dynamic by default.**
+To become static, each page needs to explicitly declare `'use cache'` -- and I never added it to the content pages.
+A one-line flag flipped the entire rendering model. **The commit message was just one line: "enable cacheComponents."**
+
+### Culprit 2 -- getLocale(), Added for SEO
+
+```tsx
+// root app/layout.tsx
+async function LocalizedRoot({ children }) {
+  const locale = await getLocale(); // <- here
+  return <html lang={locale}>...</html>;
+}
+```
+
+To properly set `<html lang>`, I called `getLocale()` in the root layout. A good intention to take care of SEO.
+The problem is that when `getLocale()` is called outside the `setRequestLocale` scope, it **falls back to `headers()`.**
+And the moment you read `headers()`, that component becomes dynamic.
+Since the root layout wraps the entire app, **this one line made every page on the site dynamic.**
+
+The two culprits came at different times with different intentions, but they ended up pointing at the same place.
+**Both were commits that "added a feature" -- not commits where I recognized "this turns a page that was static into a dynamic one."**
+
+## 4. The Road Back Was Narrower Than I Thought
+
+The fixing process meant stepping through Next.js's constraints one by one. Each step opened the next trap.
+
+**(1) useCache instead of cacheComponents.**
+I changed `cacheComponents: true` to `experimental.useCache: true`.
+The latter only enables the `'use cache'` directive feature; it doesn't make things dynamic by default.
+The Spotify widget stayed alive while the content went back to static-by-default.
+
+**(2) Moved `<html>` -- and SSR broke.**
+To get rid of `getLocale()`, I needed to render `<html lang>` where the locale is known.
+Following the next-intl canonical approach, I moved `<html>` from the root to `app/[locale]/layout.tsx` (which holds the locale param).
+But putting `<html>` inside `<Suspense>` made **the `<html>` tag itself disappear from the SSR output.**
+Streaming had deferred the shell. `<html>` needed to be outside Suspense, in the synchronous shell.
+
+**(3) useSearchParams pulled the whole page down to the client.**
+The progress bar component (`ProgressProvider`) uses `useSearchParams()`, and it was wrapping children in the layout.
+On a static page, `useSearchParams()` **bails everything below it to CSR if there's no Suspense boundary.**
+In other words, a single progress bar was dragging the entire page body into client rendering and nullifying the static SSR.
+The fix was to peel off only the part using `useSearchParams` and wrap it in Suspense, leaving **children as its sibling.**
+
+```tsx
+// Bad: children get swept up in useSearchParams's bailout
+<ProgressProvider> {/* useSearchParams inside */}
+  {children}
+</ProgressProvider>
+
+// Good: isolated. children are siblings, so static SSR is preserved
+<>
+  <Suspense><PageTransitionIndicator /></Suspense> {/* useSearchParams is trapped here */}
+  {children}
+</>
+```
+
+**(4) Going static surfaced a latent bug.**
+Once the content switched to static prerendering, the OG image blew up at build time. `Unsupported OpenType signature wOF2`.
+Satori (`next/og`) can't read woff2, nor variable fonts.
+**This was a bug that had been failing at runtime all along.** It just never showed up at build because everything was dynamic.
+Switching to static woff (Regular/SemiBold/Bold) made the OG render correctly and go static along with everything else.
+
+Result: every content route went `ƒ → ●`, and navigation RSC went `no-store → s-maxage=31536000`.
+
+## 5. The Mistakes I Made
+
+What I learned from this was more about habits than technology.
+
+- **A "perf" commit actually shaved off perf.** I enabled `cacheComponents` without checking the route table. The shorter the flag, the more I should have suspected its blast radius.
+- **A good intention (SEO) hid a regression.** `getLocale()` looked like a reasonable choice for `<html lang>`. Its side effect -- dynamic rendering -- was invisible unless you read the build log.
+- **I let it slide locally because "it's fast."** Dev was fast (130ms) and local production was fast too (RSC 20ms). The real signal wasn't speed but the **`Cache-Control` header.** Locally, where there's no network and no cold start, dynamic is fast too.
+- **Dynamic rendering was hiding a latent bug.** The OG woff2 problem never blew up at build "because it was dynamic anyway." Dynamic is often a hiding place for bugs.
+
+## 6. Insights
+
+- **A progress bar is a measurement tool.** A well-built progress indicator translates real delay into pixels, not a "feeling." A bar stuck at 80% wasn't a bug -- it was an **honest gauge.** Before suspecting the measuring tool, look first at what it's pointing to.
+- **The habit of reading `ƒ`/`○`/`●` in the build log.** Next.js tells you, on every build, which routes are static and which are dynamic. If you don't read it, you'll carry around "dynamic pages you believe are static" for months.
+- **The real evidence of static/dynamic is the cache header.** Local timing lies. Whether the navigation RSC request's `Cache-Control` is `no-store` or `s-maxage` is what determines perceived production speed.
+- **Convenience flags change the model.** A flag like `cacheComponents` isn't "feature on/off" -- it's a "rendering paradigm shift." The moment you turn it on, the premise (is the default static or dynamic?) flips.
+- **Frameworks open one door when you close another.** The chain of root layout → SSR shell → useSearchParams → OG font is proof that each constraint is interlocked with the others. Static rendering isn't a feature -- it's a **contract the entire tree has to honor.**
+
+## Practical Checklist
+
+- [ ] In the build log's route table, are pages that should be static marked as `ƒ`?
+- [ ] Is the navigation RSC request's `Cache-Control` `s-maxage` rather than `no-store`?
+- [ ] When enabling a rendering-related flag (`cacheComponents`, etc.), did you check how the route table changes?
+- [ ] Are you calling `headers()` / `cookies()` / `getLocale()` (without setRequestLocale) in a root/shared layout?
+- [ ] Is the component using `useSearchParams()` isolated by its own `Suspense` so it doesn't drag children into CSR?
+- [ ] Are `<html>` / `<body>` outside `Suspense`, in the synchronous shell? (Verify with curl that they're actually emitted in SSR.)
+- [ ] next-intl static rendering: did you call `setRequestLocale` in every relevant layout/page?
+- [ ] Are the fonts passed to `next/og` static ttf/otf/woff? (woff2 / variable ❌)
+
+## References
+
+- [Cache Components](https://nextjs.org/docs/app/api-reference/config/next-config-js/cacheComponents) -- Next.js
+- [Static Rendering & setRequestLocale](https://next-intl.dev/docs/getting-started/app-router) -- next-intl
+- [Missing Suspense boundary with useSearchParams](https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout) -- Next.js

@@ -1,0 +1,237 @@
+---
+title: 'Error Boundaries: Keeping One Failed Widget from Taking Down the App'
+created: '2026-06-06'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'error-handling', 'resilience']
+---
+
+When several client-side features look broken at once, separate two cases first.
+
+1. The JS bundle or hydration never attached.
+2. Hydration worked, but a specific client component threw during render.
+
+The first case is a framework or dev server problem. Error Boundaries cannot fix it because app code has not reached the normal render path yet.
+The second case is inside the React tree. That is where an **Error Boundary** belongs.
+
+> One-line summary: **An Error Boundary isolates render/lifecycle/constructor failures by subtree and replaces only the crashed area with fallback UI.**
+
+## Why Error Boundaries, Not try/catch
+
+React components render declaratively. When a parent returns JSX, it is not the same thing as directly calling every child component inside a JavaScript `try/catch`.
+
+```tsx
+function Parent() {
+  try {
+    return <BrokenWidget />;
+  } catch {
+    return <p>fallback</p>;
+  }
+}
+```
+
+This looks plausible, but it is not the reliable way to catch child render errors.
+React's official lint docs explain that errors thrown in render methods or hooks bubble through the component tree, and only Error Boundaries can catch them.
+
+In React, the unit of render error handling is not the JavaScript call stack. It is the **component tree**.
+So instead of "try this JSX," you declare, "if this subtree fails, stop it here."
+
+## What Error Boundaries Catch
+
+Error Boundaries catch these errors:
+
+- errors during render in child components
+- errors in class component lifecycle methods
+- errors in class component constructors
+- the same kinds of errors from deeply nested descendants
+
+They are not a universal error handler.
+
+| Not caught                           | Why                                             | Typical handling                                     |
+| ------------------------------------ | ----------------------------------------------- | ---------------------------------------------------- |
+| errors inside event handlers         | they run outside the render call stack          | handle directly in the handler or reflect in state   |
+| async errors such as `setTimeout`    | they run later, outside React render            | handle promise rejection, state transitions, logging |
+| server-side rendering errors         | they happen before the client boundary hydrates | use framework route/page error handling              |
+| errors thrown by the boundary itself | a boundary cannot catch itself                  | an ancestor boundary must catch it                   |
+
+For interviews, a concise answer is:
+
+> Error Boundaries catch errors that happen while React is rendering a subtree. Event handlers and async callbacks are outside that render flow, so they are not caught by the boundary. Those errors need direct handling or state that causes an error UI to render.
+
+## Basic Implementation
+
+React does not currently provide a built-in function component API for Error Boundaries.
+The primitive is still a class component with `static getDerivedStateFromError` and `componentDidCatch`.
+
+```tsx
+'use client';
+
+import { Component, type ErrorInfo, type ReactNode } from 'react';
+
+type Props = {
+  children: ReactNode;
+  fallback?: ReactNode;
+  name: string;
+};
+
+type State = {
+  hasError: boolean;
+};
+
+export class ClientErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false };
+
+  static getDerivedStateFromError(): State {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(`[ClientErrorBoundary:${this.props.name}]`, error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? null;
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+The two methods have different jobs.
+
+- `getDerivedStateFromError`: switch state so the next render shows fallback UI
+- `componentDidCatch`: log the error, report it, and capture the component stack
+
+One decides **what the user sees**.
+The other decides **what the developer records**.
+
+## Where to Put the Boundary
+
+A single root Error Boundary can prevent a blank page. But it does not give much isolation. One small failed widget can still drop the entire page into the root fallback.
+
+Wrapping every button and icon is also too much. If boundaries are too granular, fallback design becomes noisy and the code becomes harder to read.
+
+The useful unit is **a UI area that can fail independently**.
+
+| UI unit                    | Boundary candidate         | Why                                             |
+| -------------------------- | -------------------------- | ----------------------------------------------- |
+| Spotify now-playing widget | good                       | reading and navigation should still work        |
+| Search palette             | good                       | only search needs to fail                       |
+| Theme/locale switchers     | good                       | the whole header should not disappear           |
+| Article body               | depends                    | MDX render failures can be isolated there       |
+| Every avatar               | usually too much           | fallback value is lower than boundary noise     |
+| App root                   | necessary but insufficient | it is a last resort, not fine-grained isolation |
+
+React's docs recommend thinking about where it makes sense to show fallback UI.
+In a messaging app, a boundary around the conversation list or an individual message can make sense, but a boundary around every avatar usually does not.
+
+## Real Case: Isolating Optional Client Widgets
+
+While debugging a local dev issue, Spotify, theme switching, locale switching, and the search palette all looked broken at once.
+
+It is tempting to ask, "Is Spotify the problem?"
+But the symptoms need to be split.
+
+- Only Spotify is missing → possibly a widget or API fallback problem.
+- Theme, locale, and search are also dead → possibly hydration or the client runtime as a whole.
+- Hydration is fine, but a specific widget fails during render → isolate it with Error Boundaries.
+
+So optional widgets were wrapped with smaller boundaries.
+
+```tsx
+<ClientErrorBoundary name="SpotifyVinylClient" fallback={<SpotifyVinylSkeleton />}>
+  <SpotifyVinylClientContent />
+</ClientErrorBoundary>
+
+<ClientErrorBoundary name="BlogSearch">
+  <BlogSearchContent />
+</ClientErrorBoundary>
+
+<ClientErrorBoundary name="ThemeSwitcher">
+  <ThemeSwitcher />
+</ClientErrorBoundary>
+
+<ClientErrorBoundary name="LocaleSwitcher">
+  <LocaleSwitcher />
+</ClientErrorBoundary>
+```
+
+Now if the Spotify widget fails, only the skeleton remains. If the search palette fails, search disappears without taking down the rest.
+Theme and locale switchers are also isolated from each other.
+
+The point is not "errors never happen."
+Errors will happen. The important question is **how far they spread**.
+
+## Match the Fallback to the Feature
+
+Fallback UI does not always need to be a large error box.
+
+| Feature type                    | Reasonable fallback                     |
+| ------------------------------- | --------------------------------------- |
+| critical business flow          | clear error state + retry               |
+| optional decorative/data widget | skeleton, null, small placeholder       |
+| navigation                      | keep at least minimal links alive       |
+| mutation such as payment/save   | do not hide failure; explain it clearly |
+
+A Spotify now-playing widget is not required for reading an article.
+A skeleton is enough.
+
+Checkout, save, and authentication are different.
+They should not silently disappear. The user needs a message and a way to decide what to do next.
+
+## Suspense and Error Boundaries Are Different
+
+Both show fallback UI, but they mean different things.
+
+| Tool           | What it handles                               | Fallback means                |
+| -------------- | --------------------------------------------- | ----------------------------- |
+| Suspense       | data or code that is not ready                | "waiting"                     |
+| Error Boundary | a component subtree that failed during render | "failed; show replacement UI" |
+
+Loading is not failure.
+Failure is not loading.
+
+For interviews:
+
+> Suspense models pending state as a UI boundary. Error Boundary models thrown errors as a UI boundary. Both are boundaries, but one handles waiting and the other handles failure.
+
+## Interview Answer Template
+
+Short version:
+
+> An Error Boundary catches render-time errors in a React component subtree and renders fallback UI for that subtree. try/catch is not the reliable way to catch child component render errors, and event handler or async callback errors are not caught by boundaries. A single root boundary prevents a blank page but gives weak isolation, so boundaries should also be placed around independently failing units like widgets, route sections, or third-party integrations.
+
+More practical version:
+
+> I treat the root boundary as the last safety net and add smaller boundaries around optional client widgets. If a Spotify widget fails, it shows a skeleton. If a search palette fails, only search is disabled. That way one widget error does not take down the header or article body. `componentDidCatch` is where I report the error, and the fallback is chosen based on feature importance: retry, skeleton, or null.
+
+## Common Misconceptions
+
+- **Misconception**: one root Error Boundary is enough. → **Reality**: it prevents a blank page, but isolation is weak. Independent features need smaller boundaries.
+- **Misconception**: wrapping JSX in try/catch catches render errors. → **Reality**: React render errors bubble through the component tree; Error Boundaries are the official mechanism.
+- **Misconception**: Error Boundaries automatically catch API request failures. → **Reality**: promise rejections and event handler errors need direct handling. You can turn them into state and render fallback UI.
+- **Misconception**: fallback always means a big "Something went wrong" box. → **Reality**: optional widgets often need only null, skeleton, or a small placeholder. Critical flows need clear messaging and retry.
+- **Misconception**: Error Boundaries fix errors. → **Reality**: they isolate errors. They preserve UX and give logging enough context to debug.
+
+## Check Yourself
+
+- Can you distinguish what Error Boundaries catch and what they do not catch?
+- Why is `try/catch` around JSX not the right mental model in React?
+- Can you explain root boundaries and widget boundaries in terms of failure isolation?
+- Can you explain the difference between Suspense fallback and Error Boundary fallback?
+- Which features should use skeleton fallback, and which should show a retry button?
+- Can you place boundaries in a component tree so that one failed widget does not take down the rest?
+
+## Related Notes
+
+- [[react-hydration-and-flicker|Hydration and Flicker]]
+- [[react-testing-behavior-not-implementation|Tests That Pin Behavior]]
+- [[react-fiber-architecture|Fiber Architecture]]
+
+## References
+
+- [Catching rendering errors with an Error Boundary - react.dev](https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary)
+- [error-boundaries lint - react.dev](https://react.dev/reference/eslint-plugin-react-hooks/lints/error-boundaries)
+- [react-error-boundary - GitHub](https://github.com/bvaughn/react-error-boundary)

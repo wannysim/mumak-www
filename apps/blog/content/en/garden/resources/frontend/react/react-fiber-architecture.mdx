@@ -1,0 +1,182 @@
+---
+title: 'Fiber Architecture: Why React Splits Up Rendering'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'fiber', 'concurrent']
+---
+
+In React 16, the React team rewrote a perfectly working reconciler from scratch. Why tear down something that wasn't broken? This note follows the motivation behind that decision and the problem that the Fiber data structure solved.
+
+> One-line summary: **Fiber is the data structure that turned "recursion that runs to completion once it starts" into "a loop that can pause and resume at any time." This single change made every concurrent feature possible.**
+
+## Why Rewrite a Working Reconciler
+
+Up through React 15, the reconciler (commonly called the "stack reconciler") traversed the virtual DOM tree with **recursion**. Processing a parent calls its children, which call their children, and so on—the function call stack keeps growing.
+
+The problem with recursion is simple: **once it starts, it runs to completion.** If the tree has 10,000 nodes, the JavaScript engine can't do anything else until all of them are processed. The browser has only one main thread, and React grabs that thread whole and refuses to let go.
+
+```
+Stack reconciler (recursion)
+─────────────────────────────────────────────►  main thread
+[==== React processes the entire tree (over 16ms) ====]
+        ↑ clicks/input/animations are all ignored during this window
+```
+
+The result is this:
+
+- The main thread is monopolized while a large tree updates
+- User input that arrives in the meantime can't be handled and waits
+- Animation frames get dropped, so the screen stutters (frame drops)
+
+In other words, the stack reconciler's fundamental limitation was that it "**cannot be interrupted**." To solve this, the work had to be broken into small pieces that could pause partway through, and to do that, the data structure had to change first.
+
+## A Budget of 16.6ms
+
+Why is "interruptible" so important in the first place? A 60Hz display refreshes the screen 60 times per second. That means the time allotted to a single frame is `1000ms / 60 ≈ 16.6ms`.
+
+Within those 16.6ms, the browser has to finish JavaScript execution, style calculation, layout, and paint. The later stages are covered in detail in [[browser-rendering-pipeline]]. If JavaScript exceeds this budget and holds onto the main thread, the browser misses its chance to draw that frame. To the human eye, this looks like "jank."
+
+This is where the [[js-event-loop]] perspective matters. The main thread does only one thing at a time. Click handlers, rendering, and timer callbacks all wait their turn in the same queue. If React occupies the thread with a long render, the click event lined up behind it can't run until React finishes.
+
+So what React wanted was this: **"Break rendering work into small pieces, and every time a short time slice (the React scheduler's default is about 5ms) is used up, yield to the browser—'go ahead if you have something urgent.'"** Instead of React using the whole 16.6ms, it chops the work into much shorter pieces, leaving room for the browser to step in even within a single frame. For this to be possible, recursion had to go.
+
+## A Fiber Node = a Unit of Work and a Linked List
+
+To pause and resume recursion, you have to hold onto how far you've gotten **as data.** A function call stack vanishes when you stop, but information held in an object doesn't disappear. So React creates one JavaScript object called a **Fiber node** for each component.
+
+A single Fiber node plays two roles:
+
+1. **A unit of work** — one task that says "process this component"
+2. **A node in the linked list that represents the tree** — it holds the tree structure through child/sibling/parent pointers
+
+The key is how the tree is represented. Parent-child relationships are expressed not with arrays but with **three pointers.**
+
+```
+        ┌─────────┐
+        │  App    │
+        └─────────┘
+          │ child
+          ▼
+        ┌─────────┐  sibling   ┌─────────┐
+        │ Header  │──────────► │  Main   │
+        └─────────┘            └─────────┘
+          ▲ return               │ child
+          │                      ▼
+       (back to parent)       ┌─────────┐
+                             │  List   │
+                             └─────────┘
+```
+
+| Pointer   | Points to                       |
+| --------- | ------------------------------- |
+| `child`   | the first child fiber           |
+| `sibling` | the next sibling fiber          |
+| `return`  | the parent fiber (return point) |
+
+Thanks to these three pointers, tree traversal can be expressed with a **while loop instead of recursion.**
+
+```js
+// Conceptual code: a loop, not recursion
+let next = root;
+while (next !== null) {
+  next = performUnitOfWork(next); // process one fiber and return the next fiber
+  if (shouldYield()) break; // if the time slice (about 5ms) is used up, stop here
+}
+// even after breaking out, next still holds "the next thing to do" → resume later
+```
+
+On every iteration, the loop checks "is the time up?" with `shouldYield()` and breaks out if it is. At that point, "the next fiber to process" remains intact in the `next` variable, so React can yield to the browser and then come back to this loop to pick up where it left off. **This is how "pause and resume"—something recursion could never do—becomes possible.**
+
+## Why Two Phases: the Render Phase and the Commit Phase
+
+To pause work partway through, you have to separate the regions where stopping is safe from those where it isn't. If you change only half the DOM and then stop, the screen breaks. So React split a single update into two phases.
+
+```
+┌────────────── Render phase ──────────────┐  ┌──── Commit phase ────┐
+  compute what changed in the fiber tree       apply the result to the DOM at once
+  - interruptible / restartable / discardable   - synchronous, non-interruptible
+  - nothing has changed on screen yet           - effects run
+└───────────────────────────────────────────┘  └──────────────────────┘
+```
+
+The **render phase** only computes "what changed" on top of the fiber tree. Nothing has changed on screen yet. So even if it stops partway through—or a more urgent update comes in and the current work is thrown away entirely and restarted—the user never notices.
+
+This is exactly why **the code that runs during the render phase (the body of a component function) must have no side effects.** React may call the same component twice, or compute, discard, and call it again. This is the reason StrictMode **deliberately calls components twice** in development mode. It's there to catch ahead of time whether calling twice produces the same result—that is, whether the component depends on side effects.
+
+The **commit phase** applies the result computed by the render phase to the actual DOM **all at once, synchronously.** This phase is not interrupted. That's to make absolutely sure the user is never shown the awkward in-between state of a half-changed DOM. `useLayoutEffect` and ref attachment also happen in this phase.
+
+## Double Buffering: current and workInProgress
+
+While the render phase computes the new tree, the previous tree must remain visible on screen, intact. So React always keeps **two copies** of the fiber tree. It's the same idea as double buffering in game graphics.
+
+| Tree             | Role                                              |
+| ---------------- | ------------------------------------------------- |
+| `current`        | the tree currently drawn on screen                |
+| `workInProgress` | the tree being newly computed in the render phase |
+
+Each matching pair of fibers across the two trees points to the other through an `alternate` pointer. Since all the work happens on `workInProgress`, `current` (= the screen) is safe even if work pauses or is discarded midway. When the computation finishes, the commit phase just swaps a pointer to make `workInProgress` the new `current`. **This "pointer swap" is the screen update itself.** Because it reuses the two copies alternately instead of allocating a new tree every time, memory pressure is reduced as well.
+
+## Priority: lanes
+
+Once work could be split up, a natural next question follows: "Among the split pieces, which do we do first?" Not every update is equally urgent.
+
+- A visual response to a button click → **very urgent** (a person notices it immediately)
+- Updating a result list as a search query is typed → less urgent (a slight delay is fine)
+- Preparing off-screen content → the least urgent
+
+React expresses these priorities with a concept called **lanes.** Each update is assigned a "lane," and work in urgent lanes is processed first. It's implemented as a bitmask, so multiple priorities can be efficiently grouped and compared.
+
+Here's the key. When an urgent update comes in, React **interrupts** the less urgent render work in progress (safe, because it's the render phase), handles the urgent one first, and then restarts the less urgent work. This strategy is impossible without an interruptible fiber structure in the first place.
+
+## What This Foundation Unlocked
+
+On top of Fiber's foundation of "interruptible units of work + priority," the concurrent features we use today emerged. They're all different faces of the same ability: "less urgent work can be deferred or interrupted."
+
+- **Automatic batching** — bundles multiple state changes into a single render. The mechanism is covered in detail in [[react-state-batching-and-rerender]].
+- **`startTransition`** — explicitly marks "this update isn't urgent" and sends it to a lower lane.
+- **`useDeferredValue`** — delays a value's update by a beat so it doesn't block responses to urgent input.
+- **`Suspense`** — "holds off" rendering until children are ready and shows a fallback. It only works because the render phase can be paused and resumed.
+
+## An Analogy: Two Cooks
+
+The stack reconciler is **a cook who won't take their hands off an order until it's made from start to finish.** During the 30 minutes spent preparing a 10-person course, even if a new guest comes in asking for water, the cook ignores them.
+
+The Fiber reconciler is **a cook who glances around now and then.** Each time they finish one task (one fiber), they look up to check "anything urgent?" (`shouldYield`), and if a guest has raised their hand (a click/input), they briefly pause what they're doing to attend to it, then return to cooking. The food may come out a little late, but the guest never gets the "feeling of being ignored." This **responsiveness** is exactly what React was after in version 16.
+
+## Common Misconceptions
+
+- **Misconception: Fiber replaced the virtual DOM.**
+  Reality: Fiber didn't get rid of the virtual DOM; it changed the **reconciliation approach** for dealing with it from recursion to an interruptible loop. The basic concepts of the virtual DOM and reconciliation are covered separately in [[react-virtual-dom-and-reconciliation]].
+
+- **Misconception: Introducing Fiber alone makes an app automatically faster.**
+  Reality: Fiber doesn't reduce the total amount of work. It merely **splits the same amount of work and yields.** It doesn't get faster; it gets **less janky and more responsive.** If anything, because of the overhead of splitting, the total time for a single task may go up slightly.
+
+- **Misconception: The render phase is synchronous too, so it can't be stopped midway.**
+  Reality: The phase that can be stopped is only the render phase. The phase that can't be stopped (synchronous) is the **commit phase** that applies changes to the DOM. It's easy to remember these the wrong way around.
+
+- **Misconception: StrictMode's double invocation is a bug or a waste of performance.**
+  Reality: It deliberately calls twice only in development mode to detect whether render-phase code depends on side effects. In production builds, it's called only once.
+
+## Check Yourself
+
+- Can you explain why the stack reconciler's "recursion" led to unresponsiveness to user input?
+- Where does the number 16.6ms come from, and how does it tie into the single thread of the [[js-event-loop]]?
+- How do a Fiber node's three pointers—`child` / `sibling` / `return`—make "pause and resume" possible?
+- Which of the render phase and the commit phase is interruptible, and why does that difference connect directly to safety?
+- How does StrictMode calling a component twice connect to the rule that "the render phase must have no side effects"?
+- Why bother keeping both the `current` and `workInProgress` trees?
+
+## Related Notes
+
+- [[react-virtual-dom-and-reconciliation]]
+- [[react-state-batching-and-rerender]]
+- [[js-event-loop]]
+- [[browser-rendering-pipeline]]
+
+## References
+
+- [React official: Render and Commit](https://react.dev/learn/render-and-commit)
+- [React Fiber Architecture (acdlite)](https://github.com/acdlite/react-fiber-architecture)
+- [React official: startTransition](https://react.dev/reference/react/startTransition)
+- [React scheduler package (time-slicing implementation)](https://github.com/facebook/react/tree/main/packages/scheduler)

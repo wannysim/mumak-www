@@ -1,10 +1,10 @@
 {
   "name": "mumak-react",
-  "version": "1.6.2",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --port 3001",
+    "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name react.mumak vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
@@ -20,7 +20,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --coverage",
-    "test:e2e": "playwright test",
+    "test:e2e": "sh ../../scripts/playwright-e2e.sh",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
@@ -28,26 +28,27 @@
   },
   "dependencies": {
     "@mumak/ui": "workspace:*",
-    "@tailwindcss/vite": "^4.2.4",
-    "lucide-react": "^0.577.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "@tailwindcss/vite": "^4.3.0",
+    "lucide-react": "^1.17.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
   },
   "devDependencies": {
+    "@mumak/playwright-config": "workspace:*",
     "@mumak/typescript-config": "workspace:*",
     "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.9.1",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
-    "@vitest/coverage-v8": "^4.1.5",
-    "@vitest/ui": "^4.1.5",
+    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/ui": "^4.1.7",
     "jsdom": "^29.0.1",
     "typescript": "~5.9.3",
     "vite": "^8.0.1",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.7"
   }
 }

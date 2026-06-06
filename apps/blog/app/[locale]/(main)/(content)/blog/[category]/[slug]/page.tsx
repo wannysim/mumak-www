@@ -1,3 +1,4 @@
+import { BookOpen } from 'lucide-react';
 import type { Metadata } from 'next';
 import { setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -19,12 +20,14 @@ const staticTranslations = {
     home: '홈',
     blog: '블로그',
     backToList: '목록으로 돌아가기',
+    readingTimeUnit: '분',
     category: { essay: '에세이', articles: '아티클', notes: '노트' },
   },
   en: {
     home: 'Home',
     blog: 'Blog',
     backToList: 'Back to list',
+    readingTimeUnit: ' min',
     category: { essay: 'Essay', articles: 'Articles', notes: 'Notes' },
   },
 } as const;
@@ -123,10 +126,16 @@ export default async function PostPage({ params }: PostPageProps) {
       <JsonLdScript data={breadcrumbJsonLd} />
       <article>
         <header className="mb-8">
-          <div className="text-sm text-muted-foreground mb-2">
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <time dateTime={formatDateForLocale(post.meta.date, locale).dateTime}>
               {formatDateForLocale(post.meta.date, locale).text}
             </time>
+            <span>·</span>
+            <span className="inline-flex items-center gap-1">
+              <BookOpen className="size-3.5" aria-hidden />
+              {post.meta.readingTime}
+              {translations.readingTimeUnit}
+            </span>
           </div>
           <h1 className="text-4xl font-bold mb-4">{post.meta.title}</h1>
           <p className="text-lg text-muted-foreground">{post.meta.description}</p>

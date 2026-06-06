@@ -1,0 +1,42 @@
+---
+title: 'How React Works Internally'
+created: '2026-06-05'
+status: 'seedling'
+parent: 'frontend'
+tags: ['frontend', 'react']
+---
+
+A collection of notes that bridges the gap between "knowing how to use React" and "knowing why it was designed the way it is."
+
+Everyone knows that calling `setState` updates the screen.
+These notes cover what React compares in between, why it batches work together, and in what order it commits changes to the screen.
+
+## Child Notes
+
+### Internals
+
+- [[react-virtual-dom-and-reconciliation|Virtual DOM and Reconciliation: How React Updates Only What Changed]]
+- [[react-fiber-architecture|Fiber Architecture: Why React Splits Rendering into Pieces]]
+- [[react-hooks-under-the-hood|How Hooks Work: Why You Can't Call Them Inside Conditionals]]
+- [[react-state-batching-and-rerender|State Updates and Batching: Why setState Looks Asynchronous]]
+- [[react-memoization-strategy|Memoization Strategy: What memo, useMemo, and useCallback Really Do]]
+
+### Practical Patterns the Internals Reveal
+
+- [[react-you-might-not-need-an-effect|You Might Not Need That Effect: Derive, Adjust, or Subscribe]]
+- [[react-hydration-and-flicker|Hydration and Flicker: Why the mounted Pattern Is One Beat Late]]
+- [[react-error-boundary-failure-isolation|Error Boundaries: Keeping One Failed Widget from Taking Down the App]]
+- [[react-testing-behavior-not-implementation|Tests That Pin Behavior: Refactoring Without Fear]]
+
+## Suggested Reading Order
+
+Reading in the order Virtual DOM → Fiber → hooks → batching → memoization
+follows the thread of "what does it compare → how does it schedule work → where does state live → when does it re-render → how does it cut work down."
+
+Once you've covered the internals, move on to the practical patterns. The render/commit/paint
+distinction from the batching note answers both "why does adjusting state from an effect arrive
+one frame late" (the useEffect note) and "why does the mounted pattern flicker" (the hydration
+note) — and the testing note is what lets you refactor toward those patterns with confidence.
+
+If you need a JavaScript foundation, I recommend starting with [[frontend-javascript|How JavaScript Works]].
+In particular, understanding hooks requires [[js-closure-and-scope|closures]] as prerequisite knowledge.

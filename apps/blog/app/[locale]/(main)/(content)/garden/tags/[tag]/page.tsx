@@ -5,7 +5,8 @@ import { notFound } from 'next/navigation';
 import { buildAlternates } from '@/src/app/seo';
 import { getAllNoteTags, getNotesByTag } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
-import { GardenNav } from '@/src/widgets/garden-nav';
+import { PageHeader } from '@/src/shared/ui';
+import { GardenNav, getGardenNavCounts } from '@/src/widgets/garden-nav';
 import { NoteCard } from '@/src/widgets/note-card';
 import { TagCloud } from '@/src/widgets/tag-cloud';
 
@@ -37,9 +38,11 @@ export default async function GardenTagPage({ params }: GardenTagPageProps) {
   setRequestLocale(locale);
 
   const decodedTag = decodeURIComponent(tag);
-  const t = await getTranslations('garden.tags');
-  const tGarden = await getTranslations('garden');
-  const tCommon = await getTranslations('common');
+  const [t, tGarden, tCommon] = await Promise.all([
+    getTranslations('garden.tags'),
+    getTranslations('garden'),
+    getTranslations('common'),
+  ]);
   const notes = getNotesByTag(locale as Locale, decodedTag);
   const allTags = getAllNoteTags(locale as Locale).map(tagItem => ({
     ...tagItem,
@@ -58,12 +61,14 @@ export default async function GardenTagPage({ params }: GardenTagPageProps) {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold mb-2">{t('tagTitle', { tag: decodedTag })}</h1>
-        <p className="text-muted-foreground">{t('noteCount', { count: notes.length })}</p>
-      </header>
+      <PageHeader title={t('tagTitle', { tag: decodedTag })} description={t('noteCount', { count: notes.length })} />
 
-      <GardenNav allLabel={tCommon('all')} statusLabels={statusLabels} tagsLabel={tCommon('tags')} />
+      <GardenNav
+        allLabel={tCommon('all')}
+        statusLabels={statusLabels}
+        tagsLabel={tCommon('tags')}
+        counts={getGardenNavCounts(locale as Locale)}
+      />
 
       <TagCloud tags={allTags.slice(0, 10)} activeTag={decodedTag} basePath="/garden/tags" showCount />
 

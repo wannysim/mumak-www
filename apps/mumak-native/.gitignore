@@ -33,6 +33,10 @@ yarn-error.*
 # local env files
 .env*.local
 
+# firebase / google service credentials (선제 차단)
+google-services.json
+GoogleService-Info.plist
+
 # typescript
 *.tsbuildinfo
 
@@ -41,3 +45,12 @@ app-example
 # generated native folders
 /ios
 /android
+
+# test infra artifacts (oxfmt가 로컬 .gitignore만 존중 → format:check가 coverage/dist 검사 방지)
+/coverage
+.turbo/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/

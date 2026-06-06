@@ -196,6 +196,7 @@ describe('json-ld', () => {
       category: 'garden',
       tags: ['philosophy', 'ai'],
       outgoingLinks: ['phenomenology', 'free-will'],
+      readingTime: 5,
     };
 
     it('should generate Article schema with description, dates and language', () => {

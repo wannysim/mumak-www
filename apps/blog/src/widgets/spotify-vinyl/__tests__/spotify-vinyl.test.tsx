@@ -38,6 +38,9 @@ const mockSongData: NowPlaying = {
   albumImageUrl: 'https://i.scdn.co/test.jpg',
   songUrl: 'https://open.spotify.com/track/test',
   isExplicit: false,
+  progressMs: 30000,
+  durationMs: 180000,
+  device: { name: 'MacBook Pro', type: 'Computer' },
 };
 
 describe('SpotifyVinyl', () => {
@@ -148,22 +151,23 @@ describe('SpotifyVinyl', () => {
   it('should show playing indicator when isPlaying is true', async () => {
     const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
 
-    const { container } = render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" />);
+    render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" />);
 
-    // Playing indicator should be visible (ping animation next to status label)
-    const playingIndicator = container.querySelector('.animate-ping');
+    // Playing indicator should be visible (equalizer bars next to status label)
+    const playingIndicator = screen.getByTestId('playing-indicator');
     expect(playingIndicator).toBeInTheDocument();
+    expect(playingIndicator).toHaveAttribute('aria-hidden', 'true');
+    expect(playingIndicator.children).toHaveLength(3);
   });
 
   it('should hide playing indicator when isPlaying is false', async () => {
     const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
 
     const notPlayingData = { ...mockSongData, isPlaying: false };
-    const { container } = render(<SpotifyVinyl data={notPlayingData} statusLabel="Last played" />);
+    render(<SpotifyVinyl data={notPlayingData} statusLabel="Last played" />);
 
     // Playing indicator should not be visible
-    const playingIndicator = container.querySelector('.animate-ping');
-    expect(playingIndicator).not.toBeInTheDocument();
+    expect(screen.queryByTestId('playing-indicator')).not.toBeInTheDocument();
   });
 
   it('should show explicit badge when isExplicit is true', async () => {
@@ -211,5 +215,67 @@ describe('SpotifyVinyl', () => {
 
     const spotifyLogo = container.querySelector('svg.text-\\[\\#1DB954\\]');
     expect(spotifyLogo).toBeInTheDocument();
+  });
+
+  describe('progress bar', () => {
+    it('renders progress bar with formatted time when progress is available', async () => {
+      const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
+
+      render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" interpolatedProgressMs={30000} />);
+
+      const progressbar = screen.getByRole('progressbar');
+      expect(progressbar).toBeInTheDocument();
+      expect(progressbar).toHaveAttribute('aria-valuenow', '30');
+      expect(progressbar).toHaveAttribute('aria-valuemax', '180');
+      expect(screen.getByText('0:30')).toBeInTheDocument();
+      expect(screen.getByText('3:00')).toBeInTheDocument();
+    });
+
+    it('does not render progress bar when durationMs is null', async () => {
+      const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
+
+      const noDuration = { ...mockSongData, durationMs: null };
+      render(<SpotifyVinyl data={noDuration} statusLabel="Listening to" interpolatedProgressMs={30000} />);
+
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
+    it('does not render progress bar when interpolated progress is null', async () => {
+      const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
+
+      render(<SpotifyVinyl data={mockSongData} statusLabel="Last played" interpolatedProgressMs={null} />);
+
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('device info', () => {
+    it('renders device icon labeled with the device name when playing on a device', async () => {
+      const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
+
+      render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" interpolatedProgressMs={30000} />);
+
+      expect(screen.getByLabelText('Playing on MacBook Pro')).toBeInTheDocument();
+      // 디바이스명은 텍스트로 노출되지 않고 아이콘만 표시된다 (title 속성으로만 노출)
+      expect(screen.queryByText('MacBook Pro')).not.toBeInTheDocument();
+    });
+
+    it('hides device info when not playing (recently-played fallback)', async () => {
+      const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
+
+      const recentlyPlayed = { ...mockSongData, isPlaying: false, progressMs: null, device: null };
+      render(<SpotifyVinyl data={recentlyPlayed} statusLabel="Last played" interpolatedProgressMs={null} />);
+
+      expect(screen.queryByLabelText(/Playing on/)).not.toBeInTheDocument();
+    });
+
+    it('hides device info when device data is null', async () => {
+      const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
+
+      const noDevice = { ...mockSongData, device: null };
+      render(<SpotifyVinyl data={noDevice} statusLabel="Listening to" interpolatedProgressMs={30000} />);
+
+      expect(screen.queryByLabelText(/Playing on/)).not.toBeInTheDocument();
+    });
   });
 });

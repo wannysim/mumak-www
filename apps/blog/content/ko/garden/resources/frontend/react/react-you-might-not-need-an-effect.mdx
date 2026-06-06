@@ -1,0 +1,202 @@
+---
+title: 'useEffect가 필요 없을지도: 파생·조정·구독의 세 갈래'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'state', 'effect']
+---
+
+"prop이나 state가 바뀌면 `useEffect`로 다른 state를 따라 맞춘다." 손에 익은 이 습관이 왜 깜빡임과 동기화 버그의 단골 원인이 될까? 그리고 effect를 쓰지 않고도 같은 일을 하는 길은 무엇일까?
+
+> 한 줄 요약: **"이 state, 다른 값에서 계산할 수 있나?"를 먼저 물어라. 계산 가능하면 파생하고, 전환 시점에만 조정해야 하면 render 중 prev 비교를 쓰고, React 밖 세계의 값이면 구독한다. effect로 state를 보정하는 건 대부분 마지막 수단이다.**
+
+## 왜 effect로 state를 "보정"하면 안 되나
+
+effect는 우리가 흔히 상상하는 타이밍에 돌지 않는다. 실제 순서를 보자. (effect = `useEffect`에 넘긴, 렌더 이후에 실행되는 부수효과 함수)
+
+```
+사용자 클릭 / prop 변경
+  │
+  ▼
+[render]  컴포넌트 함수 실행 → 새 가상 트리
+  │
+  ▼
+[commit]  변경분을 실제 DOM에 반영
+  │
+  ▼
+[paint]   브라우저가 화면에 그림 ← 사용자 눈에 보이는 순간
+  │
+  ▼
+[effect]  여기서 비로소 useEffect 실행
+  │
+  └─ 안에서 setState 하면 ↓
+     [render] → [commit] → [paint]  (두 번째 사이클)
+```
+
+effect 안에서 `setState`로 화면 값을 보정하면, 사용자는 **보정 전 화면을 한 프레임 먼저** 본 뒤에야 보정된 화면을 본다. 게다가 렌더가 두 번 돈다. 데이터 흐름이 한 박자 늦게 따라오는 구조라서, 의존성 배열을 잘못 적으면 그대로 동기화 버그가 된다.
+
+> 왜 이렇게 설계했나? effect는 본래 "렌더 결과를 화면에 반영한 뒤, 외부 세계와 맞추는" 자리다. 그래서 paint 이후로 미뤄져 있다. 이 자리에서 화면용 state를 만지는 건 도구를 용도 밖으로 쓰는 셈이다.
+
+render와 commit을 나누는 React의 동작은 [[react-state-batching-and-rerender]]에서 자세히 다룬다. 핵심만 빌리면, **render는 화면에 안 보이고 commit·paint만 보인다**는 사실이 아래 세 갈래의 분기점이 된다.
+
+## 갈래 1 — 파생(derive): 계산할 수 있으면 state를 지워라
+
+가장 먼저 던질 질문은 이거다. **"그 state, 이미 가진 다른 값에서 계산할 수 있나?"** 계산할 수 있다면 그건 state가 아니라 **파생값**이다. state로 따로 들고 있을 이유가 없다.
+
+### 예제 A: boolean을 effect로 세팅하던 경우
+
+음악 재생 위젯에서 "곡이 바뀌었는가"를 boolean state로 들고, effect로 갱신한다고 하자.
+
+```tsx
+// Before: 곡이 바뀌면 effect가 따라와 boolean을 보정한다
+const [hasTrackChanged, setHasTrackChanged] = useState(false);
+
+useEffect(() => {
+  if (previousData !== null) setHasTrackChanged(true);
+}, [previousData]);
+```
+
+가만 보면 `hasTrackChanged`는 항상 `previousData !== null`과 같은 값이다. 그러면 state도 effect도 필요 없다. 렌더 중에 그냥 계산한다.
+
+```tsx
+// After: state·effect 둘 다 사라지고 한 줄로 파생된다
+const hasTrackChanged = previousData !== null;
+```
+
+### 예제 B: 진행률을 effect로 굴리던 경우
+
+재생 진행률 표시값을 state로 저장하고 effect로 매 틱 갱신하는 패턴도 흔하다. 여기서 "**사실**"과 "**표시값**"을 구분하는 게 핵심이다. 사실은 서버가 알려준 것들 — 어떤 곡인지, 받을 때의 진행도, 받은 시각 — 이고, 표시값은 그 사실에서 흐른 시간을 더한 결과다.
+
+```tsx
+// 사실(baseline)만 state로 둔다: 곡 ID, 기준 진행도, 수신 시각
+const [baseline, setBaseline] = useState({
+  trackId,
+  progressMs,
+  fetchedAt: Date.now(),
+});
+// 마지막 tick 시각만 state로 둬서 렌더를 트리거한다
+const [tickNow, setTickNow] = useState(() => Date.now());
+
+// 표시값은 저장하지 않고 렌더에서 계산한다
+const displayedProgressMs = baseline.progressMs + (tickNow - baseline.fetchedAt);
+```
+
+표시값을 state로 두면 "사실이 바뀔 때마다 표시값을 다시 맞추는 effect"가 따라붙고, 그 effect가 곧 버그의 서식지가 된다. 표시값을 파생으로 돌리면 그 effect 자체가 사라진다.
+
+> 원칙: **state에는 '사실'만 저장하고, 화면에 보일 값은 파생하라.** 중복 state는 반드시 그걸 맞추는 effect를 부르고, 그 effect가 동기화 버그의 서식지가 된다. state를 하나 지울 때마다 그걸 보정하던 effect도 함께 사라진다는 점이 이 갈래의 보상이다.
+
+## 갈래 2 — render 중 prev 비교(adjust): 전환 시점에만 조정하기
+
+파생이 막히는 경우가 있다. **사용자도 직접 바꿀 수 있는 state**라서 다른 값으로 통째로 계산해버리면 사용자의 조작을 덮어쓰는 경우다. 이때는 "특정 전환이 일어난 순간에만 한 번 조정"이 필요하다.
+
+예를 들어 사이드바 트리에서 이런 요구가 있다고 하자. "지금 보고 있는 노트가 이 폴더 하위로 들어오면 폴더를 펼친다. 단, 사용자가 직접 닫은 건 존중한다." 펼침 여부는 사용자도 토글하므로 파생이 불가능하다.
+
+React 공식 문서가 권장하는 패턴은 **render 중에 직전 값과 비교**하는 것이다.
+
+```tsx
+function FolderNode({ isAncestorOfActive }: { isAncestorOfActive: boolean }) {
+  const [open, setOpen] = useState(isAncestorOfActive);
+  // 직전 prop을 state로 기억해 둔다
+  const [prevAncestor, setPrevAncestor] = useState(isAncestorOfActive);
+
+  // render 도중, prop이 "바뀐 순간"에만 조정한다
+  if (isAncestorOfActive !== prevAncestor) {
+    setPrevAncestor(isAncestorOfActive);
+    if (isAncestorOfActive) setOpen(true); // 들어올 때만 펼친다 (닫기는 건드리지 않음)
+  }
+
+  // ...
+}
+```
+
+여기서 두 가지가 중요하다.
+
+첫째, **render 중 `setState`가 합법인 이유.** 보통 "render는 순수해야 한다"고 배우지만, 자기 자신의 state를 조건부로 set하는 건 React가 허용한다. React는 이 경우 **commit(DOM 반영) 전에 즉시 같은 컴포넌트를 다시 render**한다. 그래서 중간 값이 담긴 프레임이 화면에 paint되지 않는다. effect 경유와의 결정적 차이가 바로 이것이다 — effect는 paint 뒤에 돌아 프레임이 새지만, render 중 set은 paint 전에 흡수된다.
+
+```
+render 중 setState              effect 안 setState
+─────────────────              ──────────────────
+render → (set) → render        render → commit → paint(중간값 보임!)
+  → commit → paint               → effect(set) → render → commit → paint
+       └ 중간 프레임 없음              └ 한 프레임 깜빡임 + 렌더 2회
+```
+
+둘째, **반드시 조건 가드로 감싼다.** `if (isAncestorOfActive !== prevAncestor)` 없이 무조건 set하면 render가 끝없이 자기 자신을 다시 부르는 무한 루프가 된다. "바뀐 순간에만"이라는 가드가 루프를 끊어 준다.
+
+render와 commit의 구분, 그리고 "왜 set이 곧바로 화면이 되는 게 아닌지"는 [[react-state-batching-and-rerender]]의 렌더/커밋 단계와 같은 이야기다.
+
+## 갈래 3 — 외부 구독: React 밖 세계의 값
+
+`window.matchMedia(...)`(미디어 쿼리 매칭 상태), `document.visibilityState`(탭이 보이는지)처럼 **React가 관리하지 않는 외부 세계의 값**을 읽어야 할 때가 있다. 이건 effect로 구독하는 것이 정당한 영역이다. 다만 React에는 이 용도의 전용 도구 `useSyncExternalStore`가 따로 있다. 손으로 effect를 짜는 것보다 깜빡임과 tearing(서로 다른 부분이 다른 값으로 그려지는 현상)을 막아 준다.
+
+여기서는 포인터만 남긴다. 외부 store 구독과 서버/클라이언트 값 불일치로 인한 깜빡임은 [[react-hydration-and-flicker]]에서 다룬다.
+
+## 그래도 effect가 정당한 경우
+
+effect를 죄악시할 필요는 없다. effect의 본래 자리는 **외부 시스템과의 동기화**다.
+
+| 정당한 effect 사례 | 설명                                       |
+| ------------------ | ------------------------------------------ |
+| 타이머             | `setInterval`로 폴링·카운트다운            |
+| 구독               | 외부 store, 웹소켓, 브라우저 이벤트 리스너 |
+| 수동 DOM 조작      | 차트 라이브러리, 포커스 등 비-React 위젯   |
+| analytics·로깅     | 페이지 뷰 전송 등 외부로 나가는 부수효과   |
+
+이 경우들의 공통점은 "React 밖으로 나가서 무언가를 켠다"는 것이고, 켰으면 꺼야 한다. **cleanup 함수 반환은 의무다.**
+
+```tsx
+useEffect(() => {
+  const id = setInterval(() => poll(), 1000);
+  return () => clearInterval(id); // 켰으면 끈다 — 누락하면 누수·중복 실행
+}, []);
+```
+
+## 판별 순서도
+
+새 effect를 쓰려는 손이 움직이기 전에, 이 순서로 자문한다.
+
+```
+이 값을 왜 state로 두려 하나?
+        │
+        ▼
+┌─ 다른 값에서 계산 가능?  ── 예 ─▶ 파생한다 (state·effect 삭제)        [갈래 1]
+│        │ 아니오
+│        ▼
+├─ 특정 전환 시점에만 조정? ─ 예 ─▶ render 중 prev 비교 + 조건 가드     [갈래 2]
+│        │ 아니오
+│        ▼
+├─ React 밖 세계의 값?     ── 예 ─▶ useSyncExternalStore               [갈래 3]
+│        │                         (또는 effect + cleanup)
+│        ▼
+└─ 사용자 이벤트에 대한 반응? 예 ─▶ effect 말고 이벤트 핸들러에서 직접
+```
+
+마지막 갈래를 잊지 말자. "버튼을 눌렀을 때 무언가를 한다"는 effect가 아니라 **핸들러**에서 처리한다. effect는 "렌더의 결과로 외부와 맞춰야 할 때"의 도구이지, "이 사용자 동작에 반응할 때"의 도구가 아니다.
+
+## 흔한 오해
+
+- **오해**: effect 안 `setState`도 어차피 배칭되니 공짜다. → **실제**: 배칭은 한 사이클 안의 set들을 묶을 뿐이다. effect는 paint 이후에 돌므로 렌더 사이클이 한 번 더 돌고, 그 사이 중간 프레임이 화면에 보인다. 공짜가 아니라 깜빡임이다.
+- **오해**: render 중 `setState`는 해킹 같은 꼼수다. → **실제**: React 공식 문서가 권장하는 정식 패턴이다. 조건 가드로 감싸면 무한 루프 없이 commit 전에 흡수되어, effect보다 오히려 안전하고 깜빡임이 없다.
+- **오해**: 파생값은 무조건 `useMemo`로 감싸야 한다. → **실제**: 계산이 싸면 그냥 매 렌더 계산하는 게 더 단순하고 빠르다. `useMemo`는 비싼 계산일 때만 쓴다 — 기준은 [[react-memoization-strategy]] 참고.
+- **오해**: 외부 값(미디어 쿼리 등)을 읽으려면 effect 구독을 직접 짜야 한다. → **실제**: `useSyncExternalStore`라는 전용 도구가 있고, tearing과 깜빡임을 더 잘 막는다.
+
+## 스스로 점검하기
+
+- render → commit → paint → effect 순서를 그릴 수 있는가? effect에서 `setState`하면 사용자가 무엇을 한 프레임 먼저 보게 되는가?
+- 들고 있는 어떤 state를 두고 "이건 다른 값에서 계산 가능한가?"를 자문하면, 지울 수 있는 state가 보이는가?
+- "사실"과 "표시값"을 어떻게 구분하는가? 진행률 예제에서 state로 남길 것과 파생할 것을 각각 말할 수 있는가?
+- render 중 `setState`가 무한 루프를 일으키지 않으려면 무엇이 반드시 있어야 하는가?
+- render 중 set과 effect 안 set은 화면에 보이는 결과가 왜 다른가? commit·paint 타이밍으로 설명해 보라.
+- effect가 정당한 경우는 어떤 공통점을 가지며, 그때 빠뜨리면 안 되는 것은 무엇인가?
+
+## 함께 보기
+
+- [[react-state-batching-and-rerender|상태 배칭과 렌더/커밋 구분]]
+- [[react-hydration-and-flicker|하이드레이션과 깜빡임]]
+- [[react-memoization-strategy|memo·useMemo·useCallback 전략]]
+- [[react-testing-behavior-not-implementation|구현이 아니라 동작을 테스트하기]]
+
+## 참고
+
+- [You Might Not Need an Effect - react.dev](https://react.dev/learn/you-might-not-need-an-effect)
+- [Adjusting some state when a prop changes - react.dev](https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)

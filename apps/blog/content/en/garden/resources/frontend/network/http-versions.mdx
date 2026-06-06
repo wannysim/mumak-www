@@ -1,0 +1,181 @@
+---
+title: 'HTTP 1.1 to 3: The One Reason the Version Keeps Changing'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'http', 'protocol']
+---
+
+Why does HTTP keep getting torn down and rebuilt as 1.1, 2, then 3? Memorizing the list of features each new version adds is pointless. Follow the single enemy that runs through every version change—**Head-of-Line (HOL) blocking**—and the whole story lines up in one thread.
+
+> One-line summary: **The history of HTTP is the process of solving "the problem where one stuck person at the front of the line halts everyone behind them" by swapping out one layer at a time.**
+
+## What Exactly Is HOL Blocking
+
+Imagine a bank with a single teller window and a line of people. If the person at the front ties up the teller for 10 minutes with a large currency exchange, the person behind who just wants to break a bill also has to wait 10 minutes. Even people whose business could be done quickly get stuck because of **the person at the head of the line**. That is HOL blocking.
+
+A single web page is made up of dozens to hundreds of requests—HTML, CSS, JS, images, fonts. How you "line up" these requests is the very core of HTTP performance, and each version has changed the way that lining-up works. The key point is that HOL happens in **two places**. One is at the HTTP level, the other is at the transport layer (TCP) below it. Distinguishing between these two is the whole point of this note.
+
+## HTTP/1.0: One Connection per Request
+
+1.0 was the simplest. Every time it sent a request, it opened a new TCP connection, and once it got the response, it closed it.
+
+```
+GET /index.html  →  [TCP connection] → response → [connection closed]
+GET /style.css   →  [TCP connection] → response → [connection closed]
+GET /logo.png    →  [TCP connection] → response → [connection closed]
+```
+
+**Why was this a problem?** TCP connections aren't free. Each one costs a round trip (RTT) for the 3-way handshake (SYN → SYN-ACK → ACK). On top of that, with HTTPS you add the round trips for the TLS handshake. For a page with 100 resources, this handshake cost is repeated 100 times. The actual data was often small, yet the structure spent all its time on "connection setup."
+
+## HTTP/1.1: Reuse the Connection, but Responses Still Come in a Single Line
+
+1.1 made `keep-alive` the default, reusing connections instead of closing them. Not having to redo the handshake every time was a big step forward.
+
+```
+[1 TCP connection]
+GET /index.html → response
+GET /style.css  → response
+GET /logo.png   → response
+... (the same connection keeps getting reused)
+```
+
+**But a new problem appeared.** On a single connection, responses must come back **in the order they were sent**. If a CSS request takes one second on the server, the image request sent after it has to wait until the CSS response goes out—even if the server already finished processing the image.
+
+```
+1 connection:  [slow CSS response ......................] [fast image response]
+                                                            ↑ ready, but can't go out
+```
+
+This is **HTTP-level HOL blocking**. The window gets reused, but everyone is still in a single line, so if the response at the front is slow, everything behind it is blocked.
+
+### Why Pipelining Failed
+
+The 1.1 spec actually had a solution. **Pipelining**—a technique of firing off requests back-to-back without waiting for responses. Yet almost no one used it, and browsers disabled it by default. The reasons:
+
+- **Mandatory response ordering**: If you send requests in the order A, B, C, the responses must also come back in the order A, B, C, no matter what. In other words, even if requests go out in parallel, the HOL at the response stage remains. It was not a fundamental fix.
+- **Intermediary proxy compatibility**: At the time, countless proxies and servers didn't implement pipelining correctly, so broken or out-of-order responses were common.
+
+In the end it remained a feature that was "possible in theory but unusable in practice."
+
+### Workarounds of the 1.1 Era: All Because "Connections Were Scarce"
+
+Browsers typically limited concurrent connections per domain to about 6. Since each connection can only hold a single line, this effectively meant only 6 requests could be processed concurrently. So front-end developers invented techniques to work around this constraint.
+
+| Technique       | What it did                                 | Why it was done                                             |
+| --------------- | ------------------------------------------- | ----------------------------------------------------------- |
+| Domain sharding | Spread resources across multiple subdomains | To multiply the 6-per-domain limit by the number of domains |
+| Spriting        | Merged dozens of icons into a single image  | To reduce the number of requests itself                     |
+| Bundling        | Combined JS and CSS into a single file      | To reduce the number of requests                            |
+| Inlining        | Embedded small images into HTML as base64   | To eliminate separate requests altogether                   |
+
+All of these were products of the constraint **"one line per connection, six connections."** Once that premise collapses, these techniques lose their meaning—and that is exactly what happened.
+
+## HTTP/2: Many Lines on One Connection—Multiplexing
+
+2 changed the approach: "Use just one connection, but process many requests concurrently within it."
+
+There are three key ideas.
+
+- **Binary framing**: Messages, which were human-readable text up through 1.1, are broken into small binary pieces called **frames** that machines can handle easily.
+- **Stream multiplexing**: Each request-response is carried on an independent logical channel called a **stream**. Frames from multiple streams are chopped up and **interleaved** over a single connection.
+- **Header compression (HPACK)**: Headers that repeat on every request (cookies, User-Agent, etc.) are compressed to remove redundancy.
+
+```
+1 connection (interleaved frame by frame):
+[CSS frame][image frame][CSS frame][JS frame][image frame]...
+   stream1     stream3      stream1   stream5    stream3
+→ slow CSS doesn't block images or JS
+```
+
+Now a single slow response no longer blocks what comes behind it. **HTTP-level HOL is solved.** As a result, domain sharding (splitting into multiple connections loses the compression and prioritization benefits of a single connection) and excessive bundling (since small files can be fetched concurrently, there's less reason to merge them) actually became disadvantages. That's why the workarounds of the 1.1 era became useless.
+
+## The Paradox of Multiplexing: TCP Holds You Back
+
+Here the history of HTTP takes another turn. HTTP/2 eliminated HTTP-level HOL, but the problem was that it still used **TCP** as the foundation beneath it.
+
+TCP guarantees "deliver the bytes you sent, in order, with none missing." So if a single packet in the middle is lost, **it holds all the following packets in a buffer and doesn't hand them up to the application until that packet is retransmitted and arrives.**
+
+The problem is that TCP doesn't know there are multiple HTTP streams mixed inside it. Just one packet from stream1 went missing, yet stream3 and stream5, which arrived perfectly intact, all come to a halt too.
+
+```
+What TCP sees:    [..][XX lost][..][..][..]  ← a single byte stream
+                       ↑ because of this one thing
+What HTTP/2 wanted: only stream1 stalls; stream3, 5 proceed
+TCP's reality:      everything stalls
+```
+
+This is **TCP-level HOL blocking**. You split things into multiple lines at the HTTP level, but TCP underneath merges them back into a single line, so it's all for nothing. It was especially pronounced on lossy mobile and unstable networks. It was a **limitation of the layer itself**, no longer solvable at the HTTP layer alone.
+
+## HTTP/3: Drop TCP and Move to QUIC over UDP
+
+3's decision is bold: "If TCP is the problem, just don't use TCP." HTTP/3 uses a transport protocol called **QUIC** that runs over **UDP** instead of TCP. UDP is a lightweight foundation that doesn't guarantee ordering or retransmission, so on top of it QUIC implements the features it needs directly, **while being aware of streams**.
+
+- **Per-stream independent loss recovery**: QUIC knows there are multiple streams. If a stream1 packet is lost, only stream1 stalls, while stream3 and stream5 keep flowing. TCP-level HOL disappears.
+- **Shorter connection setup round trips**: QUIC **merged** the transport handshake and the TLS handshake into one. What used to take 2–3 RTTs with TCP+TLS is reduced to 1 RTT, and to 0-RTT on reconnection.
+- **Connection migration**: A TCP connection is identified by four values (source IP, port, destination IP, port). So when your IP changes—say, switching from Wi-Fi to LTE—the connection drops. QUIC identifies a connection by a **Connection ID** rather than by IP, so the same connection continues even when the IP changes.
+
+```
+HTTP/2:  HTTP streams ── TLS ── TCP ── IP   ← HOL recurs at TCP
+HTTP/3:  HTTP streams ── QUIC (TLS built in) ── UDP ── IP   ← QUIC keeps streams independent
+```
+
+The point is that HTTP/3 isn't simply "faster HTTP"—it's **the result of swapping out even the transport layer to solve the HOL problem.**
+
+## The Impact on Front-End: Bundling Strategy Changed
+
+The golden rule of the 1.1 era was "reduce the number of requests." Because of the one-line-per-connection, six-per-domain constraint, many small files were a net loss. So everything got merged.
+
+With HTTP/2 and 3, a single connection fetches many files concurrently, so **the cost of many small files dropped dramatically.** As a result, the strategy flipped.
+
+- Instead of one giant bundle, **code splitting** into small route- and component-level pieces became advantageous.
+- When a single small file changes, you only need to re-fetch that file, so **cache efficiency** improves (with a single bundle, even a partial change forces re-fetching the whole thing).
+- Domain sharding actually became an anti-pattern. Splitting connections loses the benefits of header compression, prioritization, and congestion control.
+
+That said, you can't split infinitely. Compression efficiency drops per file (small files get less benefit from gzip/brotli dictionary training), and there are request/response header overheads and cache-invalidation management costs. So "small, but only up to a reasonable point" is today's balance. Judging that reasonable point is entangled with [[http-caching]] strategy. The full page-load flow is covered in [[url-to-pixels]].
+
+## Versions at a Glance
+
+| Version  | Connection use                 | Where HOL occurs              | Headers                 | Transport layer |
+| -------- | ------------------------------ | ----------------------------- | ----------------------- | --------------- |
+| HTTP/1.0 | New connection per request     | Repeated handshake cost       | Plaintext, uncompressed | TCP             |
+| HTTP/1.1 | Reused via keep-alive          | HTTP level (response order)   | Plaintext, uncompressed | TCP             |
+| HTTP/2   | Single-connection multiplexing | TCP level (packet loss)       | HPACK compressed        | TCP             |
+| HTTP/3   | Single-connection multiplexing | None (per-stream independent) | QPACK compressed        | QUIC (UDP)      |
+
+## Common Misconceptions
+
+**Misconception: HTTP/2 eliminated HOL blocking entirely.**
+Reality: HTTP/2 only eliminated **HTTP-level** HOL. The **TCP-level** HOL beneath it remained, so on packet loss all streams stall. It was HTTP/3, which changed the transport layer, that eliminated this last HOL.
+
+**Misconception: HTTP/3 is just a faster HTTP/2.**
+Reality: It's not a feature addition but a **foundation swap**. It drops TCP and uses QUIC over UDP. That one line is the core that made per-stream independent loss recovery, shorter handshakes, and connection migration all possible.
+
+**Misconception: Even in the HTTP/2 era, the more you merge files the better.**
+Reality: Multiplexing lowered the cost of many small files, so code splitting actually became advantageous for cache efficiency. That said, because of compression ratios and header overhead, splitting infinitely is a loss, so there's a reasonable point.
+
+**Misconception: Domain sharding is still a good optimization.**
+Reality: It was a workaround for the HTTP/1.1 era. In HTTP/2 and 3 it's an anti-pattern that breaks the compression and prioritization benefits of a single connection.
+
+## Check Yourself
+
+- In which versions do HTTP-level HOL and TCP-level HOL each occur, and what causes them?
+- What were the two reasons HTTP/1.1 pipelining failed even though it was in the spec?
+- Domain sharding, spriting, bundling, and inlining all came from one and the same constraint. What is that constraint?
+- What are the three mechanisms by which HTTP/2 processes multiple requests concurrently over a single connection?
+- Can you explain the three benefits that HTTP/3's decision to abandon TCP made possible?
+- Why did bundling strategy tilt from "merging" to "splitting" once the HTTP/2 and 3 era arrived?
+
+## Related Notes
+
+- [[url-to-pixels]]
+- [[http-caching]]
+- [[core-web-vitals]]
+- [[frontend-network]]
+
+## References
+
+- [Evolution of HTTP - MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Evolution_of_HTTP)
+- [Introduction to HTTP/2 - web.dev](https://web.dev/articles/performance-http2)
+- [HTTP/3 explained - web.dev](https://web.dev/articles/http3)
+- [RFC 9114: HTTP/3](https://www.rfc-editor.org/rfc/rfc9114.html)

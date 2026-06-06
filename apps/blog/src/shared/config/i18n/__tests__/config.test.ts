@@ -8,8 +8,8 @@ describe('i18n Configuration', () => {
       expect(locales).toHaveLength(2);
     });
 
-    it('should have en as the default locale', () => {
-      expect(defaultLocale).toBe('en');
+    it('should have ko as the default locale', () => {
+      expect(defaultLocale).toBe('ko');
     });
   });
 

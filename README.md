@@ -2,20 +2,30 @@
 
 개인 프로젝트를 관리하는 Turborepo 모노레포입니다.
 
-## `apps/blog`
-
-개인 블로그입니다.
-
-[![Dependabot Updates](https://github.com/wannysim/mumak-www/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/wannysim/mumak-www/actions/workflows/dependabot/dependabot-updates)[![CI](https://github.com/wannysim/mumak-www/actions/workflows/ci.yml/badge.svg)](https://github.com/wannysim/mumak-www/actions/workflows/ci.yml)
+[![Dependabot Updates](https://github.com/wannysim/mumak-www/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/wannysim/mumak-www/actions/workflows/dependabot/dependabot-updates)
+[![CI](https://github.com/wannysim/mumak-www/actions/workflows/ci.yml/badge.svg)](https://github.com/wannysim/mumak-www/actions/workflows/ci.yml)
 [![E2E Tests](https://github.com/wannysim/mumak-www/actions/workflows/e2e.yml/badge.svg)](https://github.com/wannysim/mumak-www/actions/workflows/e2e.yml)
 [![codecov](https://codecov.io/github/wannysim/mumak-www/graph/badge.svg?token=QA0BJSHKID)](https://codecov.io/github/wannysim/mumak-www)
 ![Vercel Deploy](https://deploy-badge.vercel.app/vercel/mumak-www-blog?logo=next.js&name=wannysim.com)
 
-## `apps/mumak-native`
+## Apps
 
-Expo SDK 54 + expo-router 기반 모바일 앱. 네이티브 바이너리 빌드는 EAS Build에 위임하고, CI는 lint / format / check-types / test 검증만 수행합니다. 자세한 내용은 [`apps/mumak-native/README.md`](./apps/mumak-native/README.md).
+| 앱                  | 설명                                           | 로컬 URL                             |
+| ------------------- | ---------------------------------------------- | ------------------------------------ |
+| `apps/blog`         | FSD + MDX 기반 다국어 개인 블로그              | `http://blog.mumak.localhost:1355`   |
+| `apps/mumak-next`   | Next.js App Router 샘플 애플리케이션           | `http://next.mumak.localhost:1355`   |
+| `apps/mumak-react`  | Vite + React 샘플 애플리케이션                 | `http://react.mumak.localhost:1355`  |
+| `apps/mumak-native` | Expo + expo-router 기반 모바일 앱과 web export | `http://native.mumak.localhost:1355` |
 
-## 🚀 시작하기
+## Packages
+
+| 패키지                     | 용도                                             |
+| -------------------------- | ------------------------------------------------ |
+| `@mumak/ui`                | shadcn/ui 기반 공유 컴포넌트 (웹 전용)           |
+| `@mumak/shared`            | 플랫폼 무관 공유 로직 (hooks, utils, types, api) |
+| `@mumak/typescript-config` | TypeScript 설정                                  |
+
+## 시작하기
 
 ### 필수 요구사항
 
@@ -30,33 +40,44 @@ pnpm install
 
 ### 개발 서버 실행
 
+각 앱의 `dev` 스크립트는 Portless proxy를 사용합니다.
+
 ```bash
 # 모든 앱의 개발 서버 실행
 pnpm dev
 
 # 특정 앱만 실행
-pnpm dev --filter=mumak-next
-pnpm dev --filter=mumak-react
-pnpm dev --filter=mumak-native   # Expo dev server
+pnpm --filter=blog dev
+pnpm --filter=mumak-next dev
+pnpm --filter=mumak-react dev
+pnpm --filter=mumak-native dev
 ```
 
-## 📁 프로젝트 구조
+로컬 proxy 상태가 꼬이면 다음 명령으로 정리한 뒤 다시 실행합니다.
 
-```md
+```bash
+pnpm exec portless proxy stop
+```
+
+## 프로젝트 구조
+
+```text
 mumak-www/
-├── apps/ # 애플리케이션들
-│ ├── blog/ # Next.js 기반 개인 블로그 (FSD + MDX)
-│ ├── mumak-next/ # Next.js 애플리케이션
-│ ├── mumak-react/ # Vite + React 애플리케이션
-│ └── mumak-native/ # Expo (React Native + expo-router)
-├── packages/ # 공유 패키지들
-│ ├── ui/ # shadcn/ui 기반 UI 컴포넌트 (웹 전용)
-│ ├── shared/ # 플랫폼 무관 공유 로직 (hooks, utils, types, api)
-│ └── typescript-config/ # TypeScript 설정
-└── turbo.json # Turborepo 설정
+├── apps/
+│   ├── blog/
+│   ├── mumak-next/
+│   ├── mumak-react/
+│   └── mumak-native/
+├── packages/
+│   ├── ui/
+│   ├── shared/
+│   └── typescript-config/
+├── AGENTS.md
+├── package.json
+└── turbo.json
 ```
 
-## 🛠️ 개발 도구
+## 개발 도구
 
 ### 코드 품질
 
@@ -64,7 +85,7 @@ mumak-www/
 - **Oxfmt**: 코드 포맷팅
 - **TypeScript**: 타입 체크
 - **Husky**: Git 훅
-- **lint-staged**: 스테이징된 파일만 린팅
+- **lint-staged**: 스테이징된 파일만 린팅/포맷팅
 
 ### UI 시스템
 
@@ -73,72 +94,63 @@ mumak-www/
 - **Lucide React**: 아이콘 라이브러리
 - **next-themes**: 다크모드 지원
 
-### 사용 가능한 스크립트
+## 주요 스크립트
 
 ```bash
+# 개발 서버
+pnpm dev
+
 # 빌드
 pnpm build
 
-# 린팅
+# 린팅 / 포맷
 pnpm lint
+pnpm lint:fix
+pnpm format:check
+pnpm format:fix
+pnpm quality
+pnpm quality:fix
 
 # 타입 체크
 pnpm check-types
 
-# 포맷팅 체크
-pnpm format
-
-# 코드 포맷팅 적용
-pnpm format:fix
-
-# 포맷팅 체크 (별칭)
-pnpm format:check
-
-# 개발 서버
-pnpm dev
-
-# 루트 품질 검사
-pnpm quality
-
-# 루트 품질 자동 수정
-pnpm quality:fix
-
 # 테스트
-pnpm test              # 모든 앱의 단위 테스트 실행
-pnpm test:coverage     # 커버리지 포함 테스트 실행
-pnpm test:ci          # CI 환경용 테스트 실행
-pnpm test:e2e         # 모든 앱의 E2E 테스트 실행
-
-# 개별 앱 테스트
-pnpm --filter=mumak-next test
-pnpm --filter=mumak-react test
-pnpm --filter=mumak-react test:ui    # Vitest UI 실행
-pnpm --filter=mumak-react test:e2e:ui # Playwright UI 실행
+pnpm test
+pnpm test:coverage
+pnpm test:ci
+pnpm test:e2e
 
 # 변경분 기준 검증
 pnpm affected
 pnpm affected:dry
+
+# Turbo 디버깅
+pnpm turbo:dry
+pnpm turbo:graph
+pnpm turbo:clean
 ```
 
-### Pre-commit 훅
+개별 앱/패키지만 실행할 때는 pnpm filter를 사용합니다.
 
-커밋 시 자동으로 다음 작업이 실행됩니다:
+```bash
+pnpm --filter=blog test
+pnpm --filter=mumak-next test:e2e
+pnpm --filter=mumak-react test:ui
+pnpm --filter=mumak-native verify
+```
 
-- Oxlint 검사 및 자동 수정
-- Oxfmt 포맷팅
+## Turborepo
 
-## ⚡ Turborepo 최적화
+이 프로젝트는 Turborepo로 앱/패키지 태스크를 오케스트레이션합니다.
 
-이 프로젝트는 Turborepo의 다양한 기능을 활용하여 최적화되어 있습니다:
-
-- **변경 감지**: PR에서 변경된 패키지만 빌드/테스트
-- **스마트 캐싱**: inputs/outputs 기반 정교한 캐싱
-- **병렬 실행**: 의존성을 고려한 최적 병렬 처리
+- **변경 감지**: PR에서 변경된 앱을 감지해 matrix를 구성
+- **스마트 캐싱**: inputs/outputs 기반 캐싱
+- **병렬 실행**: 의존성을 고려한 병렬 처리
 - **개발자 도구**: dry-run, affected, graph 등
 
-자세한 사용법은 [TURBOREPO.md](./TURBOREPO.md)를 참고하세요.
+세부 필터 문법과 캐시 운영 규칙은 `.ai/skills/turborepo/SKILL.md`와 `AGENTS.md`의 Turborepo / CI 섹션을 참고합니다.
 
-## 🔧 개발 환경 설정
+## 개발 환경 설정
 
 ### VS Code 확장 프로그램
 
@@ -155,33 +167,22 @@ pnpm affected:dry
 
 저장 시 `oxc.oxc-vscode`가 포맷을 수행하고, Oxc lint fix와 import 정리가 함께 적용됩니다.
 
-## 📦 패키지 관리
+## 패키지 관리
 
 ### 새 앱 추가
 
-가급적 `mumak-next`나 `mumak-react`를 보일러플레이트로서 사용합니다.
+가급적 `mumak-next`, `mumak-react`, `mumak-native` 중 가까운 앱을 보일러플레이트로 사용합니다.
 
-```bash
-# apps 디렉토리에 새 Next.js 앱 생성
-pnpm create next-app apps/[app-name]
+복사가 완료되면 아래 요소를 수정합니다.
 
-# 또는 기존 mumak-next를 복사해서 새 앱 생성
-cp -r apps/mumak-next apps/[app-name]
-
-# Vite + React 앱 생성 (mumak-react 참고)
-cp -r apps/mumak-react apps/[app-name]
-```
-
-> 복사가 완료되면, 아래 요소를 수정합니다.
->
-> - `package.json` 내 `name`
-> - 개발서버 & Playwright 포트 번호
-> - `.github/app-config/apps.yml`에 앱 등록 (CI/CD 포함)
+- `package.json`의 `name`
+- 개발 서버 hostname과 Playwright 포트
+- `.github/app-config/apps.yml`의 앱 등록
+- nested `AGENTS.md`가 필요한지 여부
 
 ### 새 패키지 추가
 
 ```bash
-# packages 디렉토리에 새 패키지 생성
 mkdir packages/[package-name]
 cd packages/[package-name]
 pnpm init
@@ -190,55 +191,49 @@ pnpm init
 ### shadcn/ui 컴포넌트 추가
 
 ```bash
-# UI 패키지에 새 컴포넌트 추가
 cd packages/ui
 npx shadcn@latest add [component-name]
 ```
 
-## 🚀 배포
+## 배포
 
-각 앱은 독립적으로 배포할 수 있습니다:
+각 앱은 독립적으로 빌드/배포할 수 있습니다.
 
 ```bash
-# 특정 앱 빌드
-pnpm build --filter=mumak-next
-
-# 특정 앱 배포
-pnpm deploy --filter=mumak-next
+pnpm turbo run build --filter=blog
 ```
 
-## 🎨 UI 컴포넌트 사용법
+`apps/blog`는 Vercel 배포 대상이고, `apps/mumak-native`의 네이티브 바이너리 빌드는 EAS Build 영역입니다.
+
+## UI 컴포넌트 사용법
 
 ```typescript
-// Button 컴포넌트 사용
 import { Button } from '@mumak/ui/components/button';
 
-// 다양한 variant 지원
 <Button variant="default">Default</Button>
 <Button variant="outline">Outline</Button>
 <Button variant="secondary">Secondary</Button>
 <Button variant="destructive">Destructive</Button>
 ```
 
-## 🔄 CI/CD 파이프라인
+## CI/CD 파이프라인
 
 ### 워크플로우 구조
 
-프로젝트는 두 개의 독립적인 GitHub Actions 워크플로우로 구성되어 있습니다:
-
 1. **CI 워크플로우** (`.github/workflows/ci.yml`)
-   - 린팅, 타입 체크, 단위 테스트, 빌드
-   - 변경된 앱별로 병렬 실행 (동적 matrix)
+   - root 품질 검사
+   - 앱별 lint, format, type check, unit test, build
+   - coverage artifact 업로드와 Codecov 업로드
 
 2. **E2E 워크플로우** (`.github/workflows/e2e.yml`)
-   - Playwright를 사용한 E2E 테스트
-   - 앱 x 브라우저 조합별 병렬 실행
+   - Playwright 기반 E2E
+   - E2E가 켜진 앱만 matrix에 포함
 
 ### 트리거 조건
 
-- **paths 필터**: `apps/**`, `packages/**` 변경 시에만 실행
-- **Pull Request**: PR 생성/업데이트 시 변경된 앱만 검증
-- **Push**: `main`, `develop` 브랜치에 푸시 시 실행
+- **Pull Request**: summary check를 항상 만들기 위해 workflow는 실행하고, 내부 `detect-scopes`에서 영향 범위를 판단합니다.
+- **Push**: `main`, `develop` 브랜치에 관련 경로가 변경될 때 실행합니다.
+- **Manual dispatch**: `scopes` input으로 검증 앱을 직접 지정할 수 있습니다.
 
 ### 앱 설정
 
@@ -247,6 +242,9 @@ import { Button } from '@mumak/ui/components/button';
 ```yaml
 apps:
   - app: new-app-name
-    type: next # or vite, expo, node
-    hasE2E: true # E2E 테스트 포함 여부 (false면 e2e 워크플로우에서 자동 제외)
+    type: next # next, vite, expo, node 등
+    hasE2E: true
+    packageDependencies:
+      - ui
+      - typescript-config
 ```

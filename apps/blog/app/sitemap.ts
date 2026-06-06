@@ -35,6 +35,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
     const blogLastMod = maxDate(postLastMods, buildTime);
     const gardenLastMod = maxDate(noteLastMods, buildTime);
 
+    // 카테고리별 최신 수정일은 posts 한 번의 순회로 모은다
+    // (카테고리 루프 안에서 매번 filter+map으로 재순회하지 않도록).
+    const postModsByCategory = new Map<string, Date[]>();
+    for (const post of posts) {
+      const mods = postModsByCategory.get(post.category) ?? [];
+      mods.push(postLastModified(post));
+      postModsByCategory.set(post.category, mods);
+    }
+
     routes.push({
       url: `${BASE_URL}/${locale}`,
       lastModified: siteLastMod,
@@ -50,7 +59,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     });
 
     for (const category of getCategories()) {
-      const categoryLastMod = maxDate(posts.filter(p => p.category === category).map(postLastModified), buildTime);
+      const categoryLastMod = maxDate(postModsByCategory.get(category) ?? [], buildTime);
       routes.push({
         url: `${BASE_URL}/${locale}/blog/${category}`,
         lastModified: categoryLastMod,

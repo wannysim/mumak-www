@@ -60,11 +60,17 @@ describe('SocialLinks', () => {
       });
     });
 
-    it('should render SVG icons', () => {
-      render(<SocialLinks />);
+    it('should render decorative SVG icons hidden from the a11y tree', () => {
+      const { container } = render(<SocialLinks />);
 
-      const svgIcons = screen.getAllByRole('img');
+      // 아이콘은 장식용 — 접근성 이름은 링크의 aria-label/sr-only가 제공하므로
+      // svg는 aria-hidden으로 a11y 트리에서 감춘다(role="img" 노출 안 함).
+      const svgIcons = container.querySelectorAll('svg');
       expect(svgIcons.length).toBeGreaterThan(0);
+      svgIcons.forEach(svg => {
+        expect(svg).toHaveAttribute('aria-hidden', 'true');
+      });
+      expect(screen.queryAllByRole('img')).toHaveLength(0);
     });
   });
 

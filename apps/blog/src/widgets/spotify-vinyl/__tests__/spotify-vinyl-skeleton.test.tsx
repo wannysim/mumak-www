@@ -35,20 +35,20 @@ describe('SpotifyVinylSkeleton', () => {
 
     const { container } = render(<SpotifyVinylSkeleton />);
 
-    // Album sleeve skeleton (first Skeleton component)
+    // Album sleeve skeleton (first Skeleton component) - matches actual sleeve radius
     const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
     const albumSkeleton = skeletons[0];
-    expect(albumSkeleton).toHaveClass('rounded-lg');
+    expect(albumSkeleton).toHaveClass('rounded', 'lg:rounded-lg');
   });
 
-  it('should render track info skeletons', async () => {
+  it('should render track info skeletons including status, progress and time rows', async () => {
     const { SpotifyVinylSkeleton } = await import('../ui/spotify-vinyl-skeleton');
 
     const { container } = render(<SpotifyVinylSkeleton />);
 
-    // Should have 4 skeleton elements total (1 album + 3 track info)
+    // 1 album + 2 status row (icon + label) + title + artist + 1 progress bar + 2 time = 8 skeletons
     const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
-    expect(skeletons.length).toBe(4);
+    expect(skeletons.length).toBe(8);
 
     // All skeletons should have animate-pulse
     skeletons.forEach(skeleton => {
@@ -75,8 +75,8 @@ describe('SpotifyVinylSkeleton', () => {
     const flexContainer = container.querySelector('.flex.items-center');
     expect(flexContainer).toBeInTheDocument();
 
-    // Check track info container spacing
-    const trackInfoContainer = container.querySelector('.ml-6.sm\\:ml-8.pl-2');
+    // Check track info container spacing - matches actual component (ml-8 sm:ml-14 pl-2)
+    const trackInfoContainer = container.querySelector('.ml-8.sm\\:ml-14.pl-2');
     expect(trackInfoContainer).toBeInTheDocument();
   });
 });

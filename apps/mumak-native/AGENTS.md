@@ -12,11 +12,10 @@ Expo 템플릿 기본 구조를 따른다. FSD는 도입하지 않는다 (모바
 apps/mumak-native/
 ├── app/                  # expo-router file-based routes
 │   ├── _layout.tsx       # root stack
-│   ├── (tabs)/           # tab group
-│   │   ├── _layout.tsx
-│   │   ├── index.tsx
-│   │   └── explore.tsx
-│   └── modal.tsx
+│   └── (tabs)/           # tab group
+│       ├── _layout.tsx
+│       ├── index.tsx
+│       └── explore.tsx
 ├── components/           # 재사용 컴포넌트
 │   ├── themed-text.tsx
 │   ├── themed-view.tsx
@@ -24,7 +23,9 @@ apps/mumak-native/
 ├── hooks/                # 커스텀 hook
 ├── constants/            # 색·폰트·고정값
 ├── assets/               # 이미지·폰트
+├── e2e/                  # Playwright 웹 E2E (web export 대상)
 ├── metro.config.js       # pnpm monorepo 호환 설정
+├── playwright.config.ts  # 웹 E2E 설정 (PORT 3003)
 ├── jest.config.mjs
 └── jest.setup.ts
 ```
@@ -144,40 +145,18 @@ const styles = StyleSheet.create({
 
 - Jest + `jest-expo` 프리셋, `@testing-library/react-native`, `react-test-renderer` 설치 완료.
 - `jest.setup.ts`에 `react-native-reanimated`/`expo-router`/`expo-haptics` 기본 mock.
-- **`test:ci`는 `--passWithNoTests`로 통과 중**. 실제 테스트 실행은 아직 막혀 있다.
+- **단위 테스트 실행 가능** — `themed-text`/`themed-view`/`use-theme-color` colocate 테스트 + coverage threshold baseline 적용. `test:ci`에서 `--passWithNoTests` 제거됨.
+- 웹 E2E는 Playwright(`expo export --platform web` 정적 export 대상). 실행 순서는 `README.md` 검증 섹션 참조.
 
-### 알려진 이슈 (해소 방법 확정)
+### 알려진 이슈 — jest 30 충돌 (해소됨)
 
-`jest-expo ~54` + `jest ^30` + `pnpm` 조합에서 모든 테스트가 setup 단계에서 죽는다:
+`jest-expo` + `jest ^30` + `pnpm` 조합에서 모든 테스트가 setup 단계에서 죽던 문제는 **jest 29 다운그레이드로 해소**되었다(`jest` `^29.7.0`, `@types/jest` `^29.5.14`). mumak-native 워크스페이스만 영향, web 앱(blog/mumak-next/mumak-react)은 jest 30 유지.
 
-```
-ReferenceError: You are trying to `import` a file outside of the scope of the test code.
-  at .../expo/src/winter/runtime.native.ts:20
-```
+근본 원인(히스토리 — 다음 SDK bump 시 jest 30 재평가 단서):
 
-**진짜 원인**: winter polyfill 발화는 증상이고, 직접 원인은 **두 jest 런타임 충돌**이다. `node_modules/jest-expo/package.json`의 deps(`@jest/globals`, `babel-jest`, `jest-snapshot` 등)가 **전부 `^29.2.1`로 핀**되어 있어 jest-expo가 자체 트리에 jest 29 런타임을 끌고 들어온다. 앱 레벨 jest 30 CLI/runner는 그 트리 밖이라 `isInsideTestCode` 검사가 깨진다.
+> `ReferenceError: ... import a file outside of the scope of the test code`(winter polyfill 발화)는 증상이고, 직접 원인은 **두 jest 런타임 충돌**. `node_modules/jest-expo/package.json`의 deps(`@jest/globals`, `babel-jest`, `jest-snapshot` 등)가 전부 `^29.2.1`로 핀되어 jest-expo가 자체 트리에 jest 29 런타임을 끌고 들어오는데, 앱 레벨 jest 30 runner는 그 트리 밖이라 `isInsideTestCode` 검사가 깨진다. jest-expo는 SDK 56까지 jest 29 핀 유지 → 당분간 "jest 29 = jest-expo의 정답". jest-expo가 jest 30을 지원하면 복귀 검토.
 
-**중요 사실**: jest-expo 56(현재 최신 stable, Expo SDK 56)까지도 jest 29 deps 핀 유지. 업스트림이 jest 30으로 갈 가시적 계획 없음.
-
-**채택할 해소 방법**: `apps/mumak-native/package.json`의 `jest` / `@types/jest` devDep을 v29로 다운그레이드.
-
-```diff
--    "@types/jest": "^30.0.0",
-+    "@types/jest": "^29.5.14",
--    "jest": "^30.2.0",
-+    "jest": "^29.7.0",
-```
-
-mumak-native 워크스페이스만 영향, web 앱(blog/mumak-next/mumak-react)은 jest 30 유지.
-
-대안 평가 (참고용):
-
-- `setupFiles`에서 winter polyfill pre-define: 발화 **타이밍**이 문제라 값을 미리 박아도 `installGlobal`의 `configurable` descriptor 분기로 우회 어려움. SDK 마이너 업데이트마다 깨지기 쉬움.
-- jest-expo 새 버전: 존재하지 않음. SDK 56까지도 jest 29 핀 유지.
-
-자세한 follow-up 절차는 [`README.md` → 알려진 잔재 → 테스트 인프라](./README.md#테스트-인프라--실행-불가-상태) 참조.
-
-### 테스트 작성 컨벤션 (해소 후)
+### 테스트 작성 컨벤션
 
 - 위치: 소스와 colocate된 `__tests__/` 폴더.
 - 파일명: `{소스파일}.test.{ts,tsx}`.
@@ -193,19 +172,20 @@ mumak-native 워크스페이스만 영향, web 앱(blog/mumak-next/mumak-react)�
 
 ## Web 빌드
 
-- `pnpm web` 으로 `expo start --web` 가능. `react-native-web`을 통해 RN primitive가 DOM으로 렌더된다.
-- 현재 web 빌드는 **CI 검증 대상이 아니다**. web 산출물을 실제 배포할 계획이 생기면 `expo export --platform web` 검증 step을 `ci.yml`에 추가한다.
+- `pnpm web` 으로 `expo start --web` 가능. 루트에서는 `pnpm --filter mumak-native web`을 사용한다. `react-native-web`을 통해 RN primitive가 DOM으로 렌더된다.
+- `pnpm export:web`(`expo export --platform web --output-dir dist`)으로 정적 export. 루트에서는 `pnpm --filter mumak-native export:web`을 사용한다. 이 산출물은 **번들 스모크 + 웹 E2E의 토대**다(시뮬레이터 없이 클라우드에서 검증 가능).
+- 웹 E2E는 `apps.yml` `hasE2E: true`로 `e2e.yml`에 편입(chromium/firefox/webkit). 실 배포는 아직 계획 없음.
 - web 전용 분기가 필요하면 `*.web.ts` 파일명 컨벤션 사용 (e.g. `hooks/use-color-scheme.web.ts`).
 
 ---
 
 ## 빌드 / 배포
 
-- `pnpm dev`(또는 `pnpm start`)로 Expo dev server 기동.
+- 앱 디렉터리에서는 `pnpm dev`(또는 `pnpm start`)로, 루트에서는 `pnpm --filter mumak-native dev`로 Expo dev server를 기동.
 - **실제 네이티브 빌드는 EAS Build의 영역**. CI(`pnpm build`)는 의도적 no-op이다.
 - TestFlight / Internal Testing 도입 시점에 `eas.json` + EAS workflow 추가.
 
-CI 검증 대상: `lint` · `format:check` · `check-types` · `test:ci` · `build`(no-op) 5단계.
+CI 검증 대상: `lint` · `format:check` · `check-types` · `test:ci` · `build`(no-op) + 웹 E2E(`test:e2e`, `hasE2E: true`).
 
 ---
 
@@ -215,8 +195,8 @@ CI 검증 대상: `lint` · `format:check` · `check-types` · `test:ci` · `bui
 
 - `watchFolders`: workspace 루트.
 - `nodeModulesPaths`: 앱 로컬 + workspace 루트.
-- `disableHierarchicalLookup`: pnpm isolated linker 호환.
 - `unstable_enableSymlinks` + `unstable_enablePackageExports`: pnpm 심볼릭 링크 해석.
+- **`disableHierarchicalLookup`은 켜지 말 것** — Expo 공식 가이드에서 pnpm store 패키지 해석을 막아 phantom dep 에러를 유발한다고 명시. 현재 Expo는 pnpm isolated 모드를 지원하므로 hoist 설정도 불필요.
 
 새 워크스페이스 패키지를 추가했는데 Metro가 못 찾으면 이 파일을 우선 의심한다.
 

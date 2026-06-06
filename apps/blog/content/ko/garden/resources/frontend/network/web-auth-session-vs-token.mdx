@@ -1,0 +1,220 @@
+---
+title: '웹 인증: 세션과 토큰은 같은 문제를 어떻게 다르게 푸는가'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'auth', 'jwt', 'session']
+---
+
+로그인 구현이 어렵게 느껴지는 건 보통 라이브러리 사용법부터 외우려 하기 때문이다. 세션이든 JWT든 next-auth든, 전부 **딱 하나의 문제**를 각자의 방식으로 푸는 도구일 뿐이다. 그 문제를 먼저 잡으면 갈림길이 전부 "아 이렇게 푸는구나"로 정리된다.
+
+> 한 줄 요약: **HTTP는 stateless라 서버가 매 요청마다 너를 까먹는다. 그래서 매번 "나 누구야"를 증명할 증표가 필요하고, 로그인이란 그 증표를 만드는 일이다. 세션과 토큰의 차이는 단 하나 — "증표 안에 정보가 있느냐 없느냐"다.**
+
+## 로그인의 본질: HTTP는 너를 기억 못 한다
+
+HTTP 요청은 하나하나가 독립적이다. 방금 로그인했어도, 2초 뒤 보내는 다음 요청을 받은 서버 입장에선 "넌 누구냐?"부터 다시 시작이다. 서버에게 매 요청은 처음 보는 사람이다.
+
+그래서 "로그인"은 한 가지 동작이 아니라 다음 흐름 **전체**를 가리킨다.
+
+```
+1. 인증   비밀번호로 "나 진짜 OOO 맞아"를 한 번 증명한다
+2. 발급   서버가 그 대가로 증표(ticket)를 발급한다
+3. 첨부   그 다음부터 매 요청에 증표를 첨부 → 서버는 증표만 보고 "아 OOO구나" 복원
+4. 인가   OOO인 건 알겠고, 그래서 이 작업을 할 권한이 있는가?
+```
+
+비밀번호를 매 요청마다 보내도 되긴 하지만 위험하고 비효율적이라 안 한다. 그래서 **"한 번 인증 → 증표 발급 → 증표로 계속 다닌다"** 구조를 쓰며, 이 **"증표를 무엇으로 할 것이냐"** 가 모든 갈림길의 시작이다.
+
+### 인증 vs 인가
+
+둘은 자주 한 단어처럼 쓰이지만 묻는 질문이 다르다.
+
+| 구분 | 영어           | 질문                      | 예                          |
+| ---- | -------------- | ------------------------- | --------------------------- |
+| 인증 | Authentication | "너 누구야?"              | 로그인 (ID/PW 확인)         |
+| 인가 | Authorization  | "그래서 이거 할 수 있어?" | 관리자만 접근 가능한 페이지 |
+
+증표는 인증의 결과물이고, 인가는 그 증표를 들고 온 사람이 특정 작업을 할 권한이 있는지를 따로 판단하는 단계다.
+
+## 증표는 어떻게 매 요청에 따라붙나: 쿠키
+
+증표를 발급했어도, 그게 매 요청에 자동으로 실려야 의미가 있다. 가장 기본적인 답이 **쿠키**다. 쿠키는 한 번 심어두면 그 도메인으로 가는 모든 요청에 브라우저가 알아서 첨부한다.
+
+```
+1. 서버가 응답에 Set-Cookie로 쿠키를 심는다
+2. 브라우저가 저장한다
+3. 이후 그 도메인으로 가는 요청마다 → 브라우저가 Cookie 헤더에 자동 첨부
+```
+
+이 "자동 첨부"가 양날의 검이라는 점, 그리고 쿠키가 다른 저장소(localStorage·메모리)와 어떻게 다른지는 [[browser-storage]]에서, 자동 첨부가 CSRF로 악용되는 메커니즘은 [[web-security-xss-csrf]]에서 깊게 다룬다. 여기서는 **"증표를 운반하는 가장 흔한 수단이 쿠키다"** 정도만 들고 가면 충분하다.
+
+## 세션 방식 — 서버가 기억한다
+
+**핵심**: 서버가 로그인한 사람 목록을 직접 들고 있고, 클라이언트에겐 사물함 번호표(session ID)만 준다.
+
+- **세션 ID = 의미 없는 랜덤 번호표**다. `a3f9-bc12-...` 같은 값일 뿐, 그 자체엔 아무 정보가 없다.
+- 진짜 정보(누구인지, 권한 뭔지)는 전부 **서버 저장소**(메모리 / Redis / DB)에 있다.
+- 번호표는 그 저장소를 찾는 *열쇠*일 뿐이다.
+
+```js
+const sessions = {}; // 실무에선 Redis. 원리만 보여주려고 메모리로 둠
+
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await db.user.findByEmail(email);
+  // 비번은 평문 비교 절대 X. 해시 비교
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    return res.status(401).json({ error: '인증 실패' });
+  }
+  const sid = crypto.randomUUID();
+  sessions[sid] = { userId: user.id }; // ← 서버가 "기억"
+  res.cookie('sid', sid, { httpOnly: true, sameSite: 'lax', secure: true });
+  res.json({ ok: true });
+});
+
+function auth(req, res, next) {
+  const session = sessions[req.cookies.sid]; // ← 목록에서 찾아봄
+  if (!session) return res.status(401).json({ error: '로그인 필요' });
+  req.userId = session.userId;
+  next();
+}
+```
+
+- **장점**: 즉시 로그아웃·강제 차단 가능(레코드만 지우면 끝), 정보가 클라이언트에 노출되지 않음.
+- **단점**: 서버가 저장소를 가져야 함. 서버가 여러 대면 공유 저장소(Redis)가 필요.
+
+## 토큰 방식 / JWT — 서버는 검증만 한다
+
+**핵심**: 증표 안에 정보가 통째로 들어있다. 그래서 서버는 저장소를 안 뒤지고 **서명만 검증**한다. 이를 **self-contained(자기 완결적)** 라고 한다.
+
+```js
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await db.user.findByEmail(email);
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    return res.status(401).json({ error: '인증 실패' });
+  }
+  // 서버는 아무것도 저장 안 함. 서명된 토큰만 발급
+  const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '15m' });
+  res.cookie('token', token, { httpOnly: true, sameSite: 'lax', secure: true });
+  res.json({ ok: true });
+});
+
+function auth(req, res, next) {
+  try {
+    const payload = jwt.verify(req.cookies.token, process.env.JWT_SECRET); // ← 서명만 검증
+    req.userId = payload.userId;
+    next();
+  } catch {
+    return res.status(401).json({ error: '로그인 필요' });
+  }
+}
+```
+
+세션 코드와 나란히 두면 차이가 또렷하다. 세션의 `auth`는 `sessions[...]`로 **저장소를 조회**하고, JWT의 `auth`는 `jwt.verify`로 **서명을 계산**할 뿐 어디도 조회하지 않는다.
+
+### JWT 구조
+
+JWT는 점으로 구분된 세 덩어리다: `xxxxx.yyyyy.zzzzz`
+
+```
+eyJhbGciOiJIUzI1NiJ9 . eyJ1c2VySWQiOjQyfQ . dBjftJeZ4CVP-mB92K27uhbUJU1p1r
+   └─ Header              └─ Payload           └─ Signature
+```
+
+| 부분      | 내용                                  | 예                                              |
+| --------- | ------------------------------------- | ----------------------------------------------- |
+| Header    | 서명 알고리즘 정보                    | `{"alg":"HS256","typ":"JWT"}`                   |
+| Payload   | 실제 데이터(claims)                   | `{"userId":42,"role":"admin","exp":1699999999}` |
+| Signature | Header+Payload를 secret으로 서명한 값 | 위조 방지용                                     |
+
+claim에는 표준 claim(`sub` 주체, `exp` 만료시각, `iat` 발급시각, `iss` 발급자)과 직접 넣는 커스텀 claim(`userId`, `role`)이 있다.
+
+### 가장 흔한 오해 — JWT는 암호화가 아니다
+
+**JWT는 암호화가 아니라 그냥 base64 인코딩이다.** payload는 secret 없이도 누구나 디코딩해서 읽을 수 있다.
+
+```js
+const token = 'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjQyfQ.xxx';
+JSON.parse(atob(token.split('.')[1]));
+// → { userId: 42 }   ← secret 없어도 그냥 읽힘
+```
+
+그래서 두 가지가 따라온다.
+
+- **민감정보를 넣지 말 것** — 비번, 주민번호, 개인정보. payload는 다 보인다고 생각하라.
+- **위조는 불가능** — 내용 한 글자만 바꿔도 signature가 안 맞아 `jwt.verify`에서 터진다. secret 없이는 다시 서명할 수 없다.
+
+> JWT가 보장하는 건 "비밀(기밀성)"이 아니라 **"위변조 안 됨(무결성)"** 이다. 이 한 줄을 놓치면 "토큰에 담았으니 안전하다"는 위험한 착각으로 빠진다.
+
+## 세션 vs JWT — 정면 비교
+
+차이의 본질은 단 하나, **"증표 안에 정보가 있느냐 없느냐"** 다. 거기서 나머지가 전부 파생된다.
+
+|           | 세션                            | JWT                      |
+| --------- | ------------------------------- | ------------------------ |
+| 정보 위치 | 서버 저장소                     | 토큰 안                  |
+| 검증 방식 | 저장소 조회(DB/Redis 왕복)      | 서명 계산만(왕복 없음)   |
+| 무효화    | **즉시 가능**(레코드 삭제)      | **만료 전까진 불가**     |
+| 확장성    | 서버 여러 대면 공유 저장소 필요 | secret만 공유하면 끝     |
+| 크기      | 작음(~32B)                      | 큼(수백 B), 매 요청 전송 |
+| 정보 노출 | 안 됨(번호표만 보임)            | payload 다 보임          |
+
+결정적인 두 축은 무효화와 확장성이다.
+
+- **무효화**: "지금 당장 이 사람 로그아웃" → 세션은 레코드 삭제로 끝. JWT는 이미 발급한 토큰을 회수할 방법이 없다(만료까지 유효). 그래서 JWT는 access token 수명을 짧게(15분) 가져간다. 즉시 차단이 꼭 필요하면 blacklist를 서버에 둬야 하는데 — 그 순간 "서버가 아무것도 저장 안 함"이라는 JWT의 장점이 사라진다(모순). 이것이 JWT의 근본 약점이다.
+- **확장성**: 서버 10대 → 세션은 10대가 같은 저장소(Redis)를 봐야 함. JWT는 secret만 공유하면 각자 독립 검증. 그래서 대규모·MSA에선 JWT가 유리하다.
+
+> 우열 문제가 아니라 상황 문제다. 단일~중규모 + 즉시 로그아웃이 중요 → 세션. 대규모 분산 + stateless를 원함 → JWT. 그리고 현실의 많은 서비스는 둘을 섞는다([[access-refresh-token-pattern]]에서 다루는 access(JWT) + refresh 패턴이 그 절충이다).
+
+## 보안의 본질 — 증표는 훔치면 끝이다
+
+가장 중요한 통찰이자, 흔한 오해를 깨는 지점이다.
+
+**증표는 세션ID든 JWT든 훔치면 똑같이 끝이다.** 누가 네 세션ID를 훔치면(= **세션 하이재킹**) 비번 없이도 너인 척 요청을 보낼 수 있다. JWT도 마찬가지다. 번호표만 있으면 사물함이 열린다.
+
+따라서 **"토큰을 쓰면 더 안전하다"는 말은 틀렸다.** 차이는 *훔쳤을 때의 대응*에 있을 뿐이다.
+
+- 세션ID 탈취 → 서버에서 세션 삭제하면 **즉시 무력화**
+- JWT 탈취 → 만료될 때까지 **막을 방법 없음**(그래서 access token 수명을 짧게)
+
+진짜 보안은 **"애초에 못 훔치게 하는 것"** 이고, 그 방어는 세 단이다.
+
+```
+1. 못 훔치게      httpOnly(XSS로 못 읽게), secure(HTTPS 도청 차단)
+2. 훔쳐도 못 쓰게  sameSite(CSRF 차단)
+3. 훔쳐도 금방 무력화  짧은 만료, 세션 삭제, 의심스러운 기기/IP 변화 시 재인증
+```
+
+1·2단의 쿠키 옵션(httpOnly·secure·sameSite)이 각각 무엇을 막는지는 [[web-security-xss-csrf]]에서 구체적으로 다룬다. 여기서 잡을 한 문장은 **"증표는 다 훔치면 끝이고, 보안은 훔치기 전·후·사후의 다층 방어다"** 이다.
+
+## 흔한 오해
+
+- **오해**: "토큰이 세션보다 안전하다." → **실제**: 증표는 세션ID든 JWT든 훔치면 똑같이 끝이다. 오히려 세션은 즉시 무효화가 되니 사후 대응은 더 낫다. 보안 우열이 아니라 트레이드오프다.
+- **오해**: "JWT는 암호화돼 있으니 payload에 정보를 넣어도 된다." → **실제**: JWT는 인코딩이지 암호화가 아니다. `atob` 한 줄이면 다 읽힌다. 민감정보 금지.
+- **오해**: "JWT는 로그아웃하면 즉시 무효화된다." → **실제**: 이미 발급된 JWT는 만료 전까지 회수할 수 없다. 즉시 무효화가 필요하면 서버 측 blacklist가 필요하고, 그 순간 stateless라는 장점이 깨진다.
+- **오해**: "세션 ID는 짧고 의미 없으니 노출돼도 괜찮다." → **실제**: 세션 ID는 사물함 열쇠다. 의미가 없어도 그걸 쥐면 사물함이 열린다(세션 하이재킹). 노출 자체를 막아야 한다.
+
+## 스스로 점검하기
+
+- HTTP가 stateless라는 사실이 왜 "증표"라는 개념을 강제하나?
+- 인증과 인가는 각각 무슨 질문에 답하나? 증표 하나로 둘이 동시에 끝나지 않는 이유는?
+- 세션의 `auth`와 JWT의 `auth`가 코드 레벨에서 결정적으로 다른 한 줄은 무엇인가?
+- JWT가 보장하는 건 기밀성인가 무결성인가? 그 차이가 "payload에 뭘 넣지 말라"로 어떻게 이어지나?
+- "즉시 로그아웃"이 중요한 서비스에서 순수 JWT가 곤란해지는 이유를 설명할 수 있나?
+- "토큰이 더 안전하다"가 왜 틀린 말인가? 세션과 JWT의 진짜 차이는 어디서 갈리나?
+
+## 함께 보기
+
+- [[access-refresh-token-pattern]]
+- [[web-security-xss-csrf]]
+- [[browser-storage]]
+- [[oauth-callback-security]]
+- [[frontend-network]]
+
+## 참고
+
+- [RFC 7519 — JSON Web Token (JWT)](https://datatracker.ietf.org/doc/html/rfc7519)
+- [Introduction to JSON Web Tokens - jwt.io](https://jwt.io/introduction)
+- [HTTP cookies - MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Cookies)
+- [Session hijacking - OWASP](https://owasp.org/www-community/attacks/Session_hijacking_attack)

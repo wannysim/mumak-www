@@ -1,0 +1,255 @@
+---
+title: 'Memoization Strategy: What memo, useMemo, and useCallback Actually Preserve'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'memoization', 'performance']
+---
+
+You added `React.memo`, so why does the child still re-render? And is re-rendering always bad in the first place? This note lays out what the memoization trio (`memo`, `useMemo`, `useCallback`) actually preserves, and when it's right to leave it alone.
+
+> One-line summary: **Memoization is a trade you make in "reference identity." Re-rendering itself is usually cheap; the expensive stuff is elsewhere.**
+
+## Setting the Premise Straight: Re-render ≠ DOM Update
+
+Let's clear up the most common misconception first. In React, a "re-render" is simply **calling the component function again**. The virtual tree it produces is compared against the previous tree (reconciliation), and then **only the parts that actually changed** get applied to the DOM.
+
+```
+state change
+  → component function called again (= re-render, usually cheap)
+  → new virtual tree created
+  → diff against previous tree (reconciliation)
+  → only changed nodes committed to DOM (expensive, but minimized)
+```
+
+In other words, even if 100 re-renders happen, if the DOM doesn't change, the screen stays the same. The full flow is covered in [[react-virtual-dom-and-reconciliation]].
+
+**Why does this matter?** People believe "re-render = slow" and overuse `memo`, but the cost of calling a function one more time is usually negligible. The real cost comes from (1) rebuilding a huge subtree every time, or (2) repeating an expensive computation inside the render. Optimization is about finding these two things, not about blocking every function call.
+
+## React.memo: Skips Rendering by Shallowly Comparing props
+
+A component wrapped in `React.memo` skips its own render **if its props are the same as before**, even when the parent re-renders. Here "the same" means a **shallow comparison** that checks each prop one by one with `Object.is`.
+
+```tsx
+const Child = React.memo(function Child({ count }: { count: number }) {
+  console.log('Child render');
+  return <p>{count}</p>;
+});
+
+function Parent() {
+  const [n, setN] = React.useState(0);
+  const [, force] = React.useState(0);
+  return (
+    <>
+      <Child count={n} />
+      <button onClick={() => force(v => v + 1)}>re-render parent only</button>
+    </>
+  );
+}
+```
+
+Even when you click the button and `Parent` re-renders, `count` (the primitive `number`) is unchanged, so `Child` skips its render. "Child render" doesn't get logged to the console.
+
+**Why only a shallow comparison?** A deep comparison would have to recursively walk the entire object, and the comparison cost could end up larger than what you save by skipping the render. React chose shallow comparison on the principle that "comparisons should be cheap." This choice is the cause of the next pitfall.
+
+## The Reference Identity Pitfall: An Inline Object Instantly Defeats memo
+
+Primitives (number, string, boolean) are compared by value, so they're fine. The problem is **objects, arrays, and functions**. A value created inline inside JSX becomes a **new reference** on every render.
+
+```tsx
+const Child = React.memo(function Child({ style }: { style: object }) {
+  console.log('Child render');
+  return <div style={style}>hi</div>;
+});
+
+function Parent() {
+  const [, force] = React.useState(0);
+  return (
+    <>
+      {/* a new object {} is created on every render */}
+      <Child style={{ color: 'red' }} />
+      <button onClick={() => force(v => v + 1)}>re-render</button>
+    </>
+  );
+}
+```
+
+"Child render" gets logged every time you click the button. `{ color: 'red' }` is a new object at a different memory address each time, so `Object.is(prevStyle, newStyle)` returns `false` and `memo` is defeated. Even if the contents are identical, a different reference means a "different prop" as far as React is concerned.
+
+```
+render #1: style → 0x1234  ┐
+render #2: style → 0x5678  ┘ Object.is → false → render skip fails
+```
+
+Function props (`onClick={() => ...}`) behave the same way. An arrow function is created anew on every render. **If you just slap on `memo` and call it done, you almost always fall into this trap.** That's why `memo` alone is rarely meaningful; it works as a set with tools that stabilize references.
+
+## useCallback and useMemo: Whose Reference Do They Preserve?
+
+There are two tools that solve the pitfall above. The key is that both **preserve a reference across renders**, and the only difference is "the reference of what."
+
+| Hook        | What it preserves    | Return value           |
+| ----------- | -------------------- | ---------------------- |
+| useCallback | the function itself  | the memoized function  |
+| useMemo     | a computed value     | the memoized value     |
+| React.memo  | a component's render | the memoized component |
+
+```tsx
+function Parent() {
+  const [n, setN] = React.useState(0);
+
+  // as long as the deps ([]) don't change, it keeps returning the same function reference
+  const handleClick = React.useCallback(() => {
+    console.log('clicked');
+  }, []);
+
+  // recomputed only when the deps ([n]) change; otherwise the previous result is reused
+  const doubled = React.useMemo(() => n * 2, [n]);
+
+  return <Child onClick={handleClick} value={doubled} />;
+}
+```
+
+In fact, the two are siblings. `useCallback(fn, deps)` is exactly the same as `useMemo(() => fn, deps)`. Since a function is also a value, `useCallback` is just a dedicated shorthand for the common case of preserving a function.
+
+**Why is the dependency array needed?** Because React can't know "when the cache should be thrown away," it's a contract where the developer states "rebuild this when these values change." If this contract is a lie (you omit a needed dependency), you get a stale closure bug that holds onto an old value. For how a closure captures values, see [[js-closure-and-scope]].
+
+## The Two Faces of useMemo: Caching Expensive Computations vs. Stabilizing References
+
+It's the same `useMemo`, but it's confusing because it's used for two purposes. Keeping them straight lets you judge for yourself whether "there's a reason to memoize this."
+
+```tsx
+// Purpose 1: avoid repeating an expensive computation on every render (the value itself is the goal)
+const sorted = React.useMemo(
+  () => hugeList.slice().sort(compareFn), // sorting thousands of items
+  [hugeList]
+);
+
+// Purpose 2: reference stabilization — the value is cheap, but you need "the same reference" (when passing to a memo child)
+const config = React.useMemo(() => ({ theme: 'dark' }), []);
+return <MemoizedChild config={config} />;
+```
+
+Purpose 1 saves "computation time," while purpose 2 preserves "reference identity" so the `memo` below it works. The two solve different problems. If you wrapped an object in `useMemo` when purpose 2 wasn't needed (the child isn't a `memo`, or the value isn't passed down as a prop), that's purely added cost.
+
+## Memoization Isn't Free
+
+Here's the pitfall people fall into most often. Memoization isn't free — it's a **trade**. What do you give up?
+
+- **Comparison cost**: to decide whether to skip a render, deps/props are compared on every render. The comparison can be more expensive than what skipping saves.
+- **Memory**: you have to keep holding onto the previous value/function/result.
+- **Dependency management burden**: get the array wrong and you have a stale bug. To fix it, you end up memoizing yet another value — a chain reaction.
+- **Code complexity**: a component plastered with `useCallback`/`useMemo` is hard to read.
+
+So the principle is simple. **Don't memoize without measuring.** Slapping `memo` on a small component that receives a single primitive is almost always a net loss. First comes evidence that the render is genuinely slow (Profiler); memoization comes after that.
+
+## The Pattern Where the children prop Breaks memo
+
+A case people often miss. `children` is ultimately a prop too, and a JSX element is an object. It's created anew on every render, so it breaks `memo`.
+
+```tsx
+const Box = React.memo(function Box({ children }: { children: React.ReactNode }) {
+  console.log('Box render');
+  return <div className="box">{children}</div>;
+});
+
+function Parent() {
+  const [, force] = React.useState(0);
+  return (
+    <>
+      <Box>
+        <span>hello</span> {/* a new element object on every re-render */}
+      </Box>
+      <button onClick={() => force(v => v + 1)}>re-render parent only</button>
+    </>
+  );
+}
+```
+
+Every time you click the button and `Parent` re-renders, the `<span>hello</span>` element is created anew, the `children` reference changes, and `Box` re-renders each time. Rather than forcibly preventing this with `useMemo`, **the canonical fix is composition**. If you create the expensive part in the parent and pass it down as children, that part becomes independent of the parent's state changes.
+
+```tsx
+// When a slow component is received as children, even if Wrapper's state changes,
+// SlowTree isn't re-rendered because it's the same element created once in the parent (= outside Wrapper)
+function App() {
+  return (
+    <Wrapper>
+      <SlowTree /> {/* as long as App doesn't change, this element stays the same too */}
+    </Wrapper>
+  );
+}
+```
+
+## A Better First Move: Memoization Is a Last Resort
+
+Before you reach for memoization, there's almost always a cheaper and more effective move. **Rather than making the re-render fast, shrink the scope of the re-render itself.**
+
+- **State colocation**: move frequently-changing state down into the small component that actually uses it. Then only that small part re-renders, not the entire parent.
+- **Component splitting**: split a fast-changing area and a heavy area into separate components. The ripple of a state change is confined to a small area.
+
+```tsx
+// Before: every time the input changes, the heavy <Chart> re-renders along with it
+function Dashboard() {
+  const [query, setQuery] = React.useState('');
+  return (
+    <>
+      <input value={query} onChange={e => setQuery(e.target.value)} />
+      <Chart /> {/* unrelated to query, yet re-renders on every keystroke */}
+    </>
+  );
+}
+
+// After: isolate the part that uses query → Chart is independent of Dashboard's re-render
+function Dashboard() {
+  return (
+    <>
+      <SearchBox /> {/* the query state is moved down here */}
+      <Chart />
+    </>
+  );
+}
+```
+
+Done this way, the problem disappears without any `memo` or `useMemo`. Why a re-render happens and how far it spreads is covered further in [[react-state-batching-and-rerender]].
+
+## React Compiler: Automating This Manual Work
+
+Everything we've discussed with `memo`/`useMemo`/`useCallback` is essentially **doing by hand what a compiler should do**. The React Compiler analyzes components at build time and automatically memoizes "this value only needs to be rebuilt when these dependencies change."
+
+The direction is clear. Mechanically plastering `useCallback`/`useMemo` for reference stabilization increasingly becomes the compiler's job, and the developer focuses on logic. That said, even in an environment with the compiler installed, the mental models "re-render ≠ DOM update" and "reference identity is the basis of comparison" remain just as valid. What's automated is the manual labor, not the principle.
+
+## Common Misconceptions
+
+- **Misconception: re-renders are always bad and must be prevented.**
+  Reality: a re-render is just a function call again, not a DOM update. It's usually cheap enough, and the cost of preventing it is often higher.
+
+- **Misconception: just adding `React.memo` means that component won't re-render.**
+  Reality: if even one prop is an inline object/array/function, it's a new reference every time, and `memo` is instantly defeated. Reference stabilization has to come with it.
+
+- **Misconception: the more `useMemo`/`useCallback` you add, the faster it gets.**
+  Reality: comparison, memory, and complexity costs come along for the ride. If the gain isn't measured, it's a net loss.
+
+- **Misconception: caching expensive computations and stabilizing references are the same thing.**
+  Reality: the former preserves computation time, the latter preserves reference identity. They solve different problems, so you have to distinguish "why you're memoizing."
+
+## Check Yourself
+
+- Can you explain in one sentence why a re-render can happen without the screen (DOM) changing?
+- What comparison method does `React.memo` use, and why isn't it a deep comparison?
+- In `<Child style={{ color: 'red' }} />`, why does `Child` re-render every time even though it's a `memo`?
+- What happens if you rewrite `useCallback(fn, deps)` using `useMemo`?
+- Can you distinguish the two uses of `useMemo` and state which cost/benefit each one deals with?
+- How do you solve the problem of a heavy child re-rendering because of the parent's state change, without `memo`?
+
+## Related Notes
+
+- [[react-state-batching-and-rerender|How state updates and re-renders spread]]
+- [[react-virtual-dom-and-reconciliation|The virtual DOM and the reconciliation process]]
+- [[react-hooks-under-the-hood|How hooks remember values across renders]]
+- [[js-closure-and-scope|Closures and stale closures]]
+
+## References
+
+- [React official docs - memo](https://react.dev/reference/react/memo)
+- [React official docs - useMemo](https://react.dev/reference/react/useMemo)
+- [React official docs - useCallback](https://react.dev/reference/react/useCallback)
+- [Introducing the React Compiler](https://react.dev/learn/react-compiler)

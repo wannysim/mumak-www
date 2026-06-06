@@ -1,0 +1,242 @@
+---
+title: 'React Native performance and debugging'
+created: '2026-05-28'
+status: 'seedling'
+parent: 'frontend-react-native'
+tags: ['react-native', 'performance', 'debugging', 'hermes']
+---
+
+On the web, "slow" usually means "feels sluggish." In RN it shows up as visible jank — mobile demands 60fps and a frame is only 16.67ms.
+
+> Foundation in [[react-native-basics-for-react-devs|RN basics]], theory in [[react-native-platform-agnostic|how cross-platform works]].
+
+## Mental model — you have to watch two threads
+
+An RN app typically runs across two threads.
+
+| Thread        | What it does                                   | When blocked                       |
+| ------------- | ---------------------------------------------- | ---------------------------------- |
+| **JS thread** | React logic, event handlers, fetch, setState   | UI renders but interaction freezes |
+| **UI thread** | Native rendering, scrolling, native animations | Visible jank — frame drops         |
+
+Different from the web's single main-thread model. **Scrolling keeps working when JS is blocked** (it's on UI thread) — that's why "scrolling works, but buttons don't respond" is a classic RN symptom.
+
+The new architecture (JSI/Fabric) blurs this a bit, but the mental model is mostly the same.
+
+## What 60fps means
+
+Display refresh is usually 16.67ms (60fps), or 8.3ms (120fps on some iPads/Androids). **If JS can't send the next frame's changes in time, that frame is dropped.**
+
+Dropped frames on the UI thread are more visible — users feel them directly.
+
+## The seven most common pitfalls
+
+### 1. Judging performance from a dev build
+
+Dev mode is intentionally slow (source maps, JSX location tracking, warning checks). Test in **release builds**.
+
+```bash
+# Expo
+npx expo run:ios --configuration Release
+npx expo run:android --variant release
+
+# Bare RN
+npx react-native run-ios --mode Release
+```
+
+It's common to see a 2–10× speedup just from this.
+
+### 2. Leaving `console.log` everywhere
+
+`console.log` blocks the JS thread in both dev and release. Object serialization is especially expensive. Strip it in production builds via a babel plugin.
+
+```jsonc
+// babel.config.js
+{
+  "env": {
+    "production": {
+      "plugins": ["transform-remove-console"],
+    },
+  },
+}
+```
+
+### 3. Not tuning FlatList for long lists
+
+`FlatList` alone isn't always enough.
+
+```tsx
+<FlatList
+  data={items}
+  keyExtractor={keyExtractor} // stable identity
+  renderItem={renderItem} // memoized
+  getItemLayout={getItemLayout} // required if heights are fixed
+  removeClippedSubviews
+  initialNumToRender={10}
+  windowSize={5}
+  maxToRenderPerBatch={5}
+/>
+```
+
+When that isn't enough, swap in `@shopify/flash-list`.
+
+### 4. setState every frame
+
+If scroll/input/gesture handlers call `setState` per frame, React renders pile up. Move those values into Reanimated's `useSharedValue`.
+
+```tsx
+// ❌ setState at 60fps
+onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
+
+// ✅ shared value
+const scrollY = useSharedValue(0);
+const onScroll = useAnimatedScrollHandler({
+  onScroll: (e) => { scrollY.value = e.contentOffset.y; },
+});
+```
+
+See [[react-native-animations-and-gestures|animations note]].
+
+### 5. Forgetting useNativeDriver in Animated
+
+`useNativeDriver: false` (the default) sends a JS → native message every frame. JS freezes → animation freezes.
+
+```ts
+Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+```
+
+### 6. Doing heavy work synchronously in onPress
+
+If a tap immediately triggers heavy synchronous work, the ripple/transition stalls. Defer one frame with `requestAnimationFrame` or `InteractionManager`.
+
+```ts
+function handlePress() {
+  requestAnimationFrame(() => {
+    doExpensiveWork();
+  });
+}
+```
+
+Or:
+
+```ts
+import { InteractionManager } from 'react-native';
+
+InteractionManager.runAfterInteractions(() => {
+  doExpensiveWork();
+});
+```
+
+### 7. Sloppy image handling
+
+Weak caching means re-downloading the same image. Swap `Image` for `expo-image` or `react-native-fast-image`.
+
+```tsx
+import { Image } from 'expo-image';
+
+<Image source={uri} style={{ width: 64, height: 64 }} contentFit="cover" cachePolicy="memory-disk" />;
+```
+
+## The Hermes engine
+
+The default JS engine. Enabled by default since RN 0.70+. **Big impact on startup time and memory.**
+
+Check it:
+
+```ts
+const isHermes = !!global.HermesInternal;
+console.log('Hermes:', isHermes);
+```
+
+Hermes wins:
+
+- Faster startup (precompiled bytecode)
+- Smaller memory footprint
+- Smaller app size
+
+Nowadays, assume it's on and just start.
+
+## Profiling tools
+
+### Performance Monitor (built-in)
+
+Open the dev menu (`Cmd+D` in simulator, shake on device) → "Perf Monitor." A small overlay appears.
+
+- **JS FPS / UI FPS** — both should hover near 60
+- **RAM** — memory usage
+
+JS FPS dropping → JS-side logic. UI FPS dropping → native rendering.
+
+### React DevTools
+
+Same as the web — component tree, props, profiler.
+
+```bash
+pnpm dlx react-devtools
+```
+
+Opens in its own window and auto-connects to the running RN app.
+
+### Flipper
+
+Meta's mobile debugger. Network inspector, layout inspector, log viewer. Official integration weakened in RN 0.73+, but many teams still use it.
+
+### Reactotron
+
+Lighter RN-specific debugger. Inspect Redux/MobX state, trace API calls, view logs.
+
+### Chrome DevTools (Hermes)
+
+Hermes can connect to Chrome DevTools. Dev menu → "Open Debugger" → visit `chrome://inspect`.
+
+### Xcode Instruments / Android Studio Profiler
+
+For deep dives — memory leaks, native CPU, GPU. When JS alone can't explain the problem (suspect: a native module), this is where you go.
+
+## Shrinking bundle size
+
+- **Tree-shaking** — ship ES-module-friendly libraries (e.g. `lodash-es`)
+- **Image optimization** — large local PNGs are silent killers. Prefer WebP
+- **Fonts** — only the weights you ship
+- **`assetBundlePatterns`** (Expo) — explicitly include only the assets you need
+- `npx expo-doctor` flags suspicious deps
+
+## Shrinking startup time
+
+- Hermes on (default)
+- Keep the first screen light — avoid importing huge libs at the root
+- Split code with dynamic `import` / `React.lazy` per screen
+- Defer heavy initialization until after first render
+
+## Diagnostic order — "where's the slowness?"
+
+1. Are you on a release build? (otherwise stop here)
+2. Perf Monitor: which FPS is dropping, JS or UI?
+3. JS FPS → React Profiler, hunt re-renders, audit useCallback/memo
+4. UI FPS → check Animated native driver, image lib, FlatList tuning
+5. Still stuck → Xcode Instruments / Android Profiler
+
+## Checklist
+
+- [ ] Tested on a release build?
+- [ ] `console.log` stripped in production?
+- [ ] Every `Animated` has `useNativeDriver: true`?
+- [ ] Long lists use FlatList (tuned) or FlashList?
+- [ ] Using an image caching library?
+- [ ] Hermes is on?
+- [ ] No handlers calling setState every frame?
+
+## Related notes
+
+- [[react-native-basics-for-react-devs|RN basics]]
+- [[react-native-platform-agnostic|How cross-platform works]] — Bridge/JSI/Fabric
+- [[react-native-animations-and-gestures|Animations and gestures]]
+- [[react-native-conventions|RN conventions and pitfalls]]
+- [[frontend]]
+
+## References
+
+- [Performance — React Native (official)](https://reactnative.dev/docs/performance)
+- [Profiling — React Native (official)](https://reactnative.dev/docs/profiling)
+- [Hermes — React Native (official)](https://reactnative.dev/docs/hermes)
+- [FlashList — Shopify](https://shopify.github.io/flash-list/)

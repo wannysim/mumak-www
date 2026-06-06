@@ -1,10 +1,19 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import type { ColorValue } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+
+function HomeTabIcon({ color }: { color: ColorValue }) {
+  return <IconSymbol size={28} name="house.fill" color={color} />;
+}
+
+function ExploreTabIcon({ color }: { color: ColorValue }) {
+  return <IconSymbol size={28} name="paperplane.fill" color={color} />;
+}
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -21,14 +30,14 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: HomeTabIcon,
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
           title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          tabBarIcon: ExploreTabIcon,
         }}
       />
     </Tabs>

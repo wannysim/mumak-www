@@ -1,0 +1,182 @@
+---
+title: 'OAuth 콜백 보안: state는 왜 1회용이어야 하는가'
+created: '2026-06-05'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'oauth', 'csrf']
+---
+
+"Spotify 연동", "Google로 로그인" 버튼을 붙여 본 적이 있다면 `/callback?code=...&state=...` 같은 URL을 마주쳤을 것이다. 이 콜백 엔드포인트는 왜 공격 표면이 되고, `state`라는 난수는 대체 무엇을 증명하길래 모든 경로에서 1회만 써야 하는가.
+
+> 한 줄 요약: **state는 "이 콜백이 내가 시작한 흐름의 끝"임을 증명하는 출처 증명이고, 그 증명은 단 한 번만 통하게 해야 재사용(replay)으로 뚫리지 않는다.**
+
+## Authorization Code Flow를 그림으로
+
+먼저 가장 흔한 OAuth 흐름인 Authorization Code Flow(인가 코드 흐름)를 끝까지 따라가 본다. 등장인물은 셋이다. 내 서버, 제공자(Spotify·Google 등), 그리고 사용자의 브라우저.
+
+```
+[브라우저]            [내 서버]                      [제공자: Spotify]
+    │                    │                                │
+    │ 1. GET /login      │                                │
+    ├───────────────────▶│ state 난수 생성                │
+    │                    │ → 쿠키에 저장(Set-Cookie)      │
+    │ 2. 302 redirect    │                                │
+    │◀───────────────────┤ Location: spotify.com?state=.. │
+    │                                                      │
+    │ 3. 제공자에서 로그인·동의                            │
+    ├─────────────────────────────────────────────────────▶│
+    │                                                      │
+    │ 4. 302 redirect (브라우저가 따라감)                   │
+    │◀─────────────────────────────────────────────────────┤
+    │   Location: 내서버/callback?code=AUTH&state=..        │
+    │                    │                                │
+    │ 5. GET /callback   │                                │
+    ├───────────────────▶│ 쿠키의 state == URL의 state ?  │
+    │                    │ 일치하면 ↓                     │
+    │                    │ 6. POST /token (서버 간, code) │
+    │                    ├───────────────────────────────▶│
+    │                    │◀────── access_token ───────────┤
+```
+
+핵심은 두 가지다. `state`는 1번에서 내 서버가 만들어 **사용자 브라우저의 쿠키**에 심고, 동시에 제공자로 보내는 URL에도 실어 보낸다. 그리고 6번의 토큰 교환(code → access_token)은 브라우저가 아니라 **서버끼리** 직접 POST로 한다. 짧게 노출되는 `code`를 곧장 토큰으로 바꿔, 진짜 비밀인 access_token이 브라우저를 거치지 않게 하기 위함이다.
+
+## 콜백은 왜 하필 GET인가
+
+여기서 어색한 점이 하나 보인다. 4번에서 제공자는 내 서버로 사용자를 redirect(리다이렉트, 다른 주소로 보냄)시키는데, **OAuth 인가 응답의 기본 모드(`response_mode=query`)에서는 브라우저 내비게이션 redirect라 콜백이 GET으로 도착한다.** 그래서 가장 흔한 Authorization Code Flow에서는 콜백 엔드포인트를 사실상 GET으로 받게 된다.
+
+문제는 이게 웹의 오래된 기본 원칙과 충돌한다는 것이다. "GET 같은 안전한 메서드(safe method)에는 부수효과(side effect)를 두지 않는다"가 그 원칙이다. GET은 그냥 읽기일 거라고 모두가 가정하기 때문에, 사용자가 의도하지 않아도 GET은 수시로 날아간다.
+
+- 브라우저가 다음 페이지를 미리 당겨오는 **프리페치(prefetch)**
+- 검색엔진 **크롤러**
+- 메신저·SNS가 링크를 붙여넣으면 미리보기를 만드는 **링크 프리뷰 봇**
+
+그런데 OAuth 콜백은 "code를 토큰으로 바꾸고 사용자를 로그인시킨다"는 **명백한 부수효과**를 가진 GET이다. 즉 콜백은 "부수효과 있는 GET"이라는 예외에 놓이고, 그래서 브라우저가 공짜로 주는 보호를 못 받는다. 안전장치를 우리가 직접 보강해야 하는 이유가 여기 있다.
+
+> 왜 이렇게 설계했나?
+>
+> 토큰 교환을 POST로 하고 싶어도, 흐름을 시작시키는 제공자→내서버 단계는 기본·가장 흔한 응답 모드(query)에서 "사용자를 데리고 돌아오는" redirect라 콜백이 GET으로 도착한다. 그래서 OAuth는 GET 콜백을 전제로 `state`라는 보강 장치를 흐름에 못박았다.
+
+## 콜백이 노출되는 두 가지 위험
+
+부수효과 있는 GET이 무방비로 열려 있으면 무엇이 문제인가. 두 갈래로 나눠 본다.
+
+### 위험 1 — 의도 없는 호출
+
+콜백 URL이 어딘가에 노출되기만 해도 위에서 본 봇들이 사용자 의도 없이 그 URL을 GET으로 친다. 누군가 디버깅하려고 `/callback?code=...` 전체를 메신저에 붙여넣는 순간, 미리보기 봇이 그 주소를 호출해 의도치 않게 토큰 교환을 트리거할 수 있다. 사용자는 버튼을 누른 적도 없는데 흐름이 절반쯤 진행돼 버린다.
+
+### 위험 2 — 로그인 CSRF
+
+더 교묘한 쪽이다. 공격자가 **자기 계정에서 흐름을 시작**해 자기 계정에 묶인 `code`가 담긴 콜백 URL을 손에 넣는다. 그리고 그 URL을 피해자가 밟게 만든다(이미지 태그, 링크 등). 피해자의 브라우저가 그 콜백을 내 서버로 보내면, 내 서버는 피해자의 세션을 **공격자 계정**에 연결해 버린다.
+
+이건 비밀번호를 훔치는 공격이 아니다. 피해자의 세션을 공격자 계정에 **바인딩(binding, 묶어버림)**하는 공격이다. 비유하자면, 남의 집 우편함에 내 이름표를 미리 붙여두고 그 집 사람이 받는 모든 편지를 내가 보는 것에 가깝다. 피해자가 그 계정에 사진·결제수단을 올리면 전부 공격자가 들여다본다. [[web-security-xss-csrf]]에서 다룬 CSRF의 한 변종이다.
+
+## state가 증명하는 것
+
+두 위험의 공통점은 "흐름을 시작한 주체"와 "콜백을 완성하는 주체"가 다를 수 있다는 데 있다. `state`는 바로 이 둘이 같은지를 확인하는 장치다.
+
+흐름을 시작한 1번 단계에서, 내 서버는 난수 `state`를 **그 브라우저의 쿠키**에 심었다. 쿠키는 그 브라우저만 가진 비밀이다. 콜백이 돌아왔을 때 URL의 `state`와 쿠키의 `state`가 일치한다는 것은 곧 이렇게 읽힌다.
+
+> "이 콜백을 완성하려는 브라우저는, 이 흐름을 시작했던 바로 그 브라우저다."
+
+```ts
+function verifyState(req: Request): boolean {
+  const fromCookie = readStateCookie(req); // 흐름 시작 때 우리가 심은 값
+  const fromUrl = new URL(req.url).searchParams.get('state');
+
+  // 둘 다 존재하고 정확히 같아야 통과
+  return Boolean(fromCookie) && fromCookie === fromUrl;
+}
+```
+
+공격자는 피해자 브라우저의 쿠키에 자기 `state`를 심을 수 없으므로, 위험 2의 위조 콜백은 이 대조에서 걸러진다. 원리상 [[web-security-xss-csrf]]의 CSRF 토큰과 똑같다. "예측 불가능한 비밀을 양쪽에서 맞춰봐서, 우리 흐름에서 출발한 요청인지 증명한다." `state`는 OAuth 콜백에 끼워 넣은 CSRF 토큰인 셈이다.
+
+## 핵심 인사이트 — 1회용 소비는 "모든 경로"에서
+
+여기까지는 많이들 한다. 함정은 그다음이다. **state 쿠키를 언제 지우느냐.**
+
+흔한 실수는 토큰 교환이 **성공**한 경로에서만 쿠키를 지우는 것이다.
+
+```ts
+// 위험: 성공 경로에서만 쿠키를 소비한다
+async function handleCallback(req: Request, res: Response) {
+  if (!verifyState(req)) return res.redirect('/login?error=state');
+
+  const code = new URL(req.url).searchParams.get('code');
+  const token = await exchangeCodeForToken(code); // 여기서 던지면?
+
+  clearStateCookie(res); // 성공해야만 도달한다
+  return res.redirect('/');
+}
+```
+
+`exchangeCodeForToken`이 네트워크 오류나 예외로 실패하면 `clearStateCookie`에 도달하지 못한다. 그러면 **state 쿠키가 살아남는다.** 같은 콜백 URL을 다시 밟으면 `verifyState`를 또 통과하고, 검증이 무의미해진다. 이것이 재사용 공격, 즉 **replay**다. state는 흐름당 한 번만 의미를 가져야 하는데, 한 번 검증을 통과한 쿠키가 두 번째 시도에서도 살아 있으면 "1회용"이라는 전제가 깨진다.
+
+해결은 단순하지만 규율이 필요하다. **검증을 통과한 순간부터 응답을 내보내는 모든 경로(성공·실패·예외)에서 쿠키를 소비**한다.
+
+```ts
+async function handleCallback(req: Request, res: Response) {
+  if (!verifyState(req)) return res.redirect('/login?error=state');
+
+  // 검증을 통과한 이상, 이 state는 어떤 결말이든 소진된다
+  const done = (to: string) => {
+    clearStateCookie(res); // 모든 return이 이걸 통과한다
+    return res.redirect(to);
+  };
+
+  try {
+    const code = new URL(req.url).searchParams.get('code');
+    await exchangeCodeForToken(code);
+    return done('/'); // 성공
+  } catch {
+    return done('/login?error=exchange'); // 실패·예외
+  }
+}
+```
+
+`done` 같은 헬퍼로 모든 `return`을 감싸면, 어느 분기로 빠지든 쿠키가 반드시 한 번 비워진다. 핵심 문장은 이거다. **"성공했을 때 지운다"가 아니라 "검증을 통과한 뒤에는 무조건 지운다."**
+
+## 겹겹의 안전장치
+
+state 쿠키 1회 소비는 방어의 한 겹일 뿐이다. OAuth 콜백은 여러 계층이 함께 막는다. 각 장치가 누구의 책임이고 무엇을 노린 방어인지 정리한다.
+
+| 안전장치                      | 누가 보장하나 | 무엇을 막나                   |
+| ----------------------------- | ------------- | ----------------------------- |
+| state 쿠키 1회 소비           | 우리 서버     | 로그인 CSRF · 콜백 replay     |
+| authorization code 1회성      | 제공자 서버   | 탈취된 code의 재사용          |
+| 토큰 교환 `cache: 'no-store'` | 우리 코드     | 토큰이 캐시에 남는 것         |
+| 토큰을 URL·HTML에 노출 최소화 | 우리 코드     | 로그·히스토리·DOM을 통한 유출 |
+
+`code` 자체도 제공자가 1회용으로 만든다. 한 번 토큰으로 교환된 `code`를 다시 제출하면 제공자가 거부한다. 토큰 교환 응답에는 `cache: 'no-store'`를 줘서 토큰이 디스크나 중간 캐시에 남지 않게 한다(캐싱 제어의 일반 원리는 [[http-caching]] 참고). 마지막으로 access_token을 URL 쿼리스트링이나 HTML 본문에 그대로 박지 않는다. URL은 서버 로그·브라우저 히스토리·Referer 헤더로 새어 나가기 쉽고, HTML에 박힌 토큰은 [[json-in-script-xss]]의 위험과 겹친다.
+
+> 왜 한 겹으로 안 되나?
+>
+> state 쿠키 검증이 완벽히 구현됐어도, 토큰이 URL로 새거나 응답이 캐시에 남으면 전혀 다른 통로로 뚫린다. 보안은 단일 방어가 아니라 "한 겹이 뚫려도 다음 겹이 받쳐주는" 다층 구조로 설계한다.
+
+## 흔한 오해
+
+- **오해**: "state는 스펙상 RECOMMENDED니까 없어도 동작은 하잖아." → **실제**: 기능은 동작한다. 하지만 state가 없으면 로그인 CSRF를 막을 장치가 사라진다. 명목상 권고일 뿐 실무에선 사실상 필수 방어다.
+- **오해**: "code가 어차피 1회용이니 state는 중복 방어다." → **실제**: 로그인 CSRF는 code를 훔치는 공격이 아니라 **공격자 자신의 정상 code를 피해자 세션에 바인딩**하는 공격이다. code가 1회용이어도 "처음 한 번" 묶이는 걸 막지 못한다. 그 첫 바인딩을 거르는 게 state다.
+- **오해**: "콜백을 POST로 바꾸면 이 골치 아픈 문제가 깔끔히 사라진다." → **실제**: `response_mode=form_post`처럼 인가 응답을 POST로 돌려주는 모드가 표준으로 있긴 하다(인가 서버가 자동 제출 폼이 든 HTML을 반환해 콜백으로 POST). 다만 대부분의 제공자·기본 설정은 GET query 콜백이라, 실무에서는 GET을 전제로 state·1회 소비로 보강하는 것이다.
+- **오해**: "성공 시 쿠키를 지우니 1회용은 지켜진다." → **실제**: 교환 실패·예외 경로에서 쿠키가 살아남으면 같은 콜백을 다시 밟아 replay할 수 있다. 검증 통과 이후 모든 경로에서 소비해야 진짜 1회용이다.
+
+## 스스로 점검하기
+
+- OAuth 콜백이 구조적으로 GET일 수밖에 없는 이유는 무엇이고, 그게 왜 "부수효과 있는 GET"이라는 예외를 만드나?
+- 링크 프리뷰 봇이 콜백 URL을 호출하는 게 왜 위험으로 이어지나?
+- 로그인 CSRF는 비밀번호 탈취와 어떻게 다른가? "바인딩 공격"이라는 표현을 자기 말로 설명할 수 있나?
+- 쿠키의 state와 URL의 state가 일치한다는 사실은 정확히 무엇을 증명하나? 이게 CSRF 토큰과 같은 원리인 이유는?
+- state 쿠키를 "성공 경로에서만" 지우면 어떤 공격이 가능해지나? 왜 모든 응답 경로에서 소비해야 하나?
+- code가 1회용인데도 state가 막아주는 공격이 남는 이유는 무엇인가?
+
+## 함께 보기
+
+- [[web-security-xss-csrf]]
+- [[json-in-script-xss]]
+- [[http-caching]]
+- [[frontend-network]]
+
+## 참고
+
+- [RFC 6749 §10.12 — Cross-Site Request Forgery](https://datatracker.ietf.org/doc/html/rfc6749#section-10.12)
+- [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://datatracker.ietf.org/doc/html/rfc9700)
+- [Cross Site Request Forgery (CSRF) - OWASP](https://owasp.org/www-community/attacks/csrf)

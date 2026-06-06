@@ -1,9 +1,8 @@
 import { ImageResponse } from 'next/og';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
 import { getAllPostSlugs, getPost, isValidCategory } from '@/src/entities/post';
 import { locales, type Locale } from '@/src/shared/config/i18n';
+import { loadOgFonts } from '@/src/shared/lib/og';
 
 export const alt = 'Blog Post';
 export const size = {
@@ -19,31 +18,15 @@ export function generateStaticParams() {
   });
 }
 
-async function loadFont(): Promise<ArrayBuffer> {
-  const fontPath = join(process.cwd(), 'public', 'assets', 'fonts', 'PretendardVariable.woff2');
-  const fontData = await readFile(fontPath);
-  return fontData.buffer.slice(fontData.byteOffset, fontData.byteOffset + fontData.byteLength);
-}
+// 폰트 로딩은 요청마다 동일하므로 모듈 스코프에서 한 번만 수행한다.
+const fontOptionsPromise = loadOgFonts().then(fonts => ({ ...size, fonts }));
 
 interface Props {
   params: Promise<{ locale: string; category: string; slug: string }>;
 }
 
 export default async function Image({ params }: Props) {
-  const { locale, category, slug } = await params;
-
-  const fontData = await loadFont();
-  const fontOptions = {
-    ...size,
-    fonts: [
-      {
-        name: 'Pretendard',
-        data: fontData,
-        style: 'normal' as const,
-        weight: 400 as const,
-      },
-    ],
-  };
+  const [{ locale, category, slug }, fontOptions] = await Promise.all([params, fontOptionsPromise]);
 
   if (!isValidCategory(category)) {
     return new ImageResponse(
