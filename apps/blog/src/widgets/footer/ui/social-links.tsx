@@ -14,7 +14,14 @@ function Icon({ slug, className }: { slug: string; className?: string }) {
   if (!icon) return null;
 
   return (
-    <svg role="img" viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      focusable="false"
+    >
       <path d={icon.path} />
     </svg>
   );
@@ -37,7 +44,7 @@ export function SocialLinks({ variant = 'default', className, noWrapper = false 
           aria-label={label}
           className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
         >
-          <Icon slug={iconSlug} className="size-4" aria-hidden="true" />
+          <Icon slug={iconSlug} className="size-4" />
           <span className="sr-only">{label}</span>
         </a>
       );
