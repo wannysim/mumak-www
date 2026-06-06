@@ -62,7 +62,7 @@ Turborepo 기반 모노레포. 공유 패키지는 `packages/`, 앱은 `apps/`�
 
 | 앱                  | 설명                              |
 | ------------------- | --------------------------------- |
-| `apps/mumak-next`   | Next.js 15 (App Router)           |
+| `apps/mumak-next`   | Next.js App Router                |
 | `apps/mumak-react`  | React + Vite                      |
 | `apps/blog`         | 블로그 (FSD + MDX)                |
 | `apps/mumak-native` | Expo (React Native + expo-router) |
@@ -86,6 +86,7 @@ Turborepo 기반 모노레포. 공유 패키지는 `packages/`, 앱은 `apps/`�
 - 컴포넌트 export 이름은 PascalCase named export (`export function PostCard`)
 - 테스트 파일: `*.test.ts(x)`, E2E는 `*.spec.ts`
 - 설정 파일: kebab-case (`jest.config.mjs`, `vite.config.ts`)
+- `apps/blog`의 FSD 모듈도 컴포넌트 파일은 **kebab-case** (`post-card.tsx`) — `apps/blog/AGENTS.md` 참조
 - 예외: `README.md`, `AGENTS.md`, `CLAUDE.md`, `SKILL.md` 등 관례적 대문자 문서 파일명은 그대로 둔다.
 
 ### 테스트 폴더 구조
@@ -328,7 +329,7 @@ test.describe('Home Page', () => {
 
 ### 이 저장소의 E2E 관점
 
-- `apps/blog`, `apps/mumak-next`, `apps/mumak-react`가 Playwright E2E 대상.
+- `apps/blog`, `apps/mumak-next`, `apps/mumak-react`, `apps/mumak-native`가 Playwright E2E 대상.
 - E2E는 빌드 결과 기반 서버 실행을 전제로 한다.
 - `playwright.config.*`, `e2e/**`, 라우팅, 레이아웃, 메타데이터, UI 상호작용 변경 시 E2E 필요성을 적극 검토한다.
 - `apps/blog`는 standalone 기반 경로를 사용하므로, 로컬 실패 시 `apps/blog/.next` 상태도 확인한다.

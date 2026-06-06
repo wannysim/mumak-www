@@ -19,7 +19,7 @@
     "export:web": "expo export --platform web --output-dir dist",
     "serve:web": "serve dist --listen 3003 --no-port-switching",
     "preview:e2e": "pnpm export:web && pnpm serve:web",
-    "test:e2e": "playwright test",
+    "test:e2e": "sh ../../scripts/playwright-e2e.sh",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",

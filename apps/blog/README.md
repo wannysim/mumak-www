@@ -1,20 +1,21 @@
 # Wan Sim Blog
 
-Next.js 16 + TypeScript + next-intl로 구성된 다국어 MDX 블로그입니다.
+Next.js App Router + TypeScript + next-intl로 구성된 다국어 MDX 블로그입니다.
 
 ## 주요 기능
 
-- **다국어 지원 (i18n)**: 한국어/영어 지원 (next-intl)
-- **MDX 콘텐츠**: 마크다운 + React 컴포넌트 (next-mdx-remote-client)
-- **카테고리 분류**: essay, articles, notes
-- **SEO 최적화**: sitemap.xml, robots.txt, generateMetadata
-- **반응형 디자인**: Tailwind CSS + @tailwindcss/typography
+- **다국어 지원**: 한국어/영어 지원
+- **MDX 콘텐츠**: 마크다운 + React 컴포넌트
+- **블로그 콘텐츠**: essay, articles, notes
+- **Digital Garden**: PARA 기반 garden 노트와 wikilink
+- **SEO 최적화**: sitemap.xml, robots.txt, manifest, metadata
+- **반응형 디자인**: Tailwind CSS + `@mumak/ui`
 
 ## 기술 스택
 
 | 구분        | 기술                                  |
 | ----------- | ------------------------------------- |
-| Framework   | Next.js 16.0.6 (App Router)           |
+| Framework   | Next.js App Router                    |
 | i18n        | next-intl                             |
 | MDX         | next-mdx-remote-client                |
 | Frontmatter | gray-matter                           |
@@ -25,86 +26,102 @@ Next.js 16 + TypeScript + next-intl로 구성된 다국어 MDX 블로그입니�
 
 ## 개발 환경
 
-- Node.js 22.12+
+- Node.js 24.11.1+
 - pnpm
 
 ## 설치 및 실행
 
+의존성은 워크스페이스 루트에서 설치합니다.
+
 ```bash
-# 의존성 설치
 pnpm install
+```
 
-# 개발 서버 실행
+루트에서 실행할 때:
+
+```bash
+pnpm --filter=blog dev
+pnpm --filter=blog build
+pnpm --filter=blog start
+```
+
+앱 디렉터리에서 실행할 때:
+
+```bash
 pnpm dev
-
-# 빌드
 pnpm build
-
-# 미리보기
 pnpm start
 ```
 
-## 테스트
+개발 서버는 Portless를 사용하며 기본 URL은 `http://blog.mumak.localhost:1355`입니다.
+E2E/CI용 start 포트는 `3002`입니다.
+
+## 검증
 
 ```bash
 # 단위 테스트
 pnpm test
+pnpm test:coverage
+pnpm test:ci
 
 # E2E 테스트
 pnpm test:e2e
+pnpm test:e2e:ui
+pnpm test:e2e:headed
+pnpm test:e2e:debug
 
-# 전체 테스트
-pnpm test && pnpm test:e2e
+# 콘텐츠 검증
+pnpm validate:content
+pnpm validate:garden
+```
+
+루트에서 특정 앱만 검증하려면 filter를 사용합니다.
+
+```bash
+pnpm --filter=blog test:ci
+pnpm --filter=blog test:e2e
+pnpm --filter=blog validate:content
+pnpm --filter=blog validate:garden
 ```
 
 ## 프로젝트 구조
 
-```bash
+```text
 apps/blog/
-├── app/
-│   ├── [locale]/                # 다국어 라우팅
-│   │   ├── layout.tsx           # 공통 레이아웃
-│   │   ├── page.tsx             # 홈 페이지
-│   │   ├── not-found.tsx        # 404 페이지
-│   │   └── [category]/
-│   │       ├── page.tsx         # 카테고리 목록
-│   │       └── [slug]/
-│   │           └── page.tsx     # 글 상세
-│   ├── sitemap.ts               # 사이트맵 생성
-│   └── robots.ts                # robots.txt 생성
+├── app/                         # Next.js route tree
+│   ├── [locale]/
+│   │   ├── (main)/              # 일반 페이지 레이아웃
+│   │   ├── (immersive)/         # graph 등 몰입형 화면
+│   │   ├── feed.xml/route.ts
+│   │   ├── layout.tsx
+│   │   └── not-found.tsx
+│   ├── api/spotify/             # Spotify API route
+│   ├── manifest.ts
+│   ├── robots.ts
+│   └── sitemap.ts
 ├── content/                     # MDX 콘텐츠
-│   ├── ko/{essay,articles,notes}/
-│   └── en/{essay,articles,notes}/
-├── messages/                    # i18n 번역 파일
-│   ├── ko.json
-│   └── en.json
-├── i18n/                        # i18n 설정
-│   ├── config.ts
-│   ├── routing.ts
-│   └── request.ts
-├── lib/
-│   └── posts.ts                 # 데이터 접근 계층
-├── components/
-│   ├── locale-switcher.tsx      # 언어 전환
-│   ├── navigation.tsx           # 네비게이션
-│   └── providers.tsx            # 프로바이더
-├── __tests__/                   # 단위 테스트
-│   ├── i18n/config.test.ts
-│   ├── lib/posts.test.ts
-│   └── components/locale-switcher.test.tsx
-├── e2e/                         # E2E 테스트
-│   ├── i18n.spec.ts
-│   ├── blog.spec.ts
-│   └── navigation.spec.ts
-├── mdx-components.tsx           # MDX 커스텀 컴포넌트
-└── middleware.ts                # i18n 미들웨어
+│   ├── ko/{articles,essay,notes,garden}/
+│   └── en/{articles,essay,notes,garden}/
+├── messages/                    # i18n 메시지
+├── src/
+│   ├── app/                     # providers, analytics, seo
+│   ├── entities/                # post, note, tag, spotify 등
+│   ├── features/                # graph, switch-theme 등
+│   ├── shared/                  # config, hooks, lib, ui
+│   └── widgets/                 # header, nav, cards, footer 등
+├── __tests__/                   # route/static 단위 테스트
+├── e2e/                         # Playwright E2E 테스트
+├── mdx-components.tsx
+├── proxy.ts
+└── scripts/
 ```
 
 ## 콘텐츠 작성
 
-### MDX 파일 생성
+### 블로그 글
 
-`content/{locale}/{category}/` 디렉토리에 `.mdx` 파일을 생성합니다.
+블로그 글은 `content/{locale}/{category}/` 아래에 `.mdx` 파일로 작성합니다.
+현재 블로그 카테고리는 `articles`, `essay`, `notes`입니다.
 
 ```mdx
 ---
@@ -116,23 +133,38 @@ draft: false
 ---
 
 본문 내용...
-
-## 소제목
-
-마크다운 + React 컴포넌트를 사용할 수 있습니다.
 ```
 
-### Frontmatter 필드
+### Digital Garden 노트
 
-| 필드        | 필수 | 설명                       |
-| ----------- | ---- | -------------------------- |
-| title       | O    | 글 제목                    |
-| date        | O    | 작성일 (YYYY-MM-DD)        |
-| description | O    | 글 요약                    |
-| tags        | X    | 태그 배열                  |
-| draft       | X    | true면 production에서 제외 |
+Garden 노트는 `content/{locale}/garden/` 아래에 작성합니다.
 
-## 테스트 결과
+```mdx
+---
+title: '노트 제목'
+created: '2026-02-04'
+updated: '2026-02-04'
+status: 'seedling'
+tags: ['tag1', 'tag2']
+draft: false
+---
 
-- Jest 단위 테스트: 17 passed
-- Playwright E2E 테스트: 69 passed
+관련 노트는 [[note-slug]] 또는 [[note-slug|표시할 텍스트]]로 연결합니다.
+```
+
+### Frontmatter
+
+| 필드        | 블로그 글 | Garden 노트 | 설명                               |
+| ----------- | --------- | ----------- | ---------------------------------- |
+| title       | 필수      | 필수        | 제목                               |
+| date        | 필수      | -           | 블로그 글 작성일 (`YYYY-MM-DD`)    |
+| description | 필수      | -           | 블로그 글 요약                     |
+| created     | -         | 필수        | Garden 노트 생성일 (`YYYY-MM-DD`)  |
+| updated     | -         | 선택        | Garden 노트 수정일 (`YYYY-MM-DD`)  |
+| status      | -         | 필수        | `seedling`, `budding`, `evergreen` |
+| tags        | 선택      | 선택        | 태그 배열                          |
+| draft       | 선택      | 선택        | `true`면 production에서 제외       |
+
+## 컨벤션
+
+앱 전용 구조와 작성 규칙은 [`AGENTS.md`](./AGENTS.md)를 따릅니다.

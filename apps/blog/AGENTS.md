@@ -24,18 +24,16 @@ src/widgets/post-card/
 ├── __tests__/
 │   └── post-card.test.tsx
 ├── ui/
-│   └── post-card.tsx     # kebab-case
+│   └── post-card.tsx
 └── index.ts              # barrel export
 ```
 
 ## 네이밍
 
-- 폴더: kebab-case (`post-card`, `switch-theme`)
-- 파일: **kebab-case** (`post-card.tsx`, `blog-nav.tsx`) — `ui/` 내부도 동일
+- 폴더: kebab-case (`post-card`, `switch-theme`) — 루트와 동일
+- 컴포넌트 파일: kebab-case (`post-card.tsx`) — 루트와 동일, `ui/` 내부도 동일
 - 컴포넌트 export 이름은 PascalCase named export (`export function PostCard`)
-- 테스트 파일: kebab-case (`post-card.test.tsx`)
-
-> 루트 `AGENTS.md`에는 "`ui/` 파일만 PascalCase 예외"라고 적혀 있으나, 이 앱의 실제 코드는 `ui/` 포함 전 파일이 kebab-case다. 신규 파일도 kebab-case를 따른다.
+- 테스트 파일: kebab-case (`post-card.test.tsx`) — 루트와 동일
 
 ## FSD Import 규칙
 
@@ -57,9 +55,9 @@ import { PostCard } from '@/src/widgets/post-card';
 
 ---
 
-## MDX 포스트 Frontmatter
+## MDX 블로그 Frontmatter
 
-`apps/blog/content/{locale}/posts/` 하위 MDX 파일에 필수.
+`apps/blog/content/{locale}/{articles,essay,notes}/` 하위 MDX 파일에 필수.
 
 ```yaml
 ---
@@ -78,7 +76,7 @@ draft: false # 생략 시 false
 ### 파일 위치
 
 ```
-apps/blog/content/{locale}/garden/
+apps/blog/content/
 ├── ko/garden/   # 한국어 노트
 └── en/garden/   # 영어 노트
 ```

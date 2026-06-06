@@ -76,6 +76,7 @@ export { Callout };
 
 - Props는 **`React.ComponentProps<'element'>`** 로 네이티브 속성을 확장한다. 별도 `interface ComponentNameProps`는 만들지 않는다.
 - variant/size 등 디자인 변형은 `cva` + `VariantProps`로 표현한다.
+- shadcn/ui primitive는 Radix primitive props 타입을 그대로 확장한다.
 - `any` 캐스팅 금지.
 
 ### 스타일링
@@ -83,7 +84,7 @@ export { Callout };
 - Tailwind v4 + shadcn/ui semantic token만 사용한다 (`bg-muted`, `text-muted-foreground`, `border-border` 등).
 - raw 팔레트(`text-blue-500`, `bg-red-*`)와 임의 `dark:` 색상 override를 직접 쓰지 않는다.
 - `cn()`(`@mumak/ui/lib/utils`)으로 조건부 클래스를 병합한다.
-- 인라인 스타일 사용 금지.
+- 인라인 스타일은 동적 값이 필요한 경우에만 사용한다.
 
 ### 네이밍
 
@@ -96,6 +97,7 @@ export { Callout };
 - **named export** 사용 (Next.js 페이지/레이아웃·설정 파일만 default export).
 - export는 파일 끝에서 모아서 한다 (`export { ComponentName, componentVariants }`).
 - props destructuring + `...props` spread로 확장성 확보.
+- `packages/ui` 컴포넌트는 `data-slot`을 추가한다.
 - 클라이언트 훅이 필요할 때만 `'use client'`를 맨 위에 둔다.
 
 ## 체크리스트
@@ -105,4 +107,5 @@ export { Callout };
 - [ ] semantic token만 사용하고 raw 색상/임의 `dark:`를 피했는가?
 - [ ] `cn`을 `@mumak/ui/lib/utils`에서 가져왔는가?
 - [ ] FSD 레이어(blog) 또는 올바른 앱 디렉터리에 배치했는가?
+- [ ] `packages/ui`라면 `data-slot`을 추가했는가?
 - [ ] named export + 파일 끝 export를 사용하는가?
