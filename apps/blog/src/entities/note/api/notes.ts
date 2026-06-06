@@ -3,6 +3,7 @@ import matter from 'gray-matter';
 import path from 'path';
 
 import type { Locale } from '@/src/shared/config/i18n';
+import { calculateReadingTime } from '@/src/shared/lib/reading-time';
 import { extractWikilinkSlugs, normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
 
 export type NoteStatus = 'seedling' | 'budding' | 'evergreen';
@@ -18,6 +19,8 @@ export interface NoteMeta {
   draft?: boolean;
   parent?: string;
   outgoingLinks: string[];
+  excerpt?: string;
+  readingTime: number;
 }
 
 export interface NoteTreeNode extends NoteMeta {
@@ -175,6 +178,8 @@ function parseNoteFile(filePath: string, slug: string, category: string = 'garde
       draft: data.draft || false,
       parent: data.parent,
       outgoingLinks: extractWikilinkSlugs(content),
+      excerpt: extractFirstParagraph(content) || undefined,
+      readingTime: calculateReadingTime(content),
     };
   } catch {
     return null;
@@ -235,6 +240,7 @@ export function getNote(locale: Locale, slug: string): Note | null {
       draft: data.draft || false,
       parent: data.parent,
       outgoingLinks: extractWikilinkSlugs(content),
+      readingTime: calculateReadingTime(content),
     };
 
     return isPublishable(meta) ? { meta, content } : null;
@@ -333,6 +339,11 @@ export function getNotesByTag(locale: Locale, tag: string): NoteMeta[] {
 export function getNotesByStatus(locale: Locale, status: NoteStatus): NoteMeta[] {
   const notes = getNotes(locale);
   return notes.filter(note => note.status === status);
+}
+
+export function getNotesByCategory(locale: Locale, category: string): NoteMeta[] {
+  const notes = getNotes(locale);
+  return notes.filter(note => (note.category || 'garden') === category);
 }
 
 export function getAllNoteTags(locale: Locale): Array<{ name: string; count: number }> {

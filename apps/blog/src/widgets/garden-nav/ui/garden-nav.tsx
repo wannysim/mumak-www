@@ -12,18 +12,20 @@ interface GardenNavProps {
   allLabel: string;
   statusLabels: Record<NoteStatus, string>;
   tagsLabel: string;
+  counts?: Record<string, number>;
 }
 
-export function GardenNav({ allLabel, statusLabels, tagsLabel }: GardenNavProps) {
+export function GardenNav({ allLabel, statusLabels, tagsLabel, counts }: GardenNavProps) {
   const pathname = usePathname();
 
   const items: ContentSegmentNavItem[] = [
-    { key: 'all', href: '/garden', label: allLabel, active: pathname === '/garden' },
+    { key: 'all', href: '/garden', label: allLabel, active: pathname === '/garden', count: counts?.all },
     ...STATUSES.map(status => ({
       key: status,
       href: `/garden/status/${status}`,
       label: statusLabels[status],
       active: pathname === `/garden/status/${status}`,
+      count: counts?.[status],
     })),
     {
       key: 'tags',
@@ -31,6 +33,7 @@ export function GardenNav({ allLabel, statusLabels, tagsLabel }: GardenNavProps)
       label: tagsLabel,
       active: pathname.startsWith('/garden/tags'),
       icon: <TagIcon className="size-3.5" />,
+      count: counts?.tags,
       dividerBefore: true,
     },
   ];

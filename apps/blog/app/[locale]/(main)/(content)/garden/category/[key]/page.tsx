@@ -3,48 +3,46 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
 import { buildAlternates } from '@/src/app/seo';
-import { getNotesByStatus, type NoteStatus } from '@/src/entities/note';
+import { getNotesByCategory, isValidParaCategory, PARA_CATEGORY_KEYS, PARA_LABELS } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
 import { PageHeader } from '@/src/shared/ui';
 import { GardenNav, getGardenNavCounts } from '@/src/widgets/garden-nav';
 import { NoteCard } from '@/src/widgets/note-card';
 
-const VALID_STATUSES: NoteStatus[] = ['seedling', 'budding', 'evergreen'];
-
-interface GardenStatusPageProps {
-  params: Promise<{ locale: string; status: string }>;
+interface GardenCategoryPageProps {
+  params: Promise<{ locale: string; key: string }>;
 }
 
 export function generateStaticParams() {
-  return locales.flatMap(locale => VALID_STATUSES.map(status => ({ locale, status })));
+  return locales.flatMap(locale => PARA_CATEGORY_KEYS.map(key => ({ locale, key })));
 }
 
-export async function generateMetadata({ params }: GardenStatusPageProps): Promise<Metadata> {
-  const { locale, status } = await params;
+export async function generateMetadata({ params }: GardenCategoryPageProps): Promise<Metadata> {
+  const { locale, key } = await params;
 
-  if (!VALID_STATUSES.includes(status as NoteStatus)) {
+  if (!isValidParaCategory(key)) {
     return { title: 'Not Found' };
   }
 
   const t = await getTranslations({ locale, namespace: 'garden' });
 
   return {
-    title: `${t(`status.${status}`)} - ${t('title')}`,
-    description: t('description'),
-    alternates: buildAlternates({ locale, path: `/garden/status/${status}` }),
+    title: `${PARA_LABELS[key]} - ${t('title')}`,
+    description: t(`categories.${key}.description`),
+    alternates: buildAlternates({ locale, path: `/garden/category/${key}` }),
   };
 }
 
-export default async function GardenStatusPage({ params }: GardenStatusPageProps) {
-  const { locale, status } = await params;
+export default async function GardenCategoryPage({ params }: GardenCategoryPageProps) {
+  const { locale, key } = await params;
   setRequestLocale(locale);
 
-  if (!VALID_STATUSES.includes(status as NoteStatus)) {
+  if (!isValidParaCategory(key)) {
     notFound();
   }
 
   const [t, tCommon] = await Promise.all([getTranslations('garden'), getTranslations('common')]);
-  const notes = getNotesByStatus(locale as Locale, status as NoteStatus);
+  const notes = getNotesByCategory(locale as Locale, key);
 
   const statusLabels = {
     seedling: t('status.seedling'),
@@ -54,7 +52,7 @@ export default async function GardenStatusPage({ params }: GardenStatusPageProps
 
   return (
     <div className="space-y-8">
-      <PageHeader title={t(`status.${status}`)} description={t('noteCount', { count: notes.length })} />
+      <PageHeader title={PARA_LABELS[key]} description={t(`categories.${key}.description`)} />
 
       <GardenNav
         allLabel={tCommon('all')}

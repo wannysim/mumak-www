@@ -56,4 +56,32 @@ describe('ContentSegmentNav', () => {
 
     expect(container.querySelectorAll('.w-px')).toHaveLength(1);
   });
+
+  describe('counts', () => {
+    const withCounts: ContentSegmentNavItem[] = [
+      { key: 'all', href: '/blog', label: 'All', active: true, count: 12 },
+      { key: 'essay', href: '/blog/essay', label: 'Essay', active: false, count: 5 },
+      { key: 'none', href: '/blog/none', label: 'None', active: false },
+    ];
+
+    it('renders the count next to the label when provided', () => {
+      render(<ContentSegmentNav items={withCounts} />);
+
+      expect(screen.getByRole('link', { name: 'All 12' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Essay 5' })).toBeInTheDocument();
+    });
+
+    it('omits the count element when count is not provided', () => {
+      render(<ContentSegmentNav items={withCounts} />);
+
+      const none = screen.getByRole('link', { name: 'None' });
+      expect(none.querySelector('[data-slot="content-segment-nav-count"]')).toBeNull();
+    });
+
+    it('still renders a zero count rather than hiding it', () => {
+      render(<ContentSegmentNav items={[{ key: 'z', href: '/z', label: 'Zero', active: false, count: 0 }]} />);
+
+      expect(screen.getByRole('link', { name: 'Zero 0' })).toBeInTheDocument();
+    });
+  });
 });

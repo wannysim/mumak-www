@@ -4,7 +4,8 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { buildAlternates } from '@/src/app/seo';
 import { getAllNoteTags } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
-import { GardenNav } from '@/src/widgets/garden-nav';
+import { PageHeader } from '@/src/shared/ui';
+import { GardenNav, getGardenNavCounts } from '@/src/widgets/garden-nav';
 import { TagCloud } from '@/src/widgets/tag-cloud';
 
 interface GardenTagsPageProps {
@@ -48,12 +49,14 @@ export default async function GardenTagsPage({ params }: GardenTagsPageProps) {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold mb-2">{t('title')}</h1>
-        <p className="text-muted-foreground">{t('description', { count: tags.length })}</p>
-      </header>
+      <PageHeader title={t('title')} description={t('description', { count: tags.length })} />
 
-      <GardenNav allLabel={tCommon('all')} statusLabels={statusLabels} tagsLabel={tCommon('tags')} />
+      <GardenNav
+        allLabel={tCommon('all')}
+        statusLabels={statusLabels}
+        tagsLabel={tCommon('tags')}
+        counts={getGardenNavCounts(locale as Locale)}
+      />
 
       <section>
         {tags.length === 0 ? (

@@ -10,19 +10,21 @@ interface BlogNavProps {
   allLabel: string;
   categoryLabels: Record<Category, string>;
   tagsLabel?: string;
+  counts?: Record<string, number>;
 }
 
-export function BlogNav({ allLabel, categoryLabels, tagsLabel }: BlogNavProps) {
+export function BlogNav({ allLabel, categoryLabels, tagsLabel, counts }: BlogNavProps) {
   const pathname = usePathname();
   const categories = Object.keys(categoryLabels) as Category[];
 
   const items: ContentSegmentNavItem[] = [
-    { key: 'all', href: '/blog', label: allLabel, active: pathname === '/blog' },
+    { key: 'all', href: '/blog', label: allLabel, active: pathname === '/blog', count: counts?.all },
     ...categories.map(category => ({
       key: category,
       href: `/blog/${category}`,
       label: categoryLabels[category],
       active: pathname === `/blog/${category}`,
+      count: counts?.[category],
     })),
     {
       key: 'tags',
@@ -30,6 +32,7 @@ export function BlogNav({ allLabel, categoryLabels, tagsLabel }: BlogNavProps) {
       label: tagsLabel,
       active: pathname.startsWith('/blog/tags'),
       icon: <TagIcon className="size-3.5" />,
+      count: counts?.tags,
       dividerBefore: true,
     },
   ];

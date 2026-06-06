@@ -87,10 +87,10 @@ const RECIPE_SIGNATURES = [
     primitive: 'ContentSegmentNav',
   },
   {
-    name: 'content card shell',
-    fragment: 'hover:bg-muted/50 active:scale-[0.98]',
-    canonical: 'src/shared/ui/content-card.tsx',
-    primitive: 'ContentCard',
+    name: 'interactive card surface',
+    fragment: 'hover:border-foreground/20 hover:bg-muted/40 hover:shadow-sm active:scale-[0.99]',
+    canonical: 'src/shared/ui/card-surface.ts',
+    primitive: 'cardSurfaceClass',
   },
 ];
 

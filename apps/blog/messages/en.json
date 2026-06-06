@@ -89,6 +89,8 @@
     "description": "Growing thoughts and ideas",
     "noteCount": "{count} notes",
     "empty": "No notes yet",
+    "overviewTitle": "Categories",
+    "latestTitle": "Latest notes",
     "intro": {
       "line1": "Welcome! This is my digital garden.",
       "line2": "This garden uses the PARA (Projects, Areas, Resources, Archives) structure to organize and share my thoughts and knowledge.",

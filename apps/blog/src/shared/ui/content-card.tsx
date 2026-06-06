@@ -1,6 +1,10 @@
 import * as React from 'react';
 
+import { cn } from '@mumak/ui/lib/utils';
+
 import { Link } from '@/src/shared/config/i18n';
+
+import { cardSurfaceClass } from './card-surface';
 
 interface ContentCardProps {
   href: string;
@@ -13,16 +17,13 @@ interface ContentCardProps {
 
 export function ContentCard({ href, title, meta, description, tags, footer }: ContentCardProps) {
   return (
-    <Link href={href} className="block">
-      <article
-        data-slot="content-card"
-        className="border border-border rounded-lg p-4 hover:bg-muted/50 active:scale-[0.98] transition-all duration-150"
-      >
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">{meta}</div>
-        <h3 className="text-xl font-semibold mb-2">{title}</h3>
-        {description && <p className="text-muted-foreground mb-3">{description}</p>}
-        {tags && <div className="mb-3">{tags}</div>}
-        {footer}
+    <Link href={href} className="group block">
+      <article data-slot="content-card" className={cn(cardSurfaceClass, 'p-5')}>
+        <div className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">{meta}</div>
+        <h3 className="text-xl font-semibold tracking-tight transition-colors group-hover:text-primary">{title}</h3>
+        {description && <p className="mt-1.5 leading-relaxed text-muted-foreground line-clamp-2">{description}</p>}
+        {tags && <div className="mt-3">{tags}</div>}
+        {footer && <div className="mt-3">{footer}</div>}
       </article>
     </Link>
   );

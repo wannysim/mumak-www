@@ -12,6 +12,7 @@ interface ContentSegmentNavItem {
   label: React.ReactNode;
   active: boolean;
   icon?: React.ReactNode;
+  count?: number;
   dividerBefore?: boolean;
 }
 
@@ -42,6 +43,11 @@ export function ContentSegmentNav({ items, 'aria-label': ariaLabel }: ContentSeg
           >
             {item.icon}
             {item.label}
+            {typeof item.count === 'number' && (
+              <span data-slot="content-segment-nav-count" className="ml-1 text-xs tabular-nums opacity-60">
+                {item.count}
+              </span>
+            )}
           </Link>
         </React.Fragment>
       ))}
