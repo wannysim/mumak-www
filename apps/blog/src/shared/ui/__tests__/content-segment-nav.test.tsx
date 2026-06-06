@@ -36,12 +36,36 @@ describe('ContentSegmentNav', () => {
     expect(nav).toHaveAttribute('data-slot', 'content-segment-nav');
   });
 
+  it('uses a wrapping mobile layout without changing the desktop segmented layout', () => {
+    const { container } = render(<ContentSegmentNav items={items} />);
+
+    const nav = container.querySelector('[data-slot="content-segment-nav"]');
+    expect(nav).toHaveClass('w-full', 'max-w-full', 'flex-wrap', 'sm:w-fit', 'sm:flex-nowrap');
+    expect(container.querySelector('.w-px')).toHaveClass('hidden', 'sm:block');
+  });
+
   it('renders one link per item with its href', () => {
     render(<ContentSegmentNav items={items} />);
 
     expect(screen.getByRole('link', { name: 'All' })).toHaveAttribute('href', '/blog');
     expect(screen.getByRole('link', { name: 'Essay' })).toHaveAttribute('href', '/blog/essay');
     expect(screen.getByRole('link', { name: /Tags/ })).toHaveAttribute('href', '/blog/tags');
+  });
+
+  it('constrains item labels and counts so long content cannot widen the page', () => {
+    render(
+      <ContentSegmentNav
+        items={[{ key: 'long', href: '/long', label: 'Very long segment label', active: true, count: 123 }]}
+      />
+    );
+
+    expect(screen.getByRole('link', { name: 'Very long segment label 123' })).toHaveClass(
+      'max-w-full',
+      'min-w-0',
+      'overflow-hidden'
+    );
+    expect(screen.getByText('Very long segment label')).toHaveClass('min-w-0', 'truncate');
+    expect(screen.getByText('123')).toHaveClass('shrink-0');
   });
 
   it('marks only the active item with aria-current="page"', () => {
