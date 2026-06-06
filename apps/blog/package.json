@@ -48,6 +48,7 @@
     "three-spritetext": "^1.10.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
     "@mumak/playwright-config": "workspace:*",
     "@mumak/typescript-config": "workspace:*",
     "@next/bundle-analyzer": "^16.2.6",
