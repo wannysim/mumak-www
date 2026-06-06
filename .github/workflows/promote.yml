@@ -1,0 +1,101 @@
+name: Promote to Production
+
+# develop 브랜치에서 CI / E2E 워크플로가 끝날 때마다 깨어나,
+# 같은 commit 기준으로 두 워크플로가 모두 success인지 재확인한 뒤
+# develop HEAD를 Vercel production(wannysim.com)으로 배포한다.
+#
+# 두 워크플로는 독립적이라 끝나는 순서가 매번 다르다. 먼저 끝난 쪽이
+# 트리거하면 gate 단계에서 "아직 나머지 대기 중"으로 판단해 조용히 종료하고,
+# 나중에 끝난 쪽이 트리거했을 때 비로소 둘 다 green이라 promote를 실행한다.
+on:
+  workflow_run:
+    workflows: ["CI", "E2E Tests"]
+    types: [completed]
+
+concurrency:
+  # 같은 commit에 대한 중복 promote 방지 (CI/E2E가 거의 동시에 끝날 수 있음).
+  # 진행 중인 배포는 취소하지 않는다.
+  group: promote-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  promote:
+    name: Promote develop HEAD to production
+    runs-on: ubuntu-latest
+    # develop 브랜치 + 트리거한 워크플로가 성공했을 때만 진행한다.
+    if: >
+      github.event.workflow_run.head_branch == 'develop' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Checkout (triggering commit)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # CI와 E2E 두 summary 워크플로가 같은 SHA에서 모두 success인지 확인한다.
+      # 하나라도 success가 아니면(아직 진행 중 포함) 여기서 깔끔히 종료한다.
+      - name: Gate — require both CI and E2E success
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          ok=1
+          for wf in "CI" "E2E Tests"; do
+            conclusion=$(gh run list \
+              --repo "${{ github.repository }}" \
+              --workflow "$wf" \
+              --branch develop \
+              --commit "$SHA" \
+              --json conclusion,status \
+              --jq 'map(select(.status=="completed")) | .[0].conclusion // "pending"')
+            echo "$wf => ${conclusion:-pending}"
+            if [ "$conclusion" != "success" ]; then
+              ok=0
+            fi
+          done
+          if [ "$ok" != "1" ]; then
+            echo "Both workflows are not green yet for $SHA — skipping promote."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Both CI and E2E succeeded for $SHA — promoting."
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node.js and pnpm
+        if: steps.gate.outputs.proceed == 'true'
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          save-cache: "false"
+
+      - name: Install Vercel CLI
+        if: steps.gate.outputs.proceed == 'true'
+        run: pnpm add -g vercel@latest
+
+      - name: Pull Vercel production environment
+        if: steps.gate.outputs.proceed == 'true'
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build (production)
+        if: steps.gate.outputs.proceed == 'true'
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy prebuilt to production
+        if: steps.gate.outputs.proceed == 'true'
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
