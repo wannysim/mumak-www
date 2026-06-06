@@ -191,8 +191,7 @@ function invalidateTokenCache(): void {
   tokenExpiresAt = 0;
 }
 
-// 테스트에서 토큰 캐시를 초기화하기 위한 함수
-export function __resetTokenCacheForTesting(): void {
+export function resetTokenCacheForTesting(): void {
   cachedToken = null;
   tokenExpiresAt = 0;
 }

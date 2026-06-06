@@ -3,7 +3,7 @@ jest.mock('next/server', () => ({
   connection: jest.fn().mockResolvedValue(undefined),
 }));
 
-import { getNowPlaying, __resetTokenCacheForTesting } from '../api/spotify';
+import { getNowPlaying, resetTokenCacheForTesting } from '../api/spotify';
 
 describe('spotify', () => {
   const originalEnv = process.env;
@@ -17,7 +17,7 @@ describe('spotify', () => {
     console.error = jest.fn();
     console.log = jest.fn();
     // 테스트 간 토큰 캐시 초기화
-    __resetTokenCacheForTesting();
+    resetTokenCacheForTesting();
   });
 
   afterEach(() => {
