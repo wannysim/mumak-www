@@ -135,6 +135,10 @@
       "inputs": ["content/**/garden/**/*.mdx", "scripts/validate-garden.mjs"],
       "outputs": []
     },
+    "validate:design": {
+      "inputs": ["src/**/*.ts", "src/**/*.tsx", "scripts/validate-design-system.mjs"],
+      "outputs": []
+    },
     "clean": {
       "cache": false
     },

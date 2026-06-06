@@ -178,6 +178,7 @@ jobs:
         run: |
           pnpm turbo run validate:content --filter=blog
           pnpm turbo run validate:garden --filter=blog
+          pnpm turbo run validate:design --filter=blog
 
       - name: Build
         run: pnpm turbo run build --filter=${{ matrix.app }}
