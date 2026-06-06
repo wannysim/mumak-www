@@ -1,0 +1,238 @@
+---
+title: 'Error Boundary: 하나의 위젯 실패가 전체 앱을 끌고 가지 않게 하기'
+created: '2026-06-06'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'error-handling', 'resilience']
+---
+
+클라이언트 기능이 한꺼번에 죽어 보이면 먼저 두 가지를 분리해야 한다.
+
+1. JS bundle이나 hydration 자체가 붙지 않은 문제
+2. hydration 이후 특정 client component가 render 중 throw한 문제
+
+첫 번째는 framework나 dev server 설정 문제다. 앱 코드가 정상적으로 실행되기 전 단계라 Error Boundary로 해결할 수 없다.
+두 번째는 React tree 안의 문제다. 이때 필요한 도구가 **Error Boundary**다.
+
+> 한 줄 요약: **Error Boundary는 render/lifecycle/constructor 단계에서 터진 오류를 subtree 단위로 격리하고, 깨진 영역만 fallback UI로 바꾸는 React의 실패 격리 장치다.**
+
+## 왜 try/catch가 아니라 Error Boundary인가
+
+React component는 선언적으로 그려진다. 부모 컴포넌트가 JSX를 반환한다고 해서 그 안의 자식 컴포넌트 실행을 일반 함수 호출처럼 `try/catch`로 감싼 것이 아니다.
+
+```tsx
+function Parent() {
+  try {
+    return <BrokenWidget />;
+  } catch {
+    return <p>fallback</p>;
+  }
+}
+```
+
+이 코드는 그럴듯하지만 render 중 자식에서 터지는 오류를 안정적으로 잡는 방법이 아니다.
+React 공식 lint 문서도 render method나 hook에서 던져진 오류는 component tree를 타고 올라가며, 이 오류는 Error Boundary만 잡을 수 있다고 설명한다.
+
+React에서 render 오류를 처리하는 단위는 JavaScript call stack이 아니라 **component tree**다.
+그래서 try/catch가 아니라 "이 subtree 아래에서 실패하면 여기서 멈춰라"라고 선언하는 boundary가 필요하다.
+
+## Error Boundary가 잡는 것과 못 잡는 것
+
+Error Boundary는 아래 오류를 잡는다.
+
+- 자식 컴포넌트의 render 중 오류
+- class component lifecycle method 중 오류
+- class component constructor 중 오류
+- 그 자식의 자식에서 깊게 발생한 동일한 종류의 오류
+
+하지만 모든 오류를 잡는 만능 장치는 아니다.
+
+| 못 잡는 것                 | 이유                                     | 보통의 처리 방식                           |
+| -------------------------- | ---------------------------------------- | ------------------------------------------ |
+| event handler 내부 오류    | render call stack 밖에서 실행된다        | handler 안에서 직접 처리하거나 상태로 반영 |
+| `setTimeout` 같은 async    | React render 흐름 밖에서 나중에 실행된다 | Promise rejection 처리, 상태 전환, 로깅    |
+| server-side rendering 오류 | client boundary가 hydrate되기 전 터진다  | framework의 route/page error 처리          |
+| boundary 자신이 던진 오류  | 자신은 자신을 잡을 수 없다               | 더 위의 boundary가 잡아야 한다             |
+
+면접에서 이 차이를 묻는다면 이렇게 답하면 된다.
+
+> Error Boundary는 "React가 렌더링하는 중" 발생한 오류를 component tree 단위로 잡는다. 클릭 handler나 async callback은 이미 React render 밖에서 실행되므로 boundary 대상이 아니다. 그런 오류는 직접 처리하거나 상태로 끌어올려 fallback UI를 렌더링하게 해야 한다.
+
+## 기본 구현
+
+현재 React에는 Error Boundary를 함수 컴포넌트로 직접 쓰는 공식 API가 없다.
+class component에 `static getDerivedStateFromError`와 `componentDidCatch`를 구현하는 방식이 기본이다.
+
+```tsx
+'use client';
+
+import { Component, type ErrorInfo, type ReactNode } from 'react';
+
+type Props = {
+  children: ReactNode;
+  fallback?: ReactNode;
+  name: string;
+};
+
+type State = {
+  hasError: boolean;
+};
+
+export class ClientErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false };
+
+  static getDerivedStateFromError(): State {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(`[ClientErrorBoundary:${this.props.name}]`, error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? null;
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+역할은 둘로 나뉜다.
+
+- `getDerivedStateFromError`: 다음 render에서 fallback UI를 보여주기 위한 state 전환
+- `componentDidCatch`: 로깅, error reporting, component stack 수집
+
+즉 하나는 **사용자에게 무엇을 보여줄지**, 다른 하나는 **개발자가 무엇을 기록할지**를 담당한다.
+
+## 경계는 어디에 둬야 하나
+
+Error Boundary를 앱 root에 하나만 두면 blank page는 막을 수 있다. 하지만 격리는 거의 되지 않는다.
+작은 위젯 하나가 실패해도 페이지 전체 fallback으로 떨어질 수 있기 때문이다.
+
+반대로 모든 버튼, 모든 아이콘을 boundary로 감싸는 것도 과하다.
+경계가 너무 촘촘하면 어떤 fallback을 보여줄지 설계하기 어렵고, 코드도 noisy해진다.
+
+기준은 **독립적으로 실패해도 되는 UI 단위**다.
+
+| UI 단위                | boundary 후보인가 | 이유                                        |
+| ---------------------- | ----------------- | ------------------------------------------- |
+| Spotify 현재 재생 위젯 | 좋다              | 실패해도 글 읽기와 navigation은 살아야 한다 |
+| 검색 팔레트            | 좋다              | 검색만 fallback/null 처리하면 된다          |
+| 테마/언어 switcher     | 좋다              | header 전체를 죽일 필요가 없다              |
+| 글 본문 전체           | 경우에 따라       | MDX 렌더 실패를 문서 영역에 가둘 수 있다    |
+| 모든 avatar            | 보통 과하다       | fallback 가치보다 경계 비용이 크다          |
+| 앱 root                | 필요하지만 부족   | 최후의 안전망이지 세밀한 격리는 아니다      |
+
+React 공식 문서도 granularity를 정할 때 fallback을 어디에 보여주는 것이 의미 있는지 생각하라고 한다.
+예를 들어 messaging app에서는 대화 목록이나 개별 메시지 주변에는 boundary가 의미 있지만, 모든 avatar마다 boundary를 두는 것은 어색하다.
+
+## 실제 사례: 선택적 client widget 격리
+
+어떤 로컬 dev 문제를 보다가 Spotify 위젯, 테마 전환, 언어 전환, 검색 팔레트가 한꺼번에 안 되는 것처럼 보인 적이 있었다.
+
+처음에는 "Spotify가 문제인가?"라고 생각하기 쉽다.
+하지만 증상을 나눠보면 다르다.
+
+- Spotify만 안 보인다 → 특정 위젯 또는 API fallback 문제일 수 있다.
+- header의 theme/language/search까지 다 안 된다 → hydration 또는 client runtime 전체 문제일 수 있다.
+- hydration은 정상인데 특정 widget render만 실패한다 → Error Boundary로 격리해야 한다.
+
+그래서 선택적 widget을 작은 boundary로 나눴다.
+
+```tsx
+<ClientErrorBoundary name="SpotifyVinylClient" fallback={<SpotifyVinylSkeleton />}>
+  <SpotifyVinylClientContent />
+</ClientErrorBoundary>
+
+<ClientErrorBoundary name="BlogSearch">
+  <BlogSearchContent />
+</ClientErrorBoundary>
+
+<ClientErrorBoundary name="ThemeSwitcher">
+  <ThemeSwitcher />
+</ClientErrorBoundary>
+
+<ClientErrorBoundary name="LocaleSwitcher">
+  <LocaleSwitcher />
+</ClientErrorBoundary>
+```
+
+이렇게 하면 Spotify 위젯이 실패해도 skeleton만 남고, 검색 팔레트가 실패해도 검색만 사라진다.
+테마 전환과 언어 전환도 서로의 실패에 끌려가지 않는다.
+
+핵심은 "오류를 없앤다"가 아니다.
+오류는 언젠가 난다. 중요한 건 **오류가 어디까지 번지는가**다.
+
+## fallback은 기능의 중요도에 맞춘다
+
+fallback UI는 무조건 커다란 에러 박스일 필요가 없다.
+
+| 기능 성격               | fallback 예시                    |
+| ----------------------- | -------------------------------- |
+| 핵심 업무 플로우        | 명확한 error state + retry       |
+| 선택적 장식/정보 위젯   | skeleton, null, 작은 placeholder |
+| navigation              | 가능하면 최소한의 링크는 유지    |
+| 결제/저장 같은 mutation | 실패를 숨기지 말고 명확히 알림   |
+
+Spotify 현재 재생 위젯은 글을 읽는 데 필수 기능이 아니다.
+그래서 실패 시 skeleton이 충분하다.
+
+반대로 checkout, 저장, 인증 같은 기능은 조용히 사라지면 안 된다.
+사용자가 다음 행동을 결정할 수 있도록 메시지와 retry를 제공해야 한다.
+
+## Suspense와 Error Boundary는 다르다
+
+둘 다 fallback을 보여주지만 의미가 다르다.
+
+| 도구           | 무엇을 다루나                      | fallback 의미             |
+| -------------- | ---------------------------------- | ------------------------- |
+| Suspense       | 아직 준비되지 않은 데이터/코드     | "기다리는 중"             |
+| Error Boundary | render 중 실패한 component subtree | "실패했으니 대체 UI 표시" |
+
+로딩은 실패가 아니다.
+실패도 로딩이 아니다.
+
+면접에서는 이렇게 구분하면 된다.
+
+> Suspense는 pending 상태를 UI 경계로 모델링하고, Error Boundary는 thrown error를 UI 경계로 모델링한다. 둘 다 boundary지만 하나는 지연을 다루고, 하나는 실패를 다룬다.
+
+## 면접 답변 템플릿
+
+짧게 답해야 한다면:
+
+> Error Boundary는 React component tree 안에서 render 중 발생한 오류를 subtree 단위로 잡아 fallback UI를 보여주는 장치입니다. try/catch는 자식 component render 오류를 잡는 안정적인 방법이 아니고, event handler나 async callback 오류도 Error Boundary 대상이 아닙니다. root에 하나만 두면 blank page는 막지만 격리가 약하므로, widget, route section, third-party integration처럼 독립적으로 실패 가능한 단위에 배치하는 것이 좋습니다.
+
+조금 더 실무적으로 답한다면:
+
+> 저는 root boundary를 최후의 안전망으로 두고, 선택적 client widget에는 더 작은 boundary를 둡니다. 예를 들어 Spotify 위젯이 실패하면 skeleton만 보여주고, 검색 팔레트가 실패하면 검색만 비활성화합니다. 이렇게 하면 하나의 위젯 오류가 header나 본문 전체를 죽이지 않습니다. `componentDidCatch`에서는 error reporting을 하고, fallback은 기능 중요도에 맞춰 retry, skeleton, null 중 선택합니다.
+
+## 흔한 오해
+
+- **오해**: Error Boundary를 root에 하나 두면 충분하다. → **실제**: blank page는 막지만 실패 격리는 약하다. 독립적으로 실패 가능한 기능에는 더 작은 boundary가 필요하다.
+- **오해**: try/catch로 JSX를 감싸면 render 오류를 잡을 수 있다. → **실제**: React render 오류는 component tree를 따라 올라가며, 공식적으로 Error Boundary가 처리하는 영역이다.
+- **오해**: Error Boundary는 API 요청 실패도 자동으로 잡는다. → **실제**: Promise rejection이나 event handler 오류는 직접 처리해야 한다. 필요하면 error state를 만들고 render에서 fallback을 보여준다.
+- **오해**: fallback은 항상 "문제가 발생했습니다" 박스여야 한다. → **실제**: 선택적 위젯은 null이나 skeleton이 더 자연스럽고, 핵심 플로우는 명확한 error message와 retry가 필요하다.
+- **오해**: Error Boundary는 오류를 해결한다. → **실제**: 해결이 아니라 격리다. 사용자 경험을 보존하고, 로깅으로 원인을 추적할 시간을 벌어준다.
+
+## 스스로 점검하기
+
+- Error Boundary가 잡는 오류와 잡지 못하는 오류를 구분할 수 있는가?
+- 왜 render 오류를 `try/catch`로 잡으려는 접근이 React에서는 맞지 않는가?
+- root boundary와 widget boundary의 차이를 "격리 범위"로 설명할 수 있는가?
+- Suspense fallback과 Error Boundary fallback의 의미 차이를 설명할 수 있는가?
+- 어떤 기능에는 skeleton fallback이 적합하고, 어떤 기능에는 retry button이 필요한가?
+- "하나가 죽어도 전부 죽지 않게 한다"를 실제 component tree 배치로 설명할 수 있는가?
+
+## 함께 보기
+
+- [[react-hydration-and-flicker|하이드레이션과 깜빡임]]
+- [[react-testing-behavior-not-implementation|동작을 고정하는 테스트]]
+- [[react-fiber-architecture|Fiber 아키텍처]]
+
+## 참고
+
+- [Catching rendering errors with an Error Boundary - react.dev](https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary)
+- [error-boundaries lint - react.dev](https://react.dev/reference/eslint-plugin-react-hooks/lints/error-boundaries)
+- [react-error-boundary - GitHub](https://github.com/bvaughn/react-error-boundary)
