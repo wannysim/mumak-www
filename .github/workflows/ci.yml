@@ -141,6 +141,13 @@ jobs:
       fail-fast: false
       matrix:
         app: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+    env:
+      # blog의 standalone .next 산출물은 remote cache 업로드 시 413을 유발한다(#384).
+      # blog#build의 task cache는 켜두되(#403), CI에서는 blog turbo 호출에만
+      # `--cache=local:rw,remote:r`로 remote write만 막는다. local 캐시는 살아 있어
+      # 같은 job 안에서 check-types→test:ci→build가 next build를 단 한 번만 돌린다.
+      # 다른 앱은 빈 값이라 평소대로 remote read/write를 모두 사용한다.
+      TURBO_CACHE_ARG: ${{ matrix.app == 'blog' && '--cache=local:rw,remote:r' || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -167,11 +174,14 @@ jobs:
       - name: Format Check
         run: pnpm turbo run format:check --filter=${{ matrix.app }}
 
+      # check-types/test:ci/build는 모두 build에 dependsOn하므로, blog에 한해
+      # 동일한 $TURBO_CACHE_ARG를 일관되게 넘겨 같은 task hash를 재사용하고
+      # remote write만 억제한다(#403).
       - name: Type Check
-        run: pnpm turbo run check-types --filter=${{ matrix.app }}
+        run: pnpm turbo run check-types --filter=${{ matrix.app }} $TURBO_CACHE_ARG
 
       - name: Test
-        run: pnpm turbo run test:ci --filter=${{ matrix.app }}
+        run: pnpm turbo run test:ci --filter=${{ matrix.app }} $TURBO_CACHE_ARG
 
       - name: Validate Content (blog only)
         if: matrix.app == 'blog'
@@ -181,7 +191,7 @@ jobs:
           pnpm turbo run validate:design --filter=blog
 
       - name: Build
-        run: pnpm turbo run build --filter=${{ matrix.app }}
+        run: pnpm turbo run build --filter=${{ matrix.app }} $TURBO_CACHE_ARG
 
       - name: Upload coverage artifact
         if: always()

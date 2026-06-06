@@ -74,8 +74,11 @@ Turborepo 기반 모노레포. 공유 패키지는 `packages/`, 앱은 `apps/`�
 ## Git Flow
 
 - `main`: 프로덕션, `develop`: 개발 통합
-- `feature/*`: `develop`에서 분기 → `develop`으로 머지
+- `feature/*`: `develop`에서 분기 → `develop`으로 squash merge
+- `release/*`: `develop`에서 분기 → `main` PR은 merge commit, `develop` back-sync는 `origin/main`에서 만든 별도 `chore/sync-release-*` PR을 merge commit으로 머지
 - `hotfix/*`: `main`에서 분기 → `main`, `develop` 둘 다 머지
+- GitHub의 branch auto-delete 때문에 `release/*` 원격 브랜치는 main PR merge 후 사라질 수 있다. develop back-sync는 태그가 붙은 `origin/main` 기준 브랜치로 진행해 release 태그 커밋이 develop 조상에 남게 한다.
+- `develop` ruleset은 일반 feature PR의 squash merge와 release back-sync PR의 merge commit을 모두 지원하기 위해 `squash`, `merge` 둘 다 허용한다.
 
 ---
 
