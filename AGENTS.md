@@ -82,10 +82,12 @@ Turborepo 기반 모노레포. 공유 패키지는 `packages/`, 앱은 `apps/`�
 ## 네이밍 컨벤션
 
 - 폴더명: **kebab-case** (`post-card`, `switch-theme`)
-- 파일명: **kebab-case** (`counter.tsx`, `theme-provider.tsx`)
+- 파일명: **kebab-case** (`counter.tsx`, `theme-provider.tsx`) — FSD `ui/` 디렉터리 내부도 동일 (`post-card.tsx`)
+- 컴포넌트 export 이름은 PascalCase named export (`export function PostCard`)
 - 테스트 파일: `*.test.ts(x)`, E2E는 `*.spec.ts`
 - 설정 파일: kebab-case (`jest.config.mjs`, `vite.config.ts`)
 - `apps/blog`의 FSD 모듈도 컴포넌트 파일은 **kebab-case** (`post-card.tsx`) — `apps/blog/AGENTS.md` 참조
+- 예외: `README.md`, `AGENTS.md`, `CLAUDE.md`, `SKILL.md` 등 관례적 대문자 문서 파일명은 그대로 둔다.
 
 ### 테스트 폴더 구조
 
