@@ -58,11 +58,11 @@ describe('ThemeMetaSyncScript', () => {
     render(<ThemeMetaSyncScript />);
 
     const [firstFlush, secondFlush] = flushedNodes;
-    if (!isValidElement<{ dangerouslySetInnerHTML: { __html: string } }>(firstFlush)) {
+    if (!isValidElement<{ dangerouslySetInnerHTML: Record<'__html', string> }>(firstFlush)) {
       throw new Error('first SSR flush did not return a React element');
     }
     expect(firstFlush.type).toBe('script');
-    expect(firstFlush.props.dangerouslySetInnerHTML.__html).toBe(themeMetaSyncInlineScript);
+    expect(firstFlush.props.dangerouslySetInnerHTML['__html']).toBe(themeMetaSyncInlineScript);
     // 두 번째 flush부터는 중복 삽입을 막기 위해 null
     expect(secondFlush).toBeNull();
   });

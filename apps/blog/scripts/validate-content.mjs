@@ -5,10 +5,10 @@ import matter from 'gray-matter';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDirname = path.dirname(currentFilePath);
 
-const CONTENT_DIR = path.join(__dirname, '../content');
+const CONTENT_DIR = path.join(currentDirname, '../content');
 const LANGUAGES = ['ko', 'en'];
 const PRIMARY_LANG = 'ko';
 const OUTPUT_SUMMARY = process.argv.includes('--summary');

@@ -9,8 +9,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const blogRoot = path.join(__dirname, '..');
+const currentDirname = path.dirname(fileURLToPath(import.meta.url));
+const blogRoot = path.join(currentDirname, '..');
 const standaloneDir = path.join(blogRoot, '.next/standalone/apps/blog');
 const serverPath = path.join(standaloneDir, 'server.js');
 
