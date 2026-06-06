@@ -144,4 +144,18 @@ describe('NoteCard', () => {
       expect(tags).toHaveTextContent('react,testing');
     });
   });
+
+  describe('excerpt', () => {
+    it('renders the excerpt when present', async () => {
+      await renderNoteCard({ ...baseNote, excerpt: 'A short preview of the note.' });
+
+      expect(screen.getByText('A short preview of the note.')).toBeInTheDocument();
+    });
+
+    it('does not render a description paragraph when excerpt is absent', async () => {
+      const { container } = await renderNoteCard({ ...baseNote, excerpt: undefined });
+
+      expect(container.querySelector('p')).not.toBeInTheDocument();
+    });
+  });
 });

@@ -26,6 +26,7 @@ export async function NoteCard({ note, locale }: NoteCardProps) {
     <ContentCard
       href={`/garden/${note.slug}`}
       title={note.title}
+      description={note.excerpt}
       meta={
         <>
           <Badge variant={statusVariants[note.status]}>{t(`status.${note.status}`)}</Badge>

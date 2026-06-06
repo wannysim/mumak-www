@@ -157,17 +157,25 @@ Blog와 Garden은 같은 사이트의 sibling 섹션이다. 두 섹션의 대응
 
 ### Blog / Garden 페이지 대응 관계
 
-| 영역          | Blog                           | Garden                         | 공유 방식                         |
-| ------------- | ------------------------------ | ------------------------------ | --------------------------------- |
-| segmented nav | `BlogNav` (전체/카테고리/태그) | `GardenNav` (전체/status/태그) | `ContentSegmentNav` (`shared/ui`) |
-| 카드          | `PostCard`                     | `NoteCard`                     | `ContentCard` shell (`shared/ui`) |
-| 상세 페이지   | `max-w-3xl` + `prose` + MDX    | `max-w-3xl` + `prose` + MDX    | 동일 레이아웃 패턴 유지           |
-| 검색          | nav row 우측 `SearchTrigger`   | sidebar 내부 `SearchTrigger`   | `SearchPalette` / `SearchTrigger` |
+| 영역          | Blog                                  | Garden                                          | 공유 방식                         |
+| ------------- | ------------------------------------- | ----------------------------------------------- | --------------------------------- |
+| index 골격    | header → nav + 검색 → 카드 리스트     | header → nav → PARA overview → 최신 노트 리스트 | `PageHeader` + `ContentCard`      |
+| 페이지 헤더   | `PageHeader`                          | `PageHeader`                                    | `PageHeader` (`shared/ui`)        |
+| segmented nav | `BlogNav` (전체/카테고리/태그)        | `GardenNav` (전체/status/태그)                  | `ContentSegmentNav` (`shared/ui`) |
+| 분류 진입점   | BlogNav 카테고리 → `/blog/[category]` | PARA overview 카드 → `/garden/category/[key]`   | "분류 클릭 → 필터된 카드 리스트"  |
+| 카드          | `PostCard`                            | `NoteCard` (excerpt 포함)                       | `ContentCard` shell (`shared/ui`) |
+| 상세 페이지   | `max-w-3xl` + `prose` + MDX           | `max-w-3xl` + `prose` + MDX                     | 동일 레이아웃 패턴 유지           |
+| 검색          | nav row 우측 `SearchTrigger`          | sidebar 내부 `SearchTrigger`                    | `SearchPalette` / `SearchTrigger` |
+
+- Garden index와 category/status 페이지는 `GardenNav`를 공유한다. `GardenNav`의 세그먼트 축은 status이므로 `/garden/category/[key]`에서는 활성 세그먼트가 없다(분류축이 다른 의도된 차이). 카테고리 컨텍스트는 `PageHeader`(label + 설명)가 제공한다.
+- `/garden/category/[key]`의 PARA label은 사이드바와 동일하게 영어로 유지하고(`PARA_LABELS`), 설명은 `garden.categories.{key}.description`을 재사용한다.
 
 ### Shared primitive 우선 원칙
 
 - segmented nav를 새로 만들거나 수정할 때는 `ContentSegmentNav`를 쓴다. blog/garden 한쪽만 인라인으로 스타일을 바꾸지 않는다.
 - 콘텐츠 카드(카테고리/날짜/태그 메타 + 제목 + 본문 슬롯)는 `ContentCard` shell을 쓰고, 섹션별로 다른 부분은 `meta`/`tags`/`footer`/`description` 슬롯으로만 표현한다.
+- 리스트/인덱스 페이지의 페이지 제목+설명은 `PageHeader`(`shared/ui`)를 쓴다. `h1`을 페이지마다 인라인으로 스타일링하지 않는다.
+- 인터랙티브 카드 표면(border + elevation + hover/active 거동)은 `cardSurfaceClass`(`shared/ui`)를 합성한다. `ContentCard`와 `GardenOverview` 타일이 이 단일 recipe를 공유하고, padding만 사용처에서 더한다.
 - 두 섹션에서 반복되는 UI recipe를 발견하면 인라인 복제 대신 `shared/ui`로 추출한다.
 
 ### `data-slot` 규칙
@@ -200,7 +208,8 @@ Blog와 Garden은 같은 사이트의 sibling 섹션이다. 두 섹션의 대응
 
 ### 알려진 follow-up
 
-- `NoteCard`는 현재 excerpt를 표시하지 않는다. `getNoteEmbedPreview`(`entities/note`)로 짧은 excerpt를 추가하는 안이 있으나, 노트당 파일 read와 truncation 정책이 필요하므로 별도 작업으로 둔다.
+- `NoteCard` excerpt는 적용됨(`NoteMeta.excerpt` = 첫 문단, 카드에서 `line-clamp-2`로 truncate).
+- visual regression(`toHaveScreenshot`)과 axe 접근성 스캔은 아직 미도입. 도입 시 기존 `blog` E2E 안에 포함해 새 GitHub check를 늘리지 않는다.
 
 ---
 

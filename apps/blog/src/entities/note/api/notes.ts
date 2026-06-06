@@ -18,6 +18,7 @@ export interface NoteMeta {
   draft?: boolean;
   parent?: string;
   outgoingLinks: string[];
+  excerpt?: string;
 }
 
 export interface NoteTreeNode extends NoteMeta {
@@ -175,6 +176,7 @@ function parseNoteFile(filePath: string, slug: string, category: string = 'garde
       draft: data.draft || false,
       parent: data.parent,
       outgoingLinks: extractWikilinkSlugs(content),
+      excerpt: extractFirstParagraph(content) || undefined,
     };
   } catch {
     return null;
@@ -333,6 +335,11 @@ export function getNotesByTag(locale: Locale, tag: string): NoteMeta[] {
 export function getNotesByStatus(locale: Locale, status: NoteStatus): NoteMeta[] {
   const notes = getNotes(locale);
   return notes.filter(note => note.status === status);
+}
+
+export function getNotesByCategory(locale: Locale, category: string): NoteMeta[] {
+  const notes = getNotes(locale);
+  return notes.filter(note => (note.category || 'garden') === category);
 }
 
 export function getAllNoteTags(locale: Locale): Array<{ name: string; count: number }> {

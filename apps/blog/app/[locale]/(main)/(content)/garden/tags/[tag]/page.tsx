@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { buildAlternates } from '@/src/app/seo';
 import { getAllNoteTags, getNotesByTag } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
+import { PageHeader } from '@/src/shared/ui';
 import { GardenNav } from '@/src/widgets/garden-nav';
 import { NoteCard } from '@/src/widgets/note-card';
 import { TagCloud } from '@/src/widgets/tag-cloud';
@@ -60,10 +61,7 @@ export default async function GardenTagPage({ params }: GardenTagPageProps) {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold mb-2">{t('tagTitle', { tag: decodedTag })}</h1>
-        <p className="text-muted-foreground">{t('noteCount', { count: notes.length })}</p>
-      </header>
+      <PageHeader title={t('tagTitle', { tag: decodedTag })} description={t('noteCount', { count: notes.length })} />
 
       <GardenNav allLabel={tCommon('all')} statusLabels={statusLabels} tagsLabel={tCommon('tags')} />
 

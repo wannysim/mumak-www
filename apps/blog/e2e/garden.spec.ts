@@ -135,4 +135,30 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     await expect(linkedList).toBeVisible();
     await expect(section.getByRole('link', { name: '시라트 (Sirât, 2025)' })).toBeVisible();
   });
+
+  test('index: shows the PARA overview and navigates to a category page', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/ko/garden');
+
+    const main = page.getByRole('main');
+    const overview = main.locator('[data-slot="garden-overview"]');
+    await expect(overview).toBeVisible();
+
+    const firstCategory = overview.getByRole('link').first();
+    await expect(firstCategory).toBeVisible();
+
+    await Promise.all([page.waitForURL(/\/ko\/garden\/category\//), firstCategory.click()]);
+
+    await expect(page).toHaveURL(/\/ko\/garden\/category\//);
+    // The category page reuses the shared NoteCard list.
+    await expect(main.locator('[data-slot="content-card"]').first()).toBeVisible();
+  });
+
+  test('index: lists latest notes as content cards', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/ko/garden');
+
+    const main = page.getByRole('main');
+    await expect(main.locator('[data-slot="content-card"]').first()).toBeVisible();
+  });
 });
