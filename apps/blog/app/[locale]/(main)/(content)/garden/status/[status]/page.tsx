@@ -6,7 +6,7 @@ import { buildAlternates } from '@/src/app/seo';
 import { getNotesByStatus, type NoteStatus } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
 import { PageHeader } from '@/src/shared/ui';
-import { GardenNav } from '@/src/widgets/garden-nav';
+import { GardenNav, getGardenNavCounts } from '@/src/widgets/garden-nav';
 import { NoteCard } from '@/src/widgets/note-card';
 
 const VALID_STATUSES: NoteStatus[] = ['seedling', 'budding', 'evergreen'];
@@ -56,7 +56,12 @@ export default async function GardenStatusPage({ params }: GardenStatusPageProps
     <div className="space-y-8">
       <PageHeader title={t(`status.${status}`)} description={t('noteCount', { count: notes.length })} />
 
-      <GardenNav allLabel={tCommon('all')} statusLabels={statusLabels} tagsLabel={tCommon('tags')} />
+      <GardenNav
+        allLabel={tCommon('all')}
+        statusLabels={statusLabels}
+        tagsLabel={tCommon('tags')}
+        counts={getGardenNavCounts(locale as Locale)}
+      />
 
       <section className="space-y-4">
         {notes.length === 0 ? (

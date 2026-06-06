@@ -6,7 +6,7 @@ import { getCategories, type Category } from '@/src/entities/post';
 import { getAllTags } from '@/src/entities/tag';
 import { type Locale } from '@/src/shared/config/i18n';
 import { PageHeader } from '@/src/shared/ui';
-import { BlogNav } from '@/src/widgets/blog-nav';
+import { BlogNav, getBlogNavCounts } from '@/src/widgets/blog-nav';
 import { TagCloud } from '@/src/widgets/tag-cloud';
 
 interface TagsPageProps {
@@ -45,7 +45,12 @@ export default async function TagsPage({ params }: TagsPageProps) {
     <div className="space-y-8">
       <PageHeader title={t('title')} description={t('description', { count: tags.length })} />
 
-      <BlogNav allLabel={tCommon('all')} categoryLabels={categoryLabels} tagsLabel={tCommon('tags')} />
+      <BlogNav
+        allLabel={tCommon('all')}
+        categoryLabels={categoryLabels}
+        tagsLabel={tCommon('tags')}
+        counts={getBlogNavCounts(locale as Locale)}
+      />
 
       <section>
         {tags.length === 0 ? <p className="text-muted-foreground">{t('empty')}</p> : <TagCloud tags={tags} showCount />}

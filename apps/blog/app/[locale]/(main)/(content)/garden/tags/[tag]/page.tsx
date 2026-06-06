@@ -6,7 +6,7 @@ import { buildAlternates } from '@/src/app/seo';
 import { getAllNoteTags, getNotesByTag } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
 import { PageHeader } from '@/src/shared/ui';
-import { GardenNav } from '@/src/widgets/garden-nav';
+import { GardenNav, getGardenNavCounts } from '@/src/widgets/garden-nav';
 import { NoteCard } from '@/src/widgets/note-card';
 import { TagCloud } from '@/src/widgets/tag-cloud';
 
@@ -63,7 +63,12 @@ export default async function GardenTagPage({ params }: GardenTagPageProps) {
     <div className="space-y-8">
       <PageHeader title={t('tagTitle', { tag: decodedTag })} description={t('noteCount', { count: notes.length })} />
 
-      <GardenNav allLabel={tCommon('all')} statusLabels={statusLabels} tagsLabel={tCommon('tags')} />
+      <GardenNav
+        allLabel={tCommon('all')}
+        statusLabels={statusLabels}
+        tagsLabel={tCommon('tags')}
+        counts={getGardenNavCounts(locale as Locale)}
+      />
 
       <TagCloud tags={allTags.slice(0, 10)} activeTag={decodedTag} basePath="/garden/tags" showCount />
 

@@ -6,7 +6,7 @@ import { buildAlternates } from '@/src/app/seo';
 import { getCategories, getPosts, isValidCategory, type Category } from '@/src/entities/post';
 import { locales, type Locale } from '@/src/shared/config/i18n';
 import { PageHeader } from '@/src/shared/ui';
-import { BlogNav } from '@/src/widgets/blog-nav';
+import { BlogNav, getBlogNavCounts } from '@/src/widgets/blog-nav';
 import { BlogSearch, type BlogSearchPost } from '@/src/widgets/blog-search';
 import { PostCard } from '@/src/widgets/post-card';
 
@@ -71,7 +71,12 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
       <PageHeader title={t(`${category}.title`)} description={t(`${category}.description`)} />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <BlogNav allLabel={tCommon('all')} categoryLabels={categoryLabels} tagsLabel={tCommon('tags')} />
+        <BlogNav
+          allLabel={tCommon('all')}
+          categoryLabels={categoryLabels}
+          tagsLabel={tCommon('tags')}
+          counts={getBlogNavCounts(locale as Locale)}
+        />
         <BlogSearch posts={searchPosts} categoryLabels={categoryLabels} triggerClassName="sm:w-72" />
       </div>
 
