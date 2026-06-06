@@ -88,6 +88,7 @@ function GraphControls({
               value={searchQuery}
               onChange={e => onSearchChange(e.target.value)}
               className="pl-9 h-9 bg-background/80 backdrop-blur-sm text-sm"
+              // oxlint-disable-next-line jsx-a11y/no-autofocus -- 사용자가 검색을 직접 펼칠 때만 포커스 이동(의도된 UX)
               autoFocus
               onBlur={() => !searchQuery && setSearchExpanded(false)}
             />
