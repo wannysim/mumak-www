@@ -116,21 +116,48 @@ const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 // 메모리 기반 토큰 캐시
 let cachedToken: string | null = null;
 let tokenExpiresAt: number = 0;
+let hasLoggedMissingSpotifyEnv = false;
+
+type SpotifyEnvState = {
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  hasRefreshToken: boolean;
+};
+
+function getMissingSpotifyEnvState(): SpotifyEnvState | null {
+  const state = {
+    hasClientId: !!process.env.SPOTIFY_CLIENT_ID,
+    hasClientSecret: !!process.env.SPOTIFY_CLIENT_SECRET,
+    hasRefreshToken: !!process.env.SPOTIFY_REFRESH_TOKEN,
+  };
+
+  return state.hasClientId && state.hasClientSecret && state.hasRefreshToken ? null : state;
+}
+
+function isE2eRuntime(): boolean {
+  return process.env.E2E_INCLUDE_DRAFT === 'true' || process.env.E2E_INCLUDE_DRAFT === '1';
+}
+
+function logMissingSpotifyEnvOnce(state: SpotifyEnvState): void {
+  if (hasLoggedMissingSpotifyEnv) {
+    return;
+  }
+
+  hasLoggedMissingSpotifyEnv = true;
+  const log = isE2eRuntime() ? console.warn : console.error;
+  log('[Spotify] 환경 변수 누락:', state);
+}
 
 async function fetchNewToken(): Promise<{ token: string; expiresIn: number } | null> {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN;
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    console.error('[Spotify] 환경 변수 누락:', {
-      hasClientId: !!clientId,
-      hasClientSecret: !!clientSecret,
-      hasRefreshToken: !!refreshToken,
-    });
+  const missingEnvState = getMissingSpotifyEnvState();
+  if (missingEnvState) {
+    logMissingSpotifyEnvOnce(missingEnvState);
     return null;
   }
 
+  const clientId = process.env.SPOTIFY_CLIENT_ID ?? '';
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET ?? '';
+  const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN ?? '';
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
   const params = new URLSearchParams({
@@ -195,6 +222,7 @@ function invalidateTokenCache(): void {
 export function __resetTokenCacheForTesting(): void {
   cachedToken = null;
   tokenExpiresAt = 0;
+  hasLoggedMissingSpotifyEnv = false;
 }
 
 async function fetchNowPlayingData(accessToken: string): Promise<NowPlaying | null | 'UNAUTHORIZED'> {
@@ -290,6 +318,12 @@ async function fetchNowPlayingData(accessToken: string): Promise<NowPlaying | nu
  * - connection() 호출 불필요 (캐시 컴포넌트가 처리)
  */
 export async function getNowPlayingDirect(): Promise<NowPlaying | null> {
+  const missingEnvState = getMissingSpotifyEnvState();
+  if (missingEnvState) {
+    logMissingSpotifyEnvOnce(missingEnvState);
+    return null;
+  }
+
   const accessToken = await getAccessToken();
 
   if (!accessToken) {

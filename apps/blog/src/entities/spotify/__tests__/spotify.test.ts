@@ -9,6 +9,7 @@ describe('spotify', () => {
   const originalEnv = process.env;
   const originalConsoleError = console.error;
   const originalConsoleLog = console.log;
+  const originalConsoleWarn = console.warn;
 
   beforeEach(() => {
     jest.resetModules();
@@ -16,6 +17,7 @@ describe('spotify', () => {
     global.fetch = jest.fn();
     console.error = jest.fn();
     console.log = jest.fn();
+    console.warn = jest.fn();
     // 테스트 간 토큰 캐시 초기화
     __resetTokenCacheForTesting();
   });
@@ -25,6 +27,7 @@ describe('spotify', () => {
     jest.restoreAllMocks();
     console.error = originalConsoleError;
     console.log = originalConsoleLog;
+    console.warn = originalConsoleWarn;
   });
 
   describe('getNowPlaying', () => {
@@ -36,6 +39,24 @@ describe('spotify', () => {
       const result = await getNowPlaying();
 
       expect(result).toBeNull();
+    });
+
+    it('logs missing environment variables once as a warning during E2E', async () => {
+      process.env.E2E_INCLUDE_DRAFT = '1';
+      delete process.env.SPOTIFY_CLIENT_ID;
+      delete process.env.SPOTIFY_CLIENT_SECRET;
+      delete process.env.SPOTIFY_REFRESH_TOKEN;
+
+      await getNowPlaying();
+      await getNowPlaying();
+
+      expect(console.warn).toHaveBeenCalledTimes(1);
+      expect(console.warn).toHaveBeenCalledWith('[Spotify] 환경 변수 누락:', {
+        hasClientId: false,
+        hasClientSecret: false,
+        hasRefreshToken: false,
+      });
+      expect(console.error).not.toHaveBeenCalledWith('[Spotify] Access token을 가져올 수 없음');
     });
 
     it('should return the current playing song if it is set', async () => {
