@@ -254,6 +254,7 @@ describe('getMergedLinkedNotes', () => {
     created: '2026-01-01',
     status: 'seedling',
     outgoingLinks: [],
+    readingTime: 1,
     ...overrides,
   });
 
@@ -357,6 +358,7 @@ describe('buildNoteTree', () => {
     created: '2026-01-01',
     status: 'seedling',
     outgoingLinks: [],
+    readingTime: 1,
     ...overrides,
   });
 

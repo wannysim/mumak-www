@@ -1,3 +1,4 @@
+import { BookOpen } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 
 import { Badge } from '@mumak/ui/components/badge';
@@ -19,7 +20,7 @@ const statusVariants: Record<NoteStatus, 'default' | 'secondary' | 'outline'> = 
 };
 
 export async function NoteCard({ note, locale }: NoteCardProps) {
-  const t = await getTranslations('garden');
+  const [t, tPost] = await Promise.all([getTranslations('garden'), getTranslations('post')]);
   const date = note.updated || note.created;
 
   return (
@@ -31,6 +32,12 @@ export async function NoteCard({ note, locale }: NoteCardProps) {
         <>
           <Badge variant={statusVariants[note.status]}>{t(`status.${note.status}`)}</Badge>
           <time dateTime={date}>{formatDateForLocale(date, locale).text}</time>
+          <span>·</span>
+          <span className="inline-flex items-center gap-1">
+            <BookOpen className="size-3.5" aria-hidden />
+            {note.readingTime}
+            {tPost('readingTimeUnit')}
+          </span>
           {note.outgoingLinks.length > 0 && (
             <>
               <span>·</span>

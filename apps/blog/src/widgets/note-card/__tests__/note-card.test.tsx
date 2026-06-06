@@ -55,6 +55,7 @@ const baseNote: NoteMeta = {
   created: '2024-01-01',
   status: 'seedling',
   outgoingLinks: [],
+  readingTime: 3,
 };
 
 async function renderNoteCard(note: NoteMeta = baseNote, locale = 'ko') {
@@ -142,6 +143,15 @@ describe('NoteCard', () => {
       const tags = screen.getByTestId('post-tags');
       expect(tags).toHaveAttribute('data-base-path', '/garden/tags');
       expect(tags).toHaveTextContent('react,testing');
+    });
+  });
+
+  describe('reading time', () => {
+    it('renders the reading time before the link count', async () => {
+      await renderNoteCard({ ...baseNote, readingTime: 7, outgoingLinks: ['a', 'b'] });
+
+      expect(screen.getByText('7', { exact: false })).toBeInTheDocument();
+      expect(screen.getByText('2 links')).toBeInTheDocument();
     });
   });
 

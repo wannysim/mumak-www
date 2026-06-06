@@ -1,3 +1,4 @@
+import { BookOpen } from 'lucide-react';
 import type { Metadata } from 'next';
 import { setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -35,6 +36,7 @@ const staticTranslations = {
     home: '홈',
     garden: '가든',
     updated: '수정됨',
+    readingTimeUnit: '분',
     linkedNotes: '연결된 노트',
     backToGarden: '가든으로 돌아가기',
     status: { seedling: '씨앗', budding: '새싹', evergreen: '상록수' },
@@ -44,6 +46,7 @@ const staticTranslations = {
     home: 'Home',
     garden: 'Garden',
     updated: 'Updated',
+    readingTimeUnit: ' min',
     linkedNotes: 'Linked Notes',
     backToGarden: 'Back to Garden',
     status: { seedling: 'Seedling', budding: 'Budding', evergreen: 'Evergreen' },
@@ -171,6 +174,12 @@ export default async function NotePage({ params }: NotePageProps) {
             <time className="text-sm text-muted-foreground" dateTime={note.meta.created}>
               {formatDateForLocale(note.meta.created, locale).text}
             </time>
+            <span className="text-muted-foreground">·</span>
+            <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+              <BookOpen className="size-3.5" aria-hidden />
+              {note.meta.readingTime}
+              {t.readingTimeUnit}
+            </span>
             {note.meta.updated && (
               <>
                 <span className="text-muted-foreground">·</span>

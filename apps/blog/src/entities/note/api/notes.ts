@@ -3,6 +3,7 @@ import matter from 'gray-matter';
 import path from 'path';
 
 import type { Locale } from '@/src/shared/config/i18n';
+import { calculateReadingTime } from '@/src/shared/lib/reading-time';
 import { extractWikilinkSlugs, normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
 
 export type NoteStatus = 'seedling' | 'budding' | 'evergreen';
@@ -19,6 +20,7 @@ export interface NoteMeta {
   parent?: string;
   outgoingLinks: string[];
   excerpt?: string;
+  readingTime: number;
 }
 
 export interface NoteTreeNode extends NoteMeta {
@@ -177,6 +179,7 @@ function parseNoteFile(filePath: string, slug: string, category: string = 'garde
       parent: data.parent,
       outgoingLinks: extractWikilinkSlugs(content),
       excerpt: extractFirstParagraph(content) || undefined,
+      readingTime: calculateReadingTime(content),
     };
   } catch {
     return null;
@@ -237,6 +240,7 @@ export function getNote(locale: Locale, slug: string): Note | null {
       draft: data.draft || false,
       parent: data.parent,
       outgoingLinks: extractWikilinkSlugs(content),
+      readingTime: calculateReadingTime(content),
     };
 
     return isPublishable(meta) ? { meta, content } : null;
