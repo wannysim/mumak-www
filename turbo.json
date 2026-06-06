@@ -20,6 +20,19 @@
     "mumak-native#build": {
       "outputs": []
     },
+    "blog#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "cache": false,
+      "env": ["NEXT_PUBLIC_*", "ANALYZE"],
+      "passThroughEnv": [
+        "NODE_ENV",
+        "E2E_INCLUDE_DRAFT",
+        "SPOTIFY_CLIENT_ID",
+        "SPOTIFY_CLIENT_SECRET",
+        "SPOTIFY_REFRESH_TOKEN"
+      ]
+    },
     "lint": {
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"],
       "outputs": []
