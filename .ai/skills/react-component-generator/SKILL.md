@@ -9,76 +9,76 @@ description: shadcn/ui 기반 React 컴포넌트를 일관된 구조로 생성�
 
 ## 컴포넌트 위치 규칙
 
-| 유형         | 위치                               | 설명               |
-| ------------ | ---------------------------------- | ------------------ |
-| 공유 UI      | `packages/ui/src/components/`      | 여러 앱에서 재사용 |
-| Next.js 전용 | `apps/mumak-next/components/`      | Next.js 앱 전용    |
-| React 전용   | `apps/mumak-react/src/components/` | Vite 앱 전용       |
-| Blog 전용    | `apps/blog/components/`            | Blog 앱 전용       |
+| 유형         | 위치                                    | 설명                         |
+| ------------ | --------------------------------------- | ---------------------------- |
+| 공유 UI      | `packages/ui/src/components/`           | 여러 웹 앱에서 재사용        |
+| Next.js 전용 | `apps/mumak-next/components/`           | mumak-next 앱 전용           |
+| React 전용   | `apps/mumak-react/src/components/`      | Vite 앱 전용                 |
+| Blog 전용    | `apps/blog/src/{widgets,features,...}/` | FSD 레이어와 모듈에 colocate |
+
+`apps/blog`는 FSD 구조를 따르므로 `src/widgets/{module}/ui/{component}.tsx`, `src/features/{module}/ui/{component}.tsx`, `src/shared/ui/{component}.tsx` 중 책임에 맞는 위치에 둔다.
 
 ## 컴포넌트 구조 템플릿
 
 ```typescript
-import { type ComponentProps } from 'react';
-import { cn } from '@/lib/utils';
+import * as React from 'react';
 
-interface ComponentNameProps extends ComponentProps<'div'> {
-  variant?: 'default' | 'outline';
-  size?: 'sm' | 'md' | 'lg';
-}
+import { cn } from '@mumak/ui/lib/utils';
 
-export const ComponentName = ({
-  variant = 'default',
-  size = 'md',
+function ComponentName({
   className,
   children,
+  variant = 'default',
   ...props
-}: ComponentNameProps) => {
+}: React.ComponentProps<'div'> & {
+  variant?: 'default' | 'outline';
+}) {
   return (
     <div
-      className={cn(
-        'base-styles-here',
-        variant === 'outline' && 'outline-styles',
-        size === 'sm' && 'text-sm',
-        className
-      )}
+      className={cn('base-styles-here', variant === 'outline' && 'outline-styles', className)}
       {...props}
     >
       {children}
     </div>
   );
-};
+}
+
+export { ComponentName };
 ```
 
 ## 필수 규칙
 
 ### 타입 정의
 
-- `interface`로 Props 정의 (type 대신)
-- `ComponentProps<'element'>`로 네이티브 속성 확장
-- variant/size 등은 유니온 타입으로 제한
+- 별도 `interface`보다 `React.ComponentProps<>` 조합을 우선한다.
+- variant/size 등은 유니온 타입 또는 `class-variance-authority`의 `VariantProps`로 제한한다.
+- shadcn/ui primitive는 Radix primitive props 타입을 그대로 확장한다.
 
 ### 스타일링
 
-- Tailwind CSS 유틸리티 클래스 사용
-- `cn()` 함수로 조건부 클래스 병합
-- 인라인 스타일 사용 금지
+- Tailwind CSS 유틸리티 클래스를 사용한다.
+- className 합성은 `cn()`을 경유한다.
+- `cn`은 `@mumak/ui/lib/utils`에서 가져온다.
+- 인라인 스타일은 동적 값이 필요한 경우에만 사용한다.
 
 ### 네이밍
 
 - 컴포넌트: PascalCase (`UserProfile`)
 - 파일명: kebab-case (`user-profile.tsx`)
-- Props: ComponentName + Props (`UserProfileProps`)
+- 테스트 파일: `{component}.test.tsx`
 
 ### 구조
 
-- named export 사용 (default export 금지)
-- props destructuring with defaults
-- `...props` spread로 확장성 확보
+- 재사용 컴포넌트는 named export를 사용한다.
+- variants 선언은 컴포넌트 함수보다 위에 둔다.
+- `...props` spread로 네이티브 속성을 전달한다.
+- `packages/ui` 컴포넌트는 `data-slot`을 추가한다.
 
 ## 체크리스트
 
-- [ ] Props 인터페이스가 명시적으로 정의되었는가?
-- [ ] className prop을 cn()으로 병합하는가?
-- [ ] 적절한 디렉토리에 위치하는가?
+- [ ] 책임에 맞는 앱/패키지 디렉터리에 위치하는가?
+- [ ] 파일명이 kebab-case인가?
+- [ ] props가 `React.ComponentProps<>` 기반인가?
+- [ ] className을 `cn()`으로 병합하는가?
 - [ ] named export를 사용하는가?
+- [ ] `packages/ui`라면 `data-slot`을 추가했는가?

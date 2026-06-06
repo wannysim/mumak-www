@@ -1,6 +1,6 @@
 # Mumak Native
 
-Expo SDK 56 + expo-router 기반 모바일 앱.
+Expo + expo-router 기반 모바일 앱.
 
 ## 주요 기능
 
@@ -12,9 +12,9 @@ Expo SDK 56 + expo-router 기반 모바일 앱.
 
 | 구분      | 기술                                              |
 | --------- | ------------------------------------------------- |
-| Framework | Expo SDK 56 (React Native 0.85)                   |
+| Framework | Expo (React Native)                               |
 | Routing   | expo-router (typed)                               |
-| Animation | react-native-reanimated 4                         |
+| Animation | react-native-reanimated                           |
 | Build     | EAS Build (CI 외부)                               |
 | Unit Test | Jest + jest-expo + @testing-library/react-native  |
 | Web E2E   | Playwright vs `expo export --platform web` (정적) |
@@ -22,7 +22,7 @@ Expo SDK 56 + expo-router 기반 모바일 앱.
 
 ## 개발 환경
 
-- Node.js 24.11+
+- Node.js 24.11.1+
 - pnpm
 - iOS: Xcode 16+
 - Android: Android Studio + JDK 17+
@@ -33,7 +33,7 @@ Expo SDK 56 + expo-router 기반 모바일 앱.
 # 의존성 설치 (워크스페이스 루트에서)
 pnpm install
 
-# Expo dev server
+# Expo dev server (Portless)
 pnpm --filter mumak-native dev
 
 # 시뮬레이터로 바로 띄우기
@@ -41,7 +41,8 @@ pnpm --filter mumak-native ios
 pnpm --filter mumak-native android
 ```
 
-Expo Go 앱이 있으면 dev server의 QR을 찍어 디바이스에서 바로 테스트 가능.
+개발 서버는 Portless를 사용하며 기본 URL은 `http://native.mumak.localhost:1355`입니다.
+Expo Go 앱이 있으면 dev server의 QR을 찍어 디바이스에서 바로 테스트 가능합니다.
 
 ## 검증
 
@@ -103,9 +104,9 @@ pnpm --filter mumak-native test:e2e --project=chromium
 
 #### 테스트 인프라 — 근본 원인 (히스토리 보존)
 
-다음 SDK bump 시 jest 30 지원 재평가 단서로 보존한다.
+다음 Expo SDK bump 시 jest 30 지원 재평가 단서로 보존한다.
 
-> 과거 `jest-expo ~54` + `jest ^30` + `pnpm` 조합에서 setup 단계가 `Runtime._execModule` / `isInsideTestCode`로 폭발했다. 직접 원인은 winter polyfill이 아니라 **두 jest 런타임 충돌**: `node_modules/jest-expo/package.json`의 deps(`@jest/globals`, `babel-jest`, `jest-snapshot` 등)가 전부 `^29.2.1`로 핀되어 jest-expo가 자체 트리에 jest 29 런타임을 끌고 들어오는데, 앱 레벨 jest 30 runner와 scope 검사가 어긋났다. **해소**: 앱 jest/@types/jest를 v29로 다운그레이드(mumak-native만 영향, web 앱은 jest 30 유지). jest-expo는 SDK 56까지 jest 29 핀 유지이므로 한동안 "jest 29 = jest-expo의 정답". 추후 jest-expo가 jest 30을 지원하면 복귀 검토.
+> 과거 `jest-expo` + `jest ^30` + `pnpm` 조합에서 setup 단계가 `Runtime._execModule` / `isInsideTestCode`로 폭발했다. 직접 원인은 winter polyfill이 아니라 **두 jest 런타임 충돌**: `jest-expo`가 자체 트리에 jest 29 런타임을 끌고 들어오는데, 앱 레벨 jest 30 runner와 scope 검사가 어긋났다. **해소**: 앱 jest/@types/jest를 v29로 다운그레이드(mumak-native만 영향, web 앱은 jest 30 유지). 추후 jest-expo가 jest 30을 지원하면 복귀 검토.
 
 ### 남은 Follow-up
 
@@ -131,14 +132,14 @@ react-navigation:
 
 설계 근거:
 
-- **Expo SDK 일관성**: expo-router·expo-image 등이 expo core peer와 어긋나면 빌드 깨짐 → SDK 트랙 한 묶음. `jest-expo`(~54.0.0)도 SDK lock-step.
-- **RN core ↔ reanimated ↔ worklets 페어 호환 매트릭스**: RN 0.81 + reanimated 4 + worklets 0.5 + screens + safe-area + gesture-handler 한 묶음. `react-test-renderer`도 RN/React lock-step이라 같은 그룹.
-- **React Navigation**: v7 내부 패키지 간 lock-step만 처리.
-- **Major bump은 그룹 밖 단독 PR**: `update-types: ['minor', 'patch']`로 제한해서 SDK 54→55, RN 0.81→0.82 같은 major는 사람이 명시적으로 받는 흐름. 기존 grouped 정의(turbo/next 등)는 major 제한이 없으니 일관성 차원에서 통일 검토.
+- **Expo SDK 일관성**: expo-router·expo-image 등이 expo core peer와 어긋나면 빌드가 깨지므로 SDK 트랙은 한 묶음으로 받는다. `jest-expo`도 SDK lock-step으로 본다.
+- **RN core ↔ reanimated ↔ worklets 페어 호환 매트릭스**: react-native, reanimated, worklets, screens, safe-area, gesture-handler는 호환 매트릭스가 묶여 있으므로 함께 검토한다. `react-test-renderer`도 RN/React lock-step이라 같은 그룹.
+- **React Navigation**: 내부 패키지 간 lock-step만 처리.
+- **Major bump은 그룹 밖 단독 PR**: `update-types: ['minor', 'patch']`로 제한해서 SDK/RN major bump는 사람이 명시적으로 받는 흐름. 기존 grouped 정의(turbo/next 등)는 major 제한이 없으니 일관성 차원에서 통일 검토.
 - `react` / `@types/react`는 모노레포 차원이라 기존 `react` / `react-types` 그룹이 mumak-native까지 자동 흡수 — 별도 정의 불필요.
 
 #### 잔존 고려사항
 
 - **Vercel preview (apps/blog)**: `apps/blog/vercel.json`이 `pnpm install --filter=blog... --frozen-lockfile`을 쓰므로 native-only bump PR은 blog 의존 그래프 밖. 다만 lockfile 손상 시 `--frozen-lockfile`이 stale 감지 → blog preview 실패 가능. dependabot rebase 실패 시 수동 개입 필요.
 - **Lockfile race**: monthly + limit 10 + lockfile 동시 수정 → 첫 PR 머지 후 나머지 rebase 필요할 가능성. expo·rn 그룹은 lockfile 충돌 빈도 높을 것.
-- **첫 Expo SDK bump는 위 테스트 인프라 이슈와 맞물려 노이즈 가능성** → B1(jest 29 다운그레이드) 해소 후 첫 bump 받는 흐름이 안전.
+- **Expo SDK bump는 위 테스트 인프라 이슈와 맞물려 노이즈 가능성** → jest-expo의 jest 30 지원 여부를 함께 확인한다.

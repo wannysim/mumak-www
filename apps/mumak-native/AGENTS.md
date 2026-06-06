@@ -172,8 +172,8 @@ const styles = StyleSheet.create({
 
 ## Web 빌드
 
-- `pnpm web` 으로 `expo start --web` 가능. `react-native-web`을 통해 RN primitive가 DOM으로 렌더된다.
-- `pnpm export:web`(`expo export --platform web --output-dir dist`)으로 정적 export. 이 산출물은 **번들 스모크 + 웹 E2E의 토대**다(시뮬레이터 없이 클라우드에서 검증 가능).
+- `pnpm web` 으로 `expo start --web` 가능. 루트에서는 `pnpm --filter mumak-native web`을 사용한다. `react-native-web`을 통해 RN primitive가 DOM으로 렌더된다.
+- `pnpm export:web`(`expo export --platform web --output-dir dist`)으로 정적 export. 루트에서는 `pnpm --filter mumak-native export:web`을 사용한다. 이 산출물은 **번들 스모크 + 웹 E2E의 토대**다(시뮬레이터 없이 클라우드에서 검증 가능).
 - 웹 E2E는 `apps.yml` `hasE2E: true`로 `e2e.yml`에 편입(chromium/firefox/webkit). 실 배포는 아직 계획 없음.
 - web 전용 분기가 필요하면 `*.web.ts` 파일명 컨벤션 사용 (e.g. `hooks/use-color-scheme.web.ts`).
 
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
 
 ## 빌드 / 배포
 
-- `pnpm dev`(또는 `pnpm start`)로 Expo dev server 기동.
+- 앱 디렉터리에서는 `pnpm dev`(또는 `pnpm start`)로, 루트에서는 `pnpm --filter mumak-native dev`로 Expo dev server를 기동.
 - **실제 네이티브 빌드는 EAS Build의 영역**. CI(`pnpm build`)는 의도적 no-op이다.
 - TestFlight / Internal Testing 도입 시점에 `eas.json` + EAS workflow 추가.
 
@@ -196,7 +196,7 @@ CI 검증 대상: `lint` · `format:check` · `check-types` · `test:ci` · `bui
 - `watchFolders`: workspace 루트.
 - `nodeModulesPaths`: 앱 로컬 + workspace 루트.
 - `unstable_enableSymlinks` + `unstable_enablePackageExports`: pnpm 심볼릭 링크 해석.
-- **`disableHierarchicalLookup`은 켜지 말 것** — Expo 공식 가이드에서 pnpm store 패키지 해석을 막아 phantom dep 에러를 유발한다고 명시. Expo SDK 54+는 pnpm isolated 모드를 네이티브 지원하므로 hoist 설정도 불필요.
+- **`disableHierarchicalLookup`은 켜지 말 것** — Expo 공식 가이드에서 pnpm store 패키지 해석을 막아 phantom dep 에러를 유발한다고 명시. 현재 Expo는 pnpm isolated 모드를 지원하므로 hoist 설정도 불필요.
 
 새 워크스페이스 패키지를 추가했는데 Metro가 못 찾으면 이 파일을 우선 의심한다.
 

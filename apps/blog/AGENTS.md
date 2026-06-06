@@ -24,14 +24,14 @@ src/widgets/post-card/
 ├── __tests__/
 │   └── post-card.test.tsx
 ├── ui/
-│   └── PostCard.tsx      # PascalCase (FSD ui/ 내부만 예외)
+│   └── post-card.tsx
 └── index.ts              # barrel export
 ```
 
 ## 네이밍 (루트 규칙 대비 차이점)
 
 - 폴더: kebab-case (`post-card`, `switch-theme`) — 루트와 동일
-- **`ui/` 디렉터리 내 컴포넌트 파일만 PascalCase** (`PostCard.tsx`)
+- 컴포넌트 파일: kebab-case (`post-card.tsx`) — 루트와 동일
 - 테스트 파일: kebab-case (`post-card.test.tsx`) — 루트와 동일
 
 ## FSD Import 규칙
@@ -54,9 +54,9 @@ import { PostCard } from '@/src/widgets/post-card';
 
 ---
 
-## MDX 포스트 Frontmatter
+## MDX 블로그 Frontmatter
 
-`apps/blog/content/{locale}/posts/` 하위 MDX 파일에 필수.
+`apps/blog/content/{locale}/{articles,essay,notes}/` 하위 MDX 파일에 필수.
 
 ```yaml
 ---
@@ -75,7 +75,7 @@ draft: false # 생략 시 false
 ### 파일 위치
 
 ```
-apps/blog/content/{locale}/garden/
+apps/blog/content/
 ├── ko/garden/   # 한국어 노트
 └── en/garden/   # 영어 노트
 ```
