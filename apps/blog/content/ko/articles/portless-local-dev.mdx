@@ -1,0 +1,375 @@
+---
+title: 'localhost 포트 관리에서 벗어나기'
+date: '2026-06-06'
+description: 'Portless를 붙이며 로컬 개발 URL과 E2E 포트의 경계를 다시 정리한 기록'
+tags: ['frontend', 'dev-environment', 'monorepo', 'e2e', 'tooling']
+draft: false
+---
+
+모노레포에서 앱이 하나씩 늘어날 때마다 같이 늘어나는 게 있다.
+
+포트 번호다.
+
+처음에는 별문제처럼 보이지 않는다. Next 앱은 3000, Vite 앱은 3001, 블로그는 3002. 여기까지는 외울 만하다.
+그런데 시간이 지나면 상황이 조금씩 애매해진다. 앱이 하나 더 생기고, E2E 서버가 따로 필요해지고, preview 서버와 dev 서버가 나뉘고, 어느 날은 이미 떠 있는 서버 때문에 포트가 밀린다.
+
+결국 브라우저 주소창에는 이런 것들이 남는다.
+
+```text
+http://localhost:3000
+http://localhost:3001
+http://localhost:3002
+http://localhost:3003
+```
+
+숫자는 아무 의미가 없다.
+그 숫자를 기억해야 하는 사람만 있다.
+
+이번에 `portless`를 붙인 이유는 거창하지 않았다. 그냥 로컬에서 앱을 열 때 더 이상 포트 번호를 생각하고 싶지 않았다.
+그런데 적용해보니 단순히 주소를 예쁘게 만드는 일만은 아니었다. 로컬 개발 서버와 CI/E2E 서버의 경계를 어디에 둘지 다시 정리하는 일이었다.
+
+## 1. Portless는 무엇을 해주는가
+
+Portless는 로컬 개발 서버 앞에 작은 proxy를 세우고, 앱마다 이름 기반 URL을 붙여주는 도구다.
+
+예를 들어 예전에는 이렇게 접근했다.
+
+```text
+http://localhost:3000
+http://localhost:3001
+http://localhost:3002
+```
+
+Portless를 붙이면 이렇게 접근할 수 있다.
+
+```text
+http://next.mumak.localhost:1355
+http://react.mumak.localhost:1355
+http://blog.mumak.localhost:1355
+http://native.mumak.localhost:1355
+```
+
+이 차이는 생각보다 크다.
+
+`3000`은 "아마 Next 앱"이다.
+`next.mumak.localhost`는 그냥 Next 앱이다.
+
+포트 번호는 외워야 하지만, 이름은 문맥을 가진다.
+로컬 개발 환경에서 중요한 건 대개 숫자가 아니라 "내가 지금 어떤 앱을 보고 있는가"다.
+
+## 2. 우리 repo에서는 왜 이게 이득인가
+
+이 저장소에는 웹 앱이 여러 개 있다.
+
+- `apps/mumak-next`
+- `apps/mumak-react`
+- `apps/blog`
+- `apps/mumak-native`
+
+각 앱은 개발 서버도 다르고, E2E 서버도 다르다.
+Next는 `next dev`, Vite는 `vite`, 블로그는 standalone 기반 E2E 서버, native는 Expo web export를 serve한다.
+
+이런 구조에서 포트 번호를 앱의 정체성처럼 쓰기 시작하면 금방 헷갈린다.
+
+```text
+3000: mumak-next dev / e2e
+3001: mumak-react dev / preview
+3002: blog dev / e2e
+3002: mumak-native e2e였던 적도 있음
+```
+
+실제로 적용하면서 `blog`와 `mumak-native`가 둘 다 E2E에서 3002를 쓰고 있다는 걸 다시 보게 됐다.
+지금 당장 CI에서는 matrix가 앱별로 분리되어 큰 문제가 아닐 수 있다. 하지만 로컬에서 순서를 바꾸거나, 서버를 재사용하거나, 여러 앱을 동시에 확인하면 같은 포트는 항상 신경 쓰인다.
+
+그래서 이번에 역할을 나눴다.
+
+```text
+로컬 dev:
+  Portless 이름 기반 URL 사용
+
+CI/E2E:
+  앱별 고정 포트 유지
+```
+
+그리고 E2E 포트는 겹치지 않게 정리했다.
+
+```text
+mumak-next:   3000
+mumak-react:  3001
+blog:         3002
+mumak-native: 3003
+```
+
+이제 로컬에서 개발할 때는 포트 번호를 보지 않아도 된다.
+반대로 E2E에서는 명시적인 고정 포트를 유지한다.
+
+나는 이 경계가 중요하다고 생각한다.
+Portless는 개발 경험을 좋게 만드는 도구이지, 테스트 인프라의 포트 모델까지 흐리게 만드는 도구는 아니다.
+
+## 3. 적용은 간단했지만, 그대로 되진 않았다
+
+처음에는 앱마다 dev 스크립트만 바꾸면 끝날 줄 알았다.
+
+```json
+{
+  "dev": "portless"
+}
+```
+
+하지만 실제로는 몇 가지를 밟아야 했다.
+
+### 3-1. 기본 HTTPS/443은 sudo를 부른다
+
+Portless는 기본적으로 HTTPS와 443 포트를 사용할 수 있다.
+문제는 443이 privileged port라 로컬에서 sudo prompt가 뜬다는 점이다.
+
+개발 서버를 켤 때마다 sudo가 끼어드는 건 이 repo의 기본 개발 흐름으로는 부담스럽다.
+그래서 로컬 proxy를 별도 포트에서 HTTP로 띄우는 쪽을 택했다.
+
+```json
+{
+  "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name next.mumak next dev"
+}
+```
+
+이렇게 하면 URL은 조금 길어진다.
+
+```text
+http://next.mumak.localhost:1355
+```
+
+하지만 sudo 없이 안정적으로 뜬다.
+나는 여기서 예쁜 URL보다 반복 가능한 실행을 더 중요하게 봤다.
+
+### 3-2. 한 번 감싼 스크립트는 포트 주입이 빗나갈 수 있다
+
+처음에는 이런 식으로 앱 내부 스크립트를 하나 더 두려고 했다.
+
+```json
+{
+  "dev": "portless run --name react.mumak pnpm dev:app",
+  "dev:app": "vite"
+}
+```
+
+그런데 Vite가 Portless가 할당한 내부 포트를 제대로 받지 못했다.
+proxy는 떠 있는데 실제 앱은 다른 포트에 떠서 502가 났다.
+
+결국 답은 더 단순했다.
+
+```json
+{
+  "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name react.mumak vite"
+}
+```
+
+Portless가 프레임워크 명령에 직접 포트를 주입하게 해야 했다.
+이때 Vite에는 내부적으로 `--port`, `--strictPort`, `--host 127.0.0.1` 같은 값이 붙는다.
+
+중간에 `pnpm dev:app` 같은 래퍼를 두면 이 주입 경로가 흐려질 수 있다.
+이건 적용하면서 제일 먼저 배운 점이었다.
+
+### 3-3. dev 포트와 E2E 포트를 섞으면 안 된다
+
+처음에는 "그럼 E2E도 Portless로 접근하면 되나?"라는 생각이 잠깐 들었다.
+하지만 바로 접었다.
+
+E2E는 개발 경험이 아니라 검증 환경이다.
+검증 환경은 예쁜 URL보다 재현성이 중요하다.
+
+Playwright의 `webServer`는 앱별로 어떤 명령을 실행하고, 어느 URL이 뜰 때까지 기다릴지 명확히 알고 있어야 한다.
+그래서 `dev` 스크립트만 Portless로 바꾸고, E2E 관련 스크립트는 고정 포트를 유지했다.
+
+```json
+{
+  "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name blog.mumak next dev",
+  "start:e2e": "node scripts/start-e2e.mjs",
+  "test:e2e": "playwright test"
+}
+```
+
+이 원칙 덕분에 CI 검증도 비교적 명확했다.
+
+- `mumak-next`는 3000에서 `next start`
+- `mumak-react`는 3001에서 `vite preview`
+- `blog`는 3002에서 standalone server
+- `mumak-native`는 3003에서 Expo web export 결과 serve
+
+Portless는 로컬 dev의 입구를 바꾸고, CI/E2E는 기존처럼 명시적인 포트 계약을 지킨다.
+
+### 3-4. Next dev는 origin을 본다
+
+블로그를 `blog.mumak.localhost`로 열어보니 처음에는 이런 경고가 떴다.
+
+```text
+Blocked cross-origin request to Next.js dev resource /_next/webpack-hmr from "blog.mumak.localhost".
+```
+
+Next dev server는 개발용 내부 리소스와 endpoint를 아무 origin에서나 부르게 두지 않는다.
+`localhost`로 서버가 시작됐는데 브라우저는 `blog.mumak.localhost`로 접근하면, Next 입장에서는 다른 개발 origin에서 내부 dev resource를 요청하는 모양이 된다.
+
+해결은 `next.config`에 개발 origin을 명시하는 것이었다.
+
+```js
+const nextConfig = {
+  allowedDevOrigins: ['blog.mumak.localhost'],
+};
+```
+
+`mumak-next`도 같은 이유로 `next.mumak.localhost`를 추가했다.
+설정 후에는 dev server를 다시 시작해야 한다.
+
+여기서 중요한 건 이 경고가 곧바로 "프로덕션 hydration 버그"를 뜻하진 않는다는 점이다.
+`/_next/webpack-hmr`는 개발 환경의 HMR 경로다. 하지만 로컬 개발에서는 이 dev client가 앱의 클라이언트 런타임과 같이 움직인다.
+그래서 HMR이나 dev resource가 막히면 테마 변경, 언어 변경, 검색 팔레트처럼 hydration 이후 붙어야 하는 기능들이 전부 죽은 것처럼 보일 수 있다.
+
+즉 Portless를 붙인 Next 앱에서는 URL만 바꾸면 끝이 아니다.
+Next가 인식하는 개발 origin도 같이 바꿔야 한다.
+
+### 3-5. 하나가 죽어도 전부 죽지 않게 해야 한다
+
+이번에 더 신경 쓰였던 건 다른 지점이었다.
+
+Spotify 위젯이 안 보이는 것과 header의 테마 변경, 언어 변경, 검색 기능이 같이 안 되는 건 느낌이 다르다.
+하나는 특정 위젯 문제일 수 있지만, 나머지는 앱의 클라이언트 코드가 전체적으로 붙지 않았다는 신호에 가깝다.
+
+조사해보니 두 층을 나눠 봐야 했다.
+
+첫째, Next dev resource 자체가 막히면 앱 코드가 아무리 잘 나뉘어 있어도 hydration 이전 단계에서 문제가 난다.
+이건 위의 `allowedDevOrigins`로 풀어야 하는 환경 설정 문제다.
+
+둘째, hydration 이후 특정 클라이언트 위젯이 렌더링 중 throw하면 그 오류는 React tree를 타고 올라간다.
+경계가 없으면 작은 위젯 하나의 오류가 더 큰 클라이언트 영역을 같이 흔들 수 있다.
+
+그래서 선택적 클라이언트 위젯에는 `ClientErrorBoundary`를 추가했다.
+
+- `SpotifyVinylClient`는 실패하면 skeleton만 보여준다.
+- `BlogSearch`는 검색 팔레트만 실패한다.
+- header 안에서도 `ThemeSwitcher`와 `LocaleSwitcher`를 따로 감쌌다.
+
+이건 Portless 자체의 요구사항은 아니다.
+하지만 Portless 적용 과정에서 클라이언트 런타임이 한 번 흔들리는 걸 보고 나니, 우리 코드도 실패 단위를 더 작게 가져가야 한다는 게 분명해졌다.
+
+## 4. 적용 후 확인한 것들
+
+이런 종류의 변경은 package script 몇 줄 바꾸고 끝내면 안 된다.
+특히 이 repo는 GitHub Actions에서 E2E까지 돈다.
+로컬 dev가 편해졌다고 CI가 흔들리면 의미가 없다.
+
+그래서 두 방향으로 확인했다.
+
+첫 번째는 Portless dev smoke test였다.
+
+```text
+http://react.mumak.localhost:1355
+http://next.mumak.localhost:1355
+```
+
+두 앱 모두 Portless proxy를 통해 200 응답을 확인했다.
+Vite와 Next가 각각 Portless가 할당한 내부 포트로 떠 있고, 바깥에서는 이름 기반 URL로 접근되는 구조였다.
+
+두 번째는 CI-mode E2E였다.
+
+```text
+mumak-next:   chromium/firefox/webkit 통과
+mumak-react:  chromium/firefox/webkit 통과
+blog:         chromium/firefox/webkit 통과
+mumak-native: chromium/firefox/webkit 통과
+```
+
+여기서 중요한 건 "테스트가 통과했다"보다 "어떤 서버로 통과했는가"였다.
+E2E 로그를 보면 Portless가 아니라 각 앱의 고정 서버가 뜬다.
+
+```text
+next start --port 3000
+vite preview --port 3001
+node scripts/start-e2e.mjs        # blog, 3002
+serve dist --listen 3003          # mumak-native
+```
+
+이걸 확인하고 나서야 안심할 수 있었다.
+Portless 적용이 CI 경로를 침범하지 않았다는 뜻이기 때문이다.
+
+## 5. 적용하면서 얻은 추가 인사이트
+
+Portless를 붙인 뒤 문제를 볼 때는 "앱이 안 된다"로 뭉뚱그리면 원인을 놓치기 쉽다.
+이번에 나눠 봐야 했던 층은 세 가지였다.
+
+첫째, proxy route가 살아 있는가.
+한 번은 내부 Next dev server는 200을 주는데 `blog.mumak.localhost:1355`는 Portless 404를 주는 상태가 있었다.
+이때는 앱 코드가 아니라 Portless route 등록 상태를 봐야 한다.
+
+```text
+pnpm exec portless list
+pnpm exec portless proxy stop
+```
+
+`list`에서 route가 비어 있는데 proxy만 떠 있으면 앱을 다시 띄우는 게 먼저다.
+stale lock처럼 보이는 상태도 있었는데, `proxy stop` 후 재실행하니 route가 정상 등록됐다.
+
+둘째, framework dev resource가 허용되어 있는가.
+Portless URL은 보기에는 단순한 별칭 같지만, 브라우저와 Next dev server 입장에서는 origin이 달라진다.
+그래서 Next 앱은 `allowedDevOrigins`까지 같이 봐야 한다.
+
+셋째, 앱 코드가 실패를 작게 격리하는가.
+proxy와 dev resource가 정상이어도, 클라이언트 위젯 하나가 렌더 중 throw하면 ErrorBoundary가 없는 영역은 같이 흔들릴 수 있다.
+이번에는 `SpotifyVinylClient`, `BlogSearch`, `ThemeSwitcher`, `LocaleSwitcher`를 각각 작은 경계로 나눴다.
+
+이 세 층을 나누고 나니 디버깅 순서도 명확해졌다.
+
+```text
+1. Portless route가 등록되어 있는가?
+2. Next dev resource가 origin 차단 없이 연결되는가?
+3. 앱의 선택적 client widget이 독립적으로 실패하는가?
+```
+
+Portless는 포트를 숨겨주지만, 문제의 층까지 숨겨주진 않는다.
+오히려 URL이 한 겹 추상화되기 때문에 proxy, framework, app runtime을 더 의식적으로 나눠 봐야 한다.
+
+## 6. 이번 변경의 핵심은 포트가 아니라 경계였다
+
+처음 목표는 포트 번호를 덜 외우는 것이었다.
+
+하지만 실제로 얻은 건 조금 다르다.
+
+로컬 개발에서는 사람이 읽기 좋은 이름을 쓴다.
+CI/E2E에서는 기계가 재현하기 좋은 고정 포트를 쓴다.
+
+이 둘을 섞지 않는 것이 핵심이었다.
+
+```text
+dev:
+  http://next.mumak.localhost:1355
+  http://react.mumak.localhost:1355
+  http://blog.mumak.localhost:1355
+  http://native.mumak.localhost:1355
+
+e2e:
+  3000, 3001, 3002, 3003
+```
+
+개발자가 보는 주소는 의미를 가져야 한다.
+테스트가 보는 주소는 안정적이어야 한다.
+
+Portless는 이 둘을 나눠주는 좋은 계기가 됐다.
+
+## 적용 체크리스트
+
+비슷한 구조의 monorepo에 Portless를 붙인다면 이 정도는 확인할 것 같다.
+
+- [ ] 앱마다 고유한 `--name`을 정했는가?
+- [ ] 로컬에서 sudo prompt가 뜨지 않도록 proxy 포트를 명시했는가?
+- [ ] framework command를 `portless run`이 직접 감싸는가?
+- [ ] `dev` 스크립트에 기존 고정 포트가 남아 있지 않은가?
+- [ ] `start:e2e`, `preview:e2e`, Playwright `webServer`는 Portless와 분리되어 있는가?
+- [ ] E2E 포트가 앱끼리 겹치지 않는가?
+- [ ] Next 앱이라면 Portless hostname을 `allowedDevOrigins`에 추가했는가?
+- [ ] 선택적 클라이언트 위젯이 ErrorBoundary로 격리되어 있는가?
+- [ ] Portless proxy smoke test와 CI-mode E2E를 둘 다 확인했는가?
+- [ ] 문제가 생겼을 때 proxy route, framework dev resource, app runtime을 분리해서 확인했는가?
+
+도구 하나를 붙이는 일은 보통 작아 보인다.
+하지만 좋은 도구 적용은 "명령어 몇 줄 변경"에서 끝나지 않는다.
+
+그 도구가 어디까지 책임지고, 어디부터는 기존 시스템이 책임져야 하는지 선을 긋는 일이 더 중요하다.
+이번 Portless 적용도 결국 그 선을 다시 그은 작업이었다.

@@ -10,6 +10,7 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: ['blog.mumak.localhost'],
   output: 'standalone',
   outputFileTracingRoot: path.join(import.meta.dirname, '../../'),
   outputFileTracingIncludes: {

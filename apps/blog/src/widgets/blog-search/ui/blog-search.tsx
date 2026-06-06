@@ -6,6 +6,7 @@ import * as React from 'react';
 
 import { useSearchPaletteShortcut } from '@/src/shared/hooks';
 import { SearchPalette, SearchTrigger, type SearchPaletteGroup } from '@/src/shared/ui';
+import { ClientErrorBoundary } from '@/src/shared/ui/client-error-boundary';
 
 export interface BlogSearchPost {
   title: string;
@@ -22,6 +23,14 @@ interface BlogSearchProps {
 }
 
 export function BlogSearch({ posts, categoryLabels, triggerClassName }: BlogSearchProps) {
+  return (
+    <ClientErrorBoundary name="BlogSearch">
+      <BlogSearchContent posts={posts} categoryLabels={categoryLabels} triggerClassName={triggerClassName} />
+    </ClientErrorBoundary>
+  );
+}
+
+function BlogSearchContent({ posts, categoryLabels, triggerClassName }: BlogSearchProps) {
   const t = useTranslations('blog.search');
   const [open, setOpen] = React.useState(false);
   useSearchPaletteShortcut(setOpen);

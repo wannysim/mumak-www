@@ -1,3 +1,4 @@
+export { ClientErrorBoundary } from './client-error-boundary';
 export { SearchPalette, type SearchPaletteGroup, type SearchPaletteItem } from './search-palette';
 export { SearchTrigger } from './search-trigger';
 export { SwitcherDropdown } from './switcher-dropdown';

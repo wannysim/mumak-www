@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 
 import type { NowPlaying } from '@/src/entities/spotify';
 import { useProgressInterpolation, useSpotifyPolling } from '@/src/features/spotify-polling';
+import { ClientErrorBoundary } from '@/src/shared/ui/client-error-boundary';
 
 import { SpotifyVinyl } from './spotify-vinyl';
 import { SpotifyVinylSkeleton } from './spotify-vinyl-skeleton';
@@ -18,6 +19,18 @@ interface SpotifyVinylClientProps {
 }
 
 export function SpotifyVinylClient({ initialData, listeningToLabel, lastPlayedLabel }: SpotifyVinylClientProps) {
+  return (
+    <ClientErrorBoundary name="SpotifyVinylClient" fallback={<SpotifyVinylSkeleton />}>
+      <SpotifyVinylClientContent
+        initialData={initialData}
+        listeningToLabel={listeningToLabel}
+        lastPlayedLabel={lastPlayedLabel}
+      />
+    </ClientErrorBoundary>
+  );
+}
+
+function SpotifyVinylClientContent({ initialData, listeningToLabel, lastPlayedLabel }: SpotifyVinylClientProps) {
   const { data, hasTrackChanged, hasPlayStateChanged, resetChangeState, fetchedAt } = useSpotifyPolling({
     initialData,
     playingInterval: 2_000,

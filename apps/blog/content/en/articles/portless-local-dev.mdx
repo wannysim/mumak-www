@@ -1,0 +1,375 @@
+---
+title: 'Moving Away from localhost Port Management'
+date: '2026-06-06'
+description: 'A note on adopting Portless while keeping local dev URLs and E2E ports separate'
+tags: ['frontend', 'dev-environment', 'monorepo', 'e2e', 'tooling']
+draft: false
+---
+
+As a monorepo grows, one small thing grows with it.
+
+Port numbers.
+
+At first, this does not feel like a real problem. The Next app is 3000, the Vite app is 3001, the blog is 3002. That is still easy enough to remember.
+But then another app appears. E2E needs its own server. Preview and dev become different flows. One day, a server is already running and the port gets pushed somewhere else.
+
+Eventually, the browser history fills up with addresses like this.
+
+```text
+http://localhost:3000
+http://localhost:3001
+http://localhost:3002
+http://localhost:3003
+```
+
+The numbers have no meaning.
+Only the person using them has to remember what they mean.
+
+That was the simple reason I tried `portless`: I did not want to think about port numbers every time I opened a local app.
+But the actual work became more than making URLs nicer. It forced me to draw a clearer boundary between local development servers and CI/E2E servers.
+
+## 1. What Portless does
+
+Portless puts a small local proxy in front of dev servers and gives each app a name-based URL.
+
+Before, local access looked like this.
+
+```text
+http://localhost:3000
+http://localhost:3001
+http://localhost:3002
+```
+
+With Portless, it can look like this.
+
+```text
+http://next.mumak.localhost:1355
+http://react.mumak.localhost:1355
+http://blog.mumak.localhost:1355
+http://native.mumak.localhost:1355
+```
+
+That difference is larger than it first looks.
+
+`3000` means "probably the Next app."
+`next.mumak.localhost` just means the Next app.
+
+Ports are something you memorize. Names carry context.
+In local development, the important question is usually not "which number is this?" but "which app am I looking at?"
+
+## 2. Why it helps this repo
+
+This repo has several apps.
+
+- `apps/mumak-next`
+- `apps/mumak-react`
+- `apps/blog`
+- `apps/mumak-native`
+
+They do not all run in the same way.
+Next uses `next dev`, Vite uses `vite`, the blog uses a standalone server for E2E, and native exports Expo web output before serving it.
+
+If port numbers become the identity of each app, confusion grows quickly.
+
+```text
+3000: mumak-next dev / e2e
+3001: mumak-react dev / preview
+3002: blog dev / e2e
+3002: also used by mumak-native e2e before
+```
+
+During the adoption, I noticed that `blog` and `mumak-native` were both using 3002 for E2E.
+In CI, the app matrix can hide that because jobs are isolated. Locally, it is still one more thing to remember and one more possible conflict.
+
+So I split the responsibilities.
+
+```text
+local dev:
+  use Portless name-based URLs
+
+CI/E2E:
+  keep explicit fixed ports
+```
+
+And I made the E2E ports unique.
+
+```text
+mumak-next:   3000
+mumak-react:  3001
+blog:         3002
+mumak-native: 3003
+```
+
+Now development does not require remembering ports.
+E2E still keeps deterministic, explicit ports.
+
+That boundary matters.
+Portless improves the local developer experience, but it should not blur the test infrastructure model.
+
+## 3. The setup was small, but not automatic
+
+I first assumed the change would be as simple as replacing app dev scripts.
+
+```json
+{
+  "dev": "portless"
+}
+```
+
+It was not quite that simple.
+
+### 3-1. Default HTTPS/443 can ask for sudo
+
+Portless can use HTTPS and port 443 by default.
+The problem is that 443 is a privileged port, so local execution can trigger a sudo prompt.
+
+I did not want every dev server start to involve sudo.
+So I chose an HTTP proxy on an explicit local port.
+
+```json
+{
+  "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name next.mumak next dev"
+}
+```
+
+The URL is slightly longer.
+
+```text
+http://next.mumak.localhost:1355
+```
+
+But it starts without sudo.
+For this repo, repeatability matters more than the prettiest URL.
+
+### 3-2. Wrapping another script can hide port injection
+
+I first tried a script like this.
+
+```json
+{
+  "dev": "portless run --name react.mumak pnpm dev:app",
+  "dev:app": "vite"
+}
+```
+
+But Vite did not receive the internal port assigned by Portless.
+The proxy was running, but the actual app was on a different port, which produced a 502.
+
+The simpler version worked.
+
+```json
+{
+  "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name react.mumak vite"
+}
+```
+
+Portless needs to wrap the framework command directly.
+That lets it inject values such as `--port`, `--strictPort`, and `--host 127.0.0.1`.
+
+An extra `pnpm dev:app` layer can make that path unclear.
+That was the first practical lesson.
+
+### 3-3. Dev ports and E2E ports should not be mixed
+
+For a moment, I wondered if E2E should use Portless too.
+I decided against it.
+
+E2E is not a developer convenience path. It is a verification path.
+Verification needs reproducibility more than pretty URLs.
+
+Playwright `webServer` should know exactly which command starts the app and which URL proves that the server is ready.
+So only `dev` moved to Portless. E2E scripts kept fixed ports.
+
+```json
+{
+  "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name blog.mumak next dev",
+  "start:e2e": "node scripts/start-e2e.mjs",
+  "test:e2e": "playwright test"
+}
+```
+
+That made validation straightforward.
+
+- `mumak-next` runs `next start` on 3000
+- `mumak-react` runs `vite preview` on 3001
+- `blog` runs the standalone server on 3002
+- `mumak-native` serves the Expo web export on 3003
+
+Portless changes the local dev entry point.
+CI/E2E keeps the explicit port contract.
+
+### 3-4. Next dev still checks the origin
+
+When I opened the blog through `blog.mumak.localhost`, I first saw this warning.
+
+```text
+Blocked cross-origin request to Next.js dev resource /_next/webpack-hmr from "blog.mumak.localhost".
+```
+
+Next dev server does not treat every development origin as trusted.
+If the server starts on `localhost` but the browser accesses it through `blog.mumak.localhost`, Next sees a different origin requesting an internal development resource.
+
+The fix was to make the development origin explicit in `next.config`.
+
+```js
+const nextConfig = {
+  allowedDevOrigins: ['blog.mumak.localhost'],
+};
+```
+
+I added the same kind of entry for `mumak-next`: `next.mumak.localhost`.
+The dev server has to be restarted after this change.
+
+The important nuance is that this warning does not automatically mean "production hydration is broken."
+`/_next/webpack-hmr` is a development HMR path. But in local development, that dev client lives close to the client runtime that hydrates the app.
+When those dev resources are blocked, interactions such as theme switching, locale switching, and the search palette can all look dead.
+
+So for a Next app behind Portless, changing the URL is not enough.
+The development origin that Next trusts has to change too.
+
+### 3-5. One broken widget should not take down the rest
+
+The more important concern was not only the warning itself.
+
+Spotify not rendering and the header theme, locale, and search controls not responding are different classes of symptoms.
+The first can be a single widget problem. The second usually means the client side of the app did not attach correctly.
+
+I had to separate two layers.
+
+First, if Next dev resources are blocked, app-level isolation does not help much because the failure happens before normal client components can hydrate.
+That is an environment issue, and `allowedDevOrigins` is the fix.
+
+Second, after hydration, a client widget can still throw during render.
+Without an error boundary, that error bubbles through the React tree and can affect a larger part of the client UI than it should.
+
+So I added a small `ClientErrorBoundary` around optional client widgets.
+
+- `SpotifyVinylClient` falls back to its skeleton.
+- `BlogSearch` fails only the search palette.
+- In the header, `ThemeSwitcher` and `LocaleSwitcher` are wrapped separately.
+
+This is not a Portless requirement.
+But seeing the client runtime wobble during the Portless setup made the missing isolation obvious.
+
+## 4. What I verified
+
+This kind of change should not stop at editing package scripts.
+This repo runs E2E in GitHub Actions, so local convenience cannot break the CI path.
+
+I checked two things.
+
+First, Portless dev smoke tests.
+
+```text
+http://react.mumak.localhost:1355
+http://next.mumak.localhost:1355
+```
+
+Both responded through the Portless proxy.
+Vite and Next were running on internally assigned ports, while the browser used name-based local URLs.
+
+Second, CI-mode E2E.
+
+```text
+mumak-next:   chromium/firefox/webkit passed
+mumak-react:  chromium/firefox/webkit passed
+blog:         chromium/firefox/webkit passed
+mumak-native: chromium/firefox/webkit passed
+```
+
+The important part was not only that tests passed.
+It was which server they used.
+
+The logs showed fixed E2E servers, not Portless.
+
+```text
+next start --port 3000
+vite preview --port 3001
+node scripts/start-e2e.mjs        # blog, 3002
+serve dist --listen 3003          # mumak-native
+```
+
+That confirmed the boundary.
+Portless did not leak into the CI path.
+
+## 5. Extra insight from the setup
+
+After adding Portless, it is too easy to say "the app is broken" and miss which layer is actually broken.
+In this setup, I had to separate three layers.
+
+First, is the proxy route registered?
+At one point, the internal Next dev server returned 200, but `blog.mumak.localhost:1355` returned a Portless 404.
+That was not an application bug. It was a Portless route state problem.
+
+```text
+pnpm exec portless list
+pnpm exec portless proxy stop
+```
+
+If `list` shows no route while the proxy is still running, restarting the app is the first thing to do.
+I also saw what looked like a stale lock state. Stopping the proxy and starting the app again registered the route correctly.
+
+Second, is the framework dev resource allowed?
+A Portless URL looks like a convenient alias, but to the browser and to Next dev server, it changes the origin.
+That is why Next apps also need `allowedDevOrigins`.
+
+Third, does the app isolate optional client failures?
+Even if the proxy and dev resources are fine, one client widget can still throw during render.
+Without an Error Boundary, that error can affect more UI than it should.
+I split `SpotifyVinylClient`, `BlogSearch`, `ThemeSwitcher`, and `LocaleSwitcher` into smaller boundaries.
+
+That gives a clearer debugging order.
+
+```text
+1. Is the Portless route registered?
+2. Are Next dev resources connected without origin blocking?
+3. Can optional client widgets fail independently?
+```
+
+Portless hides port numbers, but it does not hide the layers involved in a failure.
+Because the URL now has one more abstraction, proxy, framework, and app runtime need to be checked separately.
+
+## 6. The main change was the boundary, not the port
+
+The original goal was to remember fewer port numbers.
+
+But the useful result was a clearer boundary.
+
+Humans use meaningful names in local development.
+Machines use deterministic ports in CI/E2E.
+
+```text
+dev:
+  http://next.mumak.localhost:1355
+  http://react.mumak.localhost:1355
+  http://blog.mumak.localhost:1355
+  http://native.mumak.localhost:1355
+
+e2e:
+  3000, 3001, 3002, 3003
+```
+
+The address a developer sees should carry meaning.
+The address a test sees should be stable.
+
+Portless became a good reason to separate those two concerns.
+
+## Checklist
+
+If I add Portless to another monorepo, I would check these first.
+
+- [ ] Does each app have a unique `--name`?
+- [ ] Is the local proxy port explicit enough to avoid sudo prompts?
+- [ ] Does `portless run` wrap the framework command directly?
+- [ ] Are fixed dev ports removed from `dev` scripts?
+- [ ] Are `start:e2e`, `preview:e2e`, and Playwright `webServer` still separate from Portless?
+- [ ] Are E2E ports unique across apps?
+- [ ] For Next apps, is the Portless hostname listed in `allowedDevOrigins`?
+- [ ] Are optional client widgets isolated with Error Boundaries?
+- [ ] Did I verify both Portless smoke tests and CI-mode E2E?
+- [ ] When something breaks, did I check proxy route, framework dev resources, and app runtime separately?
+
+Adding a tool often looks like a small command change.
+But the important part is deciding where the tool's responsibility ends.
+
+This Portless adoption was mostly about drawing that line.
