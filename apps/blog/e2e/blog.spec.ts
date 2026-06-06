@@ -140,15 +140,22 @@ test.describe('Blog - Category and Post Pages', () => {
     test('should open the palette via Cmd/Ctrl+K shortcut', async ({ page }) => {
       await page.goto('/en/blog');
 
-      // Wait for the trigger so the keydown listener is mounted.
-      await expect(page.getByRole('button', { name: 'Search posts', exact: true })).toBeVisible();
+      // Prime the client-side search before dispatching the shortcut.
+      const trigger = page.getByRole('button', { name: 'Search posts', exact: true });
+      await expect(trigger).toBeVisible();
 
-      await page.locator('body').click();
+      const dialog = page.getByRole('dialog', { name: 'Search posts' });
+
+      await trigger.click();
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(dialog).not.toBeVisible();
+
       await page.evaluate(() => {
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
       });
 
-      await expect(page.getByRole('dialog', { name: 'Search posts' })).toBeVisible();
+      await expect(dialog).toBeVisible();
     });
 
     test('should also be available on a category page', async ({ page }) => {

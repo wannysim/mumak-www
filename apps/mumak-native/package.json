@@ -4,7 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "expo start",
+    "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name native.mumak expo start",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
@@ -17,7 +17,7 @@
     "check-types": "tsc --noEmit",
     "test:ci": "jest --ci --coverage",
     "export:web": "expo export --platform web --output-dir dist",
-    "serve:web": "serve dist --listen 3002 --no-port-switching",
+    "serve:web": "serve dist --listen 3003 --no-port-switching",
     "preview:e2e": "pnpm export:web && pnpm serve:web",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
