@@ -94,7 +94,9 @@ jobs:
 
       - name: Deploy prebuilt to production
         if: steps.gate.outputs.proceed == 'true'
-        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        # 모노레포 prebuilt 산출물 파일 수가 Vercel 업로드 한도(15000)를 넘어
+        # --archive=tgz로 압축 업로드한다.
+        run: vercel deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
