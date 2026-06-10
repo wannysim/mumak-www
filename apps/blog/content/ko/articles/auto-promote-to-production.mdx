@@ -1,0 +1,253 @@
+---
+title: 'develop이 green이면 알아서 배포되게 만들기'
+date: '2026-06-11'
+description: 'GitHub Actions workflow_run으로 두 검증을 동기화하고, develop HEAD를 prod로 자동 배포하는 파이프라인을 만든 기록'
+tags: ['ci-cd', 'github-actions', 'vercel', 'monorepo', 'devops']
+draft: false
+---
+
+배포는 손이 가는 일이다.
+
+develop에 머지하고, CI가 끝나길 기다리고, E2E도 통과했는지 확인하고, 그제서야 prod 배포 버튼을 누른다. 별거 아닌 것 같지만 이 흐름에는 사람이 계속 끼어 있다. 기다리고, 확인하고, 누르는 일을 매번 사람이 한다.
+
+이번에 하고 싶었던 건 단순했다. **develop이 green이면, 아무도 누르지 않아도 prod에 올라가게 만들기.**
+
+그런데 막상 만들어보니 단순한 자동화가 아니었다. 비동기로 끝나는 두 검증을 어떻게 동기화할지, "배포한다"는 게 정확히 무슨 동작인지, 그리고 마지막엔 업로드 파일 수 한도까지 — 생각보다 밟아야 할 게 많았다.
+
+이 글은 그 파이프라인(`promote.yml`)을 만들면서 마주친 것들을 기록한다.
+
+## 1. 왜 Vercel Git 연동만으로는 부족했나
+
+Vercel을 쓰면 보통 GitHub 연동만으로 배포가 된다. 브랜치를 정해두면 push할 때마다 알아서 빌드하고 배포한다.
+
+그러면 그냥 develop을 production 브랜치로 지정하면 되는 것 아닌가?
+
+여기서 멈췄다. 그렇게 하면 develop과 prod가 같은 환경을 쓰게 된다. 나는 preview(개발)와 production(실서비스)의 환경변수와 환경 자체를 분리한 상태를 유지하고 싶었다. develop은 preview 환경에서 돌고, prod는 prod 환경에서 도는 구조를 깨고 싶지 않았다.
+
+또 하나, Vercel에는 "promote"라는 기능이 따로 있다. 이미 떠 있는 어떤 배포의 별칭(alias)을 prod 도메인으로 갈아끼우는 동작이다.
+
+```text
+develop preview 배포 (이미 빌드되어 떠 있음)
+  └─→ 도메인 별칭만 그쪽으로 변경 (재빌드 없음)
+```
+
+빠르고 깔끔하다. 하지만 이건 "preview 환경에서 빌드된 산출물을 그대로 prod로 올린다"는 뜻이다. preview용 환경변수로 빌드된 결과물이 prod 도메인에 붙는다. 환경 분리를 유지하려던 의도와는 맞지 않았다.
+
+그래서 결론은 이랬다. **자동화는 하되, prod 환경으로 새로 빌드한 결과를 prod에 올린다.** Vercel의 Git 연동이나 alias promote가 아니라, 내가 직접 제어하는 GitHub Actions로 가기로 했다.
+
+## 2. "테스트가 끝났을 때" 깨어나기 — workflow_run
+
+가장 먼저 정해야 할 건 트리거였다. 언제 배포할 것인가.
+
+답은 명확했다. CI와 E2E가 **둘 다 통과했을 때.** 테스트도 안 끝났는데 배포하면 안 된다.
+
+GitHub Actions에는 이걸 표현하는 트리거가 있다. `workflow_run`이다. 보통은 `push`나 `pull_request`에 반응하지만, `workflow_run`은 **다른 워크플로가 끝났을 때** 반응한다.
+
+```yaml
+on:
+  workflow_run:
+    workflows: ['CI', 'E2E Tests']
+    types: [completed]
+```
+
+promote는 직접 코드 push를 보지 않는다. CI나 E2E가 완료되는 순간에만 깨어난다. "검증이 끝나야 배포한다"를 트리거 레벨에서 표현한 것이다.
+
+여기서 첫 번째 함정을 밟았다.
+
+`workflow_run`은 **기본 브랜치(main)에 있는 워크플로 파일만** 실행한다. `promote.yml`을 develop에만 머지해두면, 트리거가 영원히 안 돈다. 파일은 있는데 아무 일도 일어나지 않는 유령 상태가 된다.
+
+```text
+promote.yml이 develop에만 있음  ->  트리거 안 됨 (조용히 아무 일도 없음)
+promote.yml이 main에 도달함     ->  비로소 활성화
+```
+
+이걸 모르면 "왜 안 돌지?"로 한참 헤맨다. 실제로 처음에 그랬다.
+
+## 3. 경쟁 상태 — 두 워크플로는 따로 끝난다
+
+트리거를 `workflow_run`으로 잡으면서 두 번째 문제가 생겼다.
+
+CI와 E2E는 **독립적인 두 워크플로다.** 끝나는 순서가 매번 다르다. 어떤 날은 CI가 먼저, 어떤 날은 E2E가 먼저 끝난다.
+
+`workflow_run`은 "둘 다 끝났을 때"가 아니라 "둘 중 하나가 끝났을 때"마다 깨어난다. 즉 한 commit에 대해 promote가 두 번 트리거된다. 먼저 끝난 쪽에서 한 번, 나중에 끝난 쪽에서 한 번.
+
+```text
+15:06  CI 완료    -> promote 깨어남 (E2E는 아직 진행 중)
+15:08  E2E 완료   -> promote 또 깨어남 (이제 둘 다 끝남)
+```
+
+먼저 깨어난 promote는 위험하다. 그 시점엔 E2E가 아직 안 끝났는데, 트리거된 워크플로(CI)만 보고 배포해버리면 검증이 반쪽인 채로 prod에 올라간다.
+
+그래서 트리거된 워크플로의 결과만 믿으면 안 된다. **나머지 한쪽도 따로 확인해야 한다.**
+
+## 4. Gate — 같은 SHA로 둘 다 green인지 재확인
+
+이 문제를 푸는 단계가 gate다. 트리거된 시점에 같은 commit SHA로 GitHub API에 직접 물어본다. CI와 E2E가 둘 다 success인지.
+
+```bash
+ok=1
+for wf in "CI" "E2E Tests"; do
+  conclusion=$(gh run list \
+    --workflow "$wf" \
+    --branch develop \
+    --commit "$SHA" \
+    --json conclusion,status \
+    --jq 'map(select(.status=="completed")) | .[0].conclusion // "pending"')
+  echo "$wf => ${conclusion:-pending}"
+  if [ "$conclusion" != "success" ]; then
+    ok=0
+  fi
+done
+```
+
+먼저 끝난 쪽이 트리거하면 gate는 이런 로그를 남기고 조용히 종료한다.
+
+```text
+CI => success
+E2E Tests => pending
+Both workflows are not green yet for <sha> — skipping promote.
+```
+
+나중에 끝난 쪽이 트리거하면 비로소 둘 다 green이라 통과한다.
+
+```text
+CI => success
+E2E Tests => success
+Both CI and E2E succeeded for <sha> — promoting.
+```
+
+핵심은 이렇다. **트리거는 "하나라도 끝남"을 의미하지만, gate는 "둘 다 끝남"을 보증한다.** 트리거의 느슨함을 gate의 엄격함으로 메우는 구조다.
+
+이후의 모든 배포 단계는 gate의 출력에 묶인다.
+
+```yaml
+- name: Deploy prebuilt to production
+  if: steps.gate.outputs.proceed == 'true'
+  run: ...
+```
+
+`proceed`가 `true`가 아니면 뒤 단계는 전부 건너뛴다. 그래서 먼저 끝난 promote는 gate까지만 실행하고 깔끔하게 success로 끝난다. 이때 보이는 "skipped"는 버그가 아니라 설계된 정상 동작이다.
+
+한 가지 더, CI와 E2E가 거의 동시에 끝나면 promote가 같은 commit에 대해 두 개가 동시에 뜰 수 있다. 이건 concurrency로 묶었다.
+
+```yaml
+concurrency:
+  group: promote-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+```
+
+commit SHA를 키로 묶어서 같은 commit에 대해선 하나만 돌게 한다. 진행 중인 배포는 취소하지 않는다.
+
+## 5. 이건 promote가 아니라 rebuild였다
+
+여기서 이름이 사람을 헷갈리게 한다. 워크플로 이름은 "Promote to Production"이지만, 실제로 하는 일은 Vercel의 alias promote가 아니다.
+
+배포 단계는 이렇게 생겼다.
+
+```yaml
+- run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+- run: vercel build --prod --token="$VERCEL_TOKEN"
+- run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+```
+
+`pull`로 prod 환경 설정을 받고, `build --prod`로 **GitHub Actions 러너에서 그 SHA를 prod 환경으로 새로 빌드**하고, `deploy --prebuilt`로 그 산출물을 올린다.
+
+즉 이미 떠 있는 develop preview 배포를 가리키게 만드는 게 아니라, 같은 코드를 prod 환경변수로 처음부터 다시 빌드해서 완전히 새로운 production 배포를 만든다.
+
+| 구분     | 진짜 promote (alias swap) | 이 워크플로 (rebuild)   |
+| -------- | ------------------------- | ----------------------- |
+| 빌드     | 안 함 (기존 재활용)       | 새로 함 (prod 환경으로) |
+| 환경변수 | preview 빌드 시점 값      | prod 값으로 새로 주입   |
+| 결과물   | preview와 바이트 동일     | preview와 다른 새 배포  |
+| 속도     | 초 단위                   | 1~2분                   |
+
+느리지만 의도한 트레이드오프다. preview 환경변수가 섞여 들어오는 일 없이, prod는 항상 prod 환경으로 깨끗하게 빌드된다. 2번에서 말한 환경 분리를 이 단계가 지켜준다.
+
+`--prebuilt`라는 이름도 같은 맥락이다. "Vercel 서버에서 빌드하지 말고, 내가 러너에서 미리 빌드한 산출물을 받아라"는 뜻이다. 빌드는 이미 끝났으니 Vercel은 받아서 배포만 한다.
+
+## 6. 마지막 벽 — 15000개 파일 한도
+
+여기까지 와서 모든 단계가 success인데 deploy만 빨갛게 죽었다.
+
+```text
+Error: Invalid request: `files` should NOT have more than 15000 items, received 22787.
+Try using `--archive=tgz` to limit the amount of files you upload.
+```
+
+`vercel deploy --prebuilt`는 빌드 산출물을 파일 하나하나 개별로 업로드한다. 그런데 한 요청에 올릴 수 있는 파일 수에 상한이 있다. 15,000개다.
+
+이 모노레포는 blog의 standalone 산출물까지 포함해 22,787개였다. 한도를 한참 넘었다.
+
+해결은 Vercel이 에러 메시지에서 직접 알려줬다. `--archive=tgz`다.
+
+```yaml
+- name: Deploy prebuilt to production
+  if: steps.gate.outputs.proceed == 'true'
+  run: vercel deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN"
+```
+
+이 플래그는 파일을 줄이는 게 아니다. **업로드 포장 방식을 바꾼다.**
+
+```text
+[기존]  파일 22,787개를 낱개로 전송     ->  "15000 넘음" 거부
+[수정]  tgz 하나로 압축해서 전송        ->  서버가 받아서 풀어냄
+```
+
+수정 후 deploy 로그는 이렇게 바뀌었다.
+
+```text
+Concatenating deployment archive files...
+Extracting deployment files...
+Extracted 23569 deployment files...
+Deployment completed
+▲ Production  https://...vercel.app
+▲ Aliased     https://example.com
+✓ Ready in 1m
+```
+
+파일을 압축해서 하나로 보내고, 서버가 받아서 23,569개를 풀어낸다. 같은 결과인데 포장만 바뀌니 한도를 우회했다.
+
+파일 수가 많은 모노레포에서 `--prebuilt` 배포를 한다면, 이 플래그는 거의 기본값으로 두는 게 맞다.
+
+## 7. 전체 그림
+
+조각을 다 합치면 이렇게 흐른다.
+
+```text
+develop push
+   ├─→ CI ─────┐
+   └─→ E2E ────┤   (둘 다 독립, 끝나는 순서 무작위)
+               ↓ 각자 완료 시
+        [main의] promote.yml 깨어남
+               ↓
+        head_branch == develop ?   (release 백싱크 같은 main 트리거는 컷)
+               ↓
+        Gate: 같은 SHA로 CI·E2E 둘 다 success?   (나중에 끝난 쪽만 통과)
+               ↓ yes
+        pull → build --prod → deploy --prebuilt --archive=tgz
+               ↓
+        새 production 배포 → 도메인 별칭 완료
+```
+
+처음 목표는 "버튼 누르는 일을 없애자"였다. 하지만 실제로 만든 건 단순한 자동화 버튼이 아니었다.
+
+**비동기로 끝나는 두 검증을, 트리거와 API 재조회로 동기화하고, 둘 다 green일 때만 prod 환경으로 새로 빌드해 배포하는 구조**였다.
+
+자동화는 사람이 하던 일을 기계에 넘기는 일처럼 보이지만, 실제로는 사람이 암묵적으로 처리하던 판단 — "둘 다 끝났나?", "이건 어떤 환경으로 빌드된 거지?" — 을 명시적인 규칙으로 옮기는 일이었다.
+
+## 적용 체크리스트
+
+비슷한 구조에서 자동 promote 파이프라인을 만든다면 이 정도는 확인할 것 같다.
+
+- [ ] 배포 트리거를 검증 워크플로 완료(`workflow_run`)에 묶었는가?
+- [ ] `workflow_run` 워크플로 파일이 기본 브랜치(main)에 도달했는가?
+- [ ] 여러 검증이 독립적으로 끝날 때, 같은 SHA로 전부 success인지 재확인하는 gate가 있는가?
+- [ ] gate를 통과하지 못한 트리거가 깔끔히 skip되는가? (성공으로 종료)
+- [ ] 같은 commit에 대한 중복 실행을 concurrency로 묶었는가?
+- [ ] prod 배포가 prod 환경으로 빌드되는가, 아니면 preview 산출물을 그대로 쓰는가? (의도한 쪽인지 확인)
+- [ ] 파일 수가 많다면 `--prebuilt` 업로드에 `--archive=tgz`를 붙였는가?
+- [ ] 실제로 끝까지 한 번 돌려서 prod 배포가 성공하는 걸 눈으로 봤는가?
+
+자동화는 "사람이 안 해도 되게" 만드는 일 같지만, 좋은 자동화는 "사람이 무의식적으로 하던 판단을 드러내는" 일에 가깝다.
+
+이번 파이프라인도 결국, 내가 매번 머릿속으로 하던 "둘 다 끝났나?"라는 질문을 코드로 옮긴 작업이었다.

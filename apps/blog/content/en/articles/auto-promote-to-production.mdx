@@ -1,0 +1,253 @@
+---
+title: 'Deploying Automatically When develop Goes Green'
+date: '2026-06-11'
+description: 'A note on building a pipeline that syncs two checks with GitHub Actions workflow_run and auto-deploys the develop HEAD to production'
+tags: ['ci-cd', 'github-actions', 'vercel', 'monorepo', 'devops']
+draft: false
+---
+
+Deploying takes effort.
+
+Merge into develop, wait for CI to finish, check whether E2E passed too, and only then press the deploy-to-prod button. It seems trivial, but a human stays in this loop the whole time. Waiting, checking, pressing — a person does all of it, every time.
+
+What I wanted this time was simple. **When develop goes green, get it to production without anyone pressing anything.**
+
+But once I started building it, it turned out not to be a simple automation. How to synchronize two checks that finish asynchronously, what "deploy" exactly means as an action, and finally an upload file-count limit — there was more to step through than I expected.
+
+This post records the things I ran into while building that pipeline (`promote.yml`).
+
+## 1. Why Vercel's Git integration alone wasn't enough
+
+With Vercel, deployment usually just works through the GitHub integration. Pick a branch, and every push gets built and deployed automatically.
+
+So can't I just designate develop as the production branch?
+
+I stopped here. Doing that would make develop and prod share the same environment. I wanted to keep preview (development) and production (live service) separated — their environment variables and the environments themselves. develop runs in the preview environment, prod runs in the prod environment, and I didn't want to break that structure.
+
+There's another thing. Vercel has a separate "promote" feature. It swaps the alias of an already-running deployment over to the prod domain.
+
+```text
+develop preview deployment (already built and live)
+  └─→ just move the domain alias to it (no rebuild)
+```
+
+Fast and clean. But this means "take the artifact built in the preview environment and put it on prod as-is." A result built with preview env vars gets attached to the prod domain. That didn't match my intent to keep the environments separate.
+
+So the conclusion was this. **Automate it, but build fresh with the prod environment and deploy that to prod.** Not Vercel's Git integration or alias promote, but GitHub Actions that I control directly.
+
+## 2. Waking up "when the tests finish" — workflow_run
+
+The first thing to decide was the trigger. When do we deploy?
+
+The answer was clear. When CI and E2E **both pass.** You can't deploy before the tests are even done.
+
+GitHub Actions has a trigger that expresses this: `workflow_run`. Normally workflows react to `push` or `pull_request`, but `workflow_run` reacts **when another workflow finishes.**
+
+```yaml
+on:
+  workflow_run:
+    workflows: ['CI', 'E2E Tests']
+    types: [completed]
+```
+
+promote doesn't watch code pushes directly. It only wakes up the moment CI or E2E completes. "Deploy only after the checks finish" — expressed at the trigger level.
+
+Here I stepped on the first trap.
+
+`workflow_run` **only runs the workflow file that lives on the default branch (main).** If you merge `promote.yml` only into develop, the trigger never fires. The file exists, but nothing ever happens — a ghost state.
+
+```text
+promote.yml only on develop  ->  never triggers (silently nothing)
+promote.yml reaches main      ->  finally activated
+```
+
+If you don't know this, you waste a lot of time on "why isn't it running?" That's exactly what happened at first.
+
+## 3. The race condition — the two workflows finish separately
+
+Catching the trigger with `workflow_run` created a second problem.
+
+CI and E2E are **two independent workflows.** They finish in a different order every time. Some days CI first, some days E2E first.
+
+`workflow_run` wakes up not "when both finish" but "every time one of them finishes." So for a single commit, promote gets triggered twice — once by whichever finishes first, once by whichever finishes later.
+
+```text
+15:06  CI done     -> promote wakes up (E2E still running)
+15:08  E2E done    -> promote wakes up again (now both are done)
+```
+
+The first-woken promote is dangerous. At that point E2E isn't done yet, and if it deploys based only on the triggering workflow (CI), it ships to prod with half the verification done.
+
+So you can't trust only the triggering workflow's result. **You have to check the other one separately too.**
+
+## 4. The Gate — re-confirming both are green for the same SHA
+
+The step that solves this is the gate. At trigger time, it asks the GitHub API directly, for the same commit SHA, whether both CI and E2E are success.
+
+```bash
+ok=1
+for wf in "CI" "E2E Tests"; do
+  conclusion=$(gh run list \
+    --workflow "$wf" \
+    --branch develop \
+    --commit "$SHA" \
+    --json conclusion,status \
+    --jq 'map(select(.status=="completed")) | .[0].conclusion // "pending"')
+  echo "$wf => ${conclusion:-pending}"
+  if [ "$conclusion" != "success" ]; then
+    ok=0
+  fi
+done
+```
+
+When the first-finishing one triggers, the gate leaves a log like this and quietly exits.
+
+```text
+CI => success
+E2E Tests => pending
+Both workflows are not green yet for <sha> — skipping promote.
+```
+
+When the later-finishing one triggers, both are finally green and it passes.
+
+```text
+CI => success
+E2E Tests => success
+Both CI and E2E succeeded for <sha> — promoting.
+```
+
+The key is this. **The trigger means "at least one finished," but the gate guarantees "both finished."** The structure fills the looseness of the trigger with the strictness of the gate.
+
+Every deploy step afterward is tied to the gate's output.
+
+```yaml
+- name: Deploy prebuilt to production
+  if: steps.gate.outputs.proceed == 'true'
+  run: ...
+```
+
+If `proceed` isn't `true`, all later steps are skipped. So the first-finishing promote runs only up to the gate and ends cleanly as success. The "skipped" you see here is not a bug; it's designed, normal behavior.
+
+One more thing: if CI and E2E finish almost simultaneously, two promotes can spin up for the same commit at once. I tied that off with concurrency.
+
+```yaml
+concurrency:
+  group: promote-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+```
+
+Keyed by commit SHA, only one runs per commit. An in-progress deploy is not cancelled.
+
+## 5. This was a rebuild, not a promote
+
+Here the name throws people off. The workflow is called "Promote to Production," but what it actually does is not Vercel's alias promote.
+
+The deploy steps look like this.
+
+```yaml
+- run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+- run: vercel build --prod --token="$VERCEL_TOKEN"
+- run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+```
+
+`pull` fetches the prod environment config, `build --prod` **rebuilds that SHA on the GitHub Actions runner with the prod environment**, and `deploy --prebuilt` uploads that artifact.
+
+In other words, it doesn't point at an already-running develop preview deployment. It rebuilds the same code from scratch with prod env vars to create a completely new production deployment.
+
+| Aspect   | True promote (alias swap)    | This workflow (rebuild)              |
+| -------- | ---------------------------- | ------------------------------------ |
+| Build    | None (reuses existing)       | Fresh (with prod environment)        |
+| Env vars | Values at preview build time | Re-injected with prod values         |
+| Result   | Byte-identical to preview    | A new deploy, different from preview |
+| Speed    | Seconds                      | 1-2 minutes                          |
+
+It's slower, but it's the intended trade-off. Without preview env vars leaking in, prod is always built cleanly with the prod environment. The environment separation from section 2 is enforced by this step.
+
+The name `--prebuilt` is in the same vein. It means "don't build on Vercel's servers; take the artifact I prebuilt on the runner." The build is already done, so Vercel just receives it and deploys.
+
+## 6. The last wall — the 15,000-file limit
+
+Having gotten this far, every step was success but only deploy died red.
+
+```text
+Error: Invalid request: `files` should NOT have more than 15000 items, received 22787.
+Try using `--archive=tgz` to limit the amount of files you upload.
+```
+
+`vercel deploy --prebuilt` uploads the build artifact one file at a time. But there's an upper bound on how many files a single request can carry. 15,000.
+
+This monorepo, including blog's standalone artifact, had 22,787. Well over the limit.
+
+The fix was right there in Vercel's error message. `--archive=tgz`.
+
+```yaml
+- name: Deploy prebuilt to production
+  if: steps.gate.outputs.proceed == 'true'
+  run: vercel deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN"
+```
+
+This flag doesn't reduce the file count. **It changes the upload packaging.**
+
+```text
+[before]  send 22,787 files individually   ->  rejected, "over 15000"
+[after]   compress into one tgz and send    ->  server receives and unpacks it
+```
+
+After the fix, the deploy log changed to this.
+
+```text
+Concatenating deployment archive files...
+Extracting deployment files...
+Extracted 23569 deployment files...
+Deployment completed
+▲ Production  https://...vercel.app
+▲ Aliased     https://example.com
+✓ Ready in 1m
+```
+
+Compress the files into one and send it; the server receives it and unpacks 23,569 files. Same result, just different packaging, and it sidesteps the limit.
+
+If you're doing `--prebuilt` deploys in a file-heavy monorepo, this flag is something to keep on by default.
+
+## 7. The whole picture
+
+Putting the pieces together, it flows like this.
+
+```text
+develop push
+   ├─→ CI ─────┐
+   └─→ E2E ────┤   (both independent, finish in random order)
+               ↓ on each completion
+        promote.yml [on main] wakes up
+               ↓
+        head_branch == develop ?   (main triggers like release back-sync are cut)
+               ↓
+        Gate: both CI & E2E success for the same SHA?   (only the later one passes)
+               ↓ yes
+        pull → build --prod → deploy --prebuilt --archive=tgz
+               ↓
+        new production deployment → domain alias done
+```
+
+The original goal was "remove the button-pressing." But what I actually built wasn't a simple automation button.
+
+It was **a structure that synchronizes two asynchronously-finishing checks via the trigger and an API re-query, and only when both are green, rebuilds with the prod environment and deploys.**
+
+Automation looks like handing a human task over to a machine, but in reality it was moving the judgment a human handled implicitly — "are both done?", "what environment was this built with?" — into explicit rules.
+
+## Adoption checklist
+
+If you build an auto-promote pipeline in a similar setup, I'd check at least these.
+
+- [ ] Is the deploy trigger tied to the completion of verification workflows (`workflow_run`)?
+- [ ] Has the `workflow_run` workflow file reached the default branch (main)?
+- [ ] When multiple checks finish independently, is there a gate that re-confirms all are success for the same SHA?
+- [ ] Does a trigger that fails the gate skip cleanly? (exits as success)
+- [ ] Are duplicate runs for the same commit tied off with concurrency?
+- [ ] Is the prod deploy built with the prod environment, or does it reuse the preview artifact? (confirm it's the intended one)
+- [ ] If there are many files, did you add `--archive=tgz` to the `--prebuilt` upload?
+- [ ] Did you actually run it end to end once and watch the prod deploy succeed with your own eyes?
+
+Automation looks like making it "so a human doesn't have to," but good automation is closer to "surfacing the judgment a human was making unconsciously."
+
+This pipeline, too, was ultimately the work of moving the question I asked in my head every time — "are both done?" — into code.
