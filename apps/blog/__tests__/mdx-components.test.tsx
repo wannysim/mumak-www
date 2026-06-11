@@ -13,7 +13,10 @@ jest.mock('@/src/shared/config/i18n', () => ({
   ),
 }));
 
-const Anchor = mdxComponents.a as React.FC<{ href?: string; children?: React.ReactNode }>;
+const Anchor = mdxComponents.a as React.FC<{
+  href?: string;
+  children?: React.ReactNode;
+}>;
 
 describe('mdxComponents.a', () => {
   it('opens external links in a new tab with a safe rel', () => {
@@ -30,6 +33,24 @@ describe('mdxComponents.a', () => {
 
     const link = screen.getByRole('link', { name: 'internal' });
     expect(link).toHaveAttribute('data-i18n-link');
+    expect(link).not.toHaveAttribute('target');
+  });
+
+  it('strips an existing locale prefix before rendering in-app links through the locale-aware Link', () => {
+    render(<Anchor href="/ko/blog/articles/react-compiler-rust-port">locale-prefixed internal</Anchor>);
+
+    const link = screen.getByRole('link', { name: 'locale-prefixed internal' });
+    expect(link).toHaveAttribute('data-i18n-link');
+    expect(link).toHaveAttribute('href', '/blog/articles/react-compiler-rust-port');
+    expect(link).not.toHaveAttribute('target');
+  });
+
+  it('maps Obsidian vault-root content links to in-app routes', () => {
+    render(<Anchor href="/ko/articles/react-compiler-rust-port.mdx">content file internal</Anchor>);
+
+    const link = screen.getByRole('link', { name: 'content file internal' });
+    expect(link).toHaveAttribute('data-i18n-link');
+    expect(link).toHaveAttribute('href', '/blog/articles/react-compiler-rust-port');
     expect(link).not.toHaveAttribute('target');
   });
 

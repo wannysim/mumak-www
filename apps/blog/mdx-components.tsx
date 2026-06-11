@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { isValidElement, type ReactNode } from 'react';
 
 import { Link } from '@/src/shared/config/i18n';
-import { EXTERNAL_LINK_REL, isExternalHref, isInAppHref } from '@/src/shared/lib/url';
+import { EXTERNAL_LINK_REL, isExternalHref, isInAppHref, normalizeMdxInAppHref } from '@/src/shared/lib/url';
 import { normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
 import { BrokenWikiEmbed, BrokenWikiLink, WikiEmbed, WikiLink } from '@/src/shared/ui';
 import { SocialLinks } from '@/src/widgets/footer';
@@ -70,7 +70,7 @@ export const mdxComponents: MDXComponents = {
 
     if (isInAppHref(href)) {
       return (
-        <Link href={href} className={MDX_LINK_CLASS}>
+        <Link href={normalizeMdxInAppHref(href)} className={MDX_LINK_CLASS}>
           {children}
         </Link>
       );
