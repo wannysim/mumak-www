@@ -1,12 +1,12 @@
 'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
 import { memo, useState } from 'react';
 
 import { cn } from '@mumak/ui/lib/utils';
 
 import type { NowPlaying } from '@/src/entities/spotify';
+import { ExternalLink } from '@/src/shared/ui/external-link';
 
 import { SpotifyDeviceInfoBadge } from './spotify-device-info';
 import { SpotifyProgressBar } from './spotify-progress-bar';
@@ -137,12 +137,7 @@ export const SpotifyVinyl = memo(function SpotifyVinyl({
             )}
           </div>
 
-          <Link
-            href={data.songUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group/link hover:text-[#1DB954] transition-colors duration-300"
-          >
+          <ExternalLink href={data.songUrl} className="group/link hover:text-[#1DB954] transition-colors duration-300">
             <span className="flex items-center gap-1.5">
               <span className="text-sm sm:text-base font-semibold leading-tight truncate">{data.title}</span>
               {data.isExplicit && (
@@ -156,7 +151,7 @@ export const SpotifyVinyl = memo(function SpotifyVinyl({
               )}
             </span>
             <span className="block text-xs sm:text-sm text-muted-foreground truncate mt-0.5">{data.artist}</span>
-          </Link>
+          </ExternalLink>
 
           {canShowProgress && (
             <SpotifyProgressBar
