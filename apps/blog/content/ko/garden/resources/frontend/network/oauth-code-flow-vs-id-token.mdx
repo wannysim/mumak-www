@@ -1,0 +1,146 @@
+---
+title: 'Authorization Code와 ID Token: 로그인할 때 무엇을 백엔드에 보내야 하나'
+created: '2026-06-11'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'oauth', 'oidc', 'auth']
+---
+
+"소셜 로그인 붙일 때 백엔드에 뭘 보내야 하지?"라는 질문에서 자주 갈린다. 어떤 글은 `code`를 보내라고 하고, 어떤 예제는 `idToken`을 보내라고 한다. 둘 다 맞는 것처럼 보이는데, 보안적으로 뭐가 더 낫고 요즘은 어느 쪽이 선호될까?
+
+> 한 줄 요약: **기본값은 Authorization Code + PKCE다. 다만 모바일 SDK처럼 code를 안 주고 검증 가능한 ID Token만 주는 상황에서는 ID Token을 백엔드가 제대로 검증하는 방식도 실용적인 선택이다. 중요한 건 ID Token 방식이 Authorization Code를 대체하는 "더 쉬운 표준 플로우"가 아니라, SDK 현실에서 쓰는 인증 결과 전달 패턴이라는 점이다.**
+
+먼저 층위를 맞춰야 한다. **Authorization Code는 토큰을 안전하게 받기 위한 과정**이고, **ID Token은 OIDC가 발급하는 인증 결과물**이다. 원래 OIDC Authorization Code Flow에서는 `code`를 token endpoint에서 교환한 뒤, 그 결과로 `id_token`이 나온다. 즉 둘은 원래 경쟁자가 아니라 **과정과 결과물**이다.
+
+그런데 실무에서는 네이티브 SDK가 내부에서 code 교환을 끝내고 앱에 `idToken`만 주는 경우가 있다. 그래서 "code 방식 vs idToken 방식"처럼 보이는 것이다.
+
+## 비유로 먼저 잡기
+
+**Authorization Code는 교환권**이다.
+
+```
+provider가 브라우저/앱에 짧은 교환권(code)을 준다
+→ 내 서버나 앱이 token endpoint에 가서
+→ 진짜 토큰(access/id/refresh)으로 바꾼다
+```
+
+교환권 자체는 짧게 살고, 한 번 쓰면 끝난다. 진짜 토큰은 token endpoint라는 뒷문(back-channel)에서 받는다. 그래서 토큰이 URL이나 브라우저 히스토리를 덜 지난다.
+
+**ID Token은 신분 증명서**다.
+
+```
+provider가 "이 사용자는 sub=123이다"라는 서명된 증명서(id_token)를 준다
+→ 백엔드가 공개키로 서명과 claim을 검증한다
+→ 우리 서비스 세션/토큰을 발급한다
+```
+
+ID Token은 이미 결과물이다. "이 사용자가 누구인가"를 담은 서명된 JWT다. 그러니 백엔드가 이걸 받는 순간 할 일은 token endpoint에 다시 교환하러 가는 게 아니라, **서명·`iss`·`aud`·`exp`·`nonce`를 검증**하는 것이다([[oidc-nonce-token-binding]]).
+
+## 보안적으로 뭐가 다른가
+
+가장 큰 차이는 **진짜 토큰이 프론트 채널에 얼마나 노출되느냐**다.
+
+| 기준              | Authorization Code + PKCE      | ID Token 전달                                |
+| ----------------- | ------------------------------ | -------------------------------------------- |
+| 프론트가 받는 것  | 짧고 1회용인 `code`            | 이미 서명된 `id_token`                       |
+| 백엔드 역할       | code를 token endpoint에서 교환 | ID Token을 검증하고 자체 세션 발급           |
+| 토큰 노출면       | 낮음. 토큰은 백채널에서 받음   | 상대적으로 큼. ID Token이 앱/프론트에 도착함 |
+| replay 방어       | code 1회성 + PKCE + state      | 서명/claim 검증 + **nonce 필수**             |
+| refresh token     | 서버/BFF에서 다루기 좋음       | SDK가 안 주면 보통 별도 처리 어려움          |
+| provider API 호출 | access token을 받아 호출 가능  | ID Token만으로는 resource API 호출 불가      |
+
+Authorization Code 방식의 보안 감각은 이렇다. **브라우저나 앱에는 진짜 돈이 아니라 교환권만 들려준다.** 그리고 교환권을 진짜 돈으로 바꾸려면 `code_verifier`(PKCE)가 필요하다. code를 훔쳐도 verifier가 없으면 토큰으로 못 바꾼다.
+
+ID Token 전달 방식의 보안 감각은 이렇다. **앱이 이미 서명된 신분증을 들고 백엔드에 온다.** 신분증이 진짜인지 확인할 수는 있지만, 그 신분증 자체가 프론트/앱을 한 번 지나온다. 그래서 백엔드는 "진짜 provider가 서명했나"만 보면 안 되고, "이 신분증이 방금 시작한 내 로그인 요청에 대한 것인가"까지 봐야 한다. 그게 nonce다.
+
+## 그래서 요즘 트렌드는?
+
+요즘 표준 권고의 큰 방향은 명확하다.
+
+1. **Implicit Flow는 피한다.** 토큰을 URL fragment나 프론트 채널에 바로 싣는 방식은 낡은 방식이다.
+2. **Authorization Code + PKCE가 기본값이다.** 웹 SPA도, 모바일 public client도 이쪽이 현재 기본 권장선이다.
+3. **웹에서 백엔드가 있으면 BFF/server-side 쪽으로 간다.** 토큰을 브라우저 밖에 두고, 브라우저에는 httpOnly 세션 쿠키만 주는 구조가 더 견고하다([[access-refresh-token-pattern]]).
+4. **모바일 SDK 현실에서는 ID Token 전달도 흔하다.** Apple `identityToken`, Kakao OIDC `idToken`처럼 SDK가 code를 안 주는 경우가 있어서, 백엔드가 ID Token을 직접 검증하는 패턴이 실무적으로 자주 쓰인다.
+
+즉 트렌드를 한 문장으로 줄이면 이렇다.
+
+> **표준 플로우 설계의 선호는 Authorization Code + PKCE. SDK가 code를 숨기고 ID Token만 주는 모바일/소셜 로그인에서는 ID Token 검증 패턴도 현실적인 선택.**
+
+## 웹에서는 어떻게 고르나
+
+웹은 브라우저가 끼기 때문에 토큰 노출면을 특히 조심해야 한다.
+
+| 웹 구조                                | 선호                                                                           |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| 서버 렌더링 / BFF                      | **Authorization Code + PKCE → 서버가 토큰 보관 → 브라우저는 세션 쿠키**        |
+| SPA + 백엔드 있음                      | 가능하면 BFF. 어렵다면 Code + PKCE 후 access는 메모리, refresh는 httpOnly 쿠키 |
+| 순수 SPA(백엔드 거의 없음)             | Authorization Code + PKCE. 토큰은 메모리 중심, refresh는 rotation 필요         |
+| 프론트가 ID Token을 받아 백엔드 로그인 | 가능은 하지만 "1회성 로그인 증명"으로만 쓰고, 백엔드가 자체 세션을 발급해야 함 |
+
+웹에서 ID Token을 프론트가 받아 `localStorage`에 넣고 "이게 우리 로그인 토큰"처럼 쓰는 건 피해야 한다. ID Token은 **provider가 우리 앱에 "이 사용자는 누구"라고 알려주는 증명서**지, 우리 API를 계속 호출하기 위한 앱 세션 토큰이 아니다. 받았다면 백엔드에 보내 검증하고, 백엔드는 자체 세션 쿠키나 자체 access/refresh 토큰을 발급하는 식으로 끊어야 한다.
+
+## 모바일/앱에서는 어떻게 고르나
+
+모바일도 원칙은 Authorization Code + PKCE가 강하다. 네이티브 앱은 client secret을 안전하게 숨길 수 없는 public client라 PKCE가 중요하다. `expo-auth-session`, AppAuth 계열이 이 흐름을 잘 탄다.
+
+다만 소셜 로그인 SDK를 쓰면 그림이 달라진다.
+
+| 앱 상황                                   | 선호                                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------------------ |
+| 우리가 OAuth/OIDC 플로우를 직접 제어 가능 | **Authorization Code + PKCE**                                                  |
+| SDK가 `authorizationCode`를 제공          | code 교환 주체를 검토. 백엔드 교환은 redirect URI/client/PKCE 경계가 맞아야 함 |
+| SDK가 code를 안 주고 `idToken`만 제공     | 백엔드가 ID Token 검증(서명/`iss`/`aud`/`exp`/`nonce`)                         |
+| SDK가 nonce도 못 받음                     | 보안 트레이드오프를 문서화하고, 최소한 서명/`iss`/`aud`/`exp`는 엄격히 검증    |
+
+`authorizationCode`를 백엔드로 보낼 때는 "백엔드가 token endpoint에서 이 code를 정상 교환할 수 있는가"를 먼저 봐야 한다. PKCE를 썼다면 `code_verifier`를 누가 만들고 누가 보관했는지, redirect URI와 client 설정이 백엔드 교환과 맞는지도 함께 맞아야 한다. provider SDK마다 계약이 다르므로, "code가 있다 = 무조건 백엔드 교환"으로 단순화하면 안 된다.
+
+내가 카카오에서 마주친 게 마지막 두 줄이다. `@react-native-kakao` 네이티브 `login()`은 인가 코드를 노출하지 않았고, OIDC를 켜면 `idToken`은 줬다. 그래서 백엔드와 합의해 ID Token 검증 방식으로 갔다. 대신 nonce는 SDK가 못 받는 제약 때문에 의도적으로 생략했고, 그 이유를 코드 주석과 글에 남겼다([Expo 소셜 로그인 3부](/ko/blog/articles/expo-social-login-backend)).
+
+반대로 Apple이나 Google처럼 nonce를 넣을 수 있으면 ID Token 방식에서도 nonce 검증을 붙이는 게 맞다. ID Token 방식의 핵심 약점이 replay/token injection인데, nonce가 그 방어선이기 때문이다.
+
+## 선택 기준
+
+내 기준은 이렇게 정리된다.
+
+| 질문                                           | 답                                                   |
+| ---------------------------------------------- | ---------------------------------------------------- |
+| 백엔드가 있고 토큰을 서버에 둘 수 있나?        | **Authorization Code + PKCE + BFF/server-side**      |
+| provider API를 계속 호출해야 하나?             | access/refresh가 필요하니 **code 방식**이 자연스럽다 |
+| 단순히 "소셜 계정으로 가입/로그인"만 필요한가? | ID Token 검증도 가능                                 |
+| SDK가 code를 주나?                             | 주면 code 방식 우선 검토                             |
+| SDK가 idToken만 주나?                          | 백엔드 ID Token 검증으로 간다                        |
+| nonce를 넣고 검증할 수 있나?                   | 가능하면 반드시 한다                                 |
+
+가장 피해야 할 건 "편하니까 프론트에서 받은 토큰을 그냥 우리 로그인 토큰으로 계속 쓰자"다. code든 idToken이든 provider에서 받은 것은 **외부 provider와의 인증/인가 결과물**이다. 우리 서비스의 로그인 상태는 백엔드가 검증을 끝낸 뒤, 우리 서비스가 발급한 세션/토큰으로 다시 잡는 게 깔끔하다.
+
+## 흔한 오해
+
+- **오해**: "Authorization Code와 ID Token은 둘 중 하나를 고르는 같은 레벨의 방식이다." → **실제**: Authorization Code는 플로우고, ID Token은 OIDC 결과물이다. 실무에서만 "code를 보낼지 idToken을 보낼지"처럼 보인다.
+- **오해**: "ID Token은 서명돼 있으니 code보다 항상 안전하다." → **실제**: 서명은 위조를 막을 뿐, 다른 흐름의 진짜 토큰 주입은 nonce 없이는 못 막는다.
+- **오해**: "Code 방식은 옛날 서버 방식이고 SPA/앱은 idToken 방식이 요즘 방식이다." → **실제**: 최신 권고는 오히려 SPA/앱도 Authorization Code + PKCE 쪽이다. ID Token 전달은 SDK 제약이 있을 때 실용적인 패턴이다.
+- **오해**: "ID Token을 우리 API access token처럼 쓰면 된다." → **실제**: ID Token은 인증 증명서다. 우리 API 호출용 토큰/세션은 백엔드가 별도로 발급해야 한다.
+- **오해**: "모바일은 앱이라 안전하니까 nonce 없어도 된다." → **실제**: 모바일도 토큰 replay/injection은 가능하다. provider/SDK가 nonce를 지원하면 검증해야 한다.
+
+## 스스로 점검하기
+
+- Authorization Code는 "과정"이고 ID Token은 "결과물"이라는 말을 자기 말로 설명할 수 있나?
+- code 방식이 토큰 노출면을 줄이는 이유는 무엇인가?
+- ID Token 방식에서 서명 검증만으로 부족한 이유는 무엇이고, nonce가 무엇을 보완하나?
+- 웹/BFF, 순수 SPA, 모바일 SDK 각각에서 어떤 방식을 우선 검토해야 하나?
+- provider에서 받은 토큰을 우리 서비스 세션으로 바로 쓰지 말아야 하는 이유는?
+
+## 함께 보기
+
+- [[oauth-callback-security]]
+- [[oidc-nonce-token-binding]]
+- [[access-refresh-token-pattern]]
+- [[web-auth-session-vs-token]]
+- [[frontend-network]]
+
+## 참고
+
+- [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://datatracker.ietf.org/doc/html/rfc9700)
+- [OAuth 2.0 for Browser-Based Apps (BCP draft)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps)
+- [OAuth 2.1](https://oauth.net/2.1/)
+- [OpenID Connect Core 1.0 — ID Token](https://openid.net/specs/openid-connect-core-1_0.html#IDToken)
+- [OAuth 2.0 for Native Apps — RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252)
