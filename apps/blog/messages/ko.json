@@ -22,7 +22,8 @@
     "latestPosts": "최신 글",
     "recentPosts": "이전 글",
     "listeningTo": "Spotify에서 재생 중",
-    "lastPlayed": "Spotify에서 최근 재생"
+    "lastPlayed": "Spotify에서 최근 재생",
+    "aboutCta": "소개 더 보기"
   },
   "blog": {
     "title": "블로그",
@@ -73,9 +74,10 @@
   "about": {
     "title": "소개",
     "description": "안녕하세요, 심완입니다.",
+    "role": "아파트멘터리 프론트엔드 엔지니어",
     "intro": "긍정과 효율을 지향하며, 솔직함을 미덕으로 삼는 소프트웨어 엔지니어입니다.\n이곳은 머릿속에 엉켜있는 생각들을 텍스트로 정갈하게 리팩토링하는 공간입니다.\n타인을 위한 정보보다는 저를 위한 기록에 가깝지만, 언제나 열려있습니다.\n\n제 소스 코드를 구경하듯 편하게 머물다 가세요.",
-    "contact": "연락처",
-    "email": "이메일"
+    "stackTitle": "기술 스택",
+    "nowCta": "지금은 이렇게 지내요"
   },
   "now": {
     "lastUpdated": "마지막 업데이트"
