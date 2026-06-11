@@ -1,60 +1,71 @@
 ---
-title: 'Expo SDK 56에서 카카오 + Apple 소셜 로그인 붙이기 — New Architecture 시대의 삽질'
+title: 'Expo 소셜 로그인 (1/3) — 설계: 패키지 선택부터 provider-agnostic 골격까지'
 date: '2026-06-09'
-description: 'New Architecture가 강제된 Expo SDK 56 앱에 카카오·Apple 로그인을 붙이며 코드 바깥에서 더 많이 헤맨 기록'
+description: 'New Architecture가 강제된 Expo SDK 56 앱에 카카오·Apple 로그인을 붙이며, 코드보다 코드 바깥에서 더 많이 헤맨 기록의 첫 편'
 tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
 draft: false
 ---
 
-소셜 로그인은 "버튼 두 개 붙이고 SDK 콜백 받으면 끝"인 줄 알았다.
+소셜 로그인은 버튼 두 개 붙이고 SDK 콜백만 받으면 끝인 줄 알았다.
 
-실제로는 패키지 선택부터 config plugin이 빌드를 통째로 막는 함정, EAS 환경변수 등록 위치, Apple 시뮬레이터의 고질병, 재빌드 트리거까지 — 코드보다 코드 바깥에서 더 많이 헤맸다. 이 글은 모노레포 안의 Expo SDK 56 앱에 카카오와 Apple 로그인을 실제로 붙이며 겪은 여정을 시간순으로, 각 단계마다 원인 → 해결 → 교훈으로 정리한 기록이다.
+실제로는 패키지 선택부터 막혔고, config plugin이 빌드를 통째로 세웠고, EAS 명령은 엉뚱한 디렉터리에서 돌아갔다.
+코드보다 코드 바깥에서 더 많이 헤맸다.
 
-먼저 환경을 명확히 해두자.
+이 글은 모노레포 안의 Expo 앱에 카카오와 Apple 로그인을 붙인 기록이다. 양이 많아 세 편으로 나눴다.
 
-- **모노레포**: yarn workspaces, 앱 경로는 `apps/mobile`
-- **런타임**: Expo SDK 56, React Native 0.85.3, React 19.2.3
-- **New Architecture 강제**: SDK 55부터 New Arch가 기본이자 사실상 강제다. 이게 패키지 선택의 첫 번째 제약이 됐다.
-- **Expo Go가 아님**: Firebase(`@react-native-firebase/app`) + `useFrameworks: "static"` 조합 때문에 **custom dev client**를 빌드해서 쓴다. Expo Go로는 네이티브 모듈을 못 얹는다.
-- **린트/포맷**: oxlint + oxfmt, TypeScript strict
+- **1부 (이 글)** — 설계: 패키지 선택, Apple의 함정, provider-agnostic 골격
+- [2부 — 빌드와 디바이스, 토큰을 얻기까지](/ko/blog/articles/expo-social-login-build)
+- [3부 — 백엔드 연동: OIDC, nonce, 그리고 머지 지옥](/ko/blog/articles/expo-social-login-backend)
 
-이 전제들이 이후의 모든 의사결정을 좌우했다.
+먼저 환경을 적어둔다.
 
-## 1. 사전 조사 — 카카오 패키지 선택에서부터 막히다
+- 모노레포(yarn workspaces), 앱은 `apps/mobile`
+- Expo SDK 56, React Native 0.85.3, React 19.2.3
+- **New Architecture 강제**: SDK 55부터 기본이자 사실상 강제다. 이게 패키지 선택의 첫 제약이 됐다.
+- Expo Go가 아니라 **custom dev client**. Firebase + `useFrameworks: "static"` 조합이라 네이티브 모듈을 dev client로만 얹을 수 있다.
 
-처음 떠올린 건 국내에서 가장 많이 보이는 `@react-native-seoul/kakao-login`이었다. 자료도 많고 예제도 흔하다. 그런데 우리 환경은 **RN 0.85 = New Architecture 강제**다.
+이 전제들이 이후의 거의 모든 결정을 좌우했다.
 
-### 함정: New Arch 시대엔 "유명한 패키지"가 정답이 아니다
+## 1. 카카오 패키지 선택에서부터 막혔다
 
-New Architecture에서는 네이티브 모듈이 TurboModule/Fabric을 지원해야 한다. 구식 브리지 기반 모듈은 New Arch에서 동작이 보장되지 않거나, 인터롭 레이어를 거쳐 불안정하게 돈다. `@react-native-seoul/kakao-login`의 new-arch 지원 여부를 확인하려 했지만 명확한 메타데이터를 찾지 못했다. "아마 되겠지"로 깔았다가 빌드 후에 redbox를 보는 건 최악의 시나리오다.
+처음 떠올린 건 국내에서 가장 많이 보이는 `@react-native-seoul/kakao-login`이었다.
+자료도 많고 예제도 흔하다.
+
+그런데 우리 환경은 RN 0.85, 즉 New Architecture가 강제다.
+
+New Arch에서는 네이티브 모듈이 TurboModule/Fabric을 지원해야 한다. 구식 브리지 기반 모듈은 동작이 보장되지 않거나 인터롭 레이어를 거쳐 불안정하게 돈다.
+`@react-native-seoul/kakao-login`의 new-arch 지원 여부를 확인하려 했지만 명확한 메타데이터를 못 찾았다.
+
+"아마 되겠지"로 깔았다가 빌드 후에 redbox를 보는 건 최악이다.
 
 그래서 React Native Directory와 패키지 메타데이터를 기준으로 다시 골랐다. 결론은 **MJ Studio(mym0404)의 `@react-native-kakao` 패밀리**였다.
 
-- `@react-native-kakao/core@2.4.5` — SDK 초기화 + 네이티브 설정
-- `@react-native-kakao/user@2.4.5` — 로그인/사용자 API
+- `@react-native-kakao/core` — SDK 초기화 + 네이티브 설정
+- `@react-native-kakao/user` — 로그인/사용자 API
 
-선택의 결정타는 두 가지였다.
+결정타는 두 가지였다.
 
-1. **New Architecture first-class**: TurboModule 기반으로 new-arch를 정식 지원한다.
-2. **모듈별 공식 Expo config plugin**: 코어 모듈이 Expo config plugin을 제공해서, iOS URL scheme이나 `LSApplicationQueriesSchemes` 같은 네이티브 설정을 손으로 `Info.plist` 만지지 않고 `app.config.ts`에서 선언적으로 주입할 수 있다. dev client 빌드 워크플로우와 궁합이 맞는다.
+1. TurboModule 기반으로 new-arch를 **정식 지원**한다.
+2. 코어 모듈이 **공식 Expo config plugin**을 제공한다. iOS URL scheme이나 `LSApplicationQueriesSchemes` 같은 네이티브 설정을 `Info.plist`를 손대지 않고 `app.config.ts`에서 선언적으로 주입할 수 있다.
 
-### 교훈
+New Arch 시대의 패키지 선택 기준은 "유명한가"가 아니다.
+공식 directory에 new-arch 지원이 명시돼 있는가, 그리고 Expo config plugin을 주는가. 검증 안 된 지원을 운에 맡기지 않는 게 핵심이었다.
 
-> New Arch 시대의 RN 패키지 선택 기준은 "유명한가"가 아니라 **공식 directory의 new-arch 지원 메타데이터가 명시돼 있는가 + Expo config plugin을 제공하는가**다. 검증되지 않은 new-arch 지원을 운에 맡기지 말 것.
+## 2. Apple은 쉬워 보였지만, 한 가지 함정이 있었다
 
-## 2. Apple 쪽은 쉬워 보였다 — 하지만 한 가지 치명적 함정
+Apple은 고민할 게 없었다. Expo 공식 모듈 `expo-apple-authentication`이 new-arch를 지원한다. SDK 버전에 맞는 모듈을 쓰는 게 정신건강에 이롭다.
 
-Apple은 고민할 게 없었다. Expo 공식 모듈 `expo-apple-authentication@56.0.4`가 있고, new-arch를 지원한다. SDK 버전과 맞는 모듈을 쓰는 게 정신건강에 이롭다.
+다만 RN/Expo와 무관한, Apple 플랫폼 자체의 함정이 하나 있다.
 
-다만 Apple 로그인에는 RN/Expo와 무관한, **Apple 플랫폼 자체의 함정**이 하나 있다.
+**Apple은 이름과 이메일을 최초 1회만 준다.**
 
-### 함정: Apple은 이름/이메일을 "최초 1회"만 준다
+사용자가 우리 앱에 처음 Apple로 로그인할 때만 `fullName`과 `email`이 응답에 담긴다. 한 번 동의하고 나면 그 다음부터는 두 필드가 모두 `null`로 온다.
+identityToken은 매번 오지만, 이름과 이메일은 영영 다시 안 온다. 사용자가 설정에서 앱 연결을 끊고 다시 로그인하지 않는 한.
 
-사용자가 우리 앱에 처음 Apple로 로그인할 때만 `fullName`과 `email`이 응답에 담긴다. 한 번 동의하고 나면, 그 다음 로그인부터는 **두 필드가 모두 `null`로 온다.** identityToken은 매번 오지만, 이름/이메일은 영영 다시 안 온다(사용자가 설정에서 앱 연결을 끊고 다시 로그인하지 않는 한).
+즉 가입 플로우에서 이름/이메일이 필요하다면, 최초 응답에서 반드시 캡처해 가입 완료까지 들고 가야 한다.
+"나중에 다시 받으면 되지"는 통하지 않는다. 두 번째 로그인부터는 빈 값만 받는다.
 
-즉, 회원가입 플로우에서 이름/이메일이 필요하다면 **최초 응답에서 반드시 캡처해서 가입 완료까지 들고 가야 한다.** 이걸 모르고 "나중에 다시 받으면 되지"라고 미루면, 두 번째 로그인부터 빈 값만 받게 된다.
-
-그래서 Apple provider는 받은 즉시 정규화된 `profile`로 캡처하도록 짰다.
+그래서 Apple provider는 받은 즉시 정규화된 `profile`로 캡처한다.
 
 ```typescript
 // appleProvider.ts
@@ -62,129 +73,76 @@ const credential = await signInAsync({
   requestedScopes: [AppleAuthenticationScope.FULL_NAME, AppleAuthenticationScope.EMAIL],
 });
 
-// email/fullName은 사용자의 "최초 1회" 인증에만 채워진다. 이후 로그인에서는 null.
-// 그래서 받은 즉시 신규가입 플로우(JIRA-101)까지 전달해야 한다.
-const formattedName = credential.fullName ? formatFullName(credential.fullName) : '';
-const profile: SocialProfile = {
-  email: credential.email ?? undefined,
-  fullName: formattedName.length > 0 ? formattedName : undefined,
-};
-
+// email/fullName은 "최초 1회" 인증에만 채워진다. 이후 로그인에서는 null.
+// 그래서 받은 즉시 신규가입 플로우(JIRA-101)까지 전달한다.
 return {
   provider: 'apple',
   token: credential.identityToken,
   authorizationCode: credential.authorizationCode ?? undefined,
-  profile,
+  profile: {
+    email: credential.email ?? undefined,
+    fullName: credential.fullName ? formatFullName(credential.fullName) : undefined,
+  },
 };
 ```
 
-### 교훈
+이 "1회성"을 아키텍처 차원에서 보장하는 것. 그게 Apple에서 가장 중요한 결정이었다.
 
-> Apple Sign In의 이름/이메일은 **1회성**이다. 최초 인증 응답에서 캡처해 가입 플로우 끝까지 전달하는 것을 아키텍처 차원에서 보장하라. "다음 로그인 때 받으면 된다"는 통하지 않는다.
+## 3. 처음부터 provider-agnostic 전략 패턴으로
 
-## 3. 확장성 설계 — 처음부터 공급자 무관(provider-agnostic) 전략 패턴으로
+앞으로 구글과 네이버도 추가될 예정이었다.
+카카오/Apple만 보고 분기문으로 짜면, 공급자가 늘 때마다 UI와 오케스트레이션과 백엔드 호출이 전부 오염된다.
 
-앞으로 구글·네이버도 추가될 예정이었다. 카카오/Apple만 보고 분기문으로 짜면 공급자가 늘 때마다 UI·오케스트레이션·백엔드 호출이 전부 오염된다. 그래서 처음부터 **전략 패턴**으로 구조를 잡았다.
+그래서 처음부터 전략 패턴으로 골격을 잡았다.
 
-핵심은 "모든 공급자는 결국 *네이티브 SDK 로그인 → 토큰 획득*이라는 같은 일을 한다"는 관찰이다. 공급자별 quirk는 전략 뒤에 숨기고, 바깥은 정규화된 타입만 다룬다.
-
-### 코어 타입 (`types.ts`)
+핵심 관찰은 하나다. 모든 공급자는 결국 *네이티브 SDK 로그인 → 토큰 획득*이라는 같은 일을 한다.
+공급자별 quirk는 전략 뒤에 숨기고, 바깥은 정규화된 타입만 다룬다.
 
 ```typescript
-export const SOCIAL_PROVIDERS = ['kakao', 'apple', 'google', 'naver'] as const;
-export type SocialProvider = (typeof SOCIAL_PROVIDERS)[number];
+// types.ts
+export type SocialProvider = 'kakao' | 'apple' | 'google' | 'naver';
 
-// 공급자별 로그인 전략. 새 공급자는 이 인터페이스만 구현하면 된다.
+// 새 공급자는 이 인터페이스만 구현하면 된다.
 export interface SocialAuthStrategy {
   readonly provider: SocialProvider;
-  // 현재 기기/플랫폼에서 이 공급자를 쓸 수 있는지.
-  // apple: iOS 13+ 만 true · kakao/google/naver: 보통 true
-  isAvailable(): Promise<boolean>;
-  // 네이티브 SDK 로그인을 실행하고 정규화된 결과를 반환한다.
-  // 실패 시 SocialAuthError 를 throw 한다(취소 포함).
-  signIn(): Promise<SocialAuthResult>;
+  isAvailable(): Promise<boolean>; // apple은 iOS 13+에서만 true
+  signIn(): Promise<SocialAuthResult>; // 실패(취소 포함) 시 SocialAuthError throw
 }
 ```
 
-토큰 필드는 공급자마다 이름이 다르지만(`accessToken` / `identityToken` / `idToken`), 결과 타입에서 단일 `token`으로 정규화했다.
+토큰 필드 이름은 공급자마다 다르지만(`accessToken` / `identityToken` / `idToken`), 결과 타입에서 단일 `token`으로 정규화했다. 확장 지점은 레지스트리 한 곳뿐이다.
 
 ```typescript
-export type SocialAuthResult = {
-  readonly provider: SocialProvider;
-  // kakao: accessToken · apple: identityToken · google: idToken · naver: accessToken
-  readonly token: string;
-  readonly authorizationCode?: string; // Apple 전용
-  readonly nonce?: string;
-  readonly profile?: SocialProfile; // 공급자가 함께 준 프로필(있을 때만)
-};
-```
-
-### 레지스트리 (`registry.ts`) — 단 하나의 확장 지점
-
-```typescript
+// registry.ts — 새 공급자는 여기 한 줄만 추가
 const strategies: Partial<Record<SocialProvider, SocialAuthStrategy>> = {
   kakao: kakaoProvider,
   apple: appleProvider,
-  // TODO(구글 지원 시): google: googleProvider,
-  // TODO(네이버 지원 시): naver: naverProvider,
+  // google: googleProvider,
+  // naver: naverProvider,
 };
-
-export function getSocialAuthStrategy(provider: SocialProvider): SocialAuthStrategy {
-  const strategy = strategies[provider];
-  if (!strategy) {
-    throw new Error(`등록되지 않은 소셜 로그인 공급자입니다: ${provider}`);
-  }
-  return strategy;
-}
 ```
 
-### 2계층 에러 설계 — 이게 나중에 큰 도움이 됐다
+에러는 발생 계층으로 나눴다. 처음엔 한 종류로 두려 했는데, 곧 계층이 둘로 명확히 갈린다는 걸 깨달았다.
 
-처음엔 에러를 한 종류로 두려 했는데, 곧 **에러가 발생하는 계층이 둘로 명확히 갈린다**는 걸 깨달았다.
+- **SDK 단계 (`SocialAuthError`)**: 네이티브 로그인 단계. 네트워크 호출 *이전*에 발생. 사용자 취소(`canceled`), 미지원 기기(`unavailable`) 등.
+- **백엔드 단계 (`AppError`)**: 인증 API 호출 단계. axios 인터셉터에서 정규화.
 
-- **SDK 단계 에러 (`SocialAuthError`)**: 네이티브 SDK 로그인 단계. 네트워크 호출 *이전*에 발생. 사용자 취소(`canceled`), 미지원 기기(`unavailable`) 등.
-- **백엔드 단계 에러 (`AppError`)**: 백엔드 인증 호출 단계. axios 응답 인터셉터에서 정규화.
+특히 사용자 취소는 SDK 단계에서만 발생한다. 백엔드 에러로는 절대 안 잡힌다.
+이 둘을 한 타입으로 뭉뚱그렸다면 "취소는 조용히 무시"하는 로직을 깔끔하게 못 짰을 거다.
 
-특히 **사용자 취소는 SDK 단계에서만 발생**하므로 백엔드 에러(AppError)로는 절대 안 잡힌다. 이 둘을 한 타입으로 뭉뚱그렸다면 "취소를 조용히 무시"하는 로직을 깔끔하게 못 짰을 거다.
+마지막으로 SDK 초기화는 따로 뺐다. 카카오는 `login()` 전에 `initializeKakaoSDK(앱키)`를 반드시 선행해야 한다(미초기화 시 `SDKNotInitialized`). 앱 진입 시 1회면 되므로 `initSocialAuth()`로 분리해 `_layout.tsx`에서 호출했다. 앱키가 없으면 초기화를 건너뛰고 경고만 찍어 부팅은 막지 않는다. Apple은 사전 초기화가 필요 없다.
 
-```typescript
-// SocialAuthError.ts
-const socialAuthErrorKinds = [
-  'canceled', // 사용자가 로그인 시트를 닫음 — 보통 조용히 무시
-  'unavailable', // 현재 기기/플랫폼에서 해당 공급자 사용 불가
-  'provider', // 공급자 SDK가 응답했으나 기대한 토큰/필드가 없음
-  'unknown', // 분류되지 않은 오류
-] as const;
-```
+정리하면, 새 공급자 추가는 세 곳만 고치면 된다.
+`types.ts`의 식별자, `providers/`의 전략 하나, `registry.ts`의 등록 한 줄.
+UI도, 오케스트레이션도, 백엔드 호출도 건드리지 않는다.
 
-### SDK 초기화 분리 (`initSocialAuth.ts`)
+## 4. 설치, 그리고 `app.config.ts`에 plugin 등록
 
-카카오는 `login()` 호출 전에 `initializeKakaoSDK(앱키)`를 반드시 선행해야 한다(미초기화 시 `SDKNotInitialized` 에러). 이건 앱 진입 시 1회만 하면 되므로 별도 함수로 빼서 `_layout.tsx`에서 호출하도록 했다. Apple은 사전 초기화가 필요 없다.
+패키지를 깔고 plugin 세 개를 등록했다.
 
-```typescript
-export async function initSocialAuth(): Promise<void> {
-  if (kakaoNativeAppKey) {
-    await initializeKakaoSDK(kakaoNativeAppKey);
-    return;
-  }
-  // 앱키 미설정(개발 초기) 시 초기화를 건너뛴다 — 앱 부팅 자체는 막지 않는다.
-  if (__DEV__) {
-    console.warn('[socialAuth] 카카오 네이티브 앱키가 없어 SDK 초기화를 건너뜁니다.');
-  }
-}
-```
-
-### 교훈
-
-> **새 공급자 추가 = 3곳만 수정한다**: `types.ts`의 식별자, `providers/`의 전략 1개, `registry.ts`의 등록 한 줄. UI(LoginScreen)·오케스트레이션(useSocialLogin)·백엔드 호출은 손대지 않는다. 그리고 에러는 발생 계층(SDK vs 백엔드)으로 나눠라. 취소 처리가 깔끔해진다.
-
-## 4. 설치 + `app.config.ts`에 config plugin 등록
-
-패키지를 깔고 `app.config.ts`에 plugin을 등록했다. 세 가지 작업이 있었다.
-
-1. **카카오 core plugin** 등록 — iOS URL scheme, `handleKakaoOpenUrl` 등을 자동 주입
-2. **`expo-build-properties`에 카카오 Android Maven repo 병합** — 카카오 Android SDK는 카카오 전용 Maven 저장소에서 받는다. 기존 Firebase용 엔트리를 새로 만들지 않고 **거기에 병합**했다.
-3. **Apple auth plugin** 등록 — "Sign in with Apple" entitlement 자동 추가
+1. 카카오 core plugin — iOS URL scheme, `handleKakaoOpenUrl` 자동 주입
+2. `expo-build-properties`에 카카오 Android Maven repo **병합**
+3. Apple auth plugin — "Sign in with Apple" entitlement 자동 추가
 
 ```typescript
 // app.config.ts (발췌)
@@ -194,642 +152,80 @@ plugins: [
   [
     "expo-build-properties",
     {
-      ios: {
-        useFrameworks: "static",
-        forceStaticLinking: ["RNFBApp"],
-      },
+      ios: { useFrameworks: "static", forceStaticLinking: ["RNFBApp"] },
       // 카카오 Android SDK는 카카오 전용 Maven 저장소에서 받는다.
       android: {
-        extraMavenRepos: [
-          "https://devrepo.kakao.com/nexus/content/groups/public/",
-        ],
+        extraMavenRepos: ["https://devrepo.kakao.com/nexus/content/groups/public/"],
       },
     },
   ],
-  // 카카오 로그인 — 앱키가 있을 때만 등록 (5장 참고)
-  ...(kakaoNativeAppKey ? [kakaoPlugin] : []),
-  // Apple 로그인(iOS) — entitlement 자동 추가
+  ...(kakaoNativeAppKey ? [kakaoPlugin] : []), // 5장 참고
   "expo-apple-authentication",
-  // ...
 ],
 ```
 
-### 함정: Maven repo는 "새 엔트리"가 아니라 "기존 엔트리에 병합"
+여기서 작은 함정. `expo-build-properties`는 이미 Firebase의 `useFrameworks: "static"` 때문에 등록돼 있었다.
+카카오 Maven repo를 넣겠다고 같은 plugin을 **두 번** 등록하면 뒤엣것이 앞엣것을 덮어쓴다.
+같은 plugin은 하나의 엔트리 안에서 옵션을 병합해야 한다.
 
-`expo-build-properties`는 이미 Firebase의 `useFrameworks: "static"` 때문에 등록돼 있었다. 카카오 Android Maven repo를 추가하겠다고 `expo-build-properties`를 **두 번** 등록하면 뒤엣것이 앞엣것을 덮어쓰거나 충돌한다. 같은 plugin은 **하나의 엔트리 안에서 옵션을 병합**해야 한다.
+## 5. 첫 진짜 버그 — 빈 앱키에 throw하면서 빌드 전체가 막혔다
 
-## 5. 첫 번째 진짜 버그 — config plugin이 빈 앱키에 throw하면서 빌드 전체가 막혔다
+카카오 plugin을 등록하고 `expo config`를 돌렸더니, 빌드가 시작도 못 하고 죽었다.
 
-카카오 plugin을 등록하고 `expo config`(또는 prebuild) 단계를 돌렸더니, 빌드가 시작도 못 하고 죽었다.
+원인은 단순했다. 카카오 core plugin은 `nativeAppKey`가 비어 있으면 `expo config` 단계에서 throw한다.
+그런데 이 시점에 나는 아직 앱키를 발급받지 못했다(외부 콘솔 작업 대기 중).
 
-### 원인
+앱키가 없다는 이유로 앱 설정 평가 자체가 실패했고, 그 여파로 카카오와 무관한 빌드까지 전부 막혔다.
 
-카카오 core config plugin은 `nativeAppKey`가 비어 있으면 **`expo config` 단계에서 throw**한다. 그런데 이 시점에 나는 아직 카카오 앱키를 발급받지 못한 상태였다(외부 콘솔 작업 대기 중). 즉, **앱키가 없다는 이유로 앱 설정 평가 자체가 실패**했고, 그 여파로 카카오와 무관한 빌드까지 전부 막혔다.
-
-### 해결: 앱키가 있을 때만 plugin을 조건부 등록
-
-plugin 배열에 spread + 삼항을 써서, 앱키가 존재할 때만 카카오 plugin이 배열에 들어가도록 했다.
+해결은 조건부 등록이었다. 앱키가 있을 때만 plugin이 배열에 들어가게 했다.
 
 ```typescript
-// 카카오 네이티브 앱키. config plugin은 빈 값이면 throw하므로 "키가 있을 때만" 등록한다.
+// 카카오 plugin은 빈 값이면 throw하므로 "키가 있을 때만" 등록한다.
 const kakaoNativeAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY;
-
-const kakaoPlugin: [string, Record<string, unknown>] = [
+const kakaoPlugin = [
   "@react-native-kakao/core",
-  {
-    nativeAppKey: kakaoNativeAppKey,
-    ios: { handleKakaoOpenUrl: true },
-  },
+  { nativeAppKey: kakaoNativeAppKey, ios: { handleKakaoOpenUrl: true } },
 ];
 
-// plugins 배열 안에서:
+// plugins 배열 안:
 ...(kakaoNativeAppKey ? [kakaoPlugin] : []),
 ```
 
-이렇게 하니 앱키가 없어도 빌드는 정상 통과하고(카카오 로그인만 비활성), 앱키가 채워지면 plugin이 자연스럽게 활성화된다. `initSocialAuth.ts`도 같은 철학으로 앱키가 없으면 초기화를 건너뛰고 경고만 찍어 앱 부팅을 막지 않는다.
+이러니 앱키가 없어도 빌드는 통과하고(카카오만 비활성), 앱키가 채워지면 plugin이 자연스럽게 켜진다.
 
-### 교훈
+외부에서 발급받는 값에 의존하는 plugin이 그 값에 throw한다면, 값 하나 없다는 이유로 무관한 빌드까지 죽을 수 있다.
+`...(key ? [plugin] : [])`로 감싸는 습관 하나가 부팅과 빌드를 지켜준다.
 
-> config plugin이 필수 값(앱키 등)에 대해 throw하는 경우, 그 값이 없으면 **앱 설정 평가 전체가 실패해 무관한 빌드까지 죽는다.** 외부 발급 값에 의존하는 plugin은 **조건부 등록 패턴(`...(key ? [plugin] : [])`)**으로 감싸서, 값이 없어도 부팅과 빌드가 깨지지 않게 하라.
+## 6. EAS 환경변수 — 위치를 몰라 두 번 헤맸다
 
-## 6. EAS 환경변수 등록 — 위치를 몰라서 두 번 헤맸다
+앱키를 발급받은 뒤, dev/prod 각각에 `EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY`를 EAS env로 등록해야 했다.
 
-앱키를 발급받은 뒤(외부 콘솔 작업), dev/prod 각각에 `EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY`를 EAS env로 등록해야 했다. `eas env:create`를 돌렸는데 — 연속으로 삽질했다.
+repo 루트에서 `eas env:create`를 돌렸더니 "project not linked"가 떴다.
+모노레포 루트에는 Expo 프로젝트가 없다. 앱은 `apps/mobile`에 있고, EAS는 `app.config.ts`와 프로젝트 링크가 있는 디렉터리에서 돌려야 한다.
 
-### 삽질 1: "project not linked" 에러
-
-repo 루트에서 `eas env:create`를 돌렸더니 "project not linked"가 떴다. 원인은 단순했다. **모노레포 루트에는 Expo 프로젝트가 없다.** Expo 앱은 `apps/mobile`에 있고, EAS는 `app.config.ts`와 프로젝트 링크(`extra.eas.projectId`)가 있는 디렉터리에서 실행해야 한다.
+더 나쁜 건, 루트에서 잘못 돌리는 바람에 루트에 빈 `app.json`(`{"expo":{}}`)이 자동 생성됐다는 것이다. 이게 있으면 도구가 루트를 Expo 프로젝트로 오인해 더 꼬인다. 그냥 삭제했다.
 
 ```bash
-# repo 루트에서 실행 → project not linked
-# 앱 디렉터리에서 실행해야 한다
 cd apps/mobile
 eas env:create
+eas env:pull            # 로컬 테스트용 .env.local 생성 → 여기에 앱키 채움
 ```
 
-### 삽질 2: repo 루트에서 잘못 돌려 빈 `app.json`이 생성됨
-
-루트에서 expo/eas 계열 명령을 잘못 돌리는 바람에, 루트에 **빈 `app.json`(`{"expo":{}}`)이 자동 생성**됐다. 이게 있으면 도구가 루트를 Expo 프로젝트로 오인할 수 있어서 더 꼬인다. 그냥 삭제했다.
-
-### 로컬 테스트용 env
-
-로컬에서 테스트하려면 EAS env를 `.env.local`로 끌어와야 한다. `eas env:pull`로 `.env.local`을 생성한 뒤 거기에 키를 채웠다. (이것도 당연히 앱 디렉터리에서.)
-
-```bash
-cd apps/mobile
-eas env:pull            # .env.local 생성
-# .env.local 에 EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY 추가
-```
-
-config에서는 이 env를 한 곳(`config/socialAuth.ts`)으로 모아서 읽는다. Expo는 `process.env.EXPO_PUBLIC_*`만 번들에 인라인하므로 prefix가 중요하다.
+env는 한 곳(`config/socialAuth.ts`)으로 모아 읽는다. Expo는 `process.env.EXPO_PUBLIC_*`만 번들에 인라인하므로 prefix가 중요하다.
 
 ```typescript
-// config/socialAuth.ts
 export const kakaoNativeAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY ?? '';
 ```
 
-### 교훈
+모노레포에서 expo/eas 명령은 반드시 앱 디렉터리에서. 이 한 줄이 두 번의 삽질을 막아줬을 거다.
 
-> 모노레포에서 **expo/eas 명령은 반드시 앱 디렉터리(`apps/mobile`)에서 실행**하라. 루트에서 돌리면 "project not linked"가 뜨거나, 더 나쁘게는 빈 `app.json`이 생성돼 도구를 혼란에 빠뜨린다. 빈 `app.json`(`{"expo":{}}`)이 보이면 잘못 생성된 것이니 삭제.
+## 1부에서 챙길 것
 
-## 7. 카카오 성공 — iOS 시뮬레이터에서 토큰 획득
+- [ ] 패키지는 "유명함"이 아니라 **new-arch 지원 메타데이터 + Expo config plugin 제공 여부**로 고른다.
+- [ ] Apple 이름/이메일은 1회성이다. 최초 응답에서 캡처해 가입 끝까지 전달하는 구조를 먼저 설계한다.
+- [ ] 공급자가 늘어날 예정이면 처음부터 전략 패턴으로. 에러는 SDK 단계와 백엔드 단계로 나눈다(취소는 SDK 단계에서만 잡힌다).
+- [ ] 필수 값에 throw하는 config plugin은 `...(key ? [plugin] : [])`로 조건부 등록한다.
+- [ ] expo/eas 명령은 앱 디렉터리에서. 빈 `app.json`이 생기면 삭제한다.
 
-dev client를 재빌드하고(11장 참고) 카카오 버튼을 눌렀다. 성공이었다. DEV 로그에서 토큰 획득을 확인했다.
-
-```typescript
-// useSocialLogin.ts — Phase A에서는 백엔드 연동 전, 토큰 획득 자체를 콘솔로 확인
-if (__DEV__) {
-  console.log(
-    `[socialAuth] ${provider} 로그인 성공 · token=${result.token.slice(0, 8)}… · profile=${result.profile ? '있음' : '없음'}`
-  );
-}
-```
-
-로그에 `profile=없음`이 찍혔는데, **이건 정상이자 의도된 동작**이다. 카카오 provider는 SDK 로그인에서 accessToken만 받아 백엔드로 넘긴다(프로필은 백엔드가 카카오 API로 조회하거나, 동의항목/플로우에 따라 별도 처리). Apple과 달리 카카오 provider의 `signIn()`은 `profile`을 채우지 않는다.
-
-```typescript
-// kakaoProvider.ts
-const token = await login();
-return {
-  provider: 'kakao',
-  token: token.accessToken,
-};
-```
-
-> 토큰 전체를 로깅하지 않고 앞 8자만 슬라이스해서 찍은 건 의도적이다. DEV 로그라도 토큰 평문은 남기지 않는다.
-
-## 8. 카카오 취소 코드 — 공식 문서에 없어서 직접 실측했다
-
-로그인 성공은 됐는데, 사용자가 로그인 시트를 닫는 **취소 케이스**를 처리해야 했다. 취소는 에러가 아니므로 조용히 무시해야지, "로그인 실패" Toast를 띄우면 안 된다.
-
-문제는 **카카오 SDK의 취소 에러 코드가 공식 문서에 없었다.** 카카오 취소는 네이티브 SDK enum 파생값이라 플랫폼마다 다를 수 있고, 명시된 상수도 못 찾았다.
-
-### 해결: 임시 디버그 로그로 실측
-
-취소를 실제로 일으키고, catch에서 에러 객체를 통째로 찍어봤다. iOS에서 취소했더니 코드가 나왔다.
-
-- **iOS 취소 코드 = `"Cancelled"`** ("The authentication session has been canceled by user" — 카카오계정 웹/`ASWebAuthenticationSession`을 닫았을 때)
-
-이 값을 `KAKAO_CANCEL_CODES`에 등록하고, 해당 코드면 `canceled`로 정규화해 조용히 무시하도록 했다.
-
-```typescript
-// kakaoProvider.ts
-const KAKAO_CANCEL_CODES: readonly string[] = [
-  'Cancelled', // iOS — 실측 확인됨
-  // TODO(JIRA-204): Android 취소 코드 실측 후 추가 (값이 다를 수 있음)
-];
-
-// signIn() catch 블록:
-const code = getErrorCode(error);
-if (code !== undefined && KAKAO_CANCEL_CODES.includes(code)) {
-  throw socialAuthError('kakao', 'canceled', '로그인을 취소했습니다.', error);
-}
-```
-
-그리고 오케스트레이션 훅에서 `canceled`는 잡아서 즉시 return한다.
-
-```typescript
-// useSocialLogin.ts
-} catch (error) {
-  if (isSocialAuthError(error) && error.kind === "canceled") {
-    return; // 취소는 조용히 무시
-  }
-  // 그 외 에러는 kind별 Toast 처리
-}
-```
-
-Android 취소 코드는 값이 다를 수 있어 추후 실기기에서 확인하는 TODO로 남겼다.
-
-### 교훈
-
-> SDK의 취소/에러 코드가 문서에 없으면 **임시 디버그 로그로 직접 실측**하는 게 가장 빠르고 정확하다. 단, 실측값은 플랫폼별로 다를 수 있으니 iOS에서 확인한 값을 Android에 그대로 가정하지 말고 TODO로 명시해 둬라. 취소는 에러가 아니라 **정상 흐름**이므로 조용히 무시한다.
-
-## 9. Apple 시뮬레이터 실패 — 코드가 아니라 환경 문제였다
-
-Apple 버튼을 눌렀더니 실패했다. 로그에 떨어진 에러는 이랬다.
-
-```text
-AuthorizationError Code=1000
-AKAuthenticationError -7026
-```
-
-처음엔 "내 코드가 뭘 잘못 보냈나" 싶어 `requestedScopes`, entitlement, plugin 등록을 다 뒤졌다. 그런데 아니었다.
-
-### 원인: 시뮬레이터 + iCloud 미로그인 = SIWA(Sign in with Apple) 고질 버그
-
-이 에러 조합은 **시뮬레이터에서 iCloud 계정에 로그인돼 있지 않을 때(또는 SIWA가 시뮬레이터에서 불안정할 때) 발생하는 알려진 문제**다. 코드 문제가 아니다. 실제로 요청은 AuthKit(AuthorizationController)까지 정상적으로 발사되고 있었다 — 즉 우리 쪽 요청 구성은 맞았고, Apple의 인증 백엔드/시뮬레이터 환경에서 막힌 것이다.
-
-`-7026`(`AKAuthenticationError`)은 AuthKit 계층의 인증 실패고, `Code=1000`은 일반적인 authorization 실패다. 시뮬레이터에서 Apple Sign In은 신뢰할 수 없다.
-
-### 해결: 실기기 검증으로 전환
-
-시뮬레이터에서 더 파봐야 의미가 없었다. Apple Sign In은 **실기기에서 검증**하기로 했다. 그러려면 먼저 Apple Developer 쪽 설정이 필요했다(10장).
-
-### 교훈
-
-> **Apple Sign In은 시뮬레이터를 신뢰하지 마라.** `AuthorizationError 1000` + `AKAuthenticationError -7026` 조합이 보이면 코드를 의심하기 전에 환경(iCloud 로그인 여부, 시뮬레이터 SIWA 버그)을 먼저 의심하라. 요청이 AuthKit까지 정상 발사됐다면 코드 구성은 맞은 것이다. 실기기로 옮겨 검증하라.
-
-## 10. Apple Developer — 두 App ID에 capability 활성화
-
-실기기 검증을 위해 Apple Developer 콘솔에서 작업했다. 우리는 **dev/prod 두 개의 번들 ID**를 쓴다.
-
-- `com.example.myapp.dev` (development)
-- `com.example.myapp` (production)
-
-`app.config.ts`의 variant 설정에서 번들 ID가 갈린다.
-
-```typescript
-const variantConfig = {
-  development: { bundleIdentifier: 'com.example.myapp.dev' /* ... */ },
-  production: { bundleIdentifier: 'com.example.myapp' /* ... */ },
-}[variant];
-```
-
-Apple Developer에서 **이 두 App ID 각각에 "Sign in with Apple" capability를 활성화**했다. dev 번들 ID를 빠뜨리면 개발 빌드에서 SIWA가 안 된다 — 두 개 다 켜야 한다.
-
-### 교훈
-
-> 멀티 variant 앱은 **모든 번들 ID(특히 `.dev`)에 capability를 빠짐없이 활성화**하라. 개발 빌드가 쓰는 번들 ID를 놓치기 쉽다.
-
-## 11. 재빌드 — capability는 entitlement에 박히므로 클라우드 빌드로
-
-capability를 켰다고 끝이 아니었다.
-
-### 함정: capability는 provisioning profile / entitlement에 박힌다
-
-"Sign in with Apple" capability는 단순한 코드 플래그가 아니라 **provisioning profile과 entitlement에 박히는 네이티브 설정**이다. 기존 dev client는 이 entitlement 없이 빌드된 바이너리라, capability를 켜도 그 빌드에는 반영되지 않는다. **새 provisioning profile로 재빌드**해야 한다.
-
-여기서 일반 규칙 하나가 명확해졌다.
-
-> **네이티브 변경(모듈 추가/capability/config plugin)은 재빌드가 필요하다. JS 변경은 핫리로드(Fast Refresh)로 충분하다.**
-
-카카오/Apple 모듈 추가, plugin 등록, Apple capability — 전부 네이티브 변경이라 dev client 재빌드가 필수였다. 반대로 `useSocialLogin`의 로직 수정 같은 JS 변경은 핫리로드로 즉시 반영됐다.
-
-### 케이블이 없어서 EAS 클라우드 빌드로
-
-마침 실기기 연결 케이블이 없어서 로컬 빌드 대신 **EAS 클라우드 빌드**를 돌렸다. 클라우드 빌드 중 몇 가지를 마주쳤다.
-
-- **Export compliance 질문 (`usesNonExemptEncryption`)**: 빌드/제출 과정에서 암호화 사용 여부를 묻는다. 우리는 HTTPS/표준 암호화만 쓰고 자체 비표준 암호화를 구현하지 않으므로 "면제 대상"이다. 즉 비표준 암호화를 쓰지 않는다고 답했다. (이걸 매번 묻지 않게 `app.config.ts`/`Info.plist`에 `ITSAppUsesNonExemptEncryption` 값을 박아둘 수도 있다.)
-- **Apple 계정 로그인 → 인증서/프로파일 자동 생성**: EAS에 Apple 계정으로 로그인하면, **인증서와 provisioning profile을 자동 생성/갱신**해주고 켜둔 capability도 자동 반영해준다. 손으로 profile을 내려받아 관리할 필요가 없었다. 이게 클라우드 빌드의 가장 큰 편의였다.
-
-### 교훈
-
-> capability/entitlement 변경은 **새 provisioning profile로 재빌드**해야 적용된다. 네이티브가 바뀌면 재빌드, JS만 바뀌면 핫리로드. 케이블이 없거나 인증서 관리가 번거롭다면 **EAS 클라우드 빌드 + Apple 계정 연동**으로 인증서/프로파일/capability를 자동화하라.
-
-## 전체 흐름 한눈에 보기
-
-버튼 한 번 눌렀을 때 일어나는 일을 정리하면 이렇다.
-
-1. `LoginScreen`의 카카오/Apple 버튼이 `signIn("kakao" | "apple")`만 호출한다. (공급자 식별자만 넘기고 나머지는 모른다. `disabled={isPending}`으로 중복 탭 방지.)
-2. `useSocialLogin`이 `pendingProvider`로 중복 탭을 막고, `registry`에서 해당 전략을 꺼낸다.
-3. `strategy.isAvailable()`로 사용 가능 여부 확인 → `strategy.signIn()`으로 네이티브 SDK 로그인 실행.
-4. 전략이 토큰(+Apple은 profile)을 정규화한 `SocialAuthResult`로 반환.
-5. (Phase A) DEV 콘솔로 토큰 획득 확인. (Phase B, 백엔드 계약 확정 후) 이 결과를 백엔드로 보내 신규/기존 회원 분기 라우팅.
-6. 실패 시: SDK 단계 `canceled`는 조용히 무시, 그 외는 kind별 처리.
-
-```tsx
-// LoginScreen.tsx — 버튼은 식별자만 넘긴다
-<Pressable
-  onPress={() => { void signIn("kakao"); }}
-  disabled={isPending}
-  accessibilityLabel="카카오로 로그인"
->
-```
-
-이 구조 덕분에 구글/네이버를 추가할 때 `LoginScreen`은 버튼만 하나 더 붙이고 `signIn("google")`을 호출하면 끝이다. 오케스트레이션·에러 처리·백엔드 호출은 전혀 안 건드린다.
-
-## 처음부터 알았다면 좋았을 체크리스트
-
-소셜 로그인을 다시 붙인다면, 코드를 짜기 전에 이걸 먼저 확인하겠다.
-
-- [ ] **패키지 new-arch 지원 확인**: RN 0.85(New Arch 강제)에서는 React Native Directory의 new-arch 메타데이터와 Expo config plugin 제공 여부를 먼저 확인. "유명함"은 기준이 아니다.
-- [ ] **Apple 이름/이메일은 1회성**: 최초 응답에서 캡처해 가입 플로우 끝까지 전달하는 구조를 먼저 설계.
-- [ ] **config plugin의 throw 조건 확인**: 필수 값에 throw하는 plugin은 조건부 등록(`...(key ? [plugin] : [])`)으로 감싼다. 안 그러면 값 하나 없어서 빌드 전체가 죽는다.
-- [ ] **expo/eas는 앱 디렉터리에서**: 모노레포 루트에서 돌리지 말 것. 빈 `app.json` 생성되면 삭제.
-- [ ] **EAS env는 dev/prod 둘 다**, 로컬은 `eas env:pull`로 `.env.local`.
-- [ ] **취소 코드는 실측**: 문서에 없으면 임시 디버그 로그로 직접 확인. 플랫폼별로 다를 수 있음. 취소는 조용히 무시.
-- [ ] **Apple은 실기기 검증**: 시뮬레이터 신뢰 불가. `Code=1000`/`-7026`은 보통 환경 문제.
-- [ ] **Apple Developer 두 App ID(`.dev` 포함)에 SIWA capability**.
-- [ ] **네이티브 변경 = 재빌드, JS 변경 = 핫리로드**: capability/모듈/plugin은 전부 재빌드. 케이블 없으면 EAS 클라우드 빌드 + Apple 계정 연동으로 인증서 자동화.
-- [ ] **2계층 에러 설계**: SDK 단계(취소/미지원) vs 백엔드 단계. 취소는 SDK 단계에서만 잡힌다.
-
-## 핵심 요약
-
-| 단계             | 함정                                              | 해결                                                              |
-| ---------------- | ------------------------------------------------- | ----------------------------------------------------------------- |
-| 패키지 선택      | seoul 패키지 new-arch 미확인                      | new-arch first-class + Expo plugin 제공하는 `@react-native-kakao` |
-| Apple 프로필     | 이름/이메일 최초 1회만                            | 최초 응답에서 `profile`로 캡처해 가입까지 전달                    |
-| config plugin    | 빈 앱키에 throw → 빌드 전체 사망                  | `...(key ? [plugin] : [])` 조건부 등록                            |
-| EAS env          | repo 루트 실행 → project not linked / 빈 app.json | 앱 디렉터리에서 실행, `eas env:pull`                              |
-| 카카오 취소      | 취소 코드 미문서화                                | 디버그 로그 실측 → iOS `"Cancelled"`                              |
-| Apple 시뮬레이터 | `1000`/`-7026`                                    | 환경 문제(코드 아님), 실기기 검증                                 |
-| 재빌드           | capability가 entitlement에 박힘                   | 새 profile로 재빌드(EAS 클라우드 + Apple 계정)                    |
-
-소셜 로그인의 어려움은 코드가 아니라 **코드 바깥**에 있었다. New Arch 시대의 패키지 메타데이터, 플랫폼별 1회성/취소 동작, config plugin의 throw 조건, EAS 실행 위치, entitlement 재빌드 트리거 — 이 경계들을 미리 알았다면 시간을 한참 아꼈을 거다. 하지만 그만큼 **provider-agnostic 전략 패턴 + 2계층 에러 설계**라는, 다음 공급자(구글/네이버)를 3곳만 고쳐 붙일 수 있는 구조를 손에 넣었다. 다음 단계인 백엔드 연동과 토큰 영속화에서 이 골격이 얼마나 효자 노릇을 할지 기대된다.
-
-## 2부: 백엔드를 붙이다 — OIDC, nonce, 그리고 entitlement·머지 지옥
-
-1부는 "네이티브 SDK로 토큰을 얻는 데까지(Phase A)"였다. 2부는 그 골격 위에 **백엔드 인증(Phase B)** 을 붙이며 겪은 후속편이다. 이번엔 코드 바깥이 아니라 **개념(OIDC·nonce)**, **빌드 내부(entitlement)**, 그리고 **git 머지**에서 헤맸다. 그리고 1부에서 "시뮬레이터 신뢰 불가"로 결론냈던 Apple Code 1000의 **진짜 범인**도 이번에 밝혀진다.
-
-전제는 1부와 동일하다(모노레포 / Expo SDK 56 / dev client). 추가로 이번엔 백엔드(NestJS)가 ngrok로 노출된 **개발자 로컬 서버**였고, 우리 앱은 `.env.local`의 `EXPO_PUBLIC_API_BASE_URL`로 거기에 붙었다.
-
-## 12. 백엔드 계약은 swagger에 다 없었다 — 직접 찔러봤다
-
-Phase B의 시작은 "백엔드가 뭘 받는지" 아는 것이었다. swagger를 열었더니 — 엔드포인트는 있는데 **요청 파라미터가 문서화돼 있지 않았다.**
-
-- `GET /auth/apple-callback` — 파라미터: `Platform` 헤더뿐. summary는 "애플 로그인 (idToken)".
-- `GET /auth/kakao-mobile-callback` — 파라미터: `Platform` 헤더뿐. summary는 "카카오 로그인".
-- 비교용 `GET /auth/google-callback-token` — 여긴 `accessToken` query가 **명시**돼 있었다.
-
-토큰을 query로 받는 건 분명한데(google이 그러니까), apple/kakao는 어떤 파라미터명인지 swagger만으론 알 수 없었다. 그래서 **실엔드포인트를 직접 프로빙**했다. GET이라 더미값으로 안전하게 찔러볼 수 있었다.
-
-```bash
-# 더미값으로 계약 역추적 (Platform 헤더 필수)
-curl -H "Platform: myapp" "$BASE/auth/apple-callback?idToken=test"
-# → 401 {"message":"Invalid Apple token"}  ← idToken을 읽어 검증하다 실패 = 파라미터명 맞음
-
-curl -H "Platform: myapp" "$BASE/auth/kakao-mobile-callback?code=test"
-# → 500 "authorization code not found for code=test"  ← code(인가코드)를 기대!
-
-curl -i -H "Platform: myapp" "$BASE/auth/kakao-mobile-callback"   # 파라미터 없이
-# → 302 Location: https://kauth.kakao.com/oauth/authorize?...redirect_uri=kakao{앱키}://oauth
-```
-
-여기서 두 가지가 드러났다.
-
-1. **모든 엔드포인트가 `Platform: myapp` 헤더를 필수로 요구**한다(멀티 앱 백엔드의 출처 식별자). → apiClient 기본 헤더로 박았다.
-2. **카카오 콜백은 `code`(인가 코드)를 받아 서버가 직접 토큰 교환**을 한다. 그런데 우리 SDK는 인가 코드를 안 준다(13~14장). 여기서 계약 불일치가 터졌다.
-
-응답 스키마도 프로빙으로 확인했다: 성공 시 `SignInExternalResponse { accessToken, refreshToken, user }`.
-
-```typescript
-// apiClient.ts — 모든 요청에 Platform 헤더 주입
-const PLATFORM = 'myapp';
-export const apiClient = axios.create({
-  baseURL: env.apiBaseUrl,
-  timeout: 10_000,
-  headers: { Platform: PLATFORM },
-});
-```
-
-### 교훈
-
-> API 문서가 불완전하면 **실엔드포인트를 안전하게 프로빙**(GET + 더미값)해서 계약을 역추적하라. 에러 메시지가 파라미터명을 알려준다(`Invalid Apple token` = idToken을 읽었다, `authorization code not found` = code를 기대한다). 모든 요청에 공통 헤더가 필요하면 클라이언트 기본값으로 한 번에 박아라.
-
-## 13. 개념 정리 — OAuth 2.0, OIDC, accessToken vs idToken, nonce
-
-여기서 잠깐 멈추고, 이번에 처음 제대로 이해한 개념들을 정리한다. 이걸 모르면 14장의 결정이 이해가 안 된다.
-
-### OAuth 2.0 vs OpenID Connect(OIDC)
-
-- **OAuth 2.0 = 인가(authorization)**. "이 앱이 사용자를 _대신해_ 무엇을 할 수 있는가"를 위임하는 프레임워크다. 결과물은 **access token** — 이걸로 리소스 API를 호출한다(예: 카카오 `/v2/user/me`). OAuth는 원래 "이 사용자가 누구인가(인증)"를 위한 게 아니다.
-- **OIDC = 인증(authentication) 레이어**. OAuth 2.0 **위에 얹은** 표준으로, "이 사용자가 누구인지"를 증명하는 **ID Token**을 추가로 발급한다. ID Token은 **서명된 JWT**다.
-
-### access token vs ID token — 백엔드 검증 방식이 다르다
-
-|             | **access token**                                              | **ID token (OIDC)**                                                 |
-| ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------- |
-| 정체        | 보통 불투명(opaque) 문자열                                    | 서명된 JWT (헤더.페이로드.서명)                                     |
-| 용도        | provider API 호출용                                           | 사용자 신원 증명용                                                  |
-| 백엔드 검증 | provider API를 **호출**해야 함 (`/v2/user/me`) → 네트워크 1회 | provider 공개키(JWKS)로 **서명만 검증** → 오프라인, 호출 불필요     |
-| 담긴 정보   | 없음(토큰 자체엔 정보 없음)                                   | `sub`(고유 ID), `iss`(발급자), `aud`(대상 앱), `exp`(만료) 등 claim |
-
-**Apple의 `identityToken`이 바로 ID Token**이다. 그래서 Apple 백엔드 검증은 "서명 + iss/aud/exp 확인"으로 끝난다 — 1부에서 Apple이 쉬웠던 이유다. **카카오도 OIDC를 켜면 `idToken`을 준다.**
-
-### nonce — replay/injection 방어용 1회용 난수
-
-- **nonce**(number used once)는 클라이언트가 만든 **1회용 랜덤 값**이다.
-- 흐름: 클라가 nonce를 만들어 **로그인 요청에 실어 보냄** → provider가 발급하는 **ID Token의 `nonce` claim에 그대로 박아서** 돌려줌 → 백엔드가 "받은 ID Token의 nonce == 내가 보낸 nonce"를 검증.
-- 막는 것: **replay attack**(탈취한 ID Token 재사용)과 **token injection**(다른 세션의 토큰을 끼워넣기). 내가 방금 시작한 이 로그인 요청에 대한 응답이 맞는지를 nonce로 묶는 것이다.
-- Apple은 nonce 사용을 권장한다(보통 raw nonce를 sha256 해시해서 요청에 넣고, ID Token엔 그 해시가 담긴다).
-
-이 세 개념(OIDC / idToken / nonce)이 14장 카카오 결정의 배경이다.
-
-### 교훈
-
-> **access token은 "호출해서 검증", ID token은 "서명으로 검증"** 이다. 모바일 소셜 로그인에서 백엔드가 idToken(OIDC)을 받으면 provider API 왕복 없이 신원을 검증할 수 있어 Apple과 동일한 패턴으로 통일된다. **nonce는 "이 응답이 내가 시작한 그 요청의 것"임을 묶어 replay를 막는 1회용 난수**다.
-
-## 14. 카카오: `code` 불일치에서 OIDC `idToken`으로 갈아탔다
-
-12장에서 드러난 불일치를 다시 보자.
-
-- **백엔드 `kakao-mobile-callback`은 `code`(인가 코드)를 받아 서버가 토큰 교환**을 한다.
-- 그런데 **`@react-native-kakao`의 네이티브 `login()`은 인가 코드를 노출하지 않는다.** SDK가 코드 교환을 내부에서 끝내고 우리에겐 `accessToken`(+OIDC 켜면 `idToken`)만 준다.
-
-선택지는 셋이었다.
-
-1. **백엔드가 accessToken을 받게** 한다 → 백엔드가 카카오 API로 검증/조회. (google 패턴)
-2. **앱이 직접 인가 코드 플로우**를 태운다(expo-auth-session으로 authorize → code 캡처). → 앱 작업량 큼, SDK 버리는 셈.
-3. **OIDC idToken을 보낸다** → 백엔드가 Apple과 **똑같이 서명만 검증**.
-
-결론은 **3번(OIDC)** 이었다. Apple과 검증 방식이 통일되고(서명+claim), 백엔드가 카카오 API를 왕복하지 않아도 된다. 전제는 **카카오 디벨로퍼스 콘솔에서 [카카오 로그인] > [OpenID Connect 활성화]** — 이게 켜져 있어야 SDK `login()` 응답에 `idToken`이 채워진다.
-
-```typescript
-// kakaoProvider.ts — 인증 방식(config 스위치)에 따라 보낼 토큰을 택일
-const kakaoToken = await login();
-const token = (() => {
-  if (kakaoAuthMode === 'oidc') {
-    if (!kakaoToken.idToken) {
-      // 콘솔 OIDC 미활성 시 idToken이 비어 옴 → 명확히 실패시킨다(원인 추적 쉽게)
-      throw socialAuthError(
-        'kakao',
-        'provider',
-        '카카오 idToken을 받지 못했습니다. (콘솔 OpenID Connect 활성화 필요)',
-        kakaoToken
-      );
-    }
-    return kakaoToken.idToken;
-  }
-  return kakaoToken.accessToken; // 폴백 경로도 코드에 보존
-})();
-```
-
-두 경로(accessToken/oidc)를 모두 코드에 살려두고 `EXPO_PUBLIC_KAKAO_AUTH_MODE` 스위치 하나로 토큰 추출과 백엔드 엔드포인트를 동시에 택일하게 했다(검증 후 기본값을 `oidc`로 박음).
-
-### nonce는 카카오에 한해 검증하지 않기로 했다
-
-OIDC면 보통 nonce를 검증한다. 그런데 카카오는 못 했다. 이유가 둘이다.
-
-1. **SDK 한계**: `@react-native-kakao/user@2.4.5`(= npm 최신)의 **네이티브 `login()`은 nonce를 노출하지 않는다.** nonce 파라미터는 web 변형에만 있고, 네이티브 경로엔 없다. 업스트림에 관련 이슈/PR도 0건. 즉 카카오에서 nonce를 쓰려면 `patch-package`로 네이티브를 패치하는 수밖에 없었다.
-2. **백엔드 합의**: 그 비용을 감수할 가치가 낮다고 판단해, **카카오 idToken은 서명 + `iss`/`aud`/`exp`만 검증하고 nonce(replay 방어)는 생략**하기로 백엔드와 합의했다. (Apple nonce는 별개 — 아직 미결정.)
-
-이 결정의 근거는 `kakaoProvider` 주석에 명시해 뒀다. "왜 안 했나"를 코드 옆에 남기는 게 중요하다 — 안 그러면 다음 사람이 "nonce 빠졌네, 버그?"라고 오해한다.
-
-### 교훈
-
-> 모바일은 SDK가 인가 코드를 안 주는 경우가 많다. 백엔드가 `code`를 기대하면 **OIDC `idToken`으로 합의를 끌어내는 게(Apple과 검증 통일) 보통 가장 깔끔**하다. 단 **OIDC는 provider 콘솔에서 활성화**가 선행돼야 idToken이 나온다. 그리고 **보안 기능을 "의도적으로 생략"했다면 그 근거를 코드 주석에 남겨라** — SDK가 nonce를 안 주면 patch-package뿐이고, 그 트레이드오프는 기록으로 남겨야 한다.
-
-## 15. Apple 시뮬레이터, 이번엔 됐다 — Code 1000의 진짜 범인은 entitlement였다
-
-1부 9장에서 Apple `Code 1000`을 "시뮬레이터 + iCloud 미로그인"으로 결론냈다. 이번에 Apple을 다시 붙이는데 **또 `Code 1000`** 이 떴다. 그런데 이번엔 raw 에러까지 찍어보니 원인이 달랐다.
-
-```text
-[SDK] unknown / raw=Error: The authorization attempt failed for an unknown reason
-```
-
-이 에러가 떴다는 건 역설적으로 **네이티브 모듈은 정상 링크돼 있고 `ASAuthorizationController`까지 정상 발사됐다**는 뜻이다(모듈이 없으면 "module not linked" 류 에러가 난다). 그래서 빌드 산출물을 직접 까봤다.
-
-```bash
-# 시뮬레이터에 설치된 앱의 entitlements 확인
-codesign -d --entitlements - "$APP"
-# → <dict></dict>  ← 비어있다! com.apple.developer.applesignin 없음
-```
-
-**진짜 범인**: 지금 시뮬레이터에 깔린 dev client는 **`expo-apple-authentication` 플러그인을 `app.config.ts`에 넣기 *전*에 빌드된 바이너리**였다. 그래서 `com.apple.developer.applesignin` entitlement가 빌드에 없었고, entitlement 없는 앱의 Sign in with Apple은 무조건 `Code 1000`으로 죽는다. **JS/env 리로드로는 절대 안 고쳐지는, 순수 네이티브 문제**였다.
-
-> 즉 **`Code 1000`은 원인이 둘 이상**이다 — (a) 빌드에 entitlement가 없음, (b) 시뮬레이터/iCloud 환경. 1부는 (b)로 추정했지만, 이번 핵심은 **(a)** 였다. 그리고 entitlement만 제대로 박으니 **시뮬레이터에서도 Apple 로그인이 됐다**(Apple ID 로그인 상태에서). "시뮬레이터 신뢰 불가"는 절반만 맞았던 것이다.
-
-### 해결: prebuild로 entitlement 주입 → 재빌드
-
-```bash
-cd apps/mobile
-npx expo prebuild --clean -p ios   # ios/만 재생성(안드 작업 안 건드림) → entitlement 주입
-```
-
-prebuild 후 `ios/MyAppDev/MyAppDev.entitlements`에 `com.apple.developer.applesignin: [Default]`이 생겼다. 재빌드 후 검증할 때 또 함정이 있었다.
-
-### 함정: 시뮬레이터 entitlement는 `codesign -d`에 안 보인다
-
-재빌드한 .app을 `codesign -d --entitlements`로 봤더니 **여전히 비어 보였다.** 알고 보니 시뮬레이터 빌드의 entitlement는 별도 파일에 들어간다.
-
-```bash
-find ios/build -name "*-Simulated.xcent" -exec /usr/libexec/PlistBuddy -c Print {} \;
-# → com.apple.developer.applesignin = Array { Default }
-#   application-identifier = FAKETEAMID.com.example.myapp.dev
-```
-
-**`*-Simulated.xcent`** 가 시뮬레이터 런타임이 실제로 읽는 entitlements다. `codesign -d`(임베드된 서명 entitlements)는 시뮬레이터에선 비어 보이는 게 정상이다. `applesignin`은 원래 팀/프로파일이 필요한 **제한된(restricted) entitlement**지만, 시뮬레이터는 `FAKETEAMID`로 적용해주기 때문에 **실인증서 없이도** Sign in with Apple이 동작한다.
-
-### 교훈
-
-> Apple `Code 1000`이면 코드를 의심하기 전에 **(1) 빌드에 `applesignin` entitlement가 박혔는지(`*-Simulated.xcent` 확인), (2) 시뮬레이터 Apple ID 로그인 여부** 둘 다 확인하라. **네이티브 모듈/플러그인을 추가했으면 반드시 재빌드** — 추가 _전_ 빌드엔 당연히 entitlement가 없다. 그리고 시뮬레이터 entitlement는 `codesign -d`가 아니라 `*-Simulated.xcent`를 봐야 한다.
-
-## 16. 시뮬레이터 빌드의 함정 — `expo run:ios`가 자꾸 맥(Mac)으로 갔다
-
-재빌드하려고 `yarn myapp:ios`(= `expo run:ios`)를 돌렸더니 엉뚱한 에러가 떴다.
-
-```text
-› Your computer requires some additional setup before you can build onto physical iOS devices.
-CommandError: No code signing certificates are available to use.
-```
-
-시뮬레이터로 빌드하려는데 왜 "physical iOS devices" 서명 얘기가? 기기 목록을 보니 범인이 나왔다.
-
-```bash
-xcrun xctrace list devices
-# Dev-MacBook (……)          ← 비-시뮬레이터 타겟은 "맥" 하나뿐 (실기기 없음)
-# iPhone 17 Simulator (……)
-# …
-```
-
-**실기기가 없으니** `expo run:ios`가 비대화형(백그라운드, 프롬프트 불가) 상황에서 **`Dev-MacBook`(맥 자신)을 기본 타겟으로 골라** 버렸고, 맥/기기 빌드는 코드 서명이 필요해서 죽은 것이다. `--device <시뮬레이터UDID>`를 줘도 **`--device` 플래그 자체가 "기기 경로"로 분기**해 같은 에러가 났다.
-
-### 해결: `xcodebuild`로 시뮬레이터에 직접 빌드
-
-expo의 기기 선택을 우회해서 `xcodebuild`로 명시적으로 시뮬레이터 destination을 박았다.
-
-```bash
-# 1) 시뮬레이터 부팅
-xcrun simctl boot "iPhone 17"
-
-# 2) 시뮬레이터 destination으로 직접 빌드 (서명 오버라이드 없이!)
-cd apps/mobile/ios
-xcodebuild -workspace MyAppDev.xcworkspace -scheme MyAppDev \
-  -configuration Debug -sdk iphonesimulator \
-  -destination 'id=<시뮬레이터 UDID>' -derivedDataPath build build
-
-# 3) 설치 + 실행
-xcrun simctl install booted "build/Build/Products/Debug-iphonesimulator/MyAppDev.app"
-xcrun simctl launch booted com.example.myapp.dev
-```
-
-### 함정: `CODE_SIGNING_ALLOWED=NO`를 주면 entitlement가 안 박힌다
-
-처음엔 "No code signing certificates" 에러를 피하려고 `CODE_SIGNING_ALLOWED=NO`를 줬다. 빌드는 됐는데 — **entitlement 임베드 단계가 통째로 스킵**돼서 15장의 문제가 도로 재현됐다(`-Simulated.xcent`가 비어버림). 시뮬레이터는 **기본 ad-hoc 서명**(`CODE_SIGN_IDENTITY = -`, 인증서 불필요)으로 빌드해야 entitlement가 박힌다. 즉 **서명 관련 오버라이드를 아무것도 주지 않는 게** 정답이었다. ("No code signing" 에러는 애초에 시뮬레이터가 아니라 맥/기기 타겟이라 났던 거지, 시뮬레이터 빌드엔 인증서가 필요 없다.)
-
-### 교훈
-
-> 실기기가 없으면 `expo run:ios`(비대화형)는 **맥을 기본 타겟으로 골라** 서명 에러를 낸다. `--device`도 기기 경로로 샌다. 확실하게 시뮬레이터에 빌드하려면 **`xcodebuild -sdk iphonesimulator -destination 'id=<UDID>'`로 직접 빌드 → `simctl install/launch`**. 그리고 시뮬레이터 빌드에 **서명 오버라이드(`CODE_SIGNING_ALLOWED/REQUIRED=NO`)를 주지 마라** — entitlement 임베드가 스킵된다. 기본 ad-hoc 서명이 인증서 없이도 entitlement를 박아준다.
-
-## 17. ngrok로 백엔드 로컬에 붙이기 — env 재시작과 502의 정체
-
-백엔드 개발자가 자기 로컬 서버를 ngrok로 노출해줘서, 거기에 붙어 실환경 테스트를 했다. `.env.local`의 API URL을 ngrok 주소로 바꿨는데 — 바로 안 먹었다.
-
-### `EXPO_PUBLIC_*`는 번들 타임 인라인 → Metro `--clear` 재시작 필수
-
-`EXPO_PUBLIC_*` 환경변수는 런타임이 아니라 **번들 빌드 시점에 코드로 인라인**된다. 그래서 `.env.local`만 고치고 앱을 리로드해도 **이미 떠 있던 Metro가 옛 값을 물고 있어** 안 바뀐다. Metro를 **`--clear`로 재시작**해야 새 env가 번들에 박힌다.
-
-```bash
-# .env.local 고친 뒤
-yarn myapp:start --clear   # Metro 재시작 + 캐시 클리어 → 새 EXPO_PUBLIC_* 인라인
-# 그 다음 앱을 리로드(dev client deep link 또는 ⌘R)
-```
-
-새 env 모드(`EXPO_PUBLIC_KAKAO_AUTH_MODE=oidc`)를 넣었을 때도 똑같았다 — Metro 재시작 전엔 계속 기본(accessToken) 모드로 돌았다.
-
-### 502 `ERR_NGROK_8012`의 정체 — 내 앱이 아니라 터널 너머가 죽은 것
-
-Apple 로그인이 드디어 성공 직전까지 갔는데, 백엔드 호출에서 502가 떨어졌다.
-
-```text
-[API] http (502) ... ERR_NGROK_8012
-"the agent failed to establish a connection to the upstream web service at localhost:3001.
- dial tcp [::1]:3001: connect: connection refused"
-```
-
-처음엔 우리 앱/네트워크를 의심했지만, 메시지를 읽으니 명확했다: **ngrok agent는 떠 있는데, 그 너머 upstream(백엔드 `localhost:3001`)이 연결을 거부**했다 = 백엔드 개발자가 디버깅하느라 서버를 잠깐 내린 상태였다. 서버를 다시 띄우자 같은 URL로 바로 통했고, Apple·카카오(OIDC) 둘 다 **end-to-end 로그인 성공**했다.
-
-> 참고: 백엔드가 브레이크포인트로 멈춰 있으면 axios `timeout: 10_000`(10초)에 걸려 끊긴다. 디버깅 동안만 임시로 timeout을 늘리거나 0(무제한)으로 두면 편하다. (검증 끝나면 원복.)
-
-### 교훈
-
-> `EXPO_PUBLIC_*`를 바꿨으면 **Metro를 `--clear`로 재시작**하라 — 앱 리로드만으론 안 박힌다(번들 타임 인라인). 그리고 **ngrok 502(`ERR_NGROK_8012`)는 내 앱이 아니라 터널 너머 서버**를 보라는 신호다("connection refused at upstream"). 에러 메시지의 upstream 주소(`localhost:3001`)를 그대로 읽으면 범인이 나온다.
-
-## 18. 신규/기존 회원 분기 — 응답에 `isNewMember`가 없었다
-
-로그인 자체는 됐고, "신규 가입자면 약관 플로우, 기존 회원이면 홈"으로 보내야 했다. 그런데 `SignInExternalResponse`엔 **명시적인 신규/기존 플래그가 없었다.** 응답 user 객체를 보니 `isTemporal`(임시/가입 미완료) 필드가 있었고, 실측상 **신규 가입 시 `true`** 로 내려왔다.
-
-```typescript
-// useSocialLogin.ts — 백엔드 응답으로 신규/기존 분기
-const isNewMember = response.user.isTemporal; // 임시(가입 미완료) 사용자 = 신규로 간주
-// TODO(JIRA-301): (auth)/(app) 화면 그룹 도입 후 isNewMember로 라우팅 분기
-```
-
-실제 라우팅(화면 그룹 분기)과 토큰 영속화는 후속 티켓(JIRA-301)이라, 여기선 분기 판정 + 임시 in-memory 토큰 보관까지만 했다.
-
-### 교훈
-
-> 응답에 "신규 여부"가 명시 필드로 없을 수 있다. 그땐 `isTemporal`/`isPhoneVerified` 같은 **상태 필드를 실측해 신규/기존을 추론**하되, 그 가정(어떤 필드로 판정했는지)을 코드 주석/PR에 남겨 백엔드와 합의 가능하게 하라.
-
-## 19. 머지 지옥 — stacked PR이 squash 머지된 뒤
-
-마지막 관문은 git이었다. 이 브랜치는 아직 머지 전이던 **API 클라이언트 PR과 로그인 화면 PR 위에 stacked**로 작업했었다. 그런데 그 두 PR이 **develop에 squash 머지**됐다 — 개별 커밋들이 **단일 커밋(SHA 다름)** 으로 합쳐졌고, develop엔 그 사이 무관한 작업도 잔뜩 들어와 있었다. 이대로 PR을 올리면 충돌이 뻔했다.
-
-### rebase냐 merge냐
-
-- **rebase `--onto`**: 내 커밋 8개만 새 develop 위로 재이식. 히스토리는 깔끔(선형)하지만, `package.json`/`app.config.ts` 같은 파일에서 **커밋마다 반복 충돌** 가능 + **force-push** 필요.
-- **merge**: develop를 브랜치로 머지. 충돌 **1회**, **force-push 불필요(안전)**.
-
-**판단 = merge.** 결정적 이유는 **우리 팀이 PR을 squash 머지**한다는 것. 그러면 브랜치의 지저분한 히스토리는 어차피 develop에 안 남고, 중요한 건 **PR의 3-dot diff("Files changed")가 내 작업만 깔끔한가**인데 — merge 후에도 develop가 공통 조상이 되므로 그 diff는 내 변경만 나온다. 안전하고 충돌도 한 번에 끝난다.
-
-### 충돌 6파일 해결
-
-```text
-LoginScreen.tsx  → develop의 테마 대응 UI(useTheme/palette) + 우리 useSocialLogin 연동 "그래프트"
-_layout.tsx      → union (develop의 Sentry/Analytics/ThemeProvider + 우리 initSocialAuth)
-apiClient.ts     → 우리 버전 유지 (Platform 헤더 = develop엔 없는 추가분)
-package.json     → union (kakao·apple + sentry 모두)
-yarn.lock        → develop 것 채택 후 `yarn install`로 재생성 (손으로 머지 금지!)
-app.config.ts    → 자동 머지 성공 (kakao+apple+sentry 플러그인 union)
-ChatScreen.tsx   → develop 유지 (develop가 RootScreen→ChatScreen 개편, 우리 삭제는 옛 잔재)
-```
-
-특히 `LoginScreen`은 단순 양자택일이 아니라, **develop의 새 UI(테마 토큰화) 위에 우리 로그인 동작(`signIn`/`pendingProvider`)을 이식**하는 머지였다. 양쪽의 "의도"가 다르면(한쪽은 UI 개선, 한쪽은 동작 연결) **둘 다 살려서 합성**해야 한다.
-
-### 함정: `yarn.lock`은 손으로 머지하지 마라
-
-`yarn.lock` 충돌을 직접 풀려고 하면 지옥이다. **한쪽(보통 더 최신인 develop) 것을 통째로 채택한 뒤 `yarn install`로 재생성**하는 게 정석이다. 머지된 `package.json` 기준으로 lock이 알아서 정합화된다.
-
-```bash
-git checkout --theirs -- yarn.lock
-yarn install            # 머지된 package.json 기준으로 lock 재생성
-git add yarn.lock
-```
-
-머지 후엔 **3-dot diff로 PR이 깔끔한지 반드시 확인**했다.
-
-```bash
-git diff origin/develop...HEAD --stat   # 내 작업 파일만 나와야 정상
-```
-
-### 교훈
-
-> **stacked PR의 base가 squash 머지되면**, 그 위 브랜치는 base를 중복으로 품게 된다. 팀이 **squash 머지**한다면(브랜치 히스토리가 develop에 안 남으면) **merge가 rebase보다 안전**하다 — 충돌 1회, force-push 없음, 3-dot PR diff는 여전히 내 작업만 깔끔. **`yarn.lock`은 한쪽 채택 후 `yarn install` 재생성**, **충돌은 "양자택일"이 아니라 "양쪽 의도 합성"** 으로 풀어라.
-
-## 2부 처음부터 알았다면 좋았을 체크리스트
-
-- [ ] **API 계약은 프로빙으로 역추적**: 문서가 비면 GET+더미값으로 찔러 에러 메시지에서 파라미터명을 읽는다. 공통 헤더(`Platform`)는 클라 기본값으로.
-- [ ] **OIDC `idToken`으로 통일**: 모바일 SDK가 인가 코드를 안 주면, 백엔드가 idToken(서명 검증)을 받게 합의 → Apple과 검증 통일. provider 콘솔에서 OIDC 활성화 선행.
-- [ ] **보안 생략은 근거를 코드에**: nonce를 못 쓰면(SDK 미노출) 왜 생략했는지 주석으로. SDK 한계는 patch-package 외 답 없을 수 있다.
-- [ ] **Apple `Code 1000`은 entitlement부터**: 네이티브 모듈/플러그인 추가 후 **재빌드 필수**. `*-Simulated.xcent`로 entitlement 확인(`codesign -d` 아님). + 시뮬레이터 Apple ID 로그인.
-- [ ] **시뮬레이터 빌드는 `xcodebuild -sdk iphonesimulator`로 직접**: 실기기 없으면 `expo run:ios`가 맥으로 샌다. **서명 오버라이드(`CODE_SIGNING_*=NO`) 금지** — entitlement가 안 박힌다.
-- [ ] **`EXPO_PUBLIC_*` 바꾸면 Metro `--clear` 재시작**: 앱 리로드만으론 안 박힌다.
-- [ ] **ngrok 502는 터널 너머를 본다**: `ERR_NGROK_8012` = upstream(백엔드) 다운. 내 앱 아님.
-- [ ] **신규/기존은 상태 필드로 추론**: 명시 플래그 없으면 `isTemporal` 등으로. 가정은 기록.
-- [ ] **stacked PR + squash 머지 = merge가 안전**: force-push 불필요, 3-dot diff만 깔끔하면 됨. `yarn.lock`은 채택 후 `yarn install` 재생성.
-
-## 2부 핵심 요약
-
-| 단계                  | 함정                                                     | 해결                                                      |
-| --------------------- | -------------------------------------------------------- | --------------------------------------------------------- |
-| 백엔드 계약           | swagger에 파라미터 미문서화                              | 실엔드포인트 프로빙(GET+더미) → 에러로 역추적             |
-| 카카오 토큰           | 백엔드는 `code`, SDK는 코드 미노출                       | **OIDC `idToken`** 채택(Apple과 검증 통일)                |
-| nonce                 | `@react-native-kakao` 네이티브가 nonce 미노출            | 카카오 한해 nonce 생략(서명+iss/aud/exp만), 근거 주석화   |
-| Apple Code 1000       | dev client에 entitlement 없음(플러그인 추가 전 빌드)     | prebuild로 entitlement 주입 후 **재빌드**                 |
-| 시뮬 entitlement 확인 | `codesign -d`가 비어 보임                                | `*-Simulated.xcent`를 본다                                |
-| 시뮬 빌드             | `expo run:ios`가 맥으로 폴백 / `*=NO`가 entitlement 스킵 | `xcodebuild -sdk iphonesimulator`, 서명 오버라이드 없이   |
-| env 반영              | `EXPO_PUBLIC_*` 안 바뀜                                  | Metro `--clear` 재시작(번들 타임 인라인)                  |
-| 502                   | 내 앱 의심                                               | `ERR_NGROK_8012` = upstream(백엔드) 다운                  |
-| 머지                  | stacked base가 squash 머지됨                             | **merge**(squash 워크플로우라 안전), `yarn.lock`은 재생성 |
-
-1부의 어려움이 "코드 바깥(빌드/콘솔/실행 위치)"이었다면, 2부의 어려움은 **개념(OIDC·nonce)과 빌드 내부(entitlement), 그리고 git**에 있었다. Apple `Code 1000`의 진짜 범인이 entitlement였다는 것 — 같은 증상도 원인이 여럿이라는 것 — 이 가장 큰 배움이었다. 결국 **Apple과 카카오(OIDC)를 동일한 "서명된 idToken 검증" 패턴으로 통일**했고, `provider-agnostic` 골격에 백엔드 연동을 한 겹 더 얹어 다음 티켓(JIRA-301 토큰 영속화·자동 로그인)으로 넘길 준비를 마쳤다.
+여기까지가 "코드를 짜기 전의 설계"였다.
+다음 [2부](/ko/blog/articles/expo-social-login-build)에서는 실제로 빌드를 올리고 디바이스에서 토큰을 얻기까지의 삽질을 다룬다. 카카오 취소 코드를 실측하고, Apple 시뮬레이터에서 한 번 크게 막힌다.
