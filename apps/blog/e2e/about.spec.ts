@@ -31,7 +31,9 @@ test.describe('About page (stable elements)', () => {
     await expect(page.getByText('TypeScript')).toBeVisible();
     await expect(page.getByText('React Native')).toBeVisible();
 
-    const mailto = page.locator('a[href="mailto:wannysim@gmail.com"]');
+    // SocialLinks now renders the email in the footer site-wide too, so scope
+    // to the about article to keep this a single, unambiguous match.
+    const mailto = page.locator('article a[href="mailto:wannysim@gmail.com"]');
     await expect(mailto).toBeVisible();
   });
 
