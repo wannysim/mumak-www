@@ -1,7 +1,7 @@
 ---
-title: 'Expo Social Login (3/3) — Backend Integration: OIDC, nonce, and Merge Hell'
+title: 'Expo Social Login (3/3) — Backend Integration: OIDC, nonce, and Apple Code 1000'
 date: '2026-06-11'
-description: 'Wiring the token to the backend brought struggles in concepts (OIDC/nonce), inside the build (entitlement), and git. The real culprit behind Apple Code 1000 is revealed here too'
+description: 'Wiring the token to the backend brought struggles in concepts (OIDC/nonce) and inside the build (entitlement). The real culprit behind Apple Code 1000 is revealed here too'
 tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
 draft: false
 ---
@@ -9,14 +9,14 @@ draft: false
 In [Part 2](/en/blog/articles/expo-social-login-build) I got to a token via the native SDK (Phase A).
 
 Part 3 is the record of wiring backend authentication (Phase B) onto that skeleton.
-This time I struggled not outside the code, but in the concepts (OIDC/nonce), inside the build (entitlement), and in git merges.
+This time I struggled not outside the code, but in the concepts (OIDC/nonce) and inside the build (entitlement).
 And the real culprit behind the Apple `Code 1000` I'd concluded was "the simulator can't be trusted" in Part 2 is revealed here.
 
 - [Part 1 — Design: from picking a package to a provider-agnostic skeleton](/en/blog/articles/expo-social-login)
 - [Part 2 — Build and device: getting to a token](/en/blog/articles/expo-social-login-build)
-- **Part 3 (this post)** — Backend integration: OIDC, nonce, and merge hell
+- **Part 3 (this post)** — Backend integration: OIDC, nonce, and Apple Code 1000
 
-The backend (NestJS) was a developer's local server exposed via ngrok, and the app connected to it through `EXPO_PUBLIC_API_BASE_URL` in `.env.local`.
+The backend (NestJS) was a developer's local server, and the app connected to it through `EXPO_PUBLIC_API_BASE_URL` in `.env.local`.
 
 ## 12. The backend contract wasn't fully in Swagger, so I probed it
 
@@ -197,10 +197,9 @@ I slipped once more here. To dodge the "No code signing" error I passed `CODE_SI
 The simulator must build with the default ad-hoc signing (`CODE_SIGN_IDENTITY = -`, no certificate needed) for the entitlement to be baked in. Passing no signing-related overrides at all was the answer.
 The "No code signing" error happened because the target was the Mac/device in the first place; simulator builds don't need a certificate.
 
-## 17. Attaching to the backend via ngrok — env restarts and the truth about 502
+## 17. Changed env but it won't take — `EXPO_PUBLIC_*` needs Metro `--clear`
 
-A backend developer exposed their local server via ngrok, and I connected to it for real-environment testing.
-I changed the API URL in `.env.local` to the ngrok address, and it didn't take effect immediately.
+The backend was a developer's local server, and I changed the API URL in `.env.local` to point there — but it didn't take effect immediately.
 
 `EXPO_PUBLIC_*` is inlined into the code at bundle-build time, not at runtime.
 So editing only `.env.local` and reloading the app doesn't change it — the already-running Metro is still holding the old value. You have to restart with `--clear` for the new env to be baked in.
@@ -209,65 +208,12 @@ So editing only `.env.local` and reloading the app doesn't change it — the alr
 yarn myapp:start --clear   # restart Metro + clear cache → inline the new EXPO_PUBLIC_*
 ```
 
-Adding `EXPO_PUBLIC_KAKAO_AUTH_MODE=oidc` was the same. Before restarting Metro it kept running in the default (accessToken) mode.
-
-Then Apple login got to the brink of success, but the backend call returned a 502.
-
-```text
-[API] http (502) ... ERR_NGROK_8012
-"failed to establish a connection to the upstream web service at localhost:3001.
- dial tcp [::1]:3001: connect: connection refused"
-```
-
-At first I suspected our app/network, but reading the message made it clear.
-The ngrok agent was up, but the upstream beyond it (the backend `localhost:3001`) refused the connection. The backend developer had briefly taken the server down for debugging.
-Once it was back up, the same URL connected immediately, and both Apple and Kakao (OIDC) logged in end-to-end.
-
-`ERR_NGROK_8012` is a signal to look beyond the tunnel, not at your app. Read the upstream address in the message literally and the culprit appears.
-
-## 18. New/existing member branching — the response had no `isNewMember`
-
-Login worked, and I had to route "new users to the terms flow, existing ones to home."
-But `SignInExternalResponse` had no explicit new/existing flag.
-
-Looking at the response user object, there was an `isTemporal` (temporary/incomplete-signup) field, and empirically it came back as `true` on a new signup.
-
-```typescript
-// useSocialLogin.ts
-const isNewMember = response.user.isTemporal; // a temporary (incomplete-signup) user = treated as new
-// TODO(JIRA-301): after introducing (auth)/(app) screen groups, branch routing by isNewMember
-```
-
-The actual routing and token persistence are follow-up work, so here I only did the branch decision and temporary in-memory token storage.
-When there's no explicit "new or not" field, infer it from a status field like `isTemporal`, but leave which field you judged by in a comment so it can be agreed with the backend.
-
-## 19. The final gate — merging after a stacked PR got squash-merged
-
-This branch had been worked stacked on top of the still-unmerged API-client PR and login-screen PR.
-But those two PRs got squash-merged into develop. The individual commits collapsed into a single commit (different SHA), and develop had accumulated unrelated work in the meantime.
-Raising the PR as-is would obviously conflict.
-
-Between rebase and merge, I chose merge.
-
-The decisive reason is that our team squash-merges PRs.
-That way the branch's messy history won't remain in develop anyway. What matters is whether the PR's 3-dot diff ("Files changed") shows only my work — and since develop remains the common ancestor after the merge, that diff shows only my changes.
-A rebase keeps history linear and clean, but brings repeated per-commit conflicts and a force-push. A merge means one round of conflicts, no force-push. I chose the safe side.
-
-There were 6 conflicting files. In particular, `LoginScreen` wasn't a simple either/or.
-develop had reworked the UI with theme tokenization in the meantime, and I had to graft the login behavior (`signIn`/`pendingProvider`) onto it.
-When the two sides have different intents (one a UI improvement, the other behavior wiring), you don't pick one — you keep both and compose them.
-
-I didn't resolve `yarn.lock` by hand. The standard move is to take one side (the more recent develop) wholesale and regenerate.
-
-```bash
-git checkout --theirs -- yarn.lock
-yarn install                          # regenerate the lock from the merged package.json
-git diff origin/develop...HEAD --stat # only my work's files should appear
-```
+The `EXPO_PUBLIC_KAKAO_AUTH_MODE=oidc` I added in section 14 was the same. Before restarting Metro it kept running in the default (accessToken) mode.
+Once the new env was in and Metro restarted with `--clear`, both Apple and Kakao (OIDC) logged in end-to-end.
 
 ## Wrapping up
 
-If Part 1's difficulty was outside the code (build, console, where you run things), Part 3's was in the concepts (OIDC/nonce), inside the build (entitlement), and git.
+If Part 1's difficulty was outside the code (build, console, where you run things), Part 3's was in the concepts (OIDC/nonce) and inside the build (entitlement).
 
 The biggest lesson was that the real culprit behind Apple `Code 1000` was the entitlement.
 That the same symptom can have multiple causes. The conclusion I'd closed as "the simulator can't be trusted" in Part 2, flipped to "it was actually the entitlement" in Part 3 — that's what stays with me most from this series.
@@ -283,5 +229,3 @@ It's one more layer of backend integration on top of the provider-agnostic skele
 - [ ] Apple `Code 1000` starts with the entitlement. Check via `*-Simulated.xcent`, not `codesign -d`, and rebuild after adding a module/plugin.
 - [ ] Build to the simulator directly with `xcodebuild -sdk iphonesimulator`. Signing overrides (`CODE_SIGNING_*=NO`) skip the entitlement.
 - [ ] After changing `EXPO_PUBLIC_*`, restart Metro with `--clear`.
-- [ ] An ngrok 502 (`ERR_NGROK_8012`) points beyond the tunnel, not at your app.
-- [ ] If a stacked PR's base got squash-merged and your team squash-merges, merge is safer than rebase. Take one side for `yarn.lock` and regenerate.
