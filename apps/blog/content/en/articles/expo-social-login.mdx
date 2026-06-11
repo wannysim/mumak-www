@@ -1,58 +1,69 @@
 ---
-title: 'Adding Kakao + Apple Social Login on Expo SDK 56 — Battle Scars from the New Architecture Era'
+title: 'Expo Social Login (1/3) — Design: From Picking a Package to a Provider-Agnostic Skeleton'
 date: '2026-06-09'
-description: 'A chronological account of wiring Kakao and Apple login into an Expo SDK 56 app where I struggled more outside the code than inside it'
+description: 'The first of three parts on wiring Kakao and Apple login into an Expo SDK 56 app where I struggled more outside the code than inside it'
 tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
 draft: false
 ---
 
 I thought social login was "drop in two buttons, handle the SDK callback, done."
 
-In reality I got stuck everywhere from package selection, to a config plugin that blocked the entire build, to where EAS environment variables live, to Apple's simulator quirks, to rebuild triggers — I struggled far more outside the code than inside it. This post is a chronological record of actually wiring Kakao and Apple login into an Expo SDK 56 app inside a monorepo, organized at each step as cause → fix → lesson.
+In reality I got stuck at package selection, a config plugin froze the entire build, and EAS commands ran in the wrong directory.
+I struggled more outside the code than inside it.
 
-First, let me make the environment explicit.
+This is a record of wiring Kakao and Apple login into an Expo app inside a monorepo. It's long, so I split it into three parts.
 
-- **Monorepo**: yarn workspaces, app path is `apps/mobile`
-- **Runtime**: Expo SDK 56, React Native 0.85.3, React 19.2.3
-- **New Architecture enforced**: from SDK 55, New Arch is the default and effectively mandatory. This became the first constraint on package selection.
-- **Not Expo Go**: because of the Firebase (`@react-native-firebase/app`) + `useFrameworks: "static"` combo, we build and use a **custom dev client**. Expo Go can't load native modules.
-- **Lint/format**: oxlint + oxfmt, TypeScript strict
+- **Part 1 (this post)** — Design: package selection, Apple's pitfall, a provider-agnostic skeleton
+- [Part 2 — Build and device: getting to a token](/en/blog/articles/expo-social-login-build)
+- [Part 3 — Backend integration: OIDC, nonce, and merge hell](/en/blog/articles/expo-social-login-backend)
 
-These premises drove every decision that followed.
+First, the environment.
 
-## 1. Research — stuck at the very first step, picking a Kakao package
+- Monorepo (yarn workspaces), the app is `apps/mobile`
+- Expo SDK 56, React Native 0.85.3, React 19.2.3
+- **New Architecture enforced**: from SDK 55 it's the default and effectively mandatory. This became the first constraint on package selection.
+- Not Expo Go, but a **custom dev client**. The Firebase + `useFrameworks: "static"` combo means native modules load only via a dev client.
 
-The first thing that came to mind was `@react-native-seoul/kakao-login`, the one most commonly seen in Korea. Plenty of references, plenty of examples. But our environment is **RN 0.85 = New Architecture enforced**.
+These premises drove nearly every decision that followed.
 
-### Pitfall: in the New Arch era, "famous package" is not the answer
+## 1. Stuck at the very first step — picking a Kakao package
 
-Under the New Architecture, native modules must support TurboModule/Fabric. Legacy bridge-based modules either have no guaranteed behavior on New Arch, or run unstably through an interop layer. I tried to confirm whether `@react-native-seoul/kakao-login` supports new-arch, but couldn't find clear metadata. Installing on a "probably fine" basis and seeing a redbox after the build is the worst-case scenario.
+The first thing that came to mind was `@react-native-seoul/kakao-login`, the one most commonly seen in Korea.
+Plenty of references, plenty of examples.
+
+But our environment is RN 0.85 — New Architecture enforced.
+
+Under New Arch, native modules must support TurboModule/Fabric. Legacy bridge-based modules either have no guaranteed behavior or run unstably through an interop layer.
+I tried to confirm whether `@react-native-seoul/kakao-login` supports new-arch, but couldn't find clear metadata.
+
+Installing on a "probably fine" basis and seeing a redbox after the build is the worst case.
 
 So I re-evaluated based on the React Native Directory and package metadata. The conclusion was the **`@react-native-kakao` family by MJ Studio (mym0404)**.
 
-- `@react-native-kakao/core@2.4.5` — SDK init + native config
-- `@react-native-kakao/user@2.4.5` — login/user API
+- `@react-native-kakao/core` — SDK init + native config
+- `@react-native-kakao/user` — login/user API
 
 Two things sealed the choice.
 
-1. **New Architecture first-class**: officially supports new-arch on a TurboModule basis.
-2. **Official per-module Expo config plugin**: the core module ships an Expo config plugin, so native settings like the iOS URL scheme or `LSApplicationQueriesSchemes` can be injected declaratively from `app.config.ts` without hand-editing `Info.plist`. It fits the dev client build workflow.
+1. It **officially supports new-arch** on a TurboModule basis.
+2. The core module ships an **official Expo config plugin**. Native settings like the iOS URL scheme or `LSApplicationQueriesSchemes` can be injected declaratively from `app.config.ts` without hand-editing `Info.plist`.
 
-### Lesson
+In the New Arch era, the criterion for picking a package isn't "is it famous."
+It's whether the official directory has explicit new-arch support, and whether it ships an Expo config plugin. Not gambling on unverified support was the key.
 
-> In the New Arch era, the criterion for picking an RN package is not "is it famous" but **whether the official directory has explicit new-arch support metadata + whether it ships an Expo config plugin**. Don't gamble on unverified new-arch support.
+## 2. Apple looked easy, but had one pitfall
 
-## 2. Apple looked easy — but had one fatal pitfall
+There was nothing to agonize over with Apple. The official Expo module `expo-apple-authentication` supports new-arch. Using the module that matches your SDK version is good for your sanity.
 
-There was nothing to agonize over with Apple. There's an official Expo module, `expo-apple-authentication@56.0.4`, and it supports new-arch. Using the module that matches your SDK version is good for your sanity.
+That said, there's one pitfall that has nothing to do with RN/Expo — it belongs to the Apple platform itself.
 
-That said, Apple login has one pitfall that has nothing to do with RN/Expo — it belongs to the **Apple platform itself**.
+**Apple gives you the name and email only the first time.**
 
-### Pitfall: Apple gives you name/email only on the "first time"
+`fullName` and `email` are in the response only the very first time a user logs into our app with Apple. Once they've consented, every subsequent login returns both fields as `null`.
+The identityToken arrives every time, but the name and email never come again — unless the user disconnects the app in settings and logs in again.
 
-`fullName` and `email` are included in the response only the very first time a user logs into our app with Apple. Once they've consented, on every subsequent login **both fields come back as `null`.** The identityToken arrives every time, but the name/email never comes again (unless the user disconnects the app in settings and logs in again).
-
-In other words, if your signup flow needs name/email, you **must capture them from the first response and carry them all the way to signup completion.** If you don't know this and defer it with "I'll just get them again later," from the second login onward you'll only receive empty values.
+So if your signup flow needs the name/email, you must capture them from the first response and carry them through signup completion.
+"I'll just get them again later" does not work. From the second login on, you only get empty values.
 
 So the Apple provider captures them immediately into a normalized `profile`.
 
@@ -62,129 +73,76 @@ const credential = await signInAsync({
   requestedScopes: [AppleAuthenticationScope.FULL_NAME, AppleAuthenticationScope.EMAIL],
 });
 
-// email/fullName are filled only on the user's "first" authentication. null afterwards.
+// email/fullName are filled only on the "first" authentication. null afterwards.
 // So we hand them off to the signup flow (JIRA-101) the moment we receive them.
-const formattedName = credential.fullName ? formatFullName(credential.fullName) : '';
-const profile: SocialProfile = {
-  email: credential.email ?? undefined,
-  fullName: formattedName.length > 0 ? formattedName : undefined,
-};
-
 return {
   provider: 'apple',
   token: credential.identityToken,
   authorizationCode: credential.authorizationCode ?? undefined,
-  profile,
+  profile: {
+    email: credential.email ?? undefined,
+    fullName: credential.fullName ? formatFullName(credential.fullName) : undefined,
+  },
 };
 ```
 
-### Lesson
+Guaranteeing this "one-time-only" at the architecture level — that was the most important decision on the Apple side.
 
-> Apple Sign In's name/email are **one-time only**. Guarantee at the architecture level that you capture them from the first auth response and carry them through the end of the signup flow. "I'll get them on the next login" does not work.
+## 3. A provider-agnostic strategy pattern from the start
 
-## 3. Designing for extensibility — a provider-agnostic strategy pattern from the start
+Google and Naver were on the roadmap.
+If I wrote it with branches looking only at Kakao/Apple, every new provider would pollute the UI, the orchestration, and the backend calls.
 
-Google and Naver were on the roadmap. If I wrote it with branches looking only at Kakao/Apple, every new provider would pollute the UI, the orchestration, and the backend calls. So I structured it with a **strategy pattern** from the very beginning.
+So I laid down a strategy pattern from the very beginning.
 
-The key observation is that "every provider ultimately does the same thing: _native SDK login → obtain token_." Hide the per-provider quirks behind the strategy, and let the outside deal only with normalized types.
-
-### Core types (`types.ts`)
+The key observation is simple: every provider ultimately does the same thing — _native SDK login → obtain token_.
+Hide the per-provider quirks behind the strategy, and let the outside deal only with normalized types.
 
 ```typescript
-export const SOCIAL_PROVIDERS = ['kakao', 'apple', 'google', 'naver'] as const;
-export type SocialProvider = (typeof SOCIAL_PROVIDERS)[number];
+// types.ts
+export type SocialProvider = 'kakao' | 'apple' | 'google' | 'naver';
 
-// Per-provider login strategy. A new provider only needs to implement this interface.
+// A new provider only needs to implement this interface.
 export interface SocialAuthStrategy {
   readonly provider: SocialProvider;
-  // Whether this provider is usable on the current device/platform.
-  // apple: true only on iOS 13+ · kakao/google/naver: usually true
-  isAvailable(): Promise<boolean>;
-  // Runs the native SDK login and returns a normalized result.
-  // On failure, throws SocialAuthError (including cancellation).
-  signIn(): Promise<SocialAuthResult>;
+  isAvailable(): Promise<boolean>; // apple: true only on iOS 13+
+  signIn(): Promise<SocialAuthResult>; // on failure (incl. cancel) throws SocialAuthError
 }
 ```
 
-The token field has a different name per provider (`accessToken` / `identityToken` / `idToken`), but in the result type I normalized it to a single `token`.
+The token field name differs per provider (`accessToken` / `identityToken` / `idToken`), but the result type normalizes it to a single `token`. The only extension point is the registry.
 
 ```typescript
-export type SocialAuthResult = {
-  readonly provider: SocialProvider;
-  // kakao: accessToken · apple: identityToken · google: idToken · naver: accessToken
-  readonly token: string;
-  readonly authorizationCode?: string; // Apple only
-  readonly nonce?: string;
-  readonly profile?: SocialProfile; // profile the provider returned alongside (only if present)
-};
-```
-
-### Registry (`registry.ts`) — the single extension point
-
-```typescript
+// registry.ts — a new provider adds one line here
 const strategies: Partial<Record<SocialProvider, SocialAuthStrategy>> = {
   kakao: kakaoProvider,
   apple: appleProvider,
-  // TODO(when Google is supported): google: googleProvider,
-  // TODO(when Naver is supported): naver: naverProvider,
+  // google: googleProvider,
+  // naver: naverProvider,
 };
-
-export function getSocialAuthStrategy(provider: SocialProvider): SocialAuthStrategy {
-  const strategy = strategies[provider];
-  if (!strategy) {
-    throw new Error(`Unregistered social login provider: ${provider}`);
-  }
-  return strategy;
-}
 ```
 
-### Two-layer error design — this paid off later
+Errors are split by the layer where they occur. I wanted a single type at first, but soon realized the layers split cleanly into two.
 
-At first I wanted a single error type, but I soon realized **the layer where errors occur splits cleanly into two**.
+- **SDK layer (`SocialAuthError`)**: the native login step, _before_ any network call. User cancel (`canceled`), unsupported device (`unavailable`), etc.
+- **Backend layer (`AppError`)**: the auth API call step. Normalized in the axios interceptor.
 
-- **SDK-layer error (`SocialAuthError`)**: the native SDK login step. Occurs _before_ any network call. User cancellation (`canceled`), unsupported device (`unavailable`), etc.
-- **Backend-layer error (`AppError`)**: the backend auth call step. Normalized in the axios response interceptor.
+In particular, user cancellation only happens at the SDK layer — it can never be caught as a backend error.
+Had I lumped these into one type, I couldn't have cleanly written the "silently ignore cancellation" logic.
 
-In particular, **user cancellation only happens at the SDK layer**, so it can never be caught as a backend error (AppError). Had I lumped these into one type, I couldn't have cleanly written the "silently ignore cancellation" logic.
+Finally, SDK init is pulled out separately. Kakao requires `initializeKakaoSDK(appKey)` before `login()` (otherwise `SDKNotInitialized`). It only needs to run once at app entry, so I extracted it into `initSocialAuth()` called from `_layout.tsx`. If there's no app key, it skips init and just logs a warning, so it never blocks boot. Apple needs no pre-init.
 
-```typescript
-// SocialAuthError.ts
-const socialAuthErrorKinds = [
-  'canceled', // user closed the login sheet — usually silently ignored
-  'unavailable', // provider not usable on the current device/platform
-  'provider', // provider SDK responded but the expected token/field was missing
-  'unknown', // unclassified error
-] as const;
-```
+In short, adding a new provider means editing three places.
+The identifier in `types.ts`, one strategy in `providers/`, one registration line in `registry.ts`.
+The UI, the orchestration, and the backend calls stay untouched.
 
-### Separating SDK init (`initSocialAuth.ts`)
+## 4. Install, and registering plugins in `app.config.ts`
 
-Kakao requires `initializeKakaoSDK(appKey)` before calling `login()` (otherwise you get `SDKNotInitialized`). This only needs to run once at app entry, so I extracted it into a separate function called from `_layout.tsx`. Apple needs no pre-initialization.
+After installing the packages I registered three plugins.
 
-```typescript
-export async function initSocialAuth(): Promise<void> {
-  if (kakaoNativeAppKey) {
-    await initializeKakaoSDK(kakaoNativeAppKey);
-    return;
-  }
-  // Skip init when the app key isn't set (early development) — don't block app boot itself.
-  if (__DEV__) {
-    console.warn('[socialAuth] No Kakao native app key; skipping SDK init.');
-  }
-}
-```
-
-### Lesson
-
-> **Adding a new provider = editing 3 places**: the identifier in `types.ts`, one strategy in `providers/`, and one registration line in `registry.ts`. The UI (LoginScreen), orchestration (useSocialLogin), and backend calls stay untouched. And split errors by the layer where they occur (SDK vs backend). Cancellation handling gets clean.
-
-## 4. Install + registering the config plugin in `app.config.ts`
-
-After installing the packages I registered the plugins in `app.config.ts`. There were three tasks.
-
-1. **Register the Kakao core plugin** — auto-injects the iOS URL scheme, `handleKakaoOpenUrl`, etc.
-2. **Merge the Kakao Android Maven repo into `expo-build-properties`** — the Kakao Android SDK comes from a Kakao-specific Maven repository. Instead of creating a new entry, I **merged it into** the existing Firebase entry.
-3. **Register the Apple auth plugin** — auto-adds the "Sign in with Apple" entitlement.
+1. Kakao core plugin — auto-injects the iOS URL scheme and `handleKakaoOpenUrl`
+2. **Merge** the Kakao Android Maven repo into `expo-build-properties`
+3. Apple auth plugin — auto-adds the "Sign in with Apple" entitlement
 
 ```typescript
 // app.config.ts (excerpt)
@@ -194,642 +152,80 @@ plugins: [
   [
     "expo-build-properties",
     {
-      ios: {
-        useFrameworks: "static",
-        forceStaticLinking: ["RNFBApp"],
-      },
+      ios: { useFrameworks: "static", forceStaticLinking: ["RNFBApp"] },
       // The Kakao Android SDK comes from a Kakao-specific Maven repository.
       android: {
-        extraMavenRepos: [
-          "https://devrepo.kakao.com/nexus/content/groups/public/",
-        ],
+        extraMavenRepos: ["https://devrepo.kakao.com/nexus/content/groups/public/"],
       },
     },
   ],
-  // Kakao login — registered only when the app key exists (see section 5)
-  ...(kakaoNativeAppKey ? [kakaoPlugin] : []),
-  // Apple login (iOS) — auto-adds the entitlement
+  ...(kakaoNativeAppKey ? [kakaoPlugin] : []), // see section 5
   "expo-apple-authentication",
-  // ...
 ],
 ```
 
-### Pitfall: a Maven repo is "merged into an existing entry," not "a new entry"
+A small pitfall here. `expo-build-properties` was already registered because of Firebase's `useFrameworks: "static"`.
+If you register the same plugin **twice** just to add the Kakao Maven repo, the later one overwrites the earlier.
+The same plugin must merge its options within a single entry.
 
-`expo-build-properties` was already registered because of Firebase's `useFrameworks: "static"`. If you register `expo-build-properties` **twice** just to add the Kakao Android Maven repo, the latter overwrites the former or conflicts. The same plugin must **merge its options within a single entry**.
+## 5. The first real bug — it threw on an empty app key and blocked the whole build
 
-## 5. The first real bug — the config plugin threw on an empty app key and blocked the whole build
+I registered the Kakao plugin, ran `expo config`, and the build died before it even started.
 
-After registering the Kakao plugin, I ran the `expo config` (or prebuild) step, and the build died before it even started.
+The cause was simple. The Kakao core plugin throws at the `expo config` step if `nativeAppKey` is empty.
+But at that point I hadn't yet been issued an app key (waiting on external console work).
 
-### Cause
+Evaluation of the app config itself failed just because the app key was missing, and as a side effect even builds unrelated to Kakao were blocked.
 
-The Kakao core config plugin **throws at the `expo config` step** if `nativeAppKey` is empty. But at that point I hadn't yet been issued a Kakao app key (waiting on external console work). In other words, **evaluation of the app config itself failed just because the app key was missing**, and as a side effect the entire build — even parts unrelated to Kakao — was blocked.
-
-### Fix: register the plugin conditionally, only when the app key exists
-
-Using a spread + ternary in the plugin array, I made the Kakao plugin enter the array only when the app key exists.
+The fix was conditional registration. The plugin enters the array only when the app key exists.
 
 ```typescript
-// Kakao native app key. The config plugin throws on an empty value, so register "only when the key exists."
+// The Kakao plugin throws on an empty value, so register "only when the key exists."
 const kakaoNativeAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY;
-
-const kakaoPlugin: [string, Record<string, unknown>] = [
+const kakaoPlugin = [
   "@react-native-kakao/core",
-  {
-    nativeAppKey: kakaoNativeAppKey,
-    ios: { handleKakaoOpenUrl: true },
-  },
+  { nativeAppKey: kakaoNativeAppKey, ios: { handleKakaoOpenUrl: true } },
 ];
 
 // inside the plugins array:
 ...(kakaoNativeAppKey ? [kakaoPlugin] : []),
 ```
 
-With this, the build passes even without an app key (only Kakao login is disabled), and once the app key is filled in, the plugin naturally activates. `initSocialAuth.ts` follows the same philosophy: if there's no app key, it skips init and just logs a warning, so it never blocks app boot.
+With this, the build passes even without an app key (only Kakao is disabled), and once the key is filled in, the plugin turns on naturally.
 
-### Lesson
+If a plugin depends on an externally-issued value and throws on it, one missing value can kill even unrelated builds.
+The habit of wrapping it in `...(key ? [plugin] : [])` protects both boot and build.
 
-> When a config plugin throws on a required value (like an app key), the absence of that value **fails the entire app-config evaluation and kills even unrelated builds.** Wrap plugins that depend on externally-issued values in a **conditional registration pattern (`...(key ? [plugin] : [])`)** so that boot and build don't break when the value is missing.
+## 6. EAS environment variables — I stumbled twice on where they live
 
-## 6. Registering EAS environment variables — I stumbled twice on where they live
+After being issued the app key, I had to register `EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY` as an EAS env for each of dev/prod.
 
-After being issued the app key (external console work), I had to register `EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY` as an EAS env for each of dev/prod. I ran `eas env:create` — and stumbled twice in a row.
+Running `eas env:create` from the repo root gave "project not linked."
+There's no Expo project at the monorepo root. The app lives in `apps/mobile`, and EAS must run from the directory with `app.config.ts` and the project link.
 
-### Stumble 1: "project not linked" error
-
-I ran `eas env:create` from the repo root and got "project not linked." The cause was simple. **There's no Expo project at the monorepo root.** The Expo app lives in `apps/mobile`, and EAS must run from the directory that has `app.config.ts` and the project link (`extra.eas.projectId`).
+Worse, running it wrong at the root auto-generated an empty `app.json` (`{"expo":{}}`) at the root. If this exists, tools may mistake the root for an Expo project, tangling things further. I just deleted it.
 
 ```bash
-# Run from repo root → project not linked
-# Must be run from the app directory
 cd apps/mobile
 eas env:create
+eas env:pull            # generate .env.local for local testing → fill the key here
 ```
 
-### Stumble 2: an empty `app.json` got generated by running it wrong at the repo root
-
-Because I ran an expo/eas-family command wrong at the root, an **empty `app.json` (`{"expo":{}}`) was auto-generated** at the root. If this exists, tools may mistake the root for an Expo project, which tangles things further. I just deleted it.
-
-### Env for local testing
-
-To test locally, you need to pull the EAS env into `.env.local`. I generated `.env.local` with `eas env:pull` and filled the key in there. (From the app directory, of course.)
-
-```bash
-cd apps/mobile
-eas env:pull            # generates .env.local
-# add EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY to .env.local
-```
-
-In the config, this env is read from a single place (`config/socialAuth.ts`). Expo inlines only `process.env.EXPO_PUBLIC_*` into the bundle, so the prefix matters.
+The env is read from a single place (`config/socialAuth.ts`). Expo inlines only `process.env.EXPO_PUBLIC_*` into the bundle, so the prefix matters.
 
 ```typescript
-// config/socialAuth.ts
 export const kakaoNativeAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY ?? '';
 ```
 
-### Lesson
+In a monorepo, run expo/eas commands from the app directory. That one line would have saved me both stumbles.
 
-> In a monorepo, **always run expo/eas commands from the app directory (`apps/mobile`)**. Running them from the root gives "project not linked," or worse, generates an empty `app.json` that confuses the tooling. If you see an empty `app.json` (`{"expo":{}}`), it was created by mistake — delete it.
+## What to take from Part 1
 
-## 7. Kakao success — obtaining a token in the iOS simulator
+- [ ] Pick a package by **new-arch support metadata + whether it ships an Expo config plugin**, not by "fame."
+- [ ] Apple's name/email are one-time. Design upfront to capture them from the first response and carry them through signup.
+- [ ] If more providers are coming, use a strategy pattern from the start. Split errors into SDK layer and backend layer (cancellation is only caught at the SDK layer).
+- [ ] Wrap a config plugin that throws on a required value in `...(key ? [plugin] : [])`.
+- [ ] Run expo/eas commands from the app directory. Delete any empty `app.json` that appears.
 
-I rebuilt the dev client (see section 11) and tapped the Kakao button. Success. I confirmed token acquisition in the DEV log.
-
-```typescript
-// useSocialLogin.ts — in Phase A, before backend integration, confirm token acquisition itself via console
-if (__DEV__) {
-  console.log(
-    `[socialAuth] ${provider} login success · token=${result.token.slice(0, 8)}… · profile=${result.profile ? 'present' : 'none'}`
-  );
-}
-```
-
-The log printed `profile=none`, and **this is normal and intended**. The Kakao provider receives only the accessToken from the SDK login and passes it to the backend (the profile is fetched by the backend via the Kakao API, or handled separately depending on consent items/flow). Unlike Apple, the Kakao provider's `signIn()` does not fill `profile`.
-
-```typescript
-// kakaoProvider.ts
-const token = await login();
-return {
-  provider: 'kakao',
-  token: token.accessToken,
-};
-```
-
-> Logging only the first 8 characters via slice, rather than the whole token, is intentional. Even in DEV logs, don't leave tokens in plaintext.
-
-## 8. Kakao's cancel code — not in the official docs, so I measured it directly
-
-Login worked, but I had to handle the **cancellation case** where the user closes the login sheet. Cancellation isn't an error, so it should be silently ignored — you must not show a "login failed" Toast.
-
-The problem was that **the Kakao SDK's cancel error code wasn't in the official docs.** Kakao cancellation is a value derived from a native SDK enum, so it can differ per platform, and I couldn't find an explicit constant.
-
-### Fix: measure it directly with a temporary debug log
-
-I actually triggered a cancellation and dumped the whole error object in the catch block. Cancelling on iOS produced a code.
-
-- **iOS cancel code = `"Cancelled"`** ("The authentication session has been canceled by user" — when you close the Kakao-account web / `ASWebAuthenticationSession`)
-
-I registered this value in `KAKAO_CANCEL_CODES` and normalized it to `canceled` so it gets silently ignored.
-
-```typescript
-// kakaoProvider.ts
-const KAKAO_CANCEL_CODES: readonly string[] = [
-  'Cancelled', // iOS — empirically confirmed
-  // TODO(JIRA-204): add the Android cancel code after measuring (the value may differ)
-];
-
-// signIn() catch block:
-const code = getErrorCode(error);
-if (code !== undefined && KAKAO_CANCEL_CODES.includes(code)) {
-  throw socialAuthError('kakao', 'canceled', 'Login was canceled.', error);
-}
-```
-
-And in the orchestration hook, `canceled` is caught and returns immediately.
-
-```typescript
-// useSocialLogin.ts
-} catch (error) {
-  if (isSocialAuthError(error) && error.kind === "canceled") {
-    return; // silently ignore cancellation
-  }
-  // other errors: Toast handling per kind
-}
-```
-
-The Android cancel code may differ, so I left it as a TODO to verify later on a real device.
-
-### Lesson
-
-> When an SDK's cancel/error codes aren't documented, **measuring them directly with a temporary debug log** is the fastest and most accurate approach. But empirical values can differ per platform, so don't assume the iOS value applies to Android — leave an explicit TODO. Cancellation isn't an error, it's a **normal flow**, so ignore it silently.
-
-## 9. Apple simulator failure — it was the environment, not the code
-
-I tapped the Apple button and it failed. The error in the log was this.
-
-```text
-AuthorizationError Code=1000
-AKAuthenticationError -7026
-```
-
-At first, thinking "did my code send something wrong," I went through `requestedScopes`, the entitlement, the plugin registration. But that wasn't it.
-
-### Cause: simulator + not signed into iCloud = SIWA (Sign in with Apple) chronic bug
-
-This error combination is a **known issue that occurs when the simulator isn't signed into an iCloud account (or when SIWA is unstable in the simulator)**. It's not a code problem. The request was in fact firing all the way through AuthKit (AuthorizationController) — meaning our request construction was correct, and it got blocked at Apple's auth backend / simulator environment.
-
-`-7026` (`AKAuthenticationError`) is an auth failure at the AuthKit layer, and `Code=1000` is a general authorization failure. Apple Sign In is unreliable in the simulator.
-
-### Fix: switch to real-device verification
-
-There was no point digging further in the simulator. I decided to **verify Apple Sign In on a real device**. To do that, I first needed Apple Developer-side setup (section 10).
-
-### Lesson
-
-> **Don't trust the simulator for Apple Sign In.** If you see the `AuthorizationError 1000` + `AKAuthenticationError -7026` combination, suspect the environment (whether iCloud is signed in, the simulator SIWA bug) before you suspect the code. If the request fired all the way to AuthKit, your request construction is correct. Move to a real device to verify.
-
-## 10. Apple Developer — enabling the capability on two App IDs
-
-For real-device verification I worked in the Apple Developer console. We use **two bundle IDs, dev/prod**.
-
-- `com.example.myapp.dev` (development)
-- `com.example.myapp` (production)
-
-The bundle ID branches in the variant config in `app.config.ts`.
-
-```typescript
-const variantConfig = {
-  development: { bundleIdentifier: 'com.example.myapp.dev' /* ... */ },
-  production: { bundleIdentifier: 'com.example.myapp' /* ... */ },
-}[variant];
-```
-
-In Apple Developer I **enabled the "Sign in with Apple" capability on each of these two App IDs**. If you miss the dev bundle ID, SIWA won't work in development builds — you have to enable both.
-
-### Lesson
-
-> For multi-variant apps, **enable the capability on every bundle ID without omission (especially `.dev`)**. It's easy to miss the bundle ID that development builds use.
-
-## 11. Rebuild — capability gets baked into the entitlement, so build in the cloud
-
-Enabling the capability wasn't the end.
-
-### Pitfall: the capability is baked into the provisioning profile / entitlement
-
-The "Sign in with Apple" capability isn't a simple code flag; it's a **native setting baked into the provisioning profile and entitlement**. The existing dev client is a binary built without this entitlement, so enabling the capability isn't reflected in that build. You **must rebuild with a new provisioning profile**.
-
-One general rule became clear here.
-
-> **Native changes (module additions / capability / config plugin) require a rebuild. JS changes are fine with hot reload (Fast Refresh).**
-
-Adding the Kakao/Apple modules, registering plugins, the Apple capability — all native changes, so a dev client rebuild was mandatory. Conversely, JS changes like modifying `useSocialLogin` logic were reflected instantly via hot reload.
-
-### No cable, so EAS cloud build
-
-I happened to have no cable to connect a real device, so instead of a local build I ran an **EAS cloud build**. I ran into a few things during the cloud build.
-
-- **Export compliance question (`usesNonExemptEncryption`)**: the build/submit process asks about encryption usage. We use only HTTPS / standard encryption and don't implement our own non-standard encryption, so we're "exempt" — i.e., I answered that we don't use non-standard encryption. (You can also bake `ITSAppUsesNonExemptEncryption` into `app.config.ts`/`Info.plist` so it isn't asked every time.)
-- **Apple account login → automatic certificate/profile generation**: when you log into EAS with your Apple account, it **auto-generates/renews the certificate and provisioning profile** and automatically reflects the enabled capability. There was no need to download and manage the profile by hand. This was the biggest convenience of the cloud build.
-
-### Lesson
-
-> Capability/entitlement changes only take effect when you **rebuild with a new provisioning profile**. Native change → rebuild, JS-only change → hot reload. If you have no cable or certificate management is a hassle, automate certificates/profiles/capabilities with an **EAS cloud build + Apple account integration**.
-
-## The whole flow at a glance
-
-Here's what happens when a button is tapped once.
-
-1. The Kakao/Apple buttons in `LoginScreen` only call `signIn("kakao" | "apple")`. (They pass only the provider identifier and know nothing else. `disabled={isPending}` prevents double-tap.)
-2. `useSocialLogin` blocks double-taps via `pendingProvider` and pulls the strategy from the `registry`.
-3. It checks availability with `strategy.isAvailable()` → runs the native SDK login with `strategy.signIn()`.
-4. The strategy returns a normalized `SocialAuthResult` with the token (+ profile for Apple).
-5. (Phase A) confirm token acquisition via the DEV console. (Phase B, after the backend contract is finalized) send this result to the backend to route new/existing members.
-6. On failure: silently ignore SDK-layer `canceled`, handle the rest per kind.
-
-```tsx
-// LoginScreen.tsx — the button passes only the identifier
-<Pressable
-  onPress={() => { void signIn("kakao"); }}
-  disabled={isPending}
-  accessibilityLabel="Log in with Kakao"
->
-```
-
-Thanks to this structure, when adding Google/Naver, `LoginScreen` just adds one more button and calls `signIn("google")`. The orchestration, error handling, and backend calls don't get touched at all.
-
-## A checklist I wish I'd had from the start
-
-If I wired up social login again, I'd verify these before writing any code.
-
-- [ ] **Check the package's new-arch support**: on RN 0.85 (New Arch enforced), first check the React Native Directory's new-arch metadata and whether it ships an Expo config plugin. "Famous" is not the criterion.
-- [ ] **Apple name/email are one-time**: design upfront a structure that captures them from the first response and carries them through the end of signup.
-- [ ] **Check the config plugin's throw conditions**: wrap plugins that throw on a required value in conditional registration (`...(key ? [plugin] : [])`). Otherwise one missing value kills the entire build.
-- [ ] **expo/eas from the app directory**: don't run them from the monorepo root. If an empty `app.json` gets created, delete it.
-- [ ] **EAS env for both dev/prod**, locally use `eas env:pull` for `.env.local`.
-- [ ] **Measure cancel codes empirically**: if not documented, confirm directly with a temporary debug log. May differ per platform. Ignore cancellation silently.
-- [ ] **Verify Apple on a real device**: the simulator can't be trusted. `Code=1000`/`-7026` is usually an environment problem.
-- [ ] **SIWA capability on both App IDs (including `.dev`) in Apple Developer**.
-- [ ] **Native change = rebuild, JS change = hot reload**: capability/module/plugin all need a rebuild. No cable → EAS cloud build + Apple account integration to automate certificates.
-- [ ] **Two-layer error design**: SDK layer (cancel/unavailable) vs backend layer. Cancellation is only caught at the SDK layer.
-
-## Key summary
-
-| Step              | Pitfall                                                | Fix                                                                |
-| ----------------- | ------------------------------------------------------ | ------------------------------------------------------------------ |
-| Package selection | seoul package's new-arch unverified                    | `@react-native-kakao`, new-arch first-class + ships an Expo plugin |
-| Apple profile     | name/email only the first time                         | capture into `profile` from the first response, carry to signup    |
-| config plugin     | throws on empty app key → whole build dies             | `...(key ? [plugin] : [])` conditional registration                |
-| EAS env           | run at repo root → project not linked / empty app.json | run from the app directory, `eas env:pull`                         |
-| Kakao cancel      | cancel code undocumented                               | empirical via debug log → iOS `"Cancelled"`                        |
-| Apple simulator   | `1000`/`-7026`                                         | environment problem (not the code), verify on a real device        |
-| Rebuild           | capability baked into the entitlement                  | rebuild with a new profile (EAS cloud + Apple account)             |
-
-The difficulty of social login wasn't in the code — it was **outside the code**. New-arch package metadata, per-platform one-time/cancel behavior, config plugin throw conditions, where to run EAS, the entitlement rebuild trigger — had I known these boundaries in advance, I'd have saved a lot of time. But in exchange I gained a structure — a **provider-agnostic strategy pattern + two-layer error design** — where the next provider (Google/Naver) can be wired up by editing just 3 places. I'm curious how much this skeleton will earn its keep in the next steps: backend integration and token persistence.
-
-## Part 2: Wiring up the backend — OIDC, nonce, and entitlement/merge hell
-
-Part 1 was "up to obtaining a token via the native SDK (Phase A)." Part 2 is the sequel about wiring **backend authentication (Phase B)** on top of that skeleton. This time I struggled not outside the code, but in the **concepts (OIDC/nonce)**, **inside the build (entitlement)**, and in **git merges**. And the **true culprit** behind the Apple Code 1000 I'd concluded was "the simulator can't be trusted" in Part 1 finally comes to light.
-
-The premises are the same as Part 1 (monorepo / Expo SDK 56 / dev client). Additionally, this time the backend (NestJS) was a **developer's local server** exposed via ngrok, and our app connected to it through `EXPO_PUBLIC_API_BASE_URL` in `.env.local`.
-
-## 12. The backend contract wasn't fully in Swagger — I probed it directly
-
-Phase B started with knowing "what the backend accepts." I opened Swagger — the endpoints were there, but **the request parameters weren't documented.**
-
-- `GET /auth/apple-callback` — parameters: only the `Platform` header. Summary: "Apple login (idToken)".
-- `GET /auth/kakao-mobile-callback` — parameters: only the `Platform` header. Summary: "Kakao login".
-- For comparison, `GET /auth/google-callback-token` — here the `accessToken` query was **explicitly specified**.
-
-It was clear tokens come in via query (since Google does), but for apple/kakao I couldn't tell the parameter name from Swagger alone. So I **probed the real endpoints directly**. Since they're GET, I could safely poke with dummy values.
-
-```bash
-# Reverse-engineer the contract with dummy values (Platform header required)
-curl -H "Platform: myapp" "$BASE/auth/apple-callback?idToken=test"
-# → 401 {"message":"Invalid Apple token"}  ← failed while reading/validating idToken = correct param name
-
-curl -H "Platform: myapp" "$BASE/auth/kakao-mobile-callback?code=test"
-# → 500 "authorization code not found for code=test"  ← it expects code (authorization code)!
-
-curl -i -H "Platform: myapp" "$BASE/auth/kakao-mobile-callback"   # with no params
-# → 302 Location: https://kauth.kakao.com/oauth/authorize?...redirect_uri=kakao{appKey}://oauth
-```
-
-Two things surfaced here.
-
-1. **Every endpoint requires the `Platform: myapp` header** (the origin identifier for a multi-app backend). → I baked it into the apiClient default headers.
-2. **The Kakao callback takes `code` (authorization code) and the server does the token exchange itself.** But our SDK doesn't give us an authorization code (sections 13–14). This is where the contract mismatch blew up.
-
-I confirmed the response schema by probing too: on success, `SignInExternalResponse { accessToken, refreshToken, user }`.
-
-```typescript
-// apiClient.ts — inject the Platform header on every request
-const PLATFORM = 'myapp';
-export const apiClient = axios.create({
-  baseURL: env.apiBaseUrl,
-  timeout: 10_000,
-  headers: { Platform: PLATFORM },
-});
-```
-
-### Lesson
-
-> When API docs are incomplete, **safely probe the real endpoints** (GET + dummy values) to reverse-engineer the contract. Error messages reveal parameter names (`Invalid Apple token` = it read idToken, `authorization code not found` = it expects code). If every request needs a common header, bake it into the client defaults once.
-
-## 13. Concepts — OAuth 2.0, OIDC, accessToken vs idToken, nonce
-
-Let me pause here and lay out the concepts I properly understood for the first time. Without these, the decision in section 14 won't make sense.
-
-### OAuth 2.0 vs OpenID Connect (OIDC)
-
-- **OAuth 2.0 = authorization**. A framework for delegating "what this app can do _on behalf of_ the user." The output is an **access token** — you call resource APIs with it (e.g., Kakao `/v2/user/me`). OAuth isn't originally about "who is this user (authentication)."
-- **OIDC = an authentication layer**. A standard **layered on top of** OAuth 2.0 that additionally issues an **ID Token** proving "who this user is." The ID Token is a **signed JWT**.
-
-### access token vs ID token — the backend validates them differently
-
-|                    | **access token**                                                        | **ID token (OIDC)**                                                                           |
-| ------------------ | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| What it is         | usually an opaque string                                                | a signed JWT (header.payload.signature)                                                       |
-| Use                | calling provider APIs                                                   | proving user identity                                                                         |
-| Backend validation | must **call** the provider API (`/v2/user/me`) → one network round-trip | **verify only the signature** with the provider's public key (JWKS) → offline, no call needed |
-| Contained info     | none (no info in the token itself)                                      | claims like `sub` (unique ID), `iss` (issuer), `aud` (audience app), `exp` (expiry)           |
-
-**Apple's `identityToken` is exactly an ID Token.** That's why Apple backend validation ends at "verify signature + iss/aud/exp" — the reason Apple was easy in Part 1. **Kakao also gives an `idToken` once you enable OIDC.**
-
-### nonce — a one-time random number for replay/injection defense
-
-- A **nonce** (number used once) is a **one-time random value** created by the client.
-- Flow: the client generates a nonce and **sends it with the login request** → the provider **embeds it as-is into the `nonce` claim of the issued ID Token** and returns it → the backend verifies "the received ID Token's nonce == the nonce I sent."
-- What it prevents: **replay attacks** (reusing a stolen ID Token) and **token injection** (slipping in a token from another session). The nonce binds the response to the login request I just started.
-- Apple recommends using a nonce (typically you sha256-hash a raw nonce into the request, and the ID Token carries that hash).
-
-These three concepts (OIDC / idToken / nonce) are the backdrop for the Kakao decision in section 14.
-
-### Lesson
-
-> **An access token is "validate by calling," an ID token is "validate by signature."** In mobile social login, if the backend accepts an idToken (OIDC), it can verify identity without a round-trip to the provider API, unifying it with the same pattern as Apple. **A nonce is a one-time random number that binds "this response belongs to the request I started" to block replay.**
-
-## 14. Kakao: switching from a `code` mismatch to the OIDC `idToken`
-
-Let's revisit the mismatch revealed in section 12.
-
-- **The backend `kakao-mobile-callback` takes `code` (authorization code) and the server does the token exchange.**
-- But **`@react-native-kakao`'s native `login()` does not expose the authorization code.** The SDK finishes the code exchange internally and gives us only an `accessToken` (+ an `idToken` if OIDC is on).
-
-There were three options.
-
-1. **Make the backend accept the accessToken** → the backend validates/looks up via the Kakao API. (the Google pattern)
-2. **Have the app run the authorization code flow itself** (authorize via expo-auth-session → capture code). → large app-side effort, basically abandoning the SDK.
-3. **Send the OIDC idToken** → the backend **verifies only the signature, exactly like Apple**.
-
-The conclusion was **option 3 (OIDC)**. The validation method is unified with Apple (signature + claims), and the backend doesn't have to round-trip to the Kakao API. The prerequisite is **[Kakao Login] > [Enable OpenID Connect] in the Kakao Developers console** — this must be on for the SDK `login()` response to fill `idToken`.
-
-```typescript
-// kakaoProvider.ts — pick the token to send based on the auth mode (a config switch)
-const kakaoToken = await login();
-const token = (() => {
-  if (kakaoAuthMode === 'oidc') {
-    if (!kakaoToken.idToken) {
-      // If console OIDC is off, idToken comes back empty → fail clearly (easy root-cause tracing)
-      throw socialAuthError(
-        'kakao',
-        'provider',
-        'Did not receive a Kakao idToken. (console OpenID Connect must be enabled)',
-        kakaoToken
-      );
-    }
-    return kakaoToken.idToken;
-  }
-  return kakaoToken.accessToken; // keep the fallback path in code too
-})();
-```
-
-I kept both paths (accessToken/oidc) alive in code and let a single `EXPO_PUBLIC_KAKAO_AUTH_MODE` switch select both the token extraction and the backend endpoint at once (after verification, I set the default to `oidc`).
-
-### I decided not to verify the nonce for Kakao specifically
-
-With OIDC you'd normally verify the nonce. But for Kakao I couldn't. Two reasons.
-
-1. **SDK limitation**: the native `login()` in `@react-native-kakao/user@2.4.5` (= latest on npm) **does not expose a nonce.** The nonce parameter exists only in the web variant, not the native path. Zero related issues/PRs upstream. So to use a nonce with Kakao, the only option was to patch the native code with `patch-package`.
-2. **Backend agreement**: judging the cost not worth it, we agreed with the backend to **verify the Kakao idToken only by signature + `iss`/`aud`/`exp` and omit the nonce (replay defense)**. (Apple's nonce is separate — still undecided.)
-
-I documented the rationale in the `kakaoProvider` comments. Leaving "why we didn't" right next to the code matters — otherwise the next person misreads it as "nonce is missing, a bug?"
-
-### Lesson
-
-> On mobile, the SDK often doesn't give you an authorization code. If the backend expects `code`, **driving an agreement toward the OIDC `idToken` (unifying validation with Apple) is usually the cleanest**. But **OIDC must be enabled in the provider console** first for the idToken to appear. And **if you "intentionally omit" a security feature, leave the rationale in a code comment** — if the SDK doesn't give a nonce, patch-package is the only way, and that trade-off must be recorded.
-
-## 15. The Apple simulator worked this time — Code 1000's real culprit was the entitlement
-
-In Part 1, section 9, I concluded Apple `Code 1000` was "simulator + not signed into iCloud." Wiring Apple again this time, **`Code 1000` came up again.** But this time, dumping the raw error revealed a different cause.
-
-```text
-[SDK] unknown / raw=Error: The authorization attempt failed for an unknown reason
-```
-
-Paradoxically, this error appearing means **the native module is linked correctly and `ASAuthorizationController` fired normally** (if the module were missing you'd get a "module not linked" kind of error). So I dug into the build artifact directly.
-
-```bash
-# Check the entitlements of the app installed on the simulator
-codesign -d --entitlements - "$APP"
-# → <dict></dict>  ← empty! no com.apple.developer.applesignin
-```
-
-**The real culprit**: the dev client currently on the simulator was a **binary built _before_ `expo-apple-authentication` was added to `app.config.ts`**. So the `com.apple.developer.applesignin` entitlement wasn't in the build, and Sign in with Apple on an app without that entitlement always dies with `Code 1000`. It was a **pure native problem that a JS/env reload can never fix**.
-
-> In other words, **`Code 1000` has more than one cause** — (a) the entitlement isn't in the build, (b) the simulator/iCloud environment. Part 1 guessed (b), but this time the key was **(a)**. And once the entitlement was properly baked in, **Apple login worked even on the simulator** (with an Apple ID signed in). "The simulator can't be trusted" was only half right.
-
-### Fix: inject the entitlement via prebuild → rebuild
-
-```bash
-cd apps/mobile
-npx expo prebuild --clean -p ios   # regenerate only ios/ (don't touch Android work) → inject entitlement
-```
-
-After prebuild, `ios/MyAppDev/MyAppDev.entitlements` had `com.apple.developer.applesignin: [Default]`. When verifying after the rebuild, there was another pitfall.
-
-### Pitfall: simulator entitlements don't show up in `codesign -d`
-
-When I checked the rebuilt .app with `codesign -d --entitlements`, it **still looked empty.** Turns out simulator-build entitlements go into a separate file.
-
-```bash
-find ios/build -name "*-Simulated.xcent" -exec /usr/libexec/PlistBuddy -c Print {} \;
-# → com.apple.developer.applesignin = Array { Default }
-#   application-identifier = FAKETEAMID.com.example.myapp.dev
-```
-
-**`*-Simulated.xcent`** is the entitlements the simulator runtime actually reads. `codesign -d` (embedded signature entitlements) looking empty is normal on the simulator. `applesignin` is normally a **restricted entitlement** requiring a team/profile, but the simulator applies it via `FAKETEAMID`, so Sign in with Apple works **even without a real certificate**.
-
-### Lesson
-
-> On Apple `Code 1000`, before suspecting the code, check both **(1) whether the `applesignin` entitlement is baked into the build (check `*-Simulated.xcent`), (2) whether the simulator is signed into an Apple ID**. **If you added a native module/plugin, you must rebuild** — a build from _before_ the addition obviously lacks the entitlement. And for simulator entitlements, look at `*-Simulated.xcent`, not `codesign -d`.
-
-## 16. The simulator-build pitfall — `expo run:ios` kept going to the Mac
-
-To rebuild, I ran `yarn myapp:ios` (= `expo run:ios`) and got an odd error.
-
-```text
-› Your computer requires some additional setup before you can build onto physical iOS devices.
-CommandError: No code signing certificates are available to use.
-```
-
-I'm trying to build for the simulator — why the "physical iOS devices" signing talk? The device list revealed the culprit.
-
-```bash
-xcrun xctrace list devices
-# Dev-MacBook (……)          ← the only non-simulator target is the "Mac" (no real device)
-# iPhone 17 Simulator (……)
-# …
-```
-
-**Since there's no real device**, `expo run:ios` in a non-interactive situation (background, no prompts) **picked `Dev-MacBook` (the Mac itself) as the default target**, and a Mac/device build requires code signing, so it died. Even passing `--device <simulatorUDID>` failed the same way because **the `--device` flag itself branches into the "device path."**
-
-### Fix: build directly to the simulator with `xcodebuild`
-
-Bypassing expo's device selection, I explicitly set the simulator destination with `xcodebuild`.
-
-```bash
-# 1) Boot the simulator
-xcrun simctl boot "iPhone 17"
-
-# 2) Build directly to the simulator destination (no signing overrides!)
-cd apps/mobile/ios
-xcodebuild -workspace MyAppDev.xcworkspace -scheme MyAppDev \
-  -configuration Debug -sdk iphonesimulator \
-  -destination 'id=<simulator UDID>' -derivedDataPath build build
-
-# 3) Install + launch
-xcrun simctl install booted "build/Build/Products/Debug-iphonesimulator/MyAppDev.app"
-xcrun simctl launch booted com.example.myapp.dev
-```
-
-### Pitfall: passing `CODE_SIGNING_ALLOWED=NO` skips the entitlement
-
-At first, to dodge the "No code signing certificates" error, I passed `CODE_SIGNING_ALLOWED=NO`. The build succeeded, but — **the entitlement-embedding step was skipped entirely**, reproducing the section 15 problem (`-Simulated.xcent` came out empty). The simulator must build with the **default ad-hoc signing** (`CODE_SIGN_IDENTITY = -`, no certificate needed) for the entitlement to be baked in. So the answer was **to pass no signing-related overrides at all**. (The "No code signing" error happened because the target was the Mac/device, not the simulator in the first place; simulator builds don't need a certificate.)
-
-### Lesson
-
-> With no real device, `expo run:ios` (non-interactive) **picks the Mac as the default target** and throws a signing error. `--device` also leaks into the device path. To reliably build to the simulator, **build directly with `xcodebuild -sdk iphonesimulator -destination 'id=<UDID>'` → `simctl install/launch`**. And **don't pass signing overrides (`CODE_SIGNING_ALLOWED/REQUIRED=NO`)** to a simulator build — entitlement embedding gets skipped. The default ad-hoc signing bakes in the entitlement without a certificate.
-
-## 17. Attaching to a local backend via ngrok — env restarts and the truth about 502
-
-A backend developer exposed their local server via ngrok, so I connected to it for real-environment testing. I changed the API URL in `.env.local` to the ngrok address — and it didn't take effect immediately.
-
-### `EXPO_PUBLIC_*` is bundle-time inlined → a Metro `--clear` restart is mandatory
-
-`EXPO_PUBLIC_*` env vars are **inlined into the code at bundle-build time**, not at runtime. So editing only `.env.local` and reloading the app doesn't change it, because **the already-running Metro is still holding the old value**. You have to **restart Metro with `--clear`** for the new env to be baked into the bundle.
-
-```bash
-# after editing .env.local
-yarn myapp:start --clear   # restart Metro + clear cache → inline the new EXPO_PUBLIC_*
-# then reload the app (dev client deep link or ⌘R)
-```
-
-The same happened when I added the new env mode (`EXPO_PUBLIC_KAKAO_AUTH_MODE=oidc`) — before restarting Metro it kept running in the default (accessToken) mode.
-
-### The truth about 502 `ERR_NGROK_8012` — not my app, but beyond the tunnel
-
-Apple login finally got to the brink of success, then the backend call returned a 502.
-
-```text
-[API] http (502) ... ERR_NGROK_8012
-"the agent failed to establish a connection to the upstream web service at localhost:3001.
- dial tcp [::1]:3001: connect: connection refused"
-```
-
-At first I suspected our app/network, but reading the message made it clear: **the ngrok agent is up, but the upstream beyond it (the backend `localhost:3001`) refused the connection** = the backend developer had briefly taken the server down for debugging. Once the server was back up, the same URL connected immediately, and both Apple and Kakao (OIDC) **logged in end-to-end successfully**.
-
-> Note: if the backend is paused at a breakpoint, axios `timeout: 10_000` (10s) will cut it off. Temporarily raising the timeout or setting it to 0 (unlimited) during debugging is convenient. (Revert when done.)
-
-### Lesson
-
-> When you change `EXPO_PUBLIC_*`, **restart Metro with `--clear`** — an app reload alone won't bake it in (bundle-time inline). And **an ngrok 502 (`ERR_NGROK_8012`) is a signal to look beyond the tunnel, not at your app** ("connection refused at upstream"). Read the upstream address in the error message (`localhost:3001`) literally and the culprit appears.
-
-## 18. New/existing member branching — the response had no `isNewMember`
-
-Login itself worked, and I had to route "new signups to the terms flow, existing members to home." But `SignInExternalResponse` had **no explicit new/existing flag.** Looking at the response user object, there was an `isTemporal` (temporary/incomplete-signup) field, and empirically it came back as **`true` on a new signup**.
-
-```typescript
-// useSocialLogin.ts — branch new/existing from the backend response
-const isNewMember = response.user.isTemporal; // a temporary (incomplete-signup) user = treated as new
-// TODO(JIRA-301): after introducing (auth)/(app) screen groups, branch routing by isNewMember
-```
-
-The actual routing (screen-group branching) and token persistence are a follow-up ticket (JIRA-301), so here I only did the branch decision + temporary in-memory token storage.
-
-### Lesson
-
-> The response may not have a "new or not" explicit field. In that case, **infer new/existing by empirically reading status fields** like `isTemporal`/`isPhoneVerified`, but leave that assumption (which field you judged by) in a code comment/PR so it can be agreed with the backend.
-
-## 19. Merge hell — after a stacked PR got squash-merged
-
-The final gate was git. This branch had been worked **stacked on top of the (still-unmerged) API-client PR and login-screen PR**. But those two PRs got **squash-merged into develop** — the individual commits were collapsed into a **single commit (different SHA)**, and develop had also accumulated plenty of unrelated work in the meantime. Raising the PR as-is would obviously conflict.
-
-### rebase or merge
-
-- **rebase `--onto`**: replant only my 8 commits onto the new develop. The history stays clean (linear), but you can hit **repeated conflicts per commit** in files like `package.json`/`app.config.ts`, plus you need a **force-push**.
-- **merge**: merge develop into the branch. Conflicts **once**, **no force-push needed (safe)**.
-
-**Decision = merge.** The decisive reason is that **our team squash-merges PRs**. That way the branch's messy history won't remain in develop anyway, and what matters is **whether the PR's 3-dot diff ("Files changed") shows only my work** — and since develop remains the common ancestor after the merge, that diff shows only my changes. It's safe and conflicts finish in one pass.
-
-### Resolving 6 conflicting files
-
-```text
-LoginScreen.tsx  → "graft" our useSocialLogin wiring onto develop's theme-aware UI (useTheme/palette)
-_layout.tsx      → union (develop's Sentry/Analytics/ThemeProvider + our initSocialAuth)
-apiClient.ts     → keep our version (Platform header = an addition develop lacks)
-package.json     → union (kakao·apple + sentry, all of them)
-yarn.lock        → take develop's, then regenerate with `yarn install` (no hand-merging!)
-app.config.ts    → auto-merge succeeded (union of kakao+apple+sentry plugins)
-ChatScreen.tsx   → keep develop's (develop reworked RootScreen→ChatScreen; our deletion was an old remnant)
-```
-
-In particular, `LoginScreen` wasn't a simple either/or — it was a merge that **grafts our login behavior (`signIn`/`pendingProvider`) onto develop's new UI (theme tokenization)**. When the two sides have different "intents" (one is a UI improvement, the other is behavior wiring), you must **keep both and compose them**.
-
-### Pitfall: don't hand-merge `yarn.lock`
-
-Trying to resolve a `yarn.lock` conflict by hand is hell. The standard move is to **take one side wholesale (usually the more recent develop) and then regenerate with `yarn install`**. The lock reconciles itself based on the merged `package.json`.
-
-```bash
-git checkout --theirs -- yarn.lock
-yarn install            # regenerate the lock based on the merged package.json
-git add yarn.lock
-```
-
-After merging, I always **verified the PR was clean with the 3-dot diff**.
-
-```bash
-git diff origin/develop...HEAD --stat   # only my work's files should appear
-```
-
-### Lesson
-
-> **When a stacked PR's base gets squash-merged**, the branch on top ends up carrying the base redundantly. If your team **squash-merges** (so branch history won't remain in develop), **merge is safer than rebase** — conflicts once, no force-push, and the 3-dot PR diff still shows only my work cleanly. **Take one side for `yarn.lock` and regenerate with `yarn install`**, and **resolve conflicts as "composing both intents," not "either/or."**
-
-## Part 2 checklist I wish I'd had from the start
-
-- [ ] **Reverse-engineer the API contract by probing**: when docs are empty, poke with GET + dummy values and read parameter names from error messages. Put common headers (`Platform`) in the client defaults.
-- [ ] **Unify on the OIDC `idToken`**: if the mobile SDK doesn't give an authorization code, agree to have the backend accept the idToken (signature validation) → unify validation with Apple. Enable OIDC in the provider console first.
-- [ ] **Put the rationale for omitting security in the code**: if you can't use a nonce (SDK doesn't expose it), comment why. SDK limitations may have no answer beyond patch-package.
-- [ ] **For Apple `Code 1000`, start with the entitlement**: after adding a native module/plugin, **a rebuild is mandatory**. Check the entitlement via `*-Simulated.xcent` (not `codesign -d`). + sign into an Apple ID on the simulator.
-- [ ] **Build to the simulator directly with `xcodebuild -sdk iphonesimulator`**: with no real device, `expo run:ios` leaks to the Mac. **No signing overrides (`CODE_SIGNING_*=NO`)** — the entitlement won't be baked in.
-- [ ] **Changed `EXPO_PUBLIC_*`? Restart Metro with `--clear`**: an app reload alone won't bake it in.
-- [ ] **An ngrok 502 points beyond the tunnel**: `ERR_NGROK_8012` = upstream (backend) down. Not my app.
-- [ ] **Infer new/existing from status fields**: with no explicit flag, use `isTemporal` etc. Record the assumption.
-- [ ] **Stacked PR + squash merge = merge is safer**: no force-push needed, just keep the 3-dot diff clean. Take one side for `yarn.lock` and regenerate with `yarn install`.
-
-## Part 2 key summary
-
-| Step                     | Pitfall                                                             | Fix                                                                         |
-| ------------------------ | ------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Backend contract         | params undocumented in Swagger                                      | probe the real endpoints (GET + dummy) → reverse-engineer from errors       |
-| Kakao token              | backend wants `code`, SDK doesn't expose code                       | adopt the **OIDC `idToken`** (unify validation with Apple)                  |
-| nonce                    | `@react-native-kakao` native doesn't expose nonce                   | omit nonce for Kakao only (signature + iss/aud/exp), document the rationale |
-| Apple Code 1000          | dev client lacks the entitlement (built before adding the plugin)   | inject the entitlement via prebuild, then **rebuild**                       |
-| Checking sim entitlement | `codesign -d` looks empty                                           | look at `*-Simulated.xcent`                                                 |
-| Sim build                | `expo run:ios` falls back to the Mac / `*=NO` skips the entitlement | `xcodebuild -sdk iphonesimulator`, no signing overrides                     |
-| Env propagation          | `EXPO_PUBLIC_*` doesn't change                                      | restart Metro with `--clear` (bundle-time inline)                           |
-| 502                      | suspecting my app                                                   | `ERR_NGROK_8012` = upstream (backend) down                                  |
-| Merge                    | the stacked base got squash-merged                                  | **merge** (safe under a squash workflow), regenerate `yarn.lock`            |
-
-If Part 1's difficulty was "outside the code (build/console/where you run things)," Part 2's difficulty was in the **concepts (OIDC/nonce), inside the build (entitlement), and git**. That the real culprit behind Apple `Code 1000` was the entitlement — that the same symptom can have multiple causes — was the biggest lesson. In the end I **unified Apple and Kakao (OIDC) under the same "verify a signed idToken" pattern**, layered backend integration onto the `provider-agnostic` skeleton, and finished preparing to hand off to the next ticket (JIRA-301: token persistence and auto-login).
+That was "the design before writing code."
+In [Part 2](/en/blog/articles/expo-social-login-build) I actually push a build and fight my way to a token on a device — measuring Kakao's cancel code empirically, and getting stuck hard on the Apple simulator.
