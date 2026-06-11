@@ -49,15 +49,26 @@ describe('SocialLinks', () => {
       expect(linkedinLink).toHaveAttribute('href', expect.stringContaining('linkedin.com'));
     });
 
-    it('should render links with external link attributes', () => {
+    it('should open external (http) links in a new tab', () => {
       render(<SocialLinks />);
 
-      const links = screen.getAllByRole('link');
+      const externalLinks = screen.getAllByRole('link').filter(link => link.getAttribute('href')?.startsWith('http'));
 
-      links.forEach(link => {
+      expect(externalLinks.length).toBeGreaterThan(0);
+      externalLinks.forEach(link => {
         expect(link).toHaveAttribute('target', '_blank');
         expect(link).toHaveAttribute('rel', 'noopener noreferrer');
       });
+    });
+
+    it('should render a mailto link without new-tab attributes', () => {
+      render(<SocialLinks />);
+
+      const mailtoLink = screen.getAllByRole('link').find(link => link.getAttribute('href')?.startsWith('mailto:'));
+
+      expect(mailtoLink).toBeDefined();
+      expect(mailtoLink).not.toHaveAttribute('target');
+      expect(mailtoLink).not.toHaveAttribute('rel');
     });
 
     it('should render decorative SVG icons hidden from the a11y tree', () => {
@@ -86,12 +97,13 @@ describe('SocialLinks', () => {
       expect(linkedinLink).toBeInTheDocument();
     });
 
-    it('should render links with external link attributes in compact mode', () => {
+    it('should open external (http) links in a new tab in compact mode', () => {
       render(<SocialLinks variant="compact" />);
 
-      const links = screen.getAllByRole('link');
+      const externalLinks = screen.getAllByRole('link').filter(link => link.getAttribute('href')?.startsWith('http'));
 
-      links.forEach(link => {
+      expect(externalLinks.length).toBeGreaterThan(0);
+      externalLinks.forEach(link => {
         expect(link).toHaveAttribute('target', '_blank');
         expect(link).toHaveAttribute('rel', 'noopener noreferrer');
       });

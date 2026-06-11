@@ -22,7 +22,8 @@
     "latestPosts": "Latest Post",
     "recentPosts": "Recent Posts",
     "listeningTo": "Listening to Spotify",
-    "lastPlayed": "Last Played on Spotify"
+    "lastPlayed": "Last Played on Spotify",
+    "aboutCta": "More about me"
   },
   "blog": {
     "title": "Blog",
@@ -73,9 +74,10 @@
   "about": {
     "title": "About",
     "description": "Hello, I'm Wan Sim.",
+    "role": "Frontend Engineer at Apartmentary",
     "intro": "I am a software engineer who values positivity, efficiency, and honesty.\nThis is a space where I refactor the tangled thoughts in my head into clean text.\nWhile this blog serves more as a personal record than a content for others, it is always open.\n\nFeel free to look around, just like browsing through my source code.",
-    "contact": "Contact",
-    "email": "Email"
+    "stackTitle": "Tech Stack",
+    "nowCta": "What I'm up to now"
   },
   "now": {
     "lastUpdated": "Last updated"

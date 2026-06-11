@@ -19,7 +19,7 @@ describe('Social Links Utility', () => {
 
     it('should have valid URLs', () => {
       socialLinks.forEach((link: SocialLink) => {
-        expect(link.url).toMatch(/^https?:\/\//);
+        expect(link.url).toMatch(/^(https?:\/\/|mailto:)/);
       });
     });
 
@@ -33,6 +33,13 @@ describe('Social Links Utility', () => {
       const linkedin = socialLinks.find(link => link.name === 'LinkedIn');
       expect(linkedin).toBeDefined();
       expect(linkedin?.url).toContain('linkedin.com');
+    });
+
+    it('should include a non-external Email mailto link', () => {
+      const email = socialLinks.find(link => link.name === 'Email');
+      expect(email).toBeDefined();
+      expect(email?.url).toMatch(/^mailto:/);
+      expect(email?.external).toBe(false);
     });
   });
 
@@ -49,6 +56,13 @@ describe('Social Links Utility', () => {
       const icon = getIcon('linkedin');
       expect(icon).not.toBeNull();
       expect(icon).toHaveProperty('path');
+      expect(typeof icon?.path).toBe('string');
+      expect(icon?.path.length).toBeGreaterThan(0);
+    });
+
+    it('should return icon path for mail', () => {
+      const icon = getIcon('mail');
+      expect(icon).not.toBeNull();
       expect(typeof icon?.path).toBe('string');
       expect(icon?.path.length).toBeGreaterThan(0);
     });
