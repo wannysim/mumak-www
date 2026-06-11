@@ -31,16 +31,16 @@ export function SocialLinks({ variant = 'default', className, noWrapper = false 
   const isCompact = variant === 'compact';
   const isMinimal = variant === 'minimal';
 
-  const links = socialLinks.map(({ name, url, iconSlug, ariaLabel }: SocialLink) => {
+  const links = socialLinks.map(({ name, url, iconSlug, ariaLabel, external = true }: SocialLink) => {
     const label = ariaLabel || `Visit ${name}`;
+    const externalProps = external ? { target: '_blank', rel: 'noopener noreferrer' } : {};
 
     if (isMinimal) {
       return (
         <a
           key={name}
           href={url}
-          target="_blank"
-          rel="noopener noreferrer"
+          {...externalProps}
           aria-label={label}
           className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
         >
@@ -60,7 +60,7 @@ export function SocialLinks({ variant = 'default', className, noWrapper = false 
           aria-label={label}
           className="text-muted-foreground hover:text-foreground"
         >
-          <a href={url} target="_blank" rel="noopener noreferrer">
+          <a href={url} {...externalProps}>
             <Icon slug={iconSlug} className="size-4" />
             <span className="sr-only">{label}</span>
           </a>
@@ -70,7 +70,7 @@ export function SocialLinks({ variant = 'default', className, noWrapper = false 
 
     return (
       <Button key={name} variant="outline" size="sm" asChild aria-label={label} className="gap-2">
-        <a href={url} target="_blank" rel="noopener noreferrer">
+        <a href={url} {...externalProps}>
           <Icon slug={iconSlug} className="size-4" />
           <span>{name}</span>
         </a>

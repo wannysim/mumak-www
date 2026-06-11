@@ -13,6 +13,16 @@ test.describe('Home Page', () => {
     expect(introText).toContain('사사로운 일상부터 개발자로서 고민한 흔적들을 기록하고자 합니다.');
   });
 
+  test('should link to the about page from the intro', async ({ page }) => {
+    await page.goto('/ko');
+
+    const aboutLink = page.locator('a[href="/ko/about"]').first();
+    await expect(aboutLink).toBeVisible();
+
+    await aboutLink.click();
+    await page.waitForURL(/\/ko\/about$/);
+  });
+
   test('should display featured post section', async ({ page }) => {
     await page.goto('/ko');
 

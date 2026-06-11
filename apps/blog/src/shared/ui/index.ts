@@ -1,3 +1,4 @@
+export { ArrowLink } from './arrow-link';
 export { cardSurfaceClass } from './card-surface';
 export { ClientErrorBoundary } from './client-error-boundary';
 export { ContentCard } from './content-card';
