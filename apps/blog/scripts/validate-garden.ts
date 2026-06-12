@@ -1,76 +1,66 @@
 #!/usr/bin/env node
 
-import fs from 'fs';
 import matter from 'gray-matter';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { normalizeHeadingToAnchor } from '../src/shared/lib/wikilink/anchor.ts';
+import { parseWikilinks } from '../src/shared/lib/wikilink/parser.ts';
+import type { WikiLink } from '../src/shared/lib/wikilink/parser.ts';
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDirname = path.dirname(currentFilePath);
 
 const CONTENT_DIR = path.join(currentDirname, '../content');
 const GARDEN_DIR = 'garden';
-const LANGUAGES = ['ko', 'en'];
+const LANGUAGES = ['ko', 'en'] as const;
 const PRIMARY_LANG = 'ko';
 const OUTPUT_SUMMARY = process.argv.includes('--summary');
 
-const VALID_STATUSES = ['seedling', 'budding', 'evergreen'];
-const REQUIRED_FIELDS = ['title', 'created', 'status'];
+const VALID_STATUSES = ['seedling', 'budding', 'evergreen'] as const;
+const VALID_STATUS_SET = new Set<string>(VALID_STATUSES);
+const REQUIRED_FIELDS = ['title', 'created', 'status'] as const;
 
-const WIKILINK_PATTERN = /(!)?\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
 const BLOCK_MARKER_PATTERN = /(?:^|\s)\^([A-Za-z0-9][\w-]*)\s*$/;
 
-function normalizeHeadingToAnchor(heading) {
-  return heading
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{Letter}\p{Number}\s-]/gu, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-');
+type Language = (typeof LANGUAGES)[number];
+
+type Frontmatter = Record<string, unknown> & {
+  parent?: unknown;
+  status?: unknown;
+  tags?: unknown;
+};
+
+type NoteFile = {
+  frontmatter: Frontmatter;
+  content: string;
+};
+
+type AnchorIndex = {
+  headings: Set<string>;
+  blocks: Set<string>;
+};
+
+type ValidationStats = {
+  totalNotes: number;
+  totalLinks: number;
+};
+
+type ValidationResult = {
+  errors: string[];
+  linkCount: number;
+};
+
+function formatValue(value: unknown): string {
+  return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
-function parseWikilinkTarget(rawTarget) {
-  const target = rawTarget.trim();
-
-  if (target.startsWith('#')) {
-    return { slug: '', heading: target.slice(1).trim(), blockId: undefined, isInternal: true, target };
-  }
-
-  if (target.startsWith('^')) {
-    return { slug: '', heading: undefined, blockId: target.slice(1).trim(), isInternal: true, target };
-  }
-
-  if (target.includes('#')) {
-    const [slugPart, ...rest] = target.split('#');
-    const anchorPart = rest.join('#').trim();
-    if (anchorPart.startsWith('^')) {
-      return {
-        slug: slugPart.trim(),
-        heading: undefined,
-        blockId: anchorPart.slice(1).trim(),
-        isInternal: false,
-        target,
-      };
-    }
-    return { slug: slugPart.trim(), heading: anchorPart, blockId: undefined, isInternal: false, target };
-  }
-
-  if (target.includes('^')) {
-    const [slugPart, ...rest] = target.split('^');
-    return { slug: slugPart.trim(), heading: undefined, blockId: rest.join('^').trim(), isInternal: false, target };
-  }
-
-  return { slug: target, heading: undefined, blockId: undefined, isInternal: false, target };
+function extractWikilinkEntries(content: string): WikiLink[] {
+  return parseWikilinks(content);
 }
 
-function extractWikilinkEntries(content) {
-  return [...content.matchAll(WIKILINK_PATTERN)].map(match => {
-    const [, embedMarker, target] = match;
-    return { ...parseWikilinkTarget(target), isEmbed: Boolean(embedMarker) };
-  });
-}
-
-function extractAnchorIndex(content) {
+function extractAnchorIndex(content: string): AnchorIndex {
   const lines = content.split('\n');
   const headings = new Set(
     lines
@@ -83,10 +73,10 @@ function extractAnchorIndex(content) {
   return { headings, blocks };
 }
 
-function getMdxSlugsInDir(dir) {
+function getMdxSlugsInDir(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
 
-  const results = [];
+  const results: string[] = [];
   const entries = fs.readdirSync(dir, { withFileTypes: true });
 
   for (const entry of entries) {
@@ -100,16 +90,16 @@ function getMdxSlugsInDir(dir) {
 
   return results;
 }
-function parseNoteFile(filePath) {
+function parseNoteFile(filePath: string): NoteFile {
   const { data, content } = matter(fs.readFileSync(filePath, 'utf-8'));
   return { frontmatter: data, content };
 }
 
-function normalizeParent(parent) {
+function normalizeParent(parent: unknown): string | undefined {
   return typeof parent === 'string' && parent.trim().length > 0 ? parent.trim() : undefined;
 }
 
-function findFilePath(baseDir, slug) {
+function findFilePath(baseDir: string, slug: string): string | null {
   const exts = ['.mdx'];
   const entries = fs.readdirSync(baseDir, { withFileTypes: true });
 
@@ -128,18 +118,18 @@ function findFilePath(baseDir, slug) {
   return null;
 }
 
-function arraysHaveSameElements(a, b) {
+function arraysHaveSameElements(a: unknown, b: unknown): boolean {
   if (a == null && b == null) return true;
   if (a == null || b == null) return false;
   if (!Array.isArray(a) || !Array.isArray(b)) return false;
   if (a.length !== b.length) return false;
 
-  const sorted = arr => [...arr].toSorted();
+  const sorted = (arr: unknown[]) => [...arr].toSorted();
   return sorted(a).every((val, idx) => val === sorted(b)[idx]);
 }
 
-function generateSummary(errors, warnings, stats) {
-  const lines = [];
+function generateSummary(errors: string[], warnings: string[], stats: ValidationStats): string {
+  const lines: string[] = [];
 
   lines.push('## Garden Content Validation\n');
 
@@ -161,8 +151,8 @@ function generateSummary(errors, warnings, stats) {
     for (const error of errors) {
       const match = error.match(/\[([^\]]+)\]\s*(.+)/);
       if (match) {
-        const file = match[1];
-        const detail = match[2].replace(/\|/g, '\\|');
+        const [, file = '-', rawDetail = error] = match;
+        const detail = rawDetail.replace(/\|/g, '\\|');
         lines.push(`| Error | \`${file}\` | ${detail} |`);
       } else {
         lines.push(`| Error | - | ${error} |`);
@@ -181,7 +171,8 @@ function generateSummary(errors, warnings, stats) {
     for (const warning of warnings) {
       const match = warning.match(/\[([^\]]+)\]\s*(.+)/);
       if (match) {
-        lines.push(`| \`${match[1]}\` | ${match[2].replace(/\|/g, '\\|')} |`);
+        const [, file = '-', rawDetail = warning] = match;
+        lines.push(`| \`${file}\` | ${rawDetail.replace(/\|/g, '\\|')} |`);
       }
     }
 
@@ -191,16 +182,23 @@ function generateSummary(errors, warnings, stats) {
   return lines.join('\n');
 }
 
-function collectFilesByLanguage() {
-  return LANGUAGES.reduce((acc, lang) => {
+function collectFilesByLanguage(): Record<Language, Set<string>> {
+  const filesByLang = {} as Record<Language, Set<string>>;
+
+  for (const lang of LANGUAGES) {
     const gardenPath = path.join(CONTENT_DIR, lang, GARDEN_DIR);
-    acc[lang] = new Set(getMdxSlugsInDir(gardenPath));
-    return acc;
-  }, {});
+    filesByLang[lang] = new Set(getMdxSlugsInDir(gardenPath));
+  }
+
+  return filesByLang;
 }
 
-function checkLanguageSync(filesByLang, primaryFiles, secondaryLangs) {
-  const warnings = [];
+function checkLanguageSync(
+  filesByLang: Record<Language, Set<string>>,
+  primaryFiles: Set<string>,
+  secondaryLangs: Language[]
+): string[] {
+  const warnings: string[] = [];
 
   for (const file of primaryFiles) {
     for (const lang of secondaryLangs) {
@@ -221,8 +219,8 @@ function checkLanguageSync(filesByLang, primaryFiles, secondaryLangs) {
   return warnings;
 }
 
-function validateNote(lang, slug, existingSlugs) {
-  const errors = [];
+function validateNote(lang: Language, slug: string, existingSlugs: Set<string>): ValidationResult {
+  const errors: string[] = [];
   const baseDir = path.join(CONTENT_DIR, lang, GARDEN_DIR);
   const filePath = findFilePath(baseDir, slug);
 
@@ -234,7 +232,8 @@ function validateNote(lang, slug, existingSlugs) {
   try {
     parsed = parseNoteFile(filePath);
   } catch (e) {
-    return { errors: [`[${lang}/${slug}] 파일 파싱 실패: ${e.message}`], linkCount: 0 };
+    const message = e instanceof Error ? e.message : String(e);
+    return { errors: [`[${lang}/${slug}] 파일 파싱 실패: ${message}`], linkCount: 0 };
   }
 
   const { frontmatter, content } = parsed;
@@ -243,8 +242,10 @@ function validateNote(lang, slug, existingSlugs) {
     errors.push(`[${lang}/${slug}] 필수 필드 누락: ${field}`)
   );
 
-  if (frontmatter.status && !VALID_STATUSES.includes(frontmatter.status)) {
-    errors.push(`[${lang}/${slug}] 유효하지 않은 status: "${frontmatter.status}" (허용: ${VALID_STATUSES.join(', ')})`);
+  if (frontmatter.status && (typeof frontmatter.status !== 'string' || !VALID_STATUS_SET.has(frontmatter.status))) {
+    errors.push(
+      `[${lang}/${slug}] 유효하지 않은 status: "${formatValue(frontmatter.status)}" (허용: ${VALID_STATUSES.join(', ')})`
+    );
   }
 
   const parent = normalizeParent(frontmatter.parent);
@@ -257,10 +258,10 @@ function validateNote(lang, slug, existingSlugs) {
   }
 
   const wikilinks = extractWikilinkEntries(content);
-  const anchorCache = new Map();
-  const getAnchorsForSlug = targetSlug => {
+  const anchorCache = new Map<string, AnchorIndex | null>();
+  const getAnchorsForSlug = (targetSlug: string): AnchorIndex | null => {
     if (anchorCache.has(targetSlug)) {
-      return anchorCache.get(targetSlug);
+      return anchorCache.get(targetSlug) ?? null;
     }
 
     const targetPath = findFilePath(baseDir, targetSlug);
@@ -305,29 +306,32 @@ function validateNote(lang, slug, existingSlugs) {
   return { errors, linkCount: wikilinks.length };
 }
 
-function checkFrontmatterConsistency(commonFiles, secondaryLangs) {
-  const warnings = [];
+function checkFrontmatterConsistency(commonFiles: string[], secondaryLangs: Language[]): string[] {
+  const warnings: string[] = [];
 
   for (const slug of commonFiles) {
-    const frontmatters = LANGUAGES.reduce((acc, lang) => {
+    const frontmatters: Partial<Record<Language, Frontmatter>> = {};
+
+    for (const lang of LANGUAGES) {
       try {
         const baseDir = path.join(CONTENT_DIR, lang, GARDEN_DIR);
         const filePath = findFilePath(baseDir, slug);
         if (filePath) {
-          acc[lang] = parseNoteFile(filePath).frontmatter;
+          frontmatters[lang] = parseNoteFile(filePath).frontmatter;
         }
       } catch {
         // 파싱 실패는 validateNote에서 이미 처리됨
       }
-      return acc;
-    }, {});
+    }
 
     if (Object.keys(frontmatters).length !== LANGUAGES.length) continue;
 
     const primaryFm = frontmatters[PRIMARY_LANG];
+    if (!primaryFm) continue;
 
     for (const lang of secondaryLangs) {
       const secondaryFm = frontmatters[lang];
+      if (!secondaryFm) continue;
 
       if (!arraysHaveSameElements(primaryFm.tags, secondaryFm.tags)) {
         warnings.push(
@@ -346,23 +350,24 @@ function checkFrontmatterConsistency(commonFiles, secondaryLangs) {
   return warnings;
 }
 
-function checkParentConsistency(commonFiles, secondaryLangs) {
-  const errors = [];
+function checkParentConsistency(commonFiles: string[], secondaryLangs: Language[]): string[] {
+  const errors: string[] = [];
 
   for (const slug of commonFiles) {
-    const parents = LANGUAGES.reduce((acc, lang) => {
+    const parents: Partial<Record<Language, string | undefined>> = {};
+
+    for (const lang of LANGUAGES) {
       try {
         const baseDir = path.join(CONTENT_DIR, lang, GARDEN_DIR);
         const filePath = findFilePath(baseDir, slug);
         if (filePath) {
           const frontmatter = parseNoteFile(filePath).frontmatter;
-          acc[lang] = normalizeParent(frontmatter.parent);
+          parents[lang] = normalizeParent(frontmatter.parent);
         }
       } catch {
         // 파싱 실패는 validateNote에서 이미 처리됨
       }
-      return acc;
-    }, {});
+    }
 
     if (Object.keys(parents).length !== LANGUAGES.length) continue;
 
@@ -380,7 +385,7 @@ function checkParentConsistency(commonFiles, secondaryLangs) {
   return errors;
 }
 
-function printResults(errors, warnings, stats) {
+function printResults(errors: string[], warnings: string[], stats: ValidationStats): void {
   console.log('━'.repeat(50));
 
   if (warnings.length > 0) {
@@ -401,7 +406,7 @@ function printResults(errors, warnings, stats) {
   console.log(`  - 지원 언어: ${LANGUAGES.join(', ')}\n`);
 }
 
-function validateGarden() {
+function validateGarden(): void {
   const filesByLang = collectFilesByLanguage();
   const primaryFiles = filesByLang[PRIMARY_LANG];
   const secondaryLangs = LANGUAGES.filter(l => l !== PRIMARY_LANG);
@@ -414,7 +419,7 @@ function validateGarden() {
   }
 
   const stats = { totalNotes: 0, totalLinks: 0 };
-  const errors = [];
+  const errors: string[] = [];
 
   for (const lang of LANGUAGES) {
     const existingSlugs = filesByLang[lang];

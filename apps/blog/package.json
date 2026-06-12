@@ -25,7 +25,7 @@
     "test:e2e:debug": "playwright test --debug",
     "clean": "rm -rf .next .turbo coverage test-results playwright-report node_modules/.cache",
     "validate:content": "node scripts/validate-content.mjs",
-    "validate:garden": "node scripts/validate-garden.mjs",
+    "validate:garden": "node --experimental-strip-types scripts/validate-garden.ts",
     "validate:design": "node scripts/validate-design-system.mjs"
   },
   "dependencies": {
