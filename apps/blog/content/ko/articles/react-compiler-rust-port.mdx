@@ -1,0 +1,118 @@
+---
+title: 'React Compiler가 Rust로, 그리고 코드 대부분은 AI가 썼다'
+date: '2026-06-11'
+description: 'PR #36173이 던진 질문 - 성능, AI가 짠 대규모 코드, 그리고 막 독립한 React 거버넌스'
+tags: ['react', 'rust', 'compiler', 'ai', 'open-source']
+draft: false
+---
+
+6월 9일, [React Compiler를 Rust로 포팅하는 PR](https://github.com/react/react/pull/36173)이 머지됐다.
+단순한 성능 패치가 아니다.
+이 글을 쓰게 만든 건 PR 본문에 적힌 한 문장이었다.
+
+> 아키텍처는 사람(나, @josephsavona)이 강하게 주도했지만, 코드의 대부분은 AI가 작성했다.
+
+성능 이야기보다 이 문장이 훨씬 오래 머릿속에 남았다.
+그래서 이번 변화를, 그리고 그 주변에서 나온 여러 목소리를 한번 정리해두기로 했다.
+
+## React Compiler를 Rust로 옮긴다는 것
+
+먼저 맥락. React Compiler는 우리가 손으로 쓰던 `useMemo`, `useCallback`, `memo`를
+빌드 타임에 자동으로 넣어주는 컴파일러다.
+"메모이제이션을 사람이 신경 쓰지 않아도 되는 React"를 향한 핵심 인프라고,
+그동안 TypeScript로 작성되어 Babel 플러그인 형태로 동작해왔다.
+
+이번 PR은 그 컴파일러를 통째로 **Rust로 다시 썼다**.
+중요한 건 "다시 설계"가 아니라 "포팅"이라는 점이다.
+TypeScript 버전과 같은 아키텍처를 그대로 유지한다.
+
+- AST를 받아 HIR(High-level Intermediate Representation)로 변환
+- 그 위에서 CFG(제어 흐름 그래프)와 SSA(정적 단일 할당)를 구성
+- TS 버전과 동일한 pass들을 같은 순서로 통과시키는 pass-by-pass 포팅
+
+설계를 바꾸지 않고 언어만 바꿨기 때문에, "정확히 같은 동작을 더 빠른 런타임에서 돌린다"가 목표가 된다.
+
+## 무엇이 바뀌었나
+
+핵심을 추리면 이렇다.
+
+- **성능**: Babel 플러그인으로 동작할 때 약 3배 빠르고, 변환 로직만 떼어 보면 약 10배 빠르다. JS 런타임 오버헤드가 사라진 만큼 순수하게 빨라진 것이다.
+- **번들러 중립성**: Babel AST의 Rust 표현을 public API로 삼아, 구현체마다 crate를 하나씩 둔다(`react_compiler_swc`, `react_compiler_oxc` 등). Babel뿐 아니라 OXC, SWC에서도 같은 컴파일러를 쓸 수 있게 길을 연 셈이다.
+- **검증**: 1,725개 fixture가 전부 통과하고, pass 단위로 중간 표현(IR)을 비교해 TS 버전과 거의 동일하게 동작함을 확인했다.
+
+방향 자체는 자연스럽다.
+프론트엔드 툴체인은 이미 Rust로 무게중심이 옮겨갔고(SWC, OXC, Turbopack, Biome),
+컴파일러가 빌드마다 매번 도는 도구라는 점을 생각하면 속도는 곧 개발 경험이다.
+"compiled tooling"으로 가는 흐름에 React Compiler가 합류한 것뿐이라고 볼 수도 있다.
+
+그런데 커뮤니티가 진짜로 떠든 지점은 성능이 아니었다.
+
+## 진짜 논쟁은 "누가 썼는가"
+
+PR이 머지되자마자 [Hacker News](https://news.ycombinator.com/item?id=48473662)를 비롯한 여러 곳에서 의견이 갈렸다.
+쟁점은 명확하다. **AI가 대부분 작성한 대규모 코드를, 사람이 끝까지 책임질 수 있는가.**
+
+비판 쪽 목소리는 대략 이렇다.
+
+- **리뷰가 실제로 가능한가**: 수만 줄 규모의 PR이 공개 논의를 거의 거치지 않고 들어왔다. React Fiber 때처럼 RFC와 컨퍼런스 발표로 충분히 예고하던 관행과 대조적이다. "그 규모에서 리뷰가 진짜로 일어나긴 하나"라는 회의.
+- **AI 코드의 품질**: "LLM은 깊은 문제를 이해하기보다 일단 덮어버리는 경향이 있다"는 지적. Rust의 borrow checker를 `RefCell` 같은 우회로로 빠져나가면, 컴파일 타임에 잡혔어야 할 문제가 런타임으로 밀려난다.
+- **지식 이전(cognitive debt)**: 사람이 구현 디테일을 온전히 이해하지 못한 채로 유지보수에 들어가면, 앞으로의 모든 변경이 다시 LLM에 의존하게 되는 구조가 굳어질 수 있다.
+
+옹호 쪽 논리도 약하지 않다.
+
+- **테스트가 가드레일**: 1,725개 fixture와 pass별 IR 비교가 있으니, "기존 동작을 깨지 않는다"는 보장은 사람이 한 줄씩 읽는 것과는 다른 방식으로 확보된다.
+- **Rust 자체가 가드레일**: 타입 시스템과 borrow checker가 공짜로 상당한 안전망을 제공한다.
+- **실용주의**: "일단 동작하는 걸 빠르게 만들고, 자리 잡은 뒤 다듬는다"는 건 표준적인 접근이다. 게다가 이건 실험적·WIP 상태로 공개돼 파트너 피드백을 받는 단계다.
+
+나는 양쪽 다 일리가 있다고 본다.
+다만 이 PR이 특별한 건, 이 논쟁이 더 이상 추상적인 "AI가 코드를 짜도 되나"가 아니라
+**프론트엔드 생태계의 가장 중요한 인프라 중 하나에서 실제로 벌어졌다**는 점이다.
+
+## 하필 지금, 막 독립한 React
+
+타이밍이 묘하다.
+
+불과 얼마 전인 [2025년 10월, Meta는 React를 Linux Foundation 산하의 React Foundation으로 이관했다](https://www.techzine.eu/news/devops/135353/meta-transfers-react-to-linux-foundation/).
+GitHub 조직도 `facebook/react`에서 `react/react`로 옮겨갔다.
+명분은 "더 이상 단일 기업의 직접적 영향 아래 두지 않겠다"는 것이었다.
+인프라(GitHub·CI·상표·React Conf·생태계 grant)는 Foundation이 관리하고,
+기술 방향은 별도의 독립 거버넌스가 정한다.
+창립 멤버에는 Amazon, Callstack, Expo, Meta, Microsoft, Software Mansion, Vercel이 들어갔다.
+
+그러니까 그림은 이렇다.
+**"단일 벤더의 영향력을 줄이겠다"며 거버넌스를 막 독립시킨 직후에,
+가장 큰 변화 중 하나가 공개 논의를 거의 거치지 않고, 그것도 코드 대부분을 AI가 짠 채로 머지됐다.**
+
+이게 모순이라고 단정하긴 어렵다.
+거버넌스 독립은 "의사결정의 소유권"에 대한 이야기고,
+이번 PR은 "구현을 어떻게 만드느냐"에 대한 이야기라, 층위가 다르다.
+하지만 커뮤니티가 기대한 "더 열린 React"의 그림과,
+실제로 목격한 머지 방식 사이에 간극이 있는 것도 사실이다.
+
+## 나는 이걸 어떻게 보나
+
+성능 향상은 분명한 실익이다. 3~10배는 무시할 수 없다.
+방향도 옳다고 생각한다. 의심이 가는 건 속도나 언어 선택이 아니라, **유지보수의 주체**다.
+
+나 역시 [요즘 거의 모든 걸 AI에 위임하면서 묘한 위화감](/ko/notes/thought-25-11-21.mdx)을 느낀 적이 있다.
+문제가 풀린 게 아니라 그냥 사라진 것 같은 감각.
+이번 PR은 그 감각의 산업 규모 버전처럼 보인다.
+[AI 시대에 개발자로 살아남는다는 것](/ko/essay/ai-survival.mdx)이
+"AI가 짠 코드를 이해하고 책임지는 능력"으로 재정의되고 있다면,
+React Compiler의 Rust 포팅은 그 변화를 가장 선명하게 보여주는 사례다.
+
+진짜 시험대는 머지 직후가 아니라 6개월 뒤다.
+미묘한 버그 리포트가 올라왔을 때,
+메인테이너가 그 Rust 코드를 **사람의 머리로** 따라가 고칠 수 있는가.
+아니면 다시 LLM에게 "이거 고쳐줘"라고 넘기게 되는가.
+그 답이 이번 실험이 성공인지 아닌지를 결정할 것 같다.
+
+지금은 흥미롭게 지켜보는 중이다.
+React가 한 번 더, 모두가 따라 할 선례를 만들고 있기 때문이다 -- 좋은 쪽이든, 아니든.
+
+## 참고
+
+- [Port React Compiler to Rust (PR #36173)](https://github.com/react/react/pull/36173) -- react/react
+- [Port React Compiler to Rust (토론)](https://news.ycombinator.com/item?id=48473662) -- Hacker News
+- [Meta transfers React to Linux Foundation](https://www.techzine.eu/news/devops/135353/meta-transfers-react-to-linux-foundation/) -- Techzine
+- [React Compiler in Rust: 10x Faster & The End of TypeScript?](https://www.stork.ai/blog/reacts-rust-rewrite-just-killed-manual-hooks) -- Stork.AI

@@ -27,7 +27,7 @@ Chrome DevTools Performance 패널로 비교해보면 차이가 명확하다.
 - `width` 버전: Layout 이벤트가 프레임마다 반복, dropped frames 다수 발생
 - `transform` 버전: Composite만 실행, 프레임 드롭 거의 없음
 
-왜 이런 차이가 나는지는 [브라우저 렌더링 파이프라인](/ko/garden/browser-rendering-pipeline)에 정리해두었다.
+왜 이런 차이가 나는지는 [브라우저 렌더링 파이프라인](/ko/garden/resources/frontend/browser/browser-rendering-pipeline.mdx)에 정리해두었다.
 핵심만 짚으면 이렇다:
 
 - `width` 변경 → **Layout부터 다시 계산** → 메인 스레드 블로킹
@@ -169,7 +169,7 @@ Chrome 팀의 벤치마크에서는 초기 렌더링 시간이 최대 7배까지
 
 ## 참고
 
-- [브라우저 렌더링 파이프라인](/ko/garden/browser-rendering-pipeline) -- 이 글의 배경 지식
+- [브라우저 렌더링 파이프라인](/ko/garden/resources/frontend/browser/browser-rendering-pipeline.mdx) -- 이 글의 배경 지식
 - [CSS Triggers](https://csstriggers.com/) -- 속성별 Layout/Paint/Composite 트리거 확인
 - [content-visibility: the new CSS property that boosts your rendering performance](https://web.dev/articles/content-visibility) -- web.dev
 - [CSS Containment](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_containment) -- MDN
