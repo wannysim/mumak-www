@@ -15,6 +15,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - [ ] **GEO 정책 결정** — D-1 (robots.ts AI 크롤러 정책, 코드 전 의사결정)
 - [ ] **GEO PR 1** — D-2(llms.txt) + D-3(마크다운 엔드포인트)
 - [ ] **GEO PR 2** — D-4(RSS 보강) + D-5(sitemap hreflang)
+- [ ] **OG 이미지 PR** — C-7 (긴 텍스트 검증·locale 라벨·기본 이미지·템플릿 공통화)
 - [ ] **개별 소액**: C-2(MDX 이미지) / C-4(error.tsx) / B-6(react-doctor blocking) / D-6(콘텐츠 가이드)
 - [ ] **조건부·보류**: C-3(검색 인덱스, 콘텐츠 성장 시) / B-4(E2E 시간, 측정 후) / A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
 
@@ -141,9 +142,9 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **현황**: `app/[locale]/layout.tsx`에서 `next/font/local`로 `PretendardVariable.woff2`(2.1MB)를 `display: 'swap'`으로 로드한다. next/font가 preload는 자동 처리하지만, 한글 전체 글리프가 포함된 2.1MB는 첫 방문 시 다운로드 부담이 크고 swap에 의한 FOUT 구간이 길어진다. 추가로 OG 이미지용 `Pretendard-{Regular,SemiBold,Bold}.woff` 3종(각 1.1MB, 총 3.3MB)이 standalone 산출물에 트레이싱되어 포함된다(`next.config.mjs` `outputFileTracingIncludes`).
 - **개선안**:
   1. 본문 폰트: 서브셋 빌드 도입 — Pretendard 공식 dynamic-subset 또는 `pyftsubset`으로 KS X 1001 + Latin 서브셋 생성. variable font 유지 시에도 2.1MB → 수백 KB 수준으로 감소 가능.
-  2. OG 폰트: Satori는 OG 이미지에 들어가는 글리프만 필요하므로 동일하게 서브셋 woff로 교체 — standalone 크기 감소는 B-2(413 문제)에도 직접 기여한다.
-  3. `size-limit` 또는 Lighthouse CI로 LCP/폰트 전송량 회귀 가드 추가 검토.
-- **기대 효과**: 첫 방문 LCP 및 한글 렌더 안정화. standalone 산출물 다이어트.
+  2. `size-limit` 또는 Lighthouse CI로 LCP/폰트 전송량 회귀 가드 추가 검토.
+- **OG 폰트는 제외**: `og-fonts.ts` 주석에 "제목이 한국어(동적)이므로 콘텐츠 기반 subset 불가, 풀셋 woff 사용"이 문서화된 결정으로 명시되어 있다. OG 라우트는 standalone 런타임에서 on-demand 렌더될 수 있어(`next.config.mjs` 트레이싱 주석 참조) 빌드 타임 글리프 확정에 기대는 서브셋은 미사전생성 경로에서 글리프 누락(tofu) 위험이 있다. 풀셋 유지가 맞고, 재검토하려면 C-7에서 다룬다.
+- **기대 효과**: 첫 방문 LCP 및 한글 렌더 안정화. 본문 variable 폰트 축소만으로도 standalone 산출물 다이어트에 기여.
 
 ### C-2. MDX 콘텐츠 이미지에 `next/image` 적용
 
@@ -174,6 +175,21 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **View Transitions**: 카테고리/태그 전환, blog↔garden 이동에 `document.startViewTransition` 점진 적용 (미지원 브라우저 자동 폴백).
 - **검색 팔레트 미세 UX**: 호버 프리뷰 등은 효용 낮음 — 사용자 피드백 있을 때만.
 - (참고: 초기 분석에서 "JSON-LD에 author/inLanguage 추가" 과제가 후보였으나, 검증 결과 `src/app/seo/json-ld.ts`에 author Person(`sameAs`, `knowsAbout` 포함)·`inLanguage`·`wordCount`까지 이미 구현되어 있어 제외했다.)
+
+### C-7. OG 이미지 템플릿 고도화 및 커버리지 확대
+
+- **현황**: 코드 기반 OG 이미지 생성은 이미 구현되어 있다 — `blog/[category]/[slug]/opengraph-image.tsx`와 `garden/[slug]/opengraph-image.tsx`가 `next/og`(Satori) + Pretendard woff(400/600/700)로 1200x630 이미지를 `generateStaticParams` 기반 정적 생성한다. 제목(64px bold)과 설명(28px muted)은 분리되어 있고 각각 2줄 clamp, garden은 status 뱃지(locale별 라벨·색상)까지 갖췄다. 남은 갭은 다음 네 가지다:
+  1. **긴 텍스트 처리의 신뢰성 미검증**: clamp가 `WebkitLineClamp` + `-webkit-box` 조합인데, Satori는 브라우저가 아니라 비표준 `lineClamp` 속성을 별도로 지원하는 엔진이다. 이 조합이 Satori에서 실제로 동작하는지 최장 제목/설명 케이스로 검증된 적이 없다 — 동작하지 않으면 긴 제목이 잘리지 않고 넘친다.
+  2. **locale 대응 불완전**: blog 템플릿의 category 라벨이 raw slug 대문자("ESSAY")로 고정 — ko 공유 시에도 영문. garden은 라벨을 locale별로 처리하므로 비대칭. `export const alt`도 'Blog Post' 정적 문자열이라 스크린리더/접근성 관점에서 빈약하다.
+  3. **커버리지가 슬러그 페이지 2종뿐**: 홈, blog 인덱스/카테고리, garden 인덱스, tags, about, now를 공유하면 OG 이미지가 아예 없다.
+  4. **템플릿 중복**: 배경/푸터 브랜딩("Wan Sim / wannysim.com")/Not Found 폴백이 blog·garden 두 파일에 복붙되어 있어 디자인 변경 시 drift 위험.
+- **개선안**:
+  1. 긴 텍스트: 최장 ko/en 제목·설명 케이스를 로컬에서 `/{locale}/blog/.../opengraph-image` URL로 직접 렌더해 시각 검증. clamp가 동작하지 않으면 Satori 네이티브 `lineClamp` 속성으로 교체. 추가로 글자수 기반 동적 폰트 크기(예: 제목 30자 초과 시 64→52px, 50자 초과 시 44px)와 한국어 줄바꿈 `wordBreak: 'keep-all'` 적용. 글자수 임계는 ko(음절)와 en(단어)이 다르므로 locale별로 분리.
+  2. locale: category 라벨을 ko/en 매핑(에세이/아티클/노트)으로 교체 — 페이지 쪽 `staticTranslations`와 단일 소스로 공유. `generateImageMetadata`로 포스트 제목 기반 동적 alt 생성.
+  3. 커버리지: `app/[locale]/opengraph-image.tsx`에 사이트 기본 브랜드 이미지 1종 추가 — Next 파일 컨벤션상 하위 세그먼트에 상속되고 슬러그 레벨 구현이 우선하므로, 파일 하나로 나머지 전 페이지가 커버된다.
+  4. 공통화: 공통 셸(배경, 푸터, clamp 텍스트 블록, Not Found 폴백)을 `src/shared/lib/og/`에 template 컴포넌트로 추출하고 blog/garden/기본 이미지가 공유.
+- **기대 효과**: 카카오톡/슬랙/X 등에 링크 공유 시 모든 페이지가 일관된 브랜드 이미지로 노출. 긴 제목에서도 깨지지 않는 카드. 포스트에 이미지를 직접 넣지 않아도 되는 현 워크플로우 유지.
+- **검증**: 대표 케이스(최장 ko 제목, 최장 en 제목, 설명 없음, 기본 이미지)를 빌드 후 산출물로 확인. `e2e/seo.spec.ts`에 og:image 메타 존재 검증이 있는지 확인하고 없으면 추가.
 
 ---
 
@@ -242,7 +258,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 | 2    | A-1 frontmatter zod 검증                 | 설계 | 중     | 콘텐츠 오류 빌드 타임 포착         |
 | 3    | A-4 React.cache() 적용                   | 설계 | 소     | 빌드 시간 단축                     |
 | 4    | A-5 커버리지 갭 보강                     | 설계 | 소     | draft 노출 등 회귀 방지            |
-| 5    | C-1 폰트 서브셋 (본문 + OG)              | UX   | 중     | LCP 개선 + standalone 다이어트     |
+| 5    | C-1 폰트 서브셋 (본문)                   | UX   | 중     | LCP 개선 + standalone 다이어트     |
 | 6    | A-2 콘텐츠 로더 공통화                   | 설계 | 중     | post/note drift 제거               |
 | 7    | A-3 wikilink 단일 소스화 (스크립트 TS화) | 설계 | 중     | 검증·렌더링 규칙 일치              |
 | 8    | B-3 blog-content.yml 중복 정리           | CI   | 소     | 워크플로우 단순화                  |
@@ -251,26 +267,28 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 | 11   | D-4 RSS autodiscovery + full-content     | GEO  | 소~중  | 발견성 즉효                        |
 | 12   | D-2 llms.txt + D-3 마크다운 엔드포인트   | GEO  | 중     | AI 인용 경로 확보                  |
 | 13   | D-5 sitemap hreflang alternates          | GEO  | 소     | 다국어 신호 보강                   |
-| 14   | C-2 MDX 이미지 next/image                | UX   | 중     | 콘텐츠 이미지 최적화               |
-| 15   | B-5 promote.yml dispatch + 알림          | CI   | 소     | 배포 운영성                        |
-| 16   | B-6 react-doctor blocking 전환           | CI   | 중     | 품질 게이트 실효화                 |
-| 17   | C-4 error.tsx 추가                       | UX   | 소     | 오류 UX                            |
-| 18   | D-6 콘텐츠 GEO 가이드 (AGENTS.md)        | GEO  | 소     | 문서 작업                          |
-| 19   | C-3 검색 인덱스 분리                     | UX   | 중     | 조건부(콘텐츠 성장 시)             |
-| 20   | B-4 E2E 시간 단축 (측정 후)              | CI   | 중     | 조건부(병목 확인 시)               |
-| 21   | A-6 tags 페이지 템플릿화                 | 설계 | 소     | 선택                               |
-| 22   | C-5 cacheComponents 재평가               | UX   | -      | 업그레이드 시 체크 항목            |
-| 23   | C-6 UX 폴리시 묶음                       | UX   | 소     | 선택                               |
+| 14   | C-7 OG 이미지 고도화 + 커버리지          | UX   | 중     | 링크 공유 경험, 전 페이지 커버     |
+| 15   | C-2 MDX 이미지 next/image                | UX   | 중     | 콘텐츠 이미지 최적화               |
+| 16   | B-5 promote.yml dispatch + 알림          | CI   | 소     | 배포 운영성                        |
+| 17   | B-6 react-doctor blocking 전환           | CI   | 중     | 품질 게이트 실효화                 |
+| 18   | C-4 error.tsx 추가                       | UX   | 소     | 오류 UX                            |
+| 19   | D-6 콘텐츠 GEO 가이드 (AGENTS.md)        | GEO  | 소     | 문서 작업                          |
+| 20   | C-3 검색 인덱스 분리                     | UX   | 중     | 조건부(콘텐츠 성장 시)             |
+| 21   | B-4 E2E 시간 단축 (측정 후)              | CI   | 중     | 조건부(병목 확인 시)               |
+| 22   | A-6 tags 페이지 템플릿화                 | 설계 | 소     | 선택                               |
+| 23   | C-5 cacheComponents 재평가               | UX   | -      | 업그레이드 시 체크 항목            |
+| 24   | C-6 UX 폴리시 묶음                       | UX   | 소     | 선택                               |
 
 ### 묶어서 진행하면 좋은 단위
 
 - **콘텐츠 파이프라인 PR**: A-1 + A-2 + A-4 + A-5 (스키마 → 로더 공통화 → 캐시 → 테스트가 자연스러운 한 흐름)
-- **빌드 산출물 다이어트 PR**: C-1(OG 폰트 서브셋) + B-2(outputs 정리) — standalone 크기 감소가 413 해결의 전제를 만들어 줌
+- **빌드 산출물 다이어트 PR**: C-1(본문 폰트 서브셋) + B-2(outputs 정리) — standalone 크기 감소가 413 해결의 전제를 만들어 줌
 - **CI 정리 PR**: B-1 + B-3 (+ B-5)
 - **GEO PR**: D-1(정책 결정 후) → D-2 + D-3 한 PR(같은 콘텐츠 API 재사용) → D-4 + D-5 한 PR(피드·sitemap 소액 작업 묶음)
+- **OG 이미지 PR**: C-7 단독 — 템플릿 공통화 → 긴 텍스트/locale 보강 → 기본 이미지 추가 순서로 한 PR 안에서 진행
 
 ### 비고
 
 - 모든 과제는 `check-types → lint → format:check → test:ci` preflight와 `pnpm --filter blog validate:design`을 통과해야 한다.
-- UI에 닿는 과제(C-2, C-4, A-6)는 `AGENTS.md`의 Blog/Garden UI Contract(shared primitive 우선, semantic token, data-slot)를 따른다.
+- UI에 닿는 과제(C-2, C-4, C-7, A-6)는 `AGENTS.md`의 Blog/Garden UI Contract(shared primitive 우선, semantic token, data-slot)를 따른다.
 - 라우팅·레이아웃·메타데이터에 닿는 과제는 `e2e/**` 영향 범위를 함께 검토한다.
