@@ -8,7 +8,7 @@
 
 PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 기록한다. 과제 상세는 아래 섹션 참조.
 
-- [ ] **콘텐츠 파이프라인 PR** — A-1(zod 스키마) + A-2(로더 공통화) + A-4(React.cache) + A-5(커버리지 갭)
+- [x] **콘텐츠 파이프라인 PR** — A-1(zod 스키마) + A-2(로더 공통화) + A-4(React.cache) + A-5(커버리지 갭) — PR #428
 - [ ] **wikilink 단일 소스화 PR** — A-3 (스크립트 TS화, 콘텐츠 파이프라인 PR 후속)
 - [ ] **CI 정리 PR** — B-1(globalDependencies) + B-3(blog-content.yml) + B-5(promote.yml)
 - [ ] **빌드 산출물 다이어트 PR** — C-1(폰트 서브셋) + B-2(blog#build outputs, 검증 전제)
@@ -27,7 +27,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 ## A. 소프트웨어 설계 · 유지보수성
 
-### A-1. Frontmatter 스키마 검증 도입 (zod)
+### A-1. Frontmatter 스키마 검증 도입 (zod) — 완료 (#428)
 
 - **현황**: `src/entities/post/api/posts.ts`, `src/entities/note/api/notes.ts`가 gray-matter의 `data`(사실상 `any`)를 `data.title || 'Untitled'`, `data.date || '1970-01-01'` 식의 기본값 fallback으로만 방어한다. 잘못된 frontmatter(예: `tags`가 문자열, `date` 포맷 오류)가 타입 오류 없이 빌드를 통과해 런타임 화면에서만 드러날 수 있다. `scripts/validate-content.mjs`(236줄), `scripts/validate-garden.mjs`(443줄)에 별도의 검증 로직이 있으나 src 코드와 규칙이 이원화되어 있다.
 - **개선안**:
@@ -37,7 +37,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
   4. validate 스크립트는 스키마를 재사용하는 방향으로 점진 통합 (A-3과 연계).
 - **기대 효과**: 콘텐츠 추가가 잦은 저장소에서 frontmatter 오류를 빌드 타임으로 앞당김. 검증 규칙의 단일 소스 확보.
 
-### A-2. 콘텐츠 로더 공통화 (entities/post vs entities/note)
+### A-2. 콘텐츠 로더 공통화 (entities/post vs entities/note) — 완료 (#428)
 
 - **현황**: `posts.ts`(82줄)와 `notes.ts`(178줄)에 `getMdxFiles()` 파일 탐색이 각각 구현되어 있고(post는 flat, note는 재귀), frontmatter 파싱 보일러플레이트도 중복이다. draft 필터링은 note만 `isPublishable()`로 함수화되어 있고 post는 인라인(`isProduction && post.draft`)으로 일관성이 없다.
 - **개선안**:
@@ -52,7 +52,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **개선안**: validate 스크립트를 TypeScript로 전환(`node --experimental-strip-types` 또는 `tsx` 실행)하여 `@/src/shared/lib/wikilink`를 직접 import. `turbo.json`의 `validate:garden` inputs에 wikilink lib 경로 추가.
 - **기대 효과**: wikilink 문법 확장(embed, anchor 등) 시 검증과 렌더링이 항상 동일한 규칙을 따름.
 
-### A-4. 콘텐츠 조회에 `React.cache()` 적용
+### A-4. 콘텐츠 조회에 `React.cache()` 적용 — 완료 (#428)
 
 - **현황**: `getPosts()`, `getNotes()`가 호출마다 파일시스템 풀 스캔 + 전체 파싱을 수행하며 `React.cache()`/`unstable_cache` 사용이 전무하다. 한 페이지 렌더에서 `generateMetadata`와 페이지 본문이 `getPost`를 각각 호출하고(슬러그 페이지에서 같은 파일을 2회 read+parse), 리스트 페이지는 본문·nav counts·검색 인덱스가 `getPosts`를 반복 호출한다.
 - **개선안**: entity public API(`getPosts`, `getPost`, `getNotes`, `getNote` 등)를 `React.cache()`로 감싸 렌더 단위 메모이즈. 인자(locale, category, slug)가 전부 원시 문자열이라 참조 동등성 함정 없이 그대로 동작한다.
@@ -78,7 +78,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 **도입 시 검증 절차**: `pnpm --filter blog build` 후 빌드 출력의 라우트 분류(○ Static)와 `.next/prerender-manifest.json`을 도입 전과 비교하고, `test:ci`(static-rendering 테스트 포함) 그린 확인. 추가로 안심하고 싶다면 static-rendering 테스트의 `EXPECTED_SSG_PATTERNS`가 이미 전 콘텐츠 라우트를 덮고 있으므로 그대로 신뢰하면 된다.
 
-### A-5. 테스트 커버리지 갭 보강
+### A-5. 테스트 커버리지 갭 보강 — 완료 (#428)
 
 - **현황**: 전체 96%대이지만 구멍이 있다 — `src/entities/note/para.ts` 함수 커버리지 0%(`isValidParaCategory` 미테스트), `src/shared/ui/page-header.tsx` 50%(description 없는 분기 미테스트), `posts.ts`/`notes.ts` 분기 커버리지 70%대(draft/status 필터 엣지 케이스).
 - **개선안**: 위 세 곳에 작은 단위 테스트 추가. A-1/A-2 리팩토링과 같은 PR에서 회귀 방지 테스트로 묶으면 효율적.
