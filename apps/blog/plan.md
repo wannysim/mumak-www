@@ -9,8 +9,8 @@
 PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 기록한다. 과제 상세는 아래 섹션 참조.
 
 - [x] **콘텐츠 파이프라인 PR** — A-1(zod 스키마) + A-2(로더 공통화) + A-4(React.cache) + A-5(커버리지 갭) — PR #428
-- [ ] **wikilink 단일 소스화 PR** — A-3 (스크립트 TS화, 콘텐츠 파이프라인 PR 후속)
-- [ ] **CI 정리 PR** — B-1(globalDependencies) + B-3(blog-content.yml) + B-5(promote.yml)
+- [x] **wikilink 단일 소스화 PR** — A-3(스크립트 TS화) + B-1(globalDependencies `.env*` 제거) — PR 생성 예정
+- [ ] **CI 정리 PR** — B-3(blog-content.yml) + B-5(promote.yml)
 - [ ] **빌드 산출물 다이어트 PR** — C-1(폰트 서브셋) + B-2(blog#build outputs, 검증 전제)
 - [ ] **GEO 정책 결정** — D-1 (robots.ts AI 크롤러 정책, 코드 전 의사결정)
 - [ ] **GEO PR 1** — D-2(llms.txt) + D-3(마크다운 엔드포인트)
@@ -47,7 +47,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
   3. entity별 도메인 로직(post의 category, note의 wikilink/excerpt 추출)은 각 entity에 유지 — FSD 레이어 위반 없이 shared lib만 내려 쓴다.
 - **기대 효과**: 새 콘텐츠 타입(예: series, til) 추가 시 로더 재구현 불필요. 한쪽만 고치는 drift 방지.
 
-### A-3. wikilink 파싱 로직 단일 소스화
+### A-3. wikilink 파싱 로직 단일 소스화 — 완료 (PR 생성 예정)
 
 - **현황**: `src/shared/lib/wikilink/parser.ts`(테스트 커버리지 100%)가 마스터인데, `scripts/validate-garden.mjs:32-64`가 `parseWikilinkTarget` 등 같은 로직을 MJS로 복제하고 있다. parser 변경 시 스크립트를 수동 동기화해야 하고, 버그 수정이 한쪽에만 적용될 위험이 있다.
 - **개선안**: validate 스크립트를 TypeScript로 전환(`node --experimental-strip-types` 또는 `tsx` 실행)하여 `@/src/shared/lib/wikilink`를 직접 import. `turbo.json`의 `validate:garden` inputs에 wikilink lib 경로 추가.
@@ -95,7 +95,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 ## B. CI/CD · Turborepo 효율화
 
-### B-1. `globalDependencies`에서 `.env*` 제거
+### B-1. `globalDependencies`에서 `.env*` 제거 — 완료 (PR 생성 예정)
 
 - **현황**: `turbo.json` 루트의 `globalDependencies`에 `.env*`가 포함되어 있어 로컬 `.env.local` 한 줄 변경이 모든 워크스페이스의 모든 task 캐시를 무효화한다. build task에는 이미 `env: ["NEXT_PUBLIC_*", "ANALYZE"]`와 `passThroughEnv`가 정의되어 있어 환경변수 변화는 task 단위로 추적된다.
 - **개선안**: `globalDependencies`를 `["package.json", "pnpm-lock.yaml", "turbo.json"]`으로 축소. task별 `inputs`의 `.env*`도 함께 정리. `pnpm turbo run build --filter=blog --dry-run=json`으로 해시 안정성 검증.
@@ -318,7 +318,7 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 
 - **콘텐츠 파이프라인 PR**: A-1 + A-2 + A-4 + A-5 (스키마 → 로더 공통화 → 캐시 → 테스트가 자연스러운 한 흐름)
 - **빌드 산출물 다이어트 PR**: C-1(본문 폰트 서브셋) + B-2(outputs 정리) — standalone 크기 감소가 413 해결의 전제를 만들어 줌
-- **CI 정리 PR**: B-1 + B-3 (+ B-5)
+- **CI 정리 PR**: B-3 (+ B-5)
 - **GEO PR**: D-1(정책 결정 후) → D-2 + D-3 한 PR(같은 콘텐츠 API 재사용) → D-4 + D-5 한 PR(피드·sitemap 소액 작업 묶음)
 - **코드 생성 이미지 PR**: C-7 단독 — favicon 버그 수정(C-7-0) 먼저 + 템플릿 공통화(`shared/lib/og` 셸·폰트 로딩) → OG 긴 텍스트/locale 보강 → 기본 OG 이미지 추가(C-7-1) 순서로 한 PR 안에서 진행. favicon은 단독으로 먼저 빼서 빠르게 배포하고 싶으면 분리 가능.
 - **Spotify OAuth callback 보안 보강 PR**: C-8 단독 권장 — `app/api/spotify/*` route와 테스트만 건드리는 소액 보안 작업이다. B-6(react-doctor baseline 해소) 전 선행하면 Security 경고의 실질 위험을 먼저 줄이고, 남는 React Doctor 경고를 구조적 예외로 볼지 2단계 POST 구조로 재설계할지 판단하기 쉽다.

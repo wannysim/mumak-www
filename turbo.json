@@ -1,12 +1,12 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
-  "globalDependencies": ["package.json", "pnpm-lock.yaml", "turbo.json", ".env*"],
+  "globalDependencies": ["package.json", "pnpm-lock.yaml", "turbo.json"],
   "globalEnv": ["NODE_ENV", "CI", "VERCEL", "VERCEL_ENV", "EXPO_OS"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "inputs": ["$TURBO_DEFAULT$"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**", "out/**", "*.tsbuildinfo"],
       "env": ["NEXT_PUBLIC_*", "ANALYZE"],
       "passThroughEnv": [
@@ -27,7 +27,7 @@
       // 이제 task cache는 그대로 두고, CI에서 blog turbo 호출에만 `--cache=local:rw,remote:r`로
       // remote write만 차단한다(413 회피 + local 캐시 재사용). `cache: false`를 다시 넣지 말 것.
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "inputs": ["$TURBO_DEFAULT$"],
       "env": ["NEXT_PUBLIC_*", "ANALYZE"],
       "passThroughEnv": [
         "NODE_ENV",
@@ -136,7 +136,7 @@
       "outputs": []
     },
     "validate:garden": {
-      "inputs": ["content/**/garden/**/*.mdx", "scripts/validate-garden.mjs"],
+      "inputs": ["content/**/garden/**/*.mdx", "scripts/validate-garden.ts", "src/shared/lib/wikilink/**/*.ts"],
       "outputs": []
     },
     "validate:design": {
