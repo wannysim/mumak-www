@@ -1,8 +1,8 @@
-import fs from 'fs';
-import matter from 'gray-matter';
 import path from 'path';
+import { cache } from 'react';
 
 import type { Locale } from '@/src/shared/config/i18n';
+import { isPublishable, listMdxFiles, NoteFrontmatterSchema, parseMdxFile } from '@/src/shared/lib/content';
 import { calculateReadingTime } from '@/src/shared/lib/reading-time';
 import { extractWikilinkSlugs, normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
 
@@ -56,26 +56,6 @@ function cleanupInlineMarkdown(text: string): string {
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .trim();
-}
-
-function getMdxFiles(dirPath: string): string[] {
-  if (!fs.existsSync(dirPath)) {
-    return [];
-  }
-
-  const results: string[] = [];
-  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const fullPath = path.join(dirPath, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...getMdxFiles(fullPath));
-    } else if (entry.isFile() && entry.name.endsWith('.mdx')) {
-      results.push(fullPath);
-    }
-  }
-
-  return results;
 }
 
 const BLOCK_MARKER_REGEX = /(?:^|\s)\^([A-Za-z0-9][\w-]*)\s*$/;
@@ -162,35 +142,33 @@ function extractHeadingSectionExcerpt(content: string, heading: string): string 
   return excerpt || cleanupInlineMarkdown(current.text);
 }
 
-function parseNoteFile(filePath: string, slug: string, category: string = 'garden'): NoteMeta | null {
-  try {
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const { data, content } = matter(fileContent);
+function getNoteCategory(gardenPath: string, filePath: string): string {
+  const relativePath = path.relative(gardenPath, filePath);
+  const rawCategory = path.dirname(relativePath).split(path.sep)[0];
+  return !rawCategory || rawCategory === '.' ? 'garden' : rawCategory;
+}
 
-    return {
+function parseNoteMdx(filePath: string, slug: string, category: string = 'garden'): Note {
+  const { frontmatter, content } = parseMdxFile(filePath, NoteFrontmatterSchema);
+
+  return {
+    meta: {
       category,
       slug,
-      title: data.title || 'Untitled',
-      created: data.created || '1970-01-01',
-      updated: data.updated,
-      status: data.status || 'seedling',
-      tags: data.tags || [],
-      draft: data.draft || false,
-      parent: data.parent,
+      title: frontmatter.title,
+      created: frontmatter.created,
+      updated: frontmatter.updated,
+      status: frontmatter.status,
+      tags: frontmatter.tags,
+      draft: frontmatter.draft,
+      parent: frontmatter.parent,
       outgoingLinks: extractWikilinkSlugs(content),
       excerpt: extractFirstParagraph(content) || undefined,
       readingTime: calculateReadingTime(content),
-    };
-  } catch {
-    return null;
-  }
+    },
+    content,
+  };
 }
-
-const isProduction = () => process.env.NODE_ENV === 'production';
-
-const isE2eIncludeDraft = () => process.env.E2E_INCLUDE_DRAFT === 'true' || process.env.E2E_INCLUDE_DRAFT === '1';
-
-const isPublishable = (note: NoteMeta) => !isProduction() || isE2eIncludeDraft() || !note.draft;
 
 const byMostRecentFirst = (a: NoteMeta, b: NoteMeta) => {
   const dateA = new Date(a.updated || a.created);
@@ -198,56 +176,36 @@ const byMostRecentFirst = (a: NoteMeta, b: NoteMeta) => {
   return dateB.getTime() - dateA.getTime();
 };
 
-export function getNotes(locale: Locale): NoteMeta[] {
+function getNotesUncached(locale: Locale): NoteMeta[] {
   const gardenPath = getGardenPath(locale);
 
-  return getMdxFiles(gardenPath)
+  return listMdxFiles(gardenPath, { recursive: true })
     .map(filePath => {
       const slug = path.basename(filePath, '.mdx');
-      const relativePath = path.relative(gardenPath, filePath);
-      const rawCategory = path.dirname(relativePath).split(path.sep)[0];
-      const category = !rawCategory || rawCategory === '.' ? 'garden' : rawCategory;
-      return parseNoteFile(filePath, slug, category);
+      const category = getNoteCategory(gardenPath, filePath);
+      return parseNoteMdx(filePath, slug, category).meta;
     })
-    .filter((note): note is NoteMeta => note !== null && isPublishable(note))
+    .filter(isPublishable)
     .toSorted(byMostRecentFirst);
 }
 
-export function getNote(locale: Locale, slug: string): Note | null {
+function getNoteUncached(locale: Locale, slug: string): Note | null {
   const gardenPath = getGardenPath(locale);
-  const mdxFiles = getMdxFiles(gardenPath);
+  const mdxFiles = listMdxFiles(gardenPath, { recursive: true });
   const filePath = mdxFiles.find(f => path.basename(f, '.mdx') === slug);
 
-  if (!filePath || !fs.existsSync(filePath)) {
+  if (!filePath) {
     return null;
   }
 
-  try {
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const { data, content } = matter(fileContent);
-    const relativePath = path.relative(gardenPath, filePath);
-    const rawCategory = path.dirname(relativePath).split(path.sep)[0];
-    const category = !rawCategory || rawCategory === '.' ? 'garden' : rawCategory;
+  const category = getNoteCategory(gardenPath, filePath);
+  const note = parseNoteMdx(filePath, slug, category);
 
-    const meta: NoteMeta = {
-      category,
-      slug,
-      title: data.title || 'Untitled',
-      created: data.created || '1970-01-01',
-      updated: data.updated,
-      status: data.status || 'seedling',
-      tags: data.tags || [],
-      draft: data.draft || false,
-      parent: data.parent,
-      outgoingLinks: extractWikilinkSlugs(content),
-      readingTime: calculateReadingTime(content),
-    };
-
-    return isPublishable(meta) ? { meta, content } : null;
-  } catch {
-    return null;
-  }
+  return isPublishable(note.meta) ? note : null;
 }
+
+export const getNotes = cache(getNotesUncached);
+export const getNote = cache(getNoteUncached);
 
 export function getNoteAnchorIndex(locale: Locale, slug: string): NoteAnchorIndex | null {
   const note = getNote(locale, slug);
