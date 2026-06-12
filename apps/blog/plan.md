@@ -16,6 +16,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - [ ] **GEO PR 1** — D-2(llms.txt) + D-3(마크다운 엔드포인트)
 - [ ] **GEO PR 2** — D-4(RSS 보강) + D-5(sitemap hreflang)
 - [ ] **코드 생성 이미지 PR** — C-7 (favicon 라이브 버그 수정 + OG 긴 텍스트·locale·기본 이미지·템플릿 공통화)
+- [ ] **Spotify OAuth callback 보안 보강 PR** — C-8 (React Doctor Security 경고 검토 후 실질 보강)
 - [ ] **개별 소액**: C-2(MDX 이미지) / C-4(error.tsx) / B-6(react-doctor blocking) / D-6(콘텐츠 가이드)
 - [ ] **조건부·보류**: C-3(검색 인덱스, 콘텐츠 성장 시) / B-4(E2E 시간, 측정 후) / A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
 
@@ -209,6 +210,18 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 - **기대 효과**: 카카오톡/슬랙/X 등에 링크 공유 시 모든 페이지가 일관된 브랜드 이미지로 노출. 긴 제목에서도 깨지지 않는 카드. 포스트에 이미지를 직접 넣지 않아도 되는 현 워크플로우 유지.
 - **검증**: 대표 케이스(최장 ko 제목, 최장 en 제목, 설명 없음, 기본 이미지)를 빌드 후 산출물로 확인. `e2e/seo.spec.ts`에 og:image 메타 존재 검증이 있는지 확인하고 없으면 추가.
 
+### C-8. Spotify OAuth callback 보안 보강 (React Doctor Security 경고 대응)
+
+- **현황**: `app/api/spotify/callback/route.ts`는 Spotify Authorization Code Flow의 redirect URI이므로 GET으로 `code`/`state`를 받는다. 이후 같은 handler 안에서 Spotify token endpoint로 `fetch(..., { method: 'POST' })`를 호출해 refresh token을 발급받는다. React Doctor는 "GET handler의 side effect"로 경고하지만, OAuth callback 자체는 provider가 브라우저 redirect로 호출하는 GET 경로라 단순히 `POST` handler로 바꾸면 인증 플로우가 깨진다. 현재 CSRF 방어는 `spotify_auth_state` httpOnly cookie와 URL `state` 대조, 10분 만료, `sameSite: 'lax'`로 구현되어 있다.
+- **판단**: 이 경고는 일반적인 "GET이 서버 상태를 바꾸면 CSRF 위험" 원칙으로는 맞지만, 이 파일은 OAuth 표준 redirect callback이라는 특수 케이스다. 따라서 1차 개선은 GET을 POST로 바꾸는 것이 아니라, GET callback 전제를 유지하면서 토큰 응답과 state 소비 경로를 더 엄격하게 만드는 쪽이 맞다. React Doctor 경고 자체를 완전히 없애려면 GET callback이 중간 HTML을 반환하고 same-origin `POST` route가 token exchange를 수행하는 2단계 구조가 필요하지만, 작업량 대비 이득은 별도 검토가 필요하다.
+- **개선안**:
+  1. state 검증 통과 이후의 모든 응답 경로에서 `spotify_auth_state`를 소비하도록 정리한다. 특히 `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` 누락으로 500을 반환하는 경로도 state cookie를 삭제해야 주석의 "1회 소비" 계약과 일치한다.
+  2. refresh token을 담은 HTML 응답과 token exchange 실패 응답에 `Cache-Control: no-store, private`, `Pragma: no-cache`, `Referrer-Policy: no-referrer`, 필요 시 `X-Robots-Tag: noindex`를 추가한다. 토큰이 브라우저/프록시 캐시에 남거나 이후 navigation의 Referer로 새는 위험을 줄인다.
+  3. route 단위 테스트를 추가한다: state mismatch에서는 token endpoint를 호출하지 않음, env 누락/토큰 실패/성공 경로에서 state cookie를 소비함, 성공 HTML에 no-store/referrer 정책 헤더가 붙음.
+  4. 코드 주석을 "React Doctor 경고를 무시한다"가 아니라 "OAuth callback은 GET이 표준이며 CSRF는 state로 방어한다. 이 route는 no-store + state single-use로 보강한다"는 형태로 명확히 유지한다.
+- **기대 효과**: 실제 사용자 영향은 작지만, refresh token이 노출되는 일회성 관리 화면의 캐시/리퍼러 위험을 줄이고 OAuth state single-use 계약을 테스트로 고정한다. B-6(react-doctor baseline 해소) 전에 처리하면 Security 경고의 실질 위험을 낮춘 상태에서 remaining warning을 "OAuth callback 구조상 남는 항목"으로 판단할 수 있다.
+- **검증**: `app/api/spotify/callback/route.ts` 단위 테스트 추가 후 `pnpm --filter blog test -- app/api/spotify/callback`, `pnpm turbo run lint --filter=blog`, `pnpm turbo run check-types --filter=blog` 실행. 필요하면 `npx react-doctor@latest --verbose`로 이 경고가 남는지 확인하고, 남는 경우 B-6에서 baseline/suppression 정책을 별도로 결정한다.
+
 ---
 
 ## D. SEO · GEO (Generative Engine Optimization)
@@ -277,26 +290,27 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 | 3    | A-1 frontmatter zod 검증                 | 설계 | 중     | 콘텐츠 오류 빌드 타임 포착         |
 | 4    | A-4 React.cache() 적용                   | 설계 | 소     | 빌드 시간 단축                     |
 | 5    | A-5 커버리지 갭 보강                     | 설계 | 소     | draft 노출 등 회귀 방지            |
-| 6    | C-1 폰트 서브셋 (본문)                   | UX   | 중     | LCP 개선 + standalone 다이어트     |
-| 7    | A-2 콘텐츠 로더 공통화                   | 설계 | 중     | post/note drift 제거               |
-| 8    | A-3 wikilink 단일 소스화 (스크립트 TS화) | 설계 | 중     | 검증·렌더링 규칙 일치              |
-| 9    | B-3 blog-content.yml 중복 정리           | CI   | 소     | 워크플로우 단순화                  |
-| 10   | B-2 blog#build outputs 정리 (검증 전제)  | CI   | 중     | 413 특례 제거                      |
-| 11   | D-1 AI 크롤러 정책 명시화                | GEO  | 소     | 정책 결정 선행, 이후 D 과제의 전제 |
-| 12   | D-4 RSS autodiscovery + full-content     | GEO  | 소~중  | 발견성 즉효                        |
-| 13   | D-2 llms.txt + D-3 마크다운 엔드포인트   | GEO  | 중     | AI 인용 경로 확보                  |
-| 14   | D-5 sitemap hreflang alternates          | GEO  | 소     | 다국어 신호 보강                   |
-| 15   | C-7-1 OG 이미지 고도화 + 커버리지        | UX   | 중     | 링크 공유 경험, 전 페이지 커버     |
-| 16   | C-2 MDX 이미지 next/image                | UX   | 중     | 콘텐츠 이미지 최적화               |
-| 17   | B-5 promote.yml dispatch + 알림          | CI   | 소     | 배포 운영성                        |
-| 18   | B-6 react-doctor blocking 전환           | CI   | 중     | 품질 게이트 실효화                 |
-| 19   | C-4 error.tsx 추가                       | UX   | 소     | 오류 UX                            |
-| 20   | D-6 콘텐츠 GEO 가이드 (AGENTS.md)        | GEO  | 소     | 문서 작업                          |
-| 21   | C-3 검색 인덱스 분리                     | UX   | 중     | 조건부(콘텐츠 성장 시)             |
-| 22   | B-4 E2E 시간 단축 (측정 후)              | CI   | 중     | 조건부(병목 확인 시)               |
-| 23   | A-6 tags 페이지 템플릿화                 | 설계 | 소     | 선택                               |
-| 24   | C-5 cacheComponents 재평가               | UX   | -      | 업그레이드 시 체크 항목            |
-| 25   | C-6 UX 폴리시 묶음                       | UX   | 소     | 선택                               |
+| 6    | C-8 Spotify OAuth callback 보안 보강     | UX   | 소     | 토큰 응답 캐시/리퍼러 위험 축소    |
+| 7    | C-1 폰트 서브셋 (본문)                   | UX   | 중     | LCP 개선 + standalone 다이어트     |
+| 8    | A-2 콘텐츠 로더 공통화                   | 설계 | 중     | post/note drift 제거               |
+| 9    | A-3 wikilink 단일 소스화 (스크립트 TS화) | 설계 | 중     | 검증·렌더링 규칙 일치              |
+| 10   | B-3 blog-content.yml 중복 정리           | CI   | 소     | 워크플로우 단순화                  |
+| 11   | B-2 blog#build outputs 정리 (검증 전제)  | CI   | 중     | 413 특례 제거                      |
+| 12   | D-1 AI 크롤러 정책 명시화                | GEO  | 소     | 정책 결정 선행, 이후 D 과제의 전제 |
+| 13   | D-4 RSS autodiscovery + full-content     | GEO  | 소~중  | 발견성 즉효                        |
+| 14   | D-2 llms.txt + D-3 마크다운 엔드포인트   | GEO  | 중     | AI 인용 경로 확보                  |
+| 15   | D-5 sitemap hreflang alternates          | GEO  | 소     | 다국어 신호 보강                   |
+| 16   | C-7-1 OG 이미지 고도화 + 커버리지        | UX   | 중     | 링크 공유 경험, 전 페이지 커버     |
+| 17   | C-2 MDX 이미지 next/image                | UX   | 중     | 콘텐츠 이미지 최적화               |
+| 18   | B-5 promote.yml dispatch + 알림          | CI   | 소     | 배포 운영성                        |
+| 19   | B-6 react-doctor blocking 전환           | CI   | 중     | 품질 게이트 실효화                 |
+| 20   | C-4 error.tsx 추가                       | UX   | 소     | 오류 UX                            |
+| 21   | D-6 콘텐츠 GEO 가이드 (AGENTS.md)        | GEO  | 소     | 문서 작업                          |
+| 22   | C-3 검색 인덱스 분리                     | UX   | 중     | 조건부(콘텐츠 성장 시)             |
+| 23   | B-4 E2E 시간 단축 (측정 후)              | CI   | 중     | 조건부(병목 확인 시)               |
+| 24   | A-6 tags 페이지 템플릿화                 | 설계 | 소     | 선택                               |
+| 25   | C-5 cacheComponents 재평가               | UX   | -      | 업그레이드 시 체크 항목            |
+| 26   | C-6 UX 폴리시 묶음                       | UX   | 소     | 선택                               |
 
 > favicon(C-7-0)은 라이브 버그라 로드맵 1순위로 올렸지만, OG 고도화(C-7-1)와 같은 `next/og` 코드·공통 셸을 건드리므로 **코드 생성 이미지 PR 하나로 함께 처리**한다(아래 묶음 참조).
 
@@ -307,6 +321,7 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 - **CI 정리 PR**: B-1 + B-3 (+ B-5)
 - **GEO PR**: D-1(정책 결정 후) → D-2 + D-3 한 PR(같은 콘텐츠 API 재사용) → D-4 + D-5 한 PR(피드·sitemap 소액 작업 묶음)
 - **코드 생성 이미지 PR**: C-7 단독 — favicon 버그 수정(C-7-0) 먼저 + 템플릿 공통화(`shared/lib/og` 셸·폰트 로딩) → OG 긴 텍스트/locale 보강 → 기본 OG 이미지 추가(C-7-1) 순서로 한 PR 안에서 진행. favicon은 단독으로 먼저 빼서 빠르게 배포하고 싶으면 분리 가능.
+- **Spotify OAuth callback 보안 보강 PR**: C-8 단독 권장 — `app/api/spotify/*` route와 테스트만 건드리는 소액 보안 작업이다. B-6(react-doctor baseline 해소) 전 선행하면 Security 경고의 실질 위험을 먼저 줄이고, 남는 React Doctor 경고를 구조적 예외로 볼지 2단계 POST 구조로 재설계할지 판단하기 쉽다.
 
 ### 비고
 
