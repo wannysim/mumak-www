@@ -15,7 +15,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - [ ] **GEO 정책 결정** — D-1 (robots.ts AI 크롤러 정책, 코드 전 의사결정)
 - [ ] **GEO PR 1** — D-2(llms.txt) + D-3(마크다운 엔드포인트)
 - [ ] **GEO PR 2** — D-4(RSS 보강) + D-5(sitemap hreflang)
-- [ ] **OG 이미지 PR** — C-7 (긴 텍스트 검증·locale 라벨·기본 이미지·템플릿 공통화)
+- [ ] **코드 생성 이미지 PR** — C-7 (favicon 라이브 버그 수정 + OG 긴 텍스트·locale·기본 이미지·템플릿 공통화)
 - [ ] **개별 소액**: C-2(MDX 이미지) / C-4(error.tsx) / B-6(react-doctor blocking) / D-6(콘텐츠 가이드)
 - [ ] **조건부·보류**: C-3(검색 인덱스, 콘텐츠 성장 시) / B-4(E2E 시간, 측정 후) / A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
 
@@ -176,7 +176,25 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **검색 팔레트 미세 UX**: 호버 프리뷰 등은 효용 낮음 — 사용자 피드백 있을 때만.
 - (참고: 초기 분석에서 "JSON-LD에 author/inLanguage 추가" 과제가 후보였으나, 검증 결과 `src/app/seo/json-ld.ts`에 author Person(`sameAs`, `knowsAbout` 포함)·`inLanguage`·`wordCount`까지 이미 구현되어 있어 제외했다.)
 
-### C-7. OG 이미지 템플릿 고도화 및 커버리지 확대
+### C-7. 코드 생성 이미지(favicon · OG) 고도화 및 커버리지 확대
+
+favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 생성되며 같은 문제 클래스(폰트 미로딩, 배경/대비, 브랜드 일관성)를 공유한다. 한 PR에서 공통 셸로 함께 정리한다.
+
+#### C-7-0. favicon이 구글 검색결과에서 빈 흰 동그라미로 나오는 라이브 버그 (최우선)
+
+- **증상**: 구글 검색결과에 사이트 favicon이 글자 없이 흰 동그라미만 보인다.
+- **근본 원인** (`app/icon.tsx`):
+  1. `backgroundColor: 'transparent'` + `color: '#ffffff'` 조합. 구글 검색결과는 favicon을 밝은 배경의 둥근 칩 안에 렌더하므로, 투명 배경 위 흰 "WS" 글자가 흰 칩에 묻혀 사라진다. 다크 테마 브라우저 탭에서는 정상으로 보여 그동안 드러나지 않았다.
+  2. `fontFamily: 'Pretendard, system-ui, ...'`라고 지정했지만 `ImageResponse`에 `fonts` 옵션을 넘기지 않는다. Satori는 시스템 폰트를 쓸 수 없어 번들 기본 폰트(regular)로 렌더되고 `fontWeight: 800`도 매칭 폰트가 없어 무시된다. OG 라우트가 `loadOgFonts`를 넘기는 것과 달리 icon에는 폰트 로딩이 빠져 있다.
+  3. `/favicon.ico` 정적 폴백이 없다 — `app/icon.tsx`만 존재. 일부 크롤러·구형 클라이언트는 루트 `/favicon.ico`를 직접 요청한다.
+- **개선안**:
+  1. 배경을 투명 대신 브랜드 다크(`#0a0a0a`, manifest `theme_color`·OG 배경과 동일)로 채운 둥근 사각형/원으로. 어떤 배경 위에서도 흰 "WS"가 보이게.
+  2. `loadOgFonts`(Bold 600/700)를 `ImageResponse`에 전달해 Pretendard로 렌더 — OG 이미지와 브랜드 일관성 확보.
+  3. `app/favicon.ico` 정적 파일 추가(루트 폴백). 구글 favicon 가이드라인(정사각형, robots 비차단 — `/icon`은 이미 허용 경로)은 나머지 충족.
+- **배포 후**: 코드 수정만으로 sitemap 재제출이 필요한 건 아니다. 구글은 favicon을 자체 주기(수일~수주)로 별도 갱신한다. 다만 Search Console에서 홈 URL 검사 → 색인 생성 요청으로 갱신을 앞당길 수 있다. 수정 없이 재크롤만 하면 현재의 투명-흰색 아이콘이 다시 캐시될 뿐이므로 코드 수정이 선행되어야 한다.
+- **검증**: 빌드 후 `/icon`·`/favicon.ico`를 흰 배경 위에 올려 글자가 보이는지 확인. `e2e/seo.spec.ts`/`e2e/font.spec.ts`에 icon 관련 단언이 있는지 확인하고 없으면 추가.
+
+#### C-7-1. OG 이미지 템플릿 고도화 및 커버리지 확대
 
 - **현황**: 코드 기반 OG 이미지 생성은 이미 구현되어 있다 — `blog/[category]/[slug]/opengraph-image.tsx`와 `garden/[slug]/opengraph-image.tsx`가 `next/og`(Satori) + Pretendard woff(400/600/700)로 1200x630 이미지를 `generateStaticParams` 기반 정적 생성한다. 제목(64px bold)과 설명(28px muted)은 분리되어 있고 각각 2줄 clamp, garden은 status 뱃지(locale별 라벨·색상)까지 갖췄다. 남은 갭은 다음 네 가지다:
   1. **긴 텍스트 처리의 신뢰성 미검증**: clamp가 `WebkitLineClamp` + `-webkit-box` 조합인데, Satori는 브라우저가 아니라 비표준 `lineClamp` 속성을 별도로 지원하는 엔진이다. 이 조합이 Satori에서 실제로 동작하는지 최장 제목/설명 케이스로 검증된 적이 없다 — 동작하지 않으면 긴 제목이 잘리지 않고 넘친다.
@@ -187,7 +205,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
   1. 긴 텍스트: 최장 ko/en 제목·설명 케이스를 로컬에서 `/{locale}/blog/.../opengraph-image` URL로 직접 렌더해 시각 검증. clamp가 동작하지 않으면 Satori 네이티브 `lineClamp` 속성으로 교체. 추가로 글자수 기반 동적 폰트 크기(예: 제목 30자 초과 시 64→52px, 50자 초과 시 44px)와 한국어 줄바꿈 `wordBreak: 'keep-all'` 적용. 글자수 임계는 ko(음절)와 en(단어)이 다르므로 locale별로 분리.
   2. locale: category 라벨을 ko/en 매핑(에세이/아티클/노트)으로 교체 — 페이지 쪽 `staticTranslations`와 단일 소스로 공유. `generateImageMetadata`로 포스트 제목 기반 동적 alt 생성.
   3. 커버리지: `app/[locale]/opengraph-image.tsx`에 사이트 기본 브랜드 이미지 1종 추가 — Next 파일 컨벤션상 하위 세그먼트에 상속되고 슬러그 레벨 구현이 우선하므로, 파일 하나로 나머지 전 페이지가 커버된다.
-  4. 공통화: 공통 셸(배경, 푸터, clamp 텍스트 블록, Not Found 폴백)을 `src/shared/lib/og/`에 template 컴포넌트로 추출하고 blog/garden/기본 이미지가 공유.
+  4. 공통화: 공통 셸(배경, 푸터, clamp 텍스트 블록, Not Found 폴백)을 `src/shared/lib/og/`에 template 컴포넌트로 추출하고 favicon(`icon.tsx`)·blog/garden·기본 이미지가 브랜드 배경·폰트 로딩을 공유.
 - **기대 효과**: 카카오톡/슬랙/X 등에 링크 공유 시 모든 페이지가 일관된 브랜드 이미지로 노출. 긴 제목에서도 깨지지 않는 카드. 포스트에 이미지를 직접 넣지 않아도 되는 현 워크플로우 유지.
 - **검증**: 대표 케이스(최장 ko 제목, 최장 en 제목, 설명 없음, 기본 이미지)를 빌드 후 산출물로 확인. `e2e/seo.spec.ts`에 og:image 메타 존재 검증이 있는지 확인하고 없으면 추가.
 
@@ -254,30 +272,33 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 | 순위 | 과제                                     | 분류 | 작업량 | 효과                               |
 | ---- | ---------------------------------------- | ---- | ------ | ---------------------------------- |
-| 1    | B-1 globalDependencies `.env*` 제거      | CI   | 소     | 캐시 적중률 즉시 개선              |
-| 2    | A-1 frontmatter zod 검증                 | 설계 | 중     | 콘텐츠 오류 빌드 타임 포착         |
-| 3    | A-4 React.cache() 적용                   | 설계 | 소     | 빌드 시간 단축                     |
-| 4    | A-5 커버리지 갭 보강                     | 설계 | 소     | draft 노출 등 회귀 방지            |
-| 5    | C-1 폰트 서브셋 (본문)                   | UX   | 중     | LCP 개선 + standalone 다이어트     |
-| 6    | A-2 콘텐츠 로더 공통화                   | 설계 | 중     | post/note drift 제거               |
-| 7    | A-3 wikilink 단일 소스화 (스크립트 TS화) | 설계 | 중     | 검증·렌더링 규칙 일치              |
-| 8    | B-3 blog-content.yml 중복 정리           | CI   | 소     | 워크플로우 단순화                  |
-| 9    | B-2 blog#build outputs 정리 (검증 전제)  | CI   | 중     | 413 특례 제거                      |
-| 10   | D-1 AI 크롤러 정책 명시화                | GEO  | 소     | 정책 결정 선행, 이후 D 과제의 전제 |
-| 11   | D-4 RSS autodiscovery + full-content     | GEO  | 소~중  | 발견성 즉효                        |
-| 12   | D-2 llms.txt + D-3 마크다운 엔드포인트   | GEO  | 중     | AI 인용 경로 확보                  |
-| 13   | D-5 sitemap hreflang alternates          | GEO  | 소     | 다국어 신호 보강                   |
-| 14   | C-7 OG 이미지 고도화 + 커버리지          | UX   | 중     | 링크 공유 경험, 전 페이지 커버     |
-| 15   | C-2 MDX 이미지 next/image                | UX   | 중     | 콘텐츠 이미지 최적화               |
-| 16   | B-5 promote.yml dispatch + 알림          | CI   | 소     | 배포 운영성                        |
-| 17   | B-6 react-doctor blocking 전환           | CI   | 중     | 품질 게이트 실효화                 |
-| 18   | C-4 error.tsx 추가                       | UX   | 소     | 오류 UX                            |
-| 19   | D-6 콘텐츠 GEO 가이드 (AGENTS.md)        | GEO  | 소     | 문서 작업                          |
-| 20   | C-3 검색 인덱스 분리                     | UX   | 중     | 조건부(콘텐츠 성장 시)             |
-| 21   | B-4 E2E 시간 단축 (측정 후)              | CI   | 중     | 조건부(병목 확인 시)               |
-| 22   | A-6 tags 페이지 템플릿화                 | 설계 | 소     | 선택                               |
-| 23   | C-5 cacheComponents 재평가               | UX   | -      | 업그레이드 시 체크 항목            |
-| 24   | C-6 UX 폴리시 묶음                       | UX   | 소     | 선택                               |
+| 1    | C-7-0 favicon 라이브 버그 수정           | UX   | 소     | 구글 검색결과 빈 아이콘 즉시 해결  |
+| 2    | B-1 globalDependencies `.env*` 제거      | CI   | 소     | 캐시 적중률 즉시 개선              |
+| 3    | A-1 frontmatter zod 검증                 | 설계 | 중     | 콘텐츠 오류 빌드 타임 포착         |
+| 4    | A-4 React.cache() 적용                   | 설계 | 소     | 빌드 시간 단축                     |
+| 5    | A-5 커버리지 갭 보강                     | 설계 | 소     | draft 노출 등 회귀 방지            |
+| 6    | C-1 폰트 서브셋 (본문)                   | UX   | 중     | LCP 개선 + standalone 다이어트     |
+| 7    | A-2 콘텐츠 로더 공통화                   | 설계 | 중     | post/note drift 제거               |
+| 8    | A-3 wikilink 단일 소스화 (스크립트 TS화) | 설계 | 중     | 검증·렌더링 규칙 일치              |
+| 9    | B-3 blog-content.yml 중복 정리           | CI   | 소     | 워크플로우 단순화                  |
+| 10   | B-2 blog#build outputs 정리 (검증 전제)  | CI   | 중     | 413 특례 제거                      |
+| 11   | D-1 AI 크롤러 정책 명시화                | GEO  | 소     | 정책 결정 선행, 이후 D 과제의 전제 |
+| 12   | D-4 RSS autodiscovery + full-content     | GEO  | 소~중  | 발견성 즉효                        |
+| 13   | D-2 llms.txt + D-3 마크다운 엔드포인트   | GEO  | 중     | AI 인용 경로 확보                  |
+| 14   | D-5 sitemap hreflang alternates          | GEO  | 소     | 다국어 신호 보강                   |
+| 15   | C-7-1 OG 이미지 고도화 + 커버리지        | UX   | 중     | 링크 공유 경험, 전 페이지 커버     |
+| 16   | C-2 MDX 이미지 next/image                | UX   | 중     | 콘텐츠 이미지 최적화               |
+| 17   | B-5 promote.yml dispatch + 알림          | CI   | 소     | 배포 운영성                        |
+| 18   | B-6 react-doctor blocking 전환           | CI   | 중     | 품질 게이트 실효화                 |
+| 19   | C-4 error.tsx 추가                       | UX   | 소     | 오류 UX                            |
+| 20   | D-6 콘텐츠 GEO 가이드 (AGENTS.md)        | GEO  | 소     | 문서 작업                          |
+| 21   | C-3 검색 인덱스 분리                     | UX   | 중     | 조건부(콘텐츠 성장 시)             |
+| 22   | B-4 E2E 시간 단축 (측정 후)              | CI   | 중     | 조건부(병목 확인 시)               |
+| 23   | A-6 tags 페이지 템플릿화                 | 설계 | 소     | 선택                               |
+| 24   | C-5 cacheComponents 재평가               | UX   | -      | 업그레이드 시 체크 항목            |
+| 25   | C-6 UX 폴리시 묶음                       | UX   | 소     | 선택                               |
+
+> favicon(C-7-0)은 라이브 버그라 로드맵 1순위로 올렸지만, OG 고도화(C-7-1)와 같은 `next/og` 코드·공통 셸을 건드리므로 **코드 생성 이미지 PR 하나로 함께 처리**한다(아래 묶음 참조).
 
 ### 묶어서 진행하면 좋은 단위
 
@@ -285,7 +306,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **빌드 산출물 다이어트 PR**: C-1(본문 폰트 서브셋) + B-2(outputs 정리) — standalone 크기 감소가 413 해결의 전제를 만들어 줌
 - **CI 정리 PR**: B-1 + B-3 (+ B-5)
 - **GEO PR**: D-1(정책 결정 후) → D-2 + D-3 한 PR(같은 콘텐츠 API 재사용) → D-4 + D-5 한 PR(피드·sitemap 소액 작업 묶음)
-- **OG 이미지 PR**: C-7 단독 — 템플릿 공통화 → 긴 텍스트/locale 보강 → 기본 이미지 추가 순서로 한 PR 안에서 진행
+- **코드 생성 이미지 PR**: C-7 단독 — favicon 버그 수정(C-7-0) 먼저 + 템플릿 공통화(`shared/lib/og` 셸·폰트 로딩) → OG 긴 텍스트/locale 보강 → 기본 OG 이미지 추가(C-7-1) 순서로 한 PR 안에서 진행. favicon은 단독으로 먼저 빼서 빠르게 배포하고 싶으면 분리 가능.
 
 ### 비고
 
