@@ -38,6 +38,17 @@ describe('content frontmatter schemas', () => {
     ).toThrow('Expected an ISO date string in YYYY-MM-DD format');
   });
 
+  it('rejects dates that are not zero-padded YYYY-MM-DD strings', () => {
+    expect(() =>
+      PostFrontmatterSchema.parse({
+        title: 'Post title',
+        date: '2026-6-12',
+        description: 'Description',
+        tags: ['test'],
+      })
+    ).toThrow('Expected an ISO date string in YYYY-MM-DD format');
+  });
+
   it('rejects unknown note status values', () => {
     expect(() =>
       NoteFrontmatterSchema.parse({
