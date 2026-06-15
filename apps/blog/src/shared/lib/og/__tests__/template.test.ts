@@ -6,12 +6,17 @@ describe('resolveTitleFontSize', () => {
       expect(resolveTitleFontSize('짧은 제목', 'ko')).toBe(64);
     });
 
-    it('18자 초과는 52px로 줄인다', () => {
-      expect(resolveTitleFontSize('열아홉 글자가 넘어가는 제목입니다요', 'ko')).toBe(52);
+    it('26자 초과는 56px로 줄인다', () => {
+      expect(resolveTitleFontSize('스물여섯 글자를 확실히 넘어가는 적당히 긴 한국어 제목입니다', 'ko')).toBe(56);
     });
 
-    it('28자 초과는 44px로 줄인다', () => {
-      expect(resolveTitleFontSize('React Compiler가 Rust로, 그리고 코드 대부분은 AI가 썼다', 'ko')).toBe(44);
+    it('42자 초과는 하한 48px로 줄인다', () => {
+      expect(
+        resolveTitleFontSize(
+          '마흔두 글자를 확실하게 넘어가는 아주 긴 한국어 제목으로 카드 안에 들어가야 하는 케이스입니다',
+          'ko'
+        )
+      ).toBe(48);
     });
   });
 
@@ -20,17 +25,25 @@ describe('resolveTitleFontSize', () => {
       expect(resolveTitleFontSize('A short title', 'en')).toBe(64);
     });
 
-    it('34자 초과는 52px로 줄인다', () => {
-      expect(resolveTitleFontSize('A moderately long english blog title', 'en')).toBe(52);
+    it('46자 초과는 56px로 줄인다', () => {
+      expect(resolveTitleFontSize('A moderately long english blog post title that fits', 'en')).toBe(56);
     });
 
-    it('52자 초과는 44px로 줄인다', () => {
-      expect(resolveTitleFontSize('An extremely long english blog post title that keeps going', 'en')).toBe(44);
+    it('70자 초과는 하한 48px로 줄인다', () => {
+      expect(
+        resolveTitleFontSize('An extremely long english blog post title that just keeps going on and on', 'en')
+      ).toBe(48);
     });
   });
 
-  it('같은 글자 수라도 ko가 en보다 더 작은 폰트를 고른다', () => {
-    const sample = 'abcdefghijklmnopqrstuvwxyz'; // 26자
-    expect(resolveTitleFontSize(sample, 'ko')).toBeLessThan(resolveTitleFontSize(sample, 'en'));
+  it('폰트는 48px 아래로 내려가지 않는다', () => {
+    const veryLong = '가'.repeat(200);
+    expect(resolveTitleFontSize(veryLong, 'ko')).toBeGreaterThanOrEqual(48);
+    expect(resolveTitleFontSize('a'.repeat(200), 'en')).toBeGreaterThanOrEqual(48);
+  });
+
+  it('같은 글자 수라도 ko가 en보다 더 작거나 같은 폰트를 고른다', () => {
+    const sample = 'abcdefghijklmnopqrstuvwxyz0123456789'; // 36자
+    expect(resolveTitleFontSize(sample, 'ko')).toBeLessThanOrEqual(resolveTitleFontSize(sample, 'en'));
   });
 });

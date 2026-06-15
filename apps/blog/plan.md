@@ -208,7 +208,7 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 
 > 완료. 네 갭 모두 해소:
 >
-> 1. **긴 텍스트**: 최장 ko 제목(41자 "React Compiler가 Rust로…")을 빌드 산출물로 렌더해 시각 검증 — `WebkitLineClamp` + `-webkit-box` 조합이 Satori에서 정상 동작 확인. `resolveTitleFontSize(title, locale)`로 글자수 기반 동적 폰트(ko: 18/28자 → 52/44px, en: 34/52자 → 52/44px, 음절폭 차이로 locale별 임계 분리) + `wordBreak: 'keep-all'` 적용. 긴 제목이 2줄 안에 안 깨지고 들어감.
+> 1. **긴 텍스트**: 최장 ko 제목(41자 "React Compiler가 Rust로…")을 빌드 산출물로 렌더해 시각 검증 — `WebkitLineClamp` + `-webkit-box` 조합이 Satori에서 정상 동작 확인. `resolveTitleFontSize(title, locale)`로 글자수 기반 동적 폰트(ko: 26/42자 → 56/48px, en: 46/70자 → 56/48px, 음절폭 차이로 locale별 임계 분리) + `wordBreak: 'keep-all'` 적용. OG 카드는 피드에서 작게 노출되므로 가독성을 위해 제목을 3줄(`OG_TITLE_LINES`)까지 허용하고 폰트 하한을 48px로 둬, 긴 제목이 안 깨지면서도 충분히 큰 상태를 유지한다(초안의 44px 하한·2줄은 카드 세로 공간이 비는데 글자만 작아져 폐기).
 > 2. **locale**: category 라벨을 `getCategoryLabel`(entities/post 단일 소스, 에세이/아티클/노트)로 교체 — 포스트 페이지 breadcrumb의 인라인 `staticTranslations.category`도 같은 소스를 쓰도록 통합. (`generateImageMetadata` 기반 동적 alt는 이 Next 버전에서 `generateStaticParams`와 함께 쓰면 `[__metadata_id__]` 라우트 수집 중 크래시해 보류 — 개선된 정적 alt로 대체.)
 > 3. **커버리지**: `app/[locale]/opengraph-image.tsx` 기본 브랜드 이미지 추가 — 파일 하나로 home·blog/garden 인덱스·tags·about·now가 자동 커버됨(빌드 HTML의 og:image가 `/{locale}/opengraph-image`를 가리킴 확인).
 > 4. **공통화**: `src/shared/lib/og/template.tsx`에 `OgShell`/`OgClampText`/`OgEyebrow`/`OgFooter`/`OgNotFound`/`resolveTitleFontSize`/`OG_SIZE`/`OG_COLORS` 추출 — favicon(`icon.tsx`)은 이미 `loadOgFonts` 공유 중이고, blog/garden/기본 이미지가 셸을 공유.

@@ -10,6 +10,7 @@ import {
   OgNotFound,
   OgShell,
   OG_SIZE,
+  OG_TITLE_LINES,
   resolveTitleFontSize,
 } from '@/src/shared/lib/og';
 
@@ -55,7 +56,7 @@ export default async function Image({ params }: Props) {
           fontSize={resolveTitleFontSize(post.meta.title, typedLocale)}
           weight={700}
           lineHeight={1.2}
-          lines={2}
+          lines={OG_TITLE_LINES}
           maxWidth="90%"
         />
         {post.meta.description ? (

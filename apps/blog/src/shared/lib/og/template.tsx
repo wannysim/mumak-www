@@ -10,17 +10,21 @@ export const OG_COLORS = {
   muted: '#a1a1aa',
 } as const;
 
-// 제목 길이에 따라 폰트 크기를 줄여 긴 제목이 2줄 clamp 안에 들어오게 한다.
+// 제목 줄 수 상한. 카드 세로 공간이 넉넉하므로 3줄까지 허용해 폰트를 크게 유지한다.
+export const OG_TITLE_LINES = 3;
+
+// 제목 길이에 따라 폰트 크기를 줄여 긴 제목이 3줄 clamp 안에 들어오게 한다. OG 카드는
+// 피드에서 작게 노출되므로 가독성을 위해 하한을 48px로 두고 어지간한 길이는 크게 유지한다.
 // 한국어 음절은 라틴보다 넓어 같은 글자 수라도 더 빨리 넘치므로 임계를 locale별로 분리한다.
 export function resolveTitleFontSize(title: string, locale: Locale): number {
   const length = title.length;
   if (locale === 'ko') {
-    if (length > 28) return 44;
-    if (length > 18) return 52;
+    if (length > 42) return 48;
+    if (length > 26) return 56;
     return 64;
   }
-  if (length > 52) return 44;
-  if (length > 34) return 52;
+  if (length > 70) return 48;
+  if (length > 46) return 56;
   return 64;
 }
 

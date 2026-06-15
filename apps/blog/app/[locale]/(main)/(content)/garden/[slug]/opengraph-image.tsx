@@ -10,6 +10,7 @@ import {
   OgNotFound,
   OgShell,
   OG_SIZE,
+  OG_TITLE_LINES,
   resolveTitleFontSize,
 } from '@/src/shared/lib/og';
 
@@ -83,7 +84,7 @@ export default async function Image({ params }: Props) {
           fontSize={resolveTitleFontSize(note.meta.title, typedLocale)}
           weight={700}
           lineHeight={1.2}
-          lines={2}
+          lines={OG_TITLE_LINES}
           maxWidth="95%"
         />
         {excerpt ? <OgClampText text={excerpt} fontSize={28} color="#a1a1aa" lines={2} maxWidth="85%" /> : null}
