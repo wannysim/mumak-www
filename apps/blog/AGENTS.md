@@ -151,6 +151,17 @@ tags: ['philosophy', 'thought']
 
 ---
 
+## 콘텐츠 GEO 관행 (AI 검색·인용 최적화)
+
+코드 인프라(JSON-LD, hreflang, sitemap, RSS full-content, `.md` 원문 엔드포인트, OG 이미지)는 이미 갖춰져 있다. GEO의 나머지 절반은 **콘텐츠 구조**다. AI 검색·어시스턴트는 질문-답 구조, 명시적 요약, 정확한 갱신일을 가진 문서를 더 잘 발견하고 인용한다. 새 글·노트를 쓸 때 아래를 권장한다(강제는 아니다).
+
+- **상단 요약(TL;DR)**: 글 도입부에 2~3문장으로 결론·핵심을 먼저 제시한다. AI가 인용 단위로 끌어가기 쉽고, description/excerpt와도 일관된다.
+- **질문형 헤딩**: 핵심 섹션 제목을 "왜 X인가", "X를 어떻게 하나"처럼 질문형으로 두면 AI 검색의 질의-응답 매칭에 유리하다.
+- **갱신일 관리**: 내용을 고치면 frontmatter `updated`(garden) / `date`(blog)를 갱신한다. 이미 JSON-LD `dateModified`와 sitemap `lastModified`로 연결되는 파이프라인이 완비돼 있어, 갱신일만 정확히 유지하면 신선도 신호가 자동으로 흐른다.
+- **FAQPage 스키마(선택)**: Q&A 성격이 강한 글은 `src/app/seo`에 FAQPage 구조화 데이터 추가를 검토한다. 일반 글에는 불필요하다.
+
+---
+
 ## UI / 디자인 Contract
 
 Blog와 Garden은 같은 사이트의 sibling 섹션이다. 두 섹션의 대응 화면은 **정보 구조와 UI recipe를 의도적으로 공유**하고, drift가 생기면 shared primitive로 흡수한다.

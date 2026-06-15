@@ -15,9 +15,10 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - [ ] **GEO 정책 결정** — D-1 (robots.ts AI 크롤러 정책, 코드 전 의사결정)
 - [~] **GEO PR 1** — D-3(마크다운 엔드포인트) 완료(GEO PR 2와 함께 진행) / D-2(llms.txt)는 D-1 정책 결정 의존이라 보류
 - [x] **GEO PR 2** — D-4(RSS autodiscovery + full-content) + D-5(sitemap hreflang) + D-3(마크다운 엔드포인트)
-- [ ] **코드 생성 이미지 PR** — C-7 (favicon 라이브 버그 수정 + OG 긴 텍스트·locale·기본 이미지·템플릿 공통화)
+- [x] **코드 생성 이미지 PR** — C-7-0(favicon, #430) + C-7-1(OG `shared/lib/og` 셸 공통화 + 긴 텍스트 동적 폰트·keep-all + locale 카테고리 라벨 + 기본 OG 이미지) — 동적 alt는 빌드 이슈로 보류
 - [x] **Spotify OAuth callback 보안 보강 PR** — C-8 (state 1회 소비 누락 보강 + no-store/no-referrer/noindex 헤더 + route 단위 테스트)
-- [ ] **개별 소액**: C-2(MDX 이미지) / C-4(error.tsx) / B-6(react-doctor blocking) / D-6(콘텐츠 가이드)
+- [x] **콘텐츠 GEO 가이드** — D-6 (`apps/blog/AGENTS.md`에 TL;DR·질문형 헤딩·`updated` 갱신·FAQPage 관행 추가) — C-7 PR과 함께 진행
+- [ ] **개별 소액**: C-2(MDX 이미지) / C-4(error.tsx) / B-6(react-doctor blocking)
 - [ ] **조건부·보류**: C-3(검색 인덱스, 콘텐츠 성장 시) / B-4(E2E 시간, 측정 후) / A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
 
 ## 현재 상태 요약
@@ -133,6 +134,9 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **현황**: `react-doctor.yml`이 advisory 모드(`blocking: none`)로 운영 중이며 main baseline에 에러 3건이 남아 있다. 새 PR이 같은 수준의 문제를 추가해도 머지를 막지 못한다.
 - **개선안**: baseline 3건을 해결(또는 suppression 문서화)한 뒤 `blocking: error`로 상향.
 - **기대 효과**: 정적 품질 게이트가 실제로 게이트 역할을 하게 됨.
+- **blocking 전환 전 일괄 처리할 알려진 false positive (suppression 후보)**:
+  - **`no-inline-exhaustive-style` (PR #433, C-7-1)** — `src/shared/lib/og/template.tsx`의 `OgShell`(L41)·`OgNotFound`(L126) inline style 2건. **이 규칙은 일반 React 런타임 컴포넌트를 가정하지만, 해당 파일은 `next/og`(Satori) 빌드타임 이미지 템플릿이다.** (1) Satori는 inline style만 지원하므로 권고대로 CSS class/module/Tailwind/styled-component로 옮기면 렌더링이 깨진다. (2) `generateStaticParams` 기반 빌드타임 1회 렌더라 "매 렌더마다 재생성" 성능 논리가 무관하다. → CSS 이전이 아니라 **구조적 예외로 suppression**(또는 정적 style 객체를 모듈 const로 호이스팅해 규칙 회피)으로 처리한다. `icon.tsx`·blog/garden·기본 OG 이미지의 inline style도 같은 성격이라 함께 검토.
+  - **`no-side-effect-in-get-handler` 류 (C-8)** — `app/api/spotify/callback/route.ts`의 GET handler token exchange. OAuth 표준 redirect callback은 GET이며 CSRF는 state로 방어한다(C-8에서 no-store + state single-use로 보강 완료). 2단계 POST 구조 재설계 전까지 **구조적 예외**로 둔다.
 
 ---
 
@@ -203,7 +207,16 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 - **배포 후**: 코드 수정만으로 sitemap 재제출이 필요한 건 아니다. 구글은 favicon을 자체 주기(수일~수주)로 별도 갱신한다. 다만 Search Console에서 홈 URL 검사 → 색인 생성 요청으로 갱신을 앞당길 수 있다. 수정 없이 재크롤만 하면 현재의 투명-흰색 아이콘이 다시 캐시될 뿐이므로 코드 수정이 선행되어야 한다.
 - **검증**: 빌드 후 `/icon`·`/favicon.ico`를 흰 배경 위에 올려 글자가 보이는지 확인. `e2e/seo.spec.ts`/`e2e/font.spec.ts`에 icon 관련 단언이 있는지 확인하고 없으면 추가.
 
-#### C-7-1. OG 이미지 템플릿 고도화 및 커버리지 확대
+#### C-7-1. OG 이미지 템플릿 고도화 및 커버리지 확대 — 완료
+
+> 완료. 네 갭 모두 해소:
+>
+> 1. **긴 텍스트**: 최장 ko 제목(41자 "React Compiler가 Rust로…")을 빌드 산출물로 렌더해 시각 검증 — `WebkitLineClamp` + `-webkit-box` 조합이 Satori에서 정상 동작 확인. `resolveTitleFontSize(title, locale)`로 글자수 기반 동적 폰트(ko: 26/42자 → 56/48px, en: 46/70자 → 56/48px, 음절폭 차이로 locale별 임계 분리) + `wordBreak: 'keep-all'` 적용. OG 카드는 피드에서 작게 노출되므로 가독성을 위해 제목을 3줄(`OG_TITLE_LINES`)까지 허용하고 폰트 하한을 48px로 둬, 긴 제목이 안 깨지면서도 충분히 큰 상태를 유지한다(초안의 44px 하한·2줄은 카드 세로 공간이 비는데 글자만 작아져 폐기).
+> 2. **locale**: category 라벨을 `getCategoryLabel`(entities/post 단일 소스, 에세이/아티클/노트)로 교체 — 포스트 페이지 breadcrumb의 인라인 `staticTranslations.category`도 같은 소스를 쓰도록 통합. (`generateImageMetadata` 기반 동적 alt는 이 Next 버전에서 `generateStaticParams`와 함께 쓰면 `[__metadata_id__]` 라우트 수집 중 크래시해 보류 — 개선된 정적 alt로 대체.)
+> 3. **커버리지**: `app/[locale]/opengraph-image.tsx` 기본 브랜드 이미지 추가 — 파일 하나로 home·blog/garden 인덱스·tags·about·now가 자동 커버됨(빌드 HTML의 og:image가 `/{locale}/opengraph-image`를 가리킴 확인).
+> 4. **공통화**: `src/shared/lib/og/template.tsx`에 `OgShell`/`OgClampText`/`OgEyebrow`/`OgFooter`/`OgNotFound`/`resolveTitleFontSize`/`OG_SIZE`/`OG_COLORS` 추출 — favicon(`icon.tsx`)은 이미 `loadOgFonts` 공유 중이고, blog/garden/기본 이미지가 셸을 공유.
+>
+> Satori 함정 기록: React와 달리 Satori는 `undefined` style 값을 거르지 않고 `.trim()`을 호출해 크래시한다(`weight`/`lineHeight` 미지정 시). `OgClampText`는 선택 속성을 값이 있을 때만 style 객체에 넣어 회피한다. 검증: `resolveTitleFontSize`·`getCategoryLabel` 단위 테스트, `e2e/seo.spec.ts`에 og:image 메타·PNG 서빙 E2E 추가, `pnpm --filter blog build`(900/900) + `test:ci`(865) 그린.
 
 - **현황**: 코드 기반 OG 이미지 생성은 이미 구현되어 있다 — `blog/[category]/[slug]/opengraph-image.tsx`와 `garden/[slug]/opengraph-image.tsx`가 `next/og`(Satori) + Pretendard woff(400/600/700)로 1200x630 이미지를 `generateStaticParams` 기반 정적 생성한다. 제목(64px bold)과 설명(28px muted)은 분리되어 있고 각각 2줄 clamp, garden은 status 뱃지(locale별 라벨·색상)까지 갖췄다. 남은 갭은 다음 네 가지다:
   1. **긴 텍스트 처리의 신뢰성 미검증**: clamp가 `WebkitLineClamp` + `-webkit-box` 조합인데, Satori는 브라우저가 아니라 비표준 `lineClamp` 속성을 별도로 지원하는 엔진이다. 이 조합이 Satori에서 실제로 동작하는지 최장 제목/설명 케이스로 검증된 적이 없다 — 동작하지 않으면 긴 제목이 잘리지 않고 넘친다.
@@ -292,7 +305,9 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 - **완료**: `app/sitemap.ts`에 `localizedEntry(locale, path, fields)` 헬퍼를 도입해 URL과 `alternates.languages`를 `buildAlternates` 한 곳에서 만든다(URL 조립 중복 제거 + hreflang 동시 부여). 각 entry가 ko/en/x-default 세 hreflang을 갖고, sitemap.xml 산출물에서 `<xhtml:link rel="alternate" hreflang="...">`로 출력됨을 확인. `__tests__/app/sitemap.test.ts`에 alternates 단언 추가.
 - **기대 효과**: 다국어 페이지 관계를 크롤러에 이중으로 신호. 검색 콘솔의 hreflang 진단 안정화.
 
-### D-6. 콘텐츠 차원의 GEO 관행 (운영 가이드)
+### D-6. 콘텐츠 차원의 GEO 관행 (운영 가이드) — 완료
+
+> 완료. `apps/blog/AGENTS.md`에 "콘텐츠 GEO 관행" 섹션을 추가 — (a) 포스트 상단 TL;DR/요약, (b) 핵심 섹션 헤딩 질문형, (c) 수정 시 frontmatter `updated`/`date` 갱신 습관(dateModified·sitemap lastModified 파이프라인과 연결), (d) Q&A 성격 글의 FAQPage 스키마 검토. C-7(코드 생성 이미지) PR과 함께 묶어 진행.
 
 - **현황**: GEO의 절반은 코드가 아니라 콘텐츠 구조다. AI 검색은 질문-답 구조, 명시적 요약, 정확한 갱신일을 가진 문서를 인용하기 쉽다.
 - **개선안**: 코드 과제가 아닌 `AGENTS.md` 콘텐츠 가이드 보강 — (a) 포스트 상단 TL;DR/요약 관행, (b) 핵심 섹션 헤딩을 질문형으로, (c) 내용 갱신 시 frontmatter `updated` 갱신 습관(이미 dateModified·sitemap lastModified로 연결되는 파이프라인은 완비), (d) Q&A 성격 포스트에는 FAQPage 스키마 추가 검토.

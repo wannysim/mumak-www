@@ -173,6 +173,33 @@ test.describe('SEO - Open Graph', () => {
     const twitterCard = await page.locator('meta[name="twitter:card"]').getAttribute('content');
     expect(twitterCard).toBe('summary_large_image');
   });
+
+  test('should advertise the default OG image on the home page', async ({ page }) => {
+    await page.goto('/ko');
+
+    const ogImage = await page.locator('meta[property="og:image"]').first().getAttribute('content');
+    expect(ogImage).toMatch(/\/ko\/opengraph-image/);
+
+    const ogImageType = await page.locator('meta[property="og:image:type"]').first().getAttribute('content');
+    expect(ogImageType).toBe('image/png');
+  });
+
+  test('should advertise and serve a per-post OG image', async ({ page, request }) => {
+    await page.goto('/ko/blog/articles/react-compiler-rust-port');
+
+    const ogImage = await page.locator('meta[property="og:image"]').first().getAttribute('content');
+    expect(ogImage).toMatch(/\/blog\/.+\/opengraph-image/);
+
+    // 해시 세그먼트가 바뀌어도 깨지지 않도록 메타 URL에서 경로를 그대로 가져온다.
+    const { pathname, search } = new URL(ogImage!);
+    const response = await request.get(`${pathname}${search}`);
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('image/png');
+    // 폰트·텍스트가 실제로 렌더되면 빈 배경 이미지보다 훨씬 크다.
+    const body = await response.body();
+    expect(body.length).toBeGreaterThan(5000);
+  });
 });
 
 test.describe('SEO - Basic Meta Tags', () => {
