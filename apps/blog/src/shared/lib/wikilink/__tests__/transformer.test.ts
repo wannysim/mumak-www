@@ -1,4 +1,9 @@
-import { createGardenResolver, transformWikilinks, type LinkResolver } from '../transformer';
+import {
+  createGardenResolver,
+  transformWikilinks,
+  transformWikilinksToMarkdown,
+  type LinkResolver,
+} from '../transformer';
 
 describe('transformWikilinks', () => {
   const mockResolver: LinkResolver = {
@@ -98,6 +103,35 @@ describe('transformWikilinks', () => {
     const content = '![[existing-note#missing-heading]]';
     const result = transformWikilinks(content, { resolver: mockResolver, currentSlug: 'current-note' });
     expect(result).toContain('<BrokenWikiEmbed');
+  });
+});
+
+describe('transformWikilinksToMarkdown', () => {
+  const hrefFor = ({ slug, heading }: { slug: string; heading?: string }) =>
+    `https://example.com/garden/${slug}${heading ? `#${heading}` : ''}`;
+
+  it('converts a bare wikilink to a markdown link using the target as label', () => {
+    const result = transformWikilinksToMarkdown('See [[note-a]] here', { hrefFor });
+
+    expect(result).toBe('See [note-a](https://example.com/garden/note-a) here');
+  });
+
+  it('uses the explicit label when provided', () => {
+    const result = transformWikilinksToMarkdown('See [[note-a|Note A]]', { hrefFor });
+
+    expect(result).toBe('See [Note A](https://example.com/garden/note-a)');
+  });
+
+  it('passes heading anchors through to hrefFor', () => {
+    const result = transformWikilinksToMarkdown('[[note-a#section]]', { hrefFor });
+
+    expect(result).toBe('[note-a#section](https://example.com/garden/note-a#section)');
+  });
+
+  it('leaves content without wikilinks untouched', () => {
+    const content = 'plain text with [a link](https://x.com)';
+
+    expect(transformWikilinksToMarkdown(content, { hrefFor })).toBe(content);
   });
 });
 

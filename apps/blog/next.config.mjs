@@ -41,6 +41,18 @@ const nextConfig = {
     useCache: true,
     optimizePackageImports: ['next-mdx-remote-client', '@mumak/ui', 'lucide-react', 'next-themes', 'next-intl'],
   },
+  async rewrites() {
+    // `/{locale}/blog/{category}/{slug}.md` → 포스트 마크다운 원문 핸들러.
+    // beforeFiles: [slug] 페이지가 `first.md`를 먼저 매칭해 버리기 전에 가로챈다.
+    return {
+      beforeFiles: [
+        {
+          source: '/:locale/blog/:category/:slug.md',
+          destination: '/:locale/blog/:category/:slug/raw',
+        },
+      ],
+    };
+  },
   async redirects() {
     const categories = ['essay', 'articles', 'notes'];
     return [

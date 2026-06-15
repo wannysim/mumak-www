@@ -34,6 +34,7 @@
     "@vercel/speed-insights": "^2.0.0",
     "gray-matter": "^4.0.3",
     "lucide-react": "^1.17.0",
+    "marked": "^15.0.12",
     "next": "^16.2.6",
     "next-intl": "^4.11.0",
     "next-mdx-remote-client": "^2.1.10",

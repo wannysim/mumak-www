@@ -62,4 +62,18 @@ describe('buildAlternates', () => {
 
     expect(result.languages['x-default']).toBe(`${BASE_URL}/ko/garden/foo`);
   });
+
+  describe('RSS autodiscovery types', () => {
+    it('should advertise the current locale RSS feed', () => {
+      const result = buildAlternates({ locale: 'ko', path: '/blog' });
+
+      expect(result.types['application/rss+xml']).toBe(`${BASE_URL}/ko/feed.xml`);
+    });
+
+    it('should point to the locale-specific feed regardless of path', () => {
+      const result = buildAlternates({ locale: 'en', path: '/garden/foo' });
+
+      expect(result.types['application/rss+xml']).toBe(`${BASE_URL}/en/feed.xml`);
+    });
+  });
 });
