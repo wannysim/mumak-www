@@ -16,7 +16,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - [~] **GEO PR 1** — D-3(마크다운 엔드포인트) 완료(GEO PR 2와 함께 진행) / D-2(llms.txt)는 D-1 정책 결정 의존이라 보류
 - [x] **GEO PR 2** — D-4(RSS autodiscovery + full-content) + D-5(sitemap hreflang) + D-3(마크다운 엔드포인트)
 - [ ] **코드 생성 이미지 PR** — C-7 (favicon 라이브 버그 수정 + OG 긴 텍스트·locale·기본 이미지·템플릿 공통화)
-- [ ] **Spotify OAuth callback 보안 보강 PR** — C-8 (React Doctor Security 경고 검토 후 실질 보강)
+- [x] **Spotify OAuth callback 보안 보강 PR** — C-8 (state 1회 소비 누락 보강 + no-store/no-referrer/noindex 헤더 + route 단위 테스트)
 - [ ] **개별 소액**: C-2(MDX 이미지) / C-4(error.tsx) / B-6(react-doctor blocking) / D-6(콘텐츠 가이드)
 - [ ] **조건부·보류**: C-3(검색 인덱스, 콘텐츠 성장 시) / B-4(E2E 시간, 측정 후) / A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
 
@@ -218,7 +218,16 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 - **기대 효과**: 카카오톡/슬랙/X 등에 링크 공유 시 모든 페이지가 일관된 브랜드 이미지로 노출. 긴 제목에서도 깨지지 않는 카드. 포스트에 이미지를 직접 넣지 않아도 되는 현 워크플로우 유지.
 - **검증**: 대표 케이스(최장 ko 제목, 최장 en 제목, 설명 없음, 기본 이미지)를 빌드 후 산출물로 확인. `e2e/seo.spec.ts`에 og:image 메타 존재 검증이 있는지 확인하고 없으면 추가.
 
-### C-8. Spotify OAuth callback 보안 보강 (React Doctor Security 경고 대응)
+### C-8. Spotify OAuth callback 보안 보강 (React Doctor Security 경고 대응) — 완료
+
+> 완료. GET callback이 OAuth 표준이라는 전제를 유지하면서 토큰 노출 표면을 보강:
+>
+> 1. **state 1회 소비 누락 해소**: `finalizeAfterStateCheck()`로 state 검증 통과 이후의 모든 응답 경로(성공/토큰 실패/예외 + `SPOTIFY_CLIENT_*` 누락 500)에서 `spotify_auth_state`를 삭제. 이전엔 env 누락 500 경로가 cookie를 소비하지 않아 "1회 소비" 주석과 어긋났다.
+> 2. **응답 헤더 보강**: `harden()`이 모든 응답에 `Cache-Control: no-store, private` / `Pragma: no-cache` / `Referrer-Policy: no-referrer` / `X-Robots-Tag: noindex`를 부여 — refresh token HTML과 토큰 교환 실패 응답이 브라우저/프록시 캐시에 남거나 Referer로 새는 위험 차단.
+> 3. **route 단위 테스트 추가**(`app/api/spotify/callback/__tests__/route.test.ts`, node env): state mismatch에서 token endpoint 미호출·cookie 미소비, env 누락 500에서 cookie 소비, 토큰 실패/성공에서 cookie 소비 + 보안 헤더, 성공 HTML에 refresh token 포함.
+> 4. **주석 명확화**: "React Doctor 경고 무시"가 아니라 "OAuth callback은 GET이 표준이며 CSRF는 state로 방어, 이 route는 no-store + state single-use로 보강"으로 유지.
+>
+> 검증: `pnpm --filter blog test -- app/api/spotify/callback`(4 passed), `check-types`·`lint`·`format:check` 그린. GET handler의 token exchange(side effect)는 OAuth 구조상 불가피하므로 React Doctor Security 경고는 구조적 예외로 남으며, B-6에서 baseline/suppression으로 처리한다.
 
 - **현황**: `app/api/spotify/callback/route.ts`는 Spotify Authorization Code Flow의 redirect URI이므로 GET으로 `code`/`state`를 받는다. 이후 같은 handler 안에서 Spotify token endpoint로 `fetch(..., { method: 'POST' })`를 호출해 refresh token을 발급받는다. React Doctor는 "GET handler의 side effect"로 경고하지만, OAuth callback 자체는 provider가 브라우저 redirect로 호출하는 GET 경로라 단순히 `POST` handler로 바꾸면 인증 플로우가 깨진다. 현재 CSRF 방어는 `spotify_auth_state` httpOnly cookie와 URL `state` 대조, 10분 만료, `sameSite: 'lax'`로 구현되어 있다.
 - **판단**: 이 경고는 일반적인 "GET이 서버 상태를 바꾸면 CSRF 위험" 원칙으로는 맞지만, 이 파일은 OAuth 표준 redirect callback이라는 특수 케이스다. 따라서 1차 개선은 GET을 POST로 바꾸는 것이 아니라, GET callback 전제를 유지하면서 토큰 응답과 state 소비 경로를 더 엄격하게 만드는 쪽이 맞다. React Doctor 경고 자체를 완전히 없애려면 GET callback이 중간 HTML을 반환하고 same-origin `POST` route가 token exchange를 수행하는 2단계 구조가 필요하지만, 작업량 대비 이득은 별도 검토가 필요하다.
