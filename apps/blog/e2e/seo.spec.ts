@@ -268,7 +268,8 @@ test.describe('GEO - Markdown source endpoint', () => {
   test('should keep the HTML post page working at the non-.md URL', async ({ page }) => {
     const response = await page.goto('/ko/blog/essay/first');
 
+    // rewrite는 `.md`만 가로채고, 일반 URL은 HTML 페이지를 그대로 서빙해야 한다.
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    expect(response?.headers()['content-type']).toContain('text/html');
   });
 });
