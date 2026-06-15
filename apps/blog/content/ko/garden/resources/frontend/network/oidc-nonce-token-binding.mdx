@@ -1,0 +1,161 @@
+---
+title: 'OIDC nonce: ID Token이 "방금 내 요청의 응답"임을 증명하는 법'
+created: '2026-06-11'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'oauth', 'oidc', 'nonce']
+---
+
+"Google로 로그인", "Apple로 로그인"을 붙이다 보면 provider가 `id_token`이라는 서명된 JWT를 돌려준다. 서명이 유효하고 `iss`·`aud`·`exp`까지 다 맞으면 이 토큰을 믿어도 될까? 아니다. **하나가 더 남았다 — `nonce`.** 서명·발급자·수신자·만료가 전부 멀쩡한데도 거부해야 하는 토큰이 있고, 그걸 거르는 게 nonce다.
+
+> 한 줄 요약: **nonce는 "이 ID Token이 *내가 방금 시작한 바로 그 로그인 요청*에 대한 응답"임을 증명하는 1회용 난수다. 서명이 진짜여도 nonce가 안 맞으면, 그건 다른 흐름에서 떨어진 토큰을 끼워넣은 것이다.**
+
+전제로 OAuth/OIDC의 구분이 깔려 있어야 한다. 한 줄로 좁히면 **OAuth는 인가(이 앱이 뭘 할 수 있나 → access token), OIDC는 그 위에 얹은 인증(이 사람이 누구인가 → ID Token)** 이다. 실제 백엔드 연동에서 이 구분이 왜 결정을 가르는지는 [Expo 소셜 로그인 3부](/ko/blog/articles/expo-social-login-backend)에 정리해 뒀다. 이 노트는 그중 `nonce` 하나만 끝까지 판다.
+
+## ID Token은 왜 "서명만으론" 부족한가
+
+ID Token은 서명된 JWT라, 클라이언트는 provider 공개키(JWKS)로 **오프라인 검증**을 한다. 검증 체크리스트는 보통 이렇다.
+
+| claim   | 검증 질문                | 막는 것                   |
+| ------- | ------------------------ | ------------------------- |
+| 서명    | provider가 진짜 서명했나 | 위조 토큰                 |
+| `iss`   | 내가 신뢰하는 발급자인가 | 엉뚱한 provider           |
+| `aud`   | **내 client_id가 맞나**  | 남의 앱에 발급된 토큰     |
+| `exp`   | 만료 안 됐나             | 오래된 토큰               |
+| `nonce` | **내가 보낸 값과 같나**  | **다른 흐름의 토큰 주입** |
+
+앞 네 줄은 "이 토큰이 진짜이고, 나를 향한, 살아있는 토큰인가"까지만 본다. 그런데 이걸 다 통과하면서도 **"지금 이 사람이 시작한 로그인"과는 무관한** 토큰이 존재한다. 그 틈을 닫는 게 마지막 줄, nonce다.
+
+## nonce가 정확히 하는 일
+
+흐름을 끝까지 따라가 본다. 등장인물은 셋 — 클라이언트(내 앱/서버), provider, 그리고 둘을 잇는 사용자다.
+
+```
+[클라이언트]                         [provider]
+     │                                   │
+     │ 1. nonce 난수 생성                │
+     │    → 어딘가에 저장(세션/쿠키)     │
+     │ 2. 로그인 요청 (..., nonce=abc)   │
+     ├──────────────────────────────────▶│
+     │                                   │ 사용자 로그인·동의
+     │ 3. id_token 발급                  │
+     │◀──────────────────────────────────┤
+     │   서명된 JWT { sub, iss, aud,     │
+     │              exp, nonce: "abc" }  │ ← 보낸 nonce를 그대로 박음
+     │                                   │
+     │ 4. 검증: 토큰의 nonce == 저장한 nonce ?
+     │    "abc" == "abc"  → 통과
+```
+
+핵심은 두 군데다.
+
+1. **클라이언트가 nonce를 만들어 요청에 싣고, 그 값을 요청~응답 사이에 저장**해 둔다.
+2. provider는 그 nonce를 **ID Token의 `nonce` claim에 그대로 넣어 서명**한다. 그래서 nonce는 **서명 안쪽**에 들어간다 — 값만 바꿔치기하면 서명이 깨진다.
+
+OIDC Core 스펙은 이걸 못박는다. nonce를 보냈으면 ID Token에 `nonce` claim이 **반드시 있어야 하고(MUST)**, 그 값이 보낸 값과 같은지 클라이언트가 검증해야 한다. nonce 자체 정의도 "Client 세션과 ID Token을 묶고 replay 공격을 완화하는 값"이다.
+
+> 왜 nonce를 서명 안쪽에 넣나?
+>
+> [[oauth-callback-security]]의 `state`는 콜백 URL 쿼리(평문)에 실린다. 그래서 위조 시도가 가능하고, 1회용 소비로 막는다. 반면 nonce는 provider가 **서명한 토큰 본문**에 들어간다. 공격자가 토큰을 통째로 들고 와도 그 안의 nonce는 발급 시점에 박제돼 있어, 내가 저장한 값과 다르면 즉시 들통난다. "내용물에 새긴 워터마크"다.
+
+## state · PKCE · nonce — 셋이 막는 게 전부 다르다
+
+여기가 제일 헷갈리는 지점이다. 셋 다 "1회용 난수"라 같은 거라 착각하기 쉬운데, **보호 대상도, 검증 주체도, 막는 공격도 다르다.**
+
+|           | 보호 대상              | 어디에 실려 돌아오나            | 누가 검증하나            | 막는 공격                  |
+| --------- | ---------------------- | ------------------------------- | ------------------------ | -------------------------- |
+| **state** | 콜백(리다이렉트)       | front-channel **쿼리 파라미터** | 콜백을 받는 쪽           | **로그인 CSRF**            |
+| **PKCE**  | authorization **code** | (verifier는 백채널 제출)        | token endpoint           | **code 가로채기**          |
+| **nonce** | **ID Token 자체**      | **서명된 JWT 안의 claim**       | **id_token 검증하는 쪽** | **ID Token replay / 주입** |
+
+직관으로 좁히면 이렇다.
+
+- **state는 봉투에 붙은 일련번호.** "이 콜백이 내가 시작한 그 흐름의 끝이 맞아?" → CSRF. ([[oauth-callback-security]]에서 깊게 다룬다.)
+- **PKCE는 교환 영수증.** "이 code를 토큰으로 바꾸려는 놈이 code를 받은 그놈이 맞아?" → code 탈취.
+- **nonce는 내용물에 새긴 워터마크.** "이 *토큰*이 내가 방금 시작한 요청 때문에 발급된 게 맞아?" → 토큰 주입.
+
+셋은 경쟁 관계가 아니라 **각자 다른 구멍을 막는 레이어**다. state가 있어도 nonce 구멍은 안 닫히고, 그 반대도 마찬가지다.
+
+## nonce 검증을 빼면 터지는 공격 — ID Token 주입
+
+가장 위험한 시나리오는 이렇다. 공격자가 **유효하게 서명된** ID Token을 어디선가 손에 넣는다 — 자기 세션에서 정상 발급받았거나, 로그·히스토리로 샌 토큰이다. 그리고 그 토큰을 피해자의 로그인 흐름에 끼워넣는다.
+
+nonce 검증이 없으면 이 토큰은 검증을 **다 통과한다.** 서명도 진짜, `iss`도 맞고, `aud`도 내 앱, `exp`도 살아있다 — 진짜 provider가 진짜로 서명한 토큰이니까. 그래서 내 백엔드는 그걸 "이 사람이 로그인했다"고 받아들인다. 결과적으로 피해자의 세션이 **공격자 계정에 묶이거나**, 탈취된 토큰이 **재사용(replay)** 된다.
+
+이걸 거르는 유일한 장치가 nonce다. **"이 토큰의 nonce가 내가 방금 만들어 저장한 값이 아니네 → 거부."** nonce가 없으면 "방금 시작한 내 요청"이라는 시간적 바인딩이 통째로 사라진다. [[oauth-callback-security]]의 로그인 CSRF가 *콜백*을 노린 바인딩 공격이라면, ID Token 주입은 *토큰 자체*를 노린 바인딩 공격이다.
+
+## 그래서 — 프론트엔드에서 고칠까, 백엔드에서 고칠까
+
+이게 진짜 실무 질문이다. 답을 가르는 원칙은 하나다.
+
+> **nonce를 *생성·저장·검증*하는 주체는, ID Token을 *검증*하는 주체와 같아야 한다.**
+
+검증이 곧 "내가 아까 만들어 저장한 nonce랑 토큰 속 nonce가 같나?"이기 때문이다. 만든 쪽과 검증하는 쪽이 갈리면 비교 자체가 성립하지 않는다. 그래서 답은 "프론트냐 백이냐"의 고정값이 아니라 **아키텍처를 따라간다.**
+
+| 아키텍처                                 | id_token 검증 위치 | → nonce 생성·저장·검증                                                           |
+| ---------------------------------------- | ------------------ | -------------------------------------------------------------------------------- |
+| 전통 서버사이드 / **BFF** (confidential) | 백엔드             | **전부 백엔드** (세션/서명쿠키에 저장)                                           |
+| public SPA가 직접 검증                   | 브라우저           | SPA가 생성·저장(sessionStorage)·검증 — 단 JWT 검증을 JS에서 하는 부담 + XSS 노출 |
+| 네이티브 / Expo                          | 백엔드             | 앱은 전달만, **검증은 백엔드** (아래 패턴)                                       |
+
+**우리 구조 기준 결론은 백엔드다.** 근거는 우리가 이미 잡아둔 패턴에 있다.
+
+- Spotify 플로우: `state`를 Next.js API route(=서버)에서 생성·소비하고, 콜백도 서버가 받는다([[oauth-callback-security]]).
+- Expo 소셜 로그인: ID Token의 서명·`iss`·`aud`·`exp`를 백엔드에서 검증한다.
+
+즉 "토큰 검증은 백엔드"라는 일관된 경계가 이미 있다. **nonce 검증은 그 백엔드 검증 스텝에 합류시키는 게 정답** — 지금 `iss`/`aud`/`exp`를 보는 바로 그 자리에 "nonce 비교 한 줄"을 더하는 것이다. 프론트가 할 일은 nonce를 *전달 경로*에 실어 보내는 것뿐이고, **판정은 백엔드**가 쥔다.
+
+public SPA가 토큰을 직접 다루는 구조라면 nonce도 SPA가 다뤄야 하지만, JS에서 JWT를 검증(JWKS fetch·시계·서명)하는 건 깨지기 쉽고 저장소가 [[web-security-xss-csrf|XSS]]에 노출된다. 브라우저 기반 앱에서 **BFF로 토큰을 아예 브라우저에 안 내리는 구조**가 자주 권장되는 이유이기도 하다. BFF면 nonce도 자연히 백엔드 몫이 된다.
+
+## 네이티브의 함정 — nonce는 raw가 아니라 `SHA256(nonce)`로
+
+네이티브(Expo)에서는 "앱이 nonce 생성 → 백엔드가 검증" 사이에 미묘한 구멍이 있다. 특히 Sign in with Apple을 Firebase나 자체 백엔드 검증과 함께 붙일 때 자주 쓰는 패턴은 **해시를 한 단계 끼우는 것**이다.
+
+```
+1. 앱: raw nonce 생성
+2. 앱 → provider: SHA256(raw nonce)를 요청에 실어 보냄
+                   → id_token엔 이 "해시"가 박혀 돌아온다
+3. 앱 → 백엔드: raw nonce를 전달
+4. 백엔드: SHA256(raw nonce)를 계산해 id_token의 nonce claim과 비교
+```
+
+이러면 백엔드는 "id_token에 박힌 nonce의 원본(raw nonce)을 이 요청자가 실제로 쥐고 있었음"을 확인할 수 있다. provider나 SDK마다 받는 값이 raw인지 hash인지 다를 수 있으니, 구현할 때는 해당 provider 문서를 기준으로 맞춰야 한다. 핵심은 **provider에 보낸 값과 ID Token의 `nonce` claim, 그리고 백엔드가 비교하는 값이 같은 규칙으로 연결돼야 한다**는 점이다.
+
+> 우리 Kakao 케이스는 왜 nonce를 생략했나?
+>
+> `@react-native-kakao`의 네이티브 `login()`이 nonce 파라미터를 노출하지 않는다(web 변형에만 있음). 바인딩할 재료 자체가 없어서, 카카오 idToken은 서명 + `iss`/`aud`/`exp`만 검증하고 nonce(replay 방어)는 **의도적으로 생략**했다. 이건 "SDK 한계로 인한 인지된 트레이드오프"이지 일반 권장이 아니다. **Apple·Google처럼 nonce를 지원하는 provider에선 반드시 백엔드 nonce 검증을 켜야 한다.** ([Expo 소셜 로그인 3부](/ko/blog/articles/expo-social-login-backend) 14장에 결정 근거를 코드 주석으로 남긴 기록이 있다.)
+
+## 흔한 오해
+
+- **오해**: "서명·iss·aud·exp 다 통과했으면 믿어도 되는 토큰이다." → **실제**: 그 넷이 통과해도 _다른 흐름에서 떨어진_ 토큰일 수 있다. "지금 이 요청의 응답"이라는 바인딩은 nonce만 보장한다.
+- **오해**: "state를 쓰니까 nonce는 중복 방어다." → **실제**: state는 *콜백*을, nonce는 *토큰 자체*를 보호한다. 보호 대상도 검증 주체도 다르다. 하나가 다른 하나를 대신하지 못한다.
+- **오해**: "PKCE를 쓰면 nonce는 필요 없다." → **실제**: PKCE는 _authorization code_ 탈취를 막는다. ID Token 주입은 code 단계가 아니라 _토큰 수용_ 단계의 문제라, PKCE로는 안 닫힌다.
+- **오해**: "nonce는 프론트(브라우저)에서 검증하는 게 맞다." → **실제**: nonce를 검증하는 주체는 *ID Token을 검증하는 주체*여야 한다. 우리처럼 토큰 검증이 백엔드라면 nonce도 백엔드다.
+- **오해**: "네이티브에서 앱이 만든 nonce를 그대로 백엔드에 알려주면 된다." → **실제**: 그러면 앱을 장악한 공격자가 양쪽을 맞춰 보낼 수 있다. `SHA256(nonce)`를 provider로, raw nonce를 백엔드로 보내 백엔드가 다시 해시·대조해야 한다.
+
+## 스스로 점검하기
+
+- 서명·`iss`·`aud`·`exp`를 전부 통과한 ID Token을 그래도 거부해야 하는 경우는 무엇이고, 무엇이 그걸 거르나?
+- nonce가 `state`/`PKCE`와 "각각" 다른 공격을 막는다는 걸, 보호 대상 기준으로 한 문장씩 설명할 수 있나?
+- nonce 검증을 빼면 가능해지는 "ID Token 주입"을 자기 말로 설명할 수 있나? 왜 서명 검증만으론 못 막나?
+- nonce를 생성·검증하는 주체가 ID Token 검증 주체와 같아야 하는 이유는?
+- 우리 구조(토큰 검증=백엔드)에서 nonce는 어디에 들어가야 하나? 프론트의 역할은 어디까지인가?
+- 네이티브에서 raw nonce가 아니라 `SHA256(nonce)`를 provider로 보내는 이유는?
+
+## 함께 보기
+
+- [[oauth-callback-security]]
+- [[oauth-code-flow-vs-id-token]]
+- [[access-refresh-token-pattern]]
+- [[web-auth-session-vs-token]]
+- [[web-security-xss-csrf]]
+- [[frontend-network]]
+
+## 참고
+
+- [OpenID Connect Core 1.0 — §3.1.2.1 Authentication Request (nonce)](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
+- [OpenID Connect Core 1.0 — §3.1.3.7 ID Token Validation](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation)
+- [RFC 6749 §10.12 — Cross-Site Request Forgery](https://datatracker.ietf.org/doc/html/rfc6749#section-10.12)
+- [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://datatracker.ietf.org/doc/html/rfc9700)
+- [OAuth 2.0 for Browser-Based Apps (BCP draft)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps)
+- [Authenticate Using Apple — Firebase](https://firebase.google.com/docs/auth/ios/apple)

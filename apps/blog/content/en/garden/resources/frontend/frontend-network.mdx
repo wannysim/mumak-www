@@ -18,8 +18,11 @@ This is a collection of notes covering everything that happens from the moment y
 - [[web-security-xss-csrf|XSS and CSRF: The Two Attacks the Browser Security Model Aims to Stop]]
 - [[json-in-script-xss|JSON Inside a Script Tag: The Escape JSON.stringify Cannot Stop]]
 - [[oauth-callback-security|OAuth Callback Security: Why state Must Be Single-Use]]
+- [[oauth-code-flow-vs-id-token|Authorization Code and ID Token: What should the frontend send to the backend?]]
+- [[oidc-nonce-token-binding|OIDC nonce: How an ID Token proves it belongs to the request I just started]]
 - [[web-auth-session-vs-token|Web Authentication: How Sessions and Tokens Solve the Same Problem Differently]]
 - [[access-refresh-token-pattern|Access + Refresh Tokens: Why You Stay Logged In Across a Refresh]]
+- [[mobile-social-login-refresh-token-design|Mobile Social Login and Refresh Token Design: idToken proves identity, refreshToken keeps our session alive]]
 
 ## Suggested Reading Order
 
@@ -28,3 +31,5 @@ Once you've read XSS and CSRF, follow up with the two field cases — JSON insid
 of XSS) and OAuth callback security (a variant of CSRF) — to make the general principles concrete.
 To grasp authentication from the ground up, first establish the essence of the ticket with sessions vs tokens,
 then build on it with the Access + Refresh token pattern for the real-world implementation (the memory + httpOnly combo).
+For OAuth/OIDC, read state first to understand callback binding, then compare Authorization Code and ID Token, then read nonce to understand how the ID Token itself is bound to the request.
+For mobile social login, separate the provider idToken's job from our service refreshToken's job.

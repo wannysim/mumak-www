@@ -1,0 +1,231 @@
+---
+title: 'Expo 소셜 로그인 (1/3) — 설계: 패키지 선택부터 provider-agnostic 골격까지'
+date: '2026-06-13'
+description: 'New Architecture가 강제된 Expo SDK 56 앱에 카카오·Apple 로그인을 붙이며, 코드보다 코드 바깥에서 더 많이 헤맨 기록의 첫 편'
+tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
+draft: false
+---
+
+소셜 로그인은 버튼 두 개 붙이고 SDK 콜백만 받으면 끝인 줄 알았다.
+
+실제로는 패키지 선택부터 막혔고, config plugin이 빌드를 통째로 세웠고, EAS 명령은 엉뚱한 디렉터리에서 돌아갔다.
+코드보다 코드 바깥에서 더 많이 헤맸다.
+
+이 글은 모노레포 안의 Expo 앱에 카카오와 Apple 로그인을 붙인 기록이다. 양이 많아 세 편으로 나눴다.
+
+- **1부 (이 글)** — 설계: 패키지 선택, Apple의 함정, provider-agnostic 골격
+- [2부 — 빌드와 디바이스, 토큰을 얻기까지](/ko/blog/articles/expo-social-login-build)
+- [3부 — 백엔드 연동: OIDC, nonce, 그리고 Apple Code 1000](/ko/blog/articles/expo-social-login-backend)
+
+먼저 환경을 적어둔다.
+
+- 모노레포(yarn workspaces), 앱은 `apps/mobile`
+- Expo SDK 56, React Native 0.85.3, React 19.2.3
+- **New Architecture 강제**: SDK 55부터 기본이자 사실상 강제다. 이게 패키지 선택의 첫 제약이 됐다.
+- Expo Go가 아니라 **custom dev client**. Firebase + `useFrameworks: "static"` 조합이라 네이티브 모듈을 dev client로만 얹을 수 있다.
+
+이 전제들이 이후의 거의 모든 결정을 좌우했다.
+
+## 1. 카카오 패키지 선택에서부터 막혔다
+
+처음 떠올린 건 국내에서 가장 많이 보이는 `@react-native-seoul/kakao-login`이었다.
+자료도 많고 예제도 흔하다.
+
+그런데 우리 환경은 RN 0.85, 즉 New Architecture가 강제다.
+
+New Arch에서는 네이티브 모듈이 TurboModule/Fabric을 지원해야 한다. 구식 브리지 기반 모듈은 동작이 보장되지 않거나 인터롭 레이어를 거쳐 불안정하게 돈다.
+`@react-native-seoul/kakao-login`의 new-arch 지원 여부를 확인하려 했지만 명확한 메타데이터를 못 찾았다.
+
+"아마 되겠지"로 깔았다가 빌드 후에 redbox를 보는 건 최악이다.
+
+그래서 React Native Directory와 패키지 메타데이터를 기준으로 다시 골랐다. 결론은 **MJ Studio(mym0404)의 `@react-native-kakao` 패밀리**였다.
+
+- `@react-native-kakao/core` — SDK 초기화 + 네이티브 설정
+- `@react-native-kakao/user` — 로그인/사용자 API
+
+결정타는 두 가지였다.
+
+1. TurboModule 기반으로 new-arch를 **정식 지원**한다.
+2. 코어 모듈이 **공식 Expo config plugin**을 제공한다. iOS URL scheme이나 `LSApplicationQueriesSchemes` 같은 네이티브 설정을 `Info.plist`를 손대지 않고 `app.config.ts`에서 선언적으로 주입할 수 있다.
+
+New Arch 시대의 패키지 선택 기준은 "유명한가"가 아니다.
+공식 directory에 new-arch 지원이 명시돼 있는가, 그리고 Expo config plugin을 주는가. 검증 안 된 지원을 운에 맡기지 않는 게 핵심이었다.
+
+## 2. Apple은 쉬워 보였지만, 한 가지 함정이 있었다
+
+Apple은 고민할 게 없었다. Expo 공식 모듈 `expo-apple-authentication`이 new-arch를 지원한다. SDK 버전에 맞는 모듈을 쓰는 게 정신건강에 이롭다.
+
+다만 RN/Expo와 무관한, Apple 플랫폼 자체의 함정이 하나 있다.
+
+**Apple은 이름과 이메일을 최초 1회만 준다.**
+
+사용자가 우리 앱에 처음 Apple로 로그인할 때만 `fullName`과 `email`이 응답에 담긴다. 한 번 동의하고 나면 그 다음부터는 두 필드가 모두 `null`로 온다.
+identityToken은 매번 오지만, 이름과 이메일은 영영 다시 안 온다. 사용자가 설정에서 앱 연결을 끊고 다시 로그인하지 않는 한.
+
+즉 가입 플로우에서 이름/이메일이 필요하다면, 최초 응답에서 반드시 캡처해 가입 완료까지 들고 가야 한다.
+"나중에 다시 받으면 되지"는 통하지 않는다. 두 번째 로그인부터는 빈 값만 받는다.
+
+그래서 Apple provider는 받은 즉시 정규화된 `profile`로 캡처한다.
+
+```typescript
+// appleProvider.ts
+const credential = await signInAsync({
+  requestedScopes: [AppleAuthenticationScope.FULL_NAME, AppleAuthenticationScope.EMAIL],
+});
+
+// email/fullName은 "최초 1회" 인증에만 채워진다. 이후 로그인에서는 null.
+// 그래서 받은 즉시 신규가입 플로우(JIRA-101)까지 전달한다.
+return {
+  provider: 'apple',
+  token: credential.identityToken,
+  authorizationCode: credential.authorizationCode ?? undefined,
+  profile: {
+    email: credential.email ?? undefined,
+    fullName: credential.fullName ? formatFullName(credential.fullName) : undefined,
+  },
+};
+```
+
+이 "1회성"을 아키텍처 차원에서 보장하는 것. 그게 Apple에서 가장 중요한 결정이었다.
+
+## 3. 처음부터 provider-agnostic 전략 패턴으로
+
+앞으로 구글과 네이버도 추가될 예정이었다.
+카카오/Apple만 보고 분기문으로 짜면, 공급자가 늘 때마다 UI와 오케스트레이션과 백엔드 호출이 전부 오염된다.
+
+그래서 처음부터 전략 패턴으로 골격을 잡았다.
+
+핵심 관찰은 하나다. 모든 공급자는 결국 *네이티브 SDK 로그인 → 토큰 획득*이라는 같은 일을 한다.
+공급자별 quirk는 전략 뒤에 숨기고, 바깥은 정규화된 타입만 다룬다.
+
+```typescript
+// types.ts
+export type SocialProvider = 'kakao' | 'apple' | 'google' | 'naver';
+
+// 새 공급자는 이 인터페이스만 구현하면 된다.
+export interface SocialAuthStrategy {
+  readonly provider: SocialProvider;
+  isAvailable(): Promise<boolean>; // apple은 iOS 13+에서만 true
+  signIn(): Promise<SocialAuthResult>; // 실패(취소 포함) 시 SocialAuthError throw
+}
+```
+
+토큰 필드 이름은 공급자마다 다르지만(`accessToken` / `identityToken` / `idToken`), 결과 타입에서 단일 `token`으로 정규화했다. 확장 지점은 레지스트리 한 곳뿐이다.
+
+```typescript
+// registry.ts — 새 공급자는 여기 한 줄만 추가
+const strategies: Partial<Record<SocialProvider, SocialAuthStrategy>> = {
+  kakao: kakaoProvider,
+  apple: appleProvider,
+  // google: googleProvider,
+  // naver: naverProvider,
+};
+```
+
+에러는 발생 계층으로 나눴다. 처음엔 한 종류로 두려 했는데, 곧 계층이 둘로 명확히 갈린다는 걸 깨달았다.
+
+- **SDK 단계 (`SocialAuthError`)**: 네이티브 로그인 단계. 네트워크 호출 *이전*에 발생. 사용자 취소(`canceled`), 미지원 기기(`unavailable`) 등.
+- **백엔드 단계 (`AppError`)**: 인증 API 호출 단계. axios 인터셉터에서 정규화.
+
+특히 사용자 취소는 SDK 단계에서만 발생한다. 백엔드 에러로는 절대 안 잡힌다.
+이 둘을 한 타입으로 뭉뚱그렸다면 "취소는 조용히 무시"하는 로직을 깔끔하게 못 짰을 거다.
+
+마지막으로 SDK 초기화는 따로 뺐다. 카카오는 `login()` 전에 `initializeKakaoSDK(앱키)`를 반드시 선행해야 한다(미초기화 시 `SDKNotInitialized`). 앱 진입 시 1회면 되므로 `initSocialAuth()`로 분리해 `_layout.tsx`에서 호출했다. 앱키가 없으면 초기화를 건너뛰고 경고만 찍어 부팅은 막지 않는다. Apple은 사전 초기화가 필요 없다.
+
+정리하면, 새 공급자 추가는 세 곳만 고치면 된다.
+`types.ts`의 식별자, `providers/`의 전략 하나, `registry.ts`의 등록 한 줄.
+UI도, 오케스트레이션도, 백엔드 호출도 건드리지 않는다.
+
+## 4. 설치, 그리고 `app.config.ts`에 plugin 등록
+
+패키지를 깔고 plugin 세 개를 등록했다.
+
+1. 카카오 core plugin — iOS URL scheme, `handleKakaoOpenUrl` 자동 주입
+2. `expo-build-properties`에 카카오 Android Maven repo **병합**
+3. Apple auth plugin — "Sign in with Apple" entitlement 자동 추가
+
+```typescript
+// app.config.ts (발췌)
+plugins: [
+  "expo-router",
+  "@react-native-firebase/app",
+  [
+    "expo-build-properties",
+    {
+      ios: { useFrameworks: "static", forceStaticLinking: ["RNFBApp"] },
+      // 카카오 Android SDK는 카카오 전용 Maven 저장소에서 받는다.
+      android: {
+        extraMavenRepos: ["https://devrepo.kakao.com/nexus/content/groups/public/"],
+      },
+    },
+  ],
+  ...(kakaoNativeAppKey ? [kakaoPlugin] : []), // 5장 참고
+  "expo-apple-authentication",
+],
+```
+
+여기서 작은 함정. `expo-build-properties`는 이미 Firebase의 `useFrameworks: "static"` 때문에 등록돼 있었다.
+카카오 Maven repo를 넣겠다고 같은 plugin을 **두 번** 등록하면 뒤엣것이 앞엣것을 덮어쓴다.
+같은 plugin은 하나의 엔트리 안에서 옵션을 병합해야 한다.
+
+## 5. 첫 진짜 버그 — 빈 앱키에 throw하면서 빌드 전체가 막혔다
+
+카카오 plugin을 등록하고 `expo config`를 돌렸더니, 빌드가 시작도 못 하고 죽었다.
+
+원인은 단순했다. 카카오 core plugin은 `nativeAppKey`가 비어 있으면 `expo config` 단계에서 throw한다.
+그런데 이 시점에 나는 아직 앱키를 발급받지 못했다(외부 콘솔 작업 대기 중).
+
+앱키가 없다는 이유로 앱 설정 평가 자체가 실패했고, 그 여파로 카카오와 무관한 빌드까지 전부 막혔다.
+
+해결은 조건부 등록이었다. 앱키가 있을 때만 plugin이 배열에 들어가게 했다.
+
+```typescript
+// 카카오 plugin은 빈 값이면 throw하므로 "키가 있을 때만" 등록한다.
+const kakaoNativeAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY;
+const kakaoPlugin = [
+  "@react-native-kakao/core",
+  { nativeAppKey: kakaoNativeAppKey, ios: { handleKakaoOpenUrl: true } },
+];
+
+// plugins 배열 안:
+...(kakaoNativeAppKey ? [kakaoPlugin] : []),
+```
+
+이러니 앱키가 없어도 빌드는 통과하고(카카오만 비활성), 앱키가 채워지면 plugin이 자연스럽게 켜진다.
+
+외부에서 발급받는 값에 의존하는 plugin이 그 값에 throw한다면, 값 하나 없다는 이유로 무관한 빌드까지 죽을 수 있다.
+`...(key ? [plugin] : [])`로 감싸는 습관 하나가 부팅과 빌드를 지켜준다.
+
+## 6. EAS 환경변수 — 위치를 몰라 두 번 헤맸다
+
+앱키를 발급받은 뒤, dev/prod 각각에 `EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY`를 EAS env로 등록해야 했다.
+
+repo 루트에서 `eas env:create`를 돌렸더니 "project not linked"가 떴다.
+모노레포 루트에는 Expo 프로젝트가 없다. 앱은 `apps/mobile`에 있고, EAS는 `app.config.ts`와 프로젝트 링크가 있는 디렉터리에서 돌려야 한다.
+
+더 나쁜 건, 루트에서 잘못 돌리는 바람에 루트에 빈 `app.json`(`{"expo":{}}`)이 자동 생성됐다는 것이다. 이게 있으면 도구가 루트를 Expo 프로젝트로 오인해 더 꼬인다. 그냥 삭제했다.
+
+```bash
+cd apps/mobile
+eas env:create
+eas env:pull            # 로컬 테스트용 .env.local 생성 → 여기에 앱키 채움
+```
+
+env는 한 곳(`config/socialAuth.ts`)으로 모아 읽는다. Expo는 `process.env.EXPO_PUBLIC_*`만 번들에 인라인하므로 prefix가 중요하다.
+
+```typescript
+export const kakaoNativeAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY ?? '';
+```
+
+모노레포에서 expo/eas 명령은 반드시 앱 디렉터리에서. 이 한 줄이 두 번의 삽질을 막아줬을 거다.
+
+## 1부에서 챙길 것
+
+- [ ] 패키지는 "유명함"이 아니라 **new-arch 지원 메타데이터 + Expo config plugin 제공 여부**로 고른다.
+- [ ] Apple 이름/이메일은 1회성이다. 최초 응답에서 캡처해 가입 끝까지 전달하는 구조를 먼저 설계한다.
+- [ ] 공급자가 늘어날 예정이면 처음부터 전략 패턴으로. 에러는 SDK 단계와 백엔드 단계로 나눈다(취소는 SDK 단계에서만 잡힌다).
+- [ ] 필수 값에 throw하는 config plugin은 `...(key ? [plugin] : [])`로 조건부 등록한다.
+- [ ] expo/eas 명령은 앱 디렉터리에서. 빈 `app.json`이 생기면 삭제한다.
+
+여기까지가 "코드를 짜기 전의 설계"였다.
+다음 [2부](/ko/blog/articles/expo-social-login-build)에서는 실제로 빌드를 올리고 디바이스에서 토큰을 얻기까지의 삽질을 다룬다. 카카오 취소 코드를 실측하고, Apple 시뮬레이터에서 한 번 크게 막힌다.

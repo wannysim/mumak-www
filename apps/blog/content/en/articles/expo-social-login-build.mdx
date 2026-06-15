@@ -1,0 +1,144 @@
+---
+title: 'Expo Social Login (2/3) — Build and Device: Getting to a Token'
+date: '2026-06-14'
+description: "Measuring Kakao's cancel code, getting stuck hard on the Apple simulator, and a capability rebuild — the device-side struggles that close out Phase A"
+tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
+draft: false
+---
+
+In [Part 1](/en/blog/articles/expo-social-login) I finished the design — a provider-agnostic skeleton, two-layer errors, config plugin registration.
+
+Now it's time to actually build the dev client and get a token on a device.
+From here on, the opponent wasn't the code — it was the build and the device.
+
+- [Part 1 — Design: from picking a package to a provider-agnostic skeleton](/en/blog/articles/expo-social-login)
+- **Part 2 (this post)** — Build and device: getting to a token
+- [Part 3 — Backend integration: OIDC, nonce, and Apple Code 1000](/en/blog/articles/expo-social-login-backend)
+
+## 7. Kakao success — a token on the simulator
+
+I rebuilt the dev client and tapped the Kakao button. Success.
+
+```typescript
+// useSocialLogin.ts — in Phase A, before backend integration, just confirm token acquisition via console
+if (__DEV__) {
+  console.log(
+    `[socialAuth] ${provider} success · token=${result.token.slice(0, 8)}… · profile=${result.profile ? 'present' : 'none'}`
+  );
+}
+```
+
+The log printed `profile=none`, and that's normal and intended.
+The Kakao provider receives only the accessToken from the SDK login and passes it on. The profile is fetched by the backend via the Kakao API, or handled separately depending on consent items. Unlike Apple, Kakao's `signIn()` doesn't fill `profile`.
+
+Logging only the first 8 characters via slice, rather than the whole token, is intentional. Even in DEV logs, don't leave tokens in plaintext.
+
+## 8. Kakao's cancel code — not in the docs, so I measured it directly
+
+Login worked, but I had to handle the cancellation case where the user closes the sheet.
+Cancellation isn't an error. It should be silently ignored — you must not show a "login failed" Toast.
+
+The problem was that the Kakao SDK's cancel error code wasn't in the official docs. It's a value derived from a native enum, so it can differ per platform, and I couldn't find an explicit constant.
+
+So I measured it directly. I triggered a cancellation and dumped the whole error object in the catch block.
+
+The iOS cancel code was `"Cancelled"`. It drops with "The authentication session has been canceled by user" when you close the Kakao-account web (`ASWebAuthenticationSession`).
+
+```typescript
+// kakaoProvider.ts
+const KAKAO_CANCEL_CODES = [
+  'Cancelled', // iOS — empirically confirmed
+  // TODO(JIRA-204): add the Android cancel code after measuring (the value may differ)
+];
+
+const code = getErrorCode(error);
+if (code !== undefined && KAKAO_CANCEL_CODES.includes(code)) {
+  throw socialAuthError('kakao', 'canceled', 'Login was canceled.', error);
+}
+```
+
+And in the orchestration hook, `canceled` is caught and returns immediately.
+
+```typescript
+// useSocialLogin.ts
+if (isSocialAuthError(error) && error.kind === 'canceled') {
+  return; // silently ignore cancellation
+}
+```
+
+When an SDK's cancel/error codes aren't documented, measuring them directly with a temporary debug log is the fastest and most accurate approach.
+But empirical values can differ per platform, so I didn't assume the iOS value applies to Android. I left it as a TODO.
+
+## 9. Apple simulator failure — it was the environment, not the code
+
+I tapped the Apple button and it failed.
+
+```text
+AuthorizationError Code=1000
+AKAuthenticationError -7026
+```
+
+At first, thinking "did my code send something wrong," I went through `requestedScopes`, the entitlement, the plugin registration.
+But that wasn't it.
+
+This combination is a known issue that occurs when the simulator isn't signed into iCloud (or when SIWA is unstable in the simulator).
+The request was firing all the way through AuthKit. Our construction was correct, and it got blocked at Apple's auth environment.
+
+`-7026` is an auth failure at the AuthKit layer, `Code=1000` is a general authorization failure.
+I concluded Apple Sign In is unreliable in the simulator and switched direction to real-device verification.
+
+> That conclusion was only half right. The real culprit behind `Code 1000` is revealed again in [Part 3](/en/blog/articles/expo-social-login-backend).
+
+## 10. Apple Developer — enabling the capability on two App IDs
+
+For real-device verification I went to the Apple Developer console. We use two bundle IDs, dev/prod.
+
+- `com.example.myapp.dev` (development)
+- `com.example.myapp` (production)
+
+The bundle ID branches in the variant config in `app.config.ts`.
+
+```typescript
+const variantConfig = {
+  development: { bundleIdentifier: 'com.example.myapp.dev' },
+  production: { bundleIdentifier: 'com.example.myapp' },
+}[variant];
+```
+
+I enabled the "Sign in with Apple" capability on **each** of these two App IDs.
+If you miss the dev bundle ID, SIWA won't work in development builds. Multi-variant apps make it easy to miss `.dev`, so enable both.
+
+## 11. Rebuild — the capability gets baked into the entitlement
+
+Enabling the capability wasn't the end.
+
+"Sign in with Apple" isn't a simple code flag; it's a native setting baked into the provisioning profile and entitlement.
+The existing dev client is a binary built without this entitlement, so enabling the capability isn't reflected in that build. You must rebuild with a new profile.
+
+One rule became clear here.
+
+```text
+Native change (module/capability/config plugin) → rebuild
+JS change → hot reload (Fast Refresh) is enough
+```
+
+Adding the Kakao/Apple modules, registering plugins, the capability — all native changes, so a rebuild was mandatory.
+Conversely, JS changes like modifying `useSocialLogin` logic were reflected instantly via hot reload.
+
+I happened to have no cable for a real device, so I ran an EAS cloud build, and ran into two things.
+
+- **Export compliance (`usesNonExemptEncryption`)**: the build/submit process asks about encryption usage. We use only HTTPS/standard encryption with no custom non-standard encryption, so we're exempt. Baking `ITSAppUsesNonExemptEncryption` into `app.config.ts`/`Info.plist` stops it from asking every time.
+- **Certificate/profile automation**: logging into EAS with your Apple account auto-generates/renews the certificate and provisioning profile, and reflects the enabled capability automatically. No need to download and manage the profile by hand. It was the biggest convenience of the cloud build.
+
+## What to take from Part 2
+
+- [ ] If an SDK's cancel/error codes aren't documented, measure them with a temporary debug log. Cancellation isn't an error but a normal flow, so ignore it silently.
+- [ ] Empirical values can differ per platform. Don't assume the iOS value applies to Android.
+- [ ] Don't trust the simulator for Apple. On `Code=1000`/`-7026`, suspect the environment before the code.
+- [ ] On multi-variant apps, enable the capability on every bundle ID (especially `.dev`).
+- [ ] Native changes like capability/module/plugin need a rebuild; JS-only changes use hot reload. With no cable, automate certificates with an EAS cloud build + Apple account integration.
+
+That's Phase A. We've gotten to a token via the native SDK.
+
+But getting a token is only half. You have to send it to the backend to turn it into a real login.
+In [Part 3](/en/blog/articles/expo-social-login-backend) I cover OIDC and nonce, and the real culprit behind Apple `Code 1000`.

@@ -1,0 +1,231 @@
+---
+title: 'Expo Social Login (1/3) — Design: From Picking a Package to a Provider-Agnostic Skeleton'
+date: '2026-06-13'
+description: 'The first of three parts on wiring Kakao and Apple login into an Expo SDK 56 app where I struggled more outside the code than inside it'
+tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
+draft: false
+---
+
+I thought social login was "drop in two buttons, handle the SDK callback, done."
+
+In reality I got stuck at package selection, a config plugin froze the entire build, and EAS commands ran in the wrong directory.
+I struggled more outside the code than inside it.
+
+This is a record of wiring Kakao and Apple login into an Expo app inside a monorepo. It's long, so I split it into three parts.
+
+- **Part 1 (this post)** — Design: package selection, Apple's pitfall, a provider-agnostic skeleton
+- [Part 2 — Build and device: getting to a token](/en/blog/articles/expo-social-login-build)
+- [Part 3 — Backend integration: OIDC, nonce, and Apple Code 1000](/en/blog/articles/expo-social-login-backend)
+
+First, the environment.
+
+- Monorepo (yarn workspaces), the app is `apps/mobile`
+- Expo SDK 56, React Native 0.85.3, React 19.2.3
+- **New Architecture enforced**: from SDK 55 it's the default and effectively mandatory. This became the first constraint on package selection.
+- Not Expo Go, but a **custom dev client**. The Firebase + `useFrameworks: "static"` combo means native modules load only via a dev client.
+
+These premises drove nearly every decision that followed.
+
+## 1. Stuck at the very first step — picking a Kakao package
+
+The first thing that came to mind was `@react-native-seoul/kakao-login`, the one most commonly seen in Korea.
+Plenty of references, plenty of examples.
+
+But our environment is RN 0.85 — New Architecture enforced.
+
+Under New Arch, native modules must support TurboModule/Fabric. Legacy bridge-based modules either have no guaranteed behavior or run unstably through an interop layer.
+I tried to confirm whether `@react-native-seoul/kakao-login` supports new-arch, but couldn't find clear metadata.
+
+Installing on a "probably fine" basis and seeing a redbox after the build is the worst case.
+
+So I re-evaluated based on the React Native Directory and package metadata. The conclusion was the **`@react-native-kakao` family by MJ Studio (mym0404)**.
+
+- `@react-native-kakao/core` — SDK init + native config
+- `@react-native-kakao/user` — login/user API
+
+Two things sealed the choice.
+
+1. It **officially supports new-arch** on a TurboModule basis.
+2. The core module ships an **official Expo config plugin**. Native settings like the iOS URL scheme or `LSApplicationQueriesSchemes` can be injected declaratively from `app.config.ts` without hand-editing `Info.plist`.
+
+In the New Arch era, the criterion for picking a package isn't "is it famous."
+It's whether the official directory has explicit new-arch support, and whether it ships an Expo config plugin. Not gambling on unverified support was the key.
+
+## 2. Apple looked easy, but had one pitfall
+
+There was nothing to agonize over with Apple. The official Expo module `expo-apple-authentication` supports new-arch. Using the module that matches your SDK version is good for your sanity.
+
+That said, there's one pitfall that has nothing to do with RN/Expo — it belongs to the Apple platform itself.
+
+**Apple gives you the name and email only the first time.**
+
+`fullName` and `email` are in the response only the very first time a user logs into our app with Apple. Once they've consented, every subsequent login returns both fields as `null`.
+The identityToken arrives every time, but the name and email never come again — unless the user disconnects the app in settings and logs in again.
+
+So if your signup flow needs the name/email, you must capture them from the first response and carry them through signup completion.
+"I'll just get them again later" does not work. From the second login on, you only get empty values.
+
+So the Apple provider captures them immediately into a normalized `profile`.
+
+```typescript
+// appleProvider.ts
+const credential = await signInAsync({
+  requestedScopes: [AppleAuthenticationScope.FULL_NAME, AppleAuthenticationScope.EMAIL],
+});
+
+// email/fullName are filled only on the "first" authentication. null afterwards.
+// So we hand them off to the signup flow (JIRA-101) the moment we receive them.
+return {
+  provider: 'apple',
+  token: credential.identityToken,
+  authorizationCode: credential.authorizationCode ?? undefined,
+  profile: {
+    email: credential.email ?? undefined,
+    fullName: credential.fullName ? formatFullName(credential.fullName) : undefined,
+  },
+};
+```
+
+Guaranteeing this "one-time-only" at the architecture level — that was the most important decision on the Apple side.
+
+## 3. A provider-agnostic strategy pattern from the start
+
+Google and Naver were on the roadmap.
+If I wrote it with branches looking only at Kakao/Apple, every new provider would pollute the UI, the orchestration, and the backend calls.
+
+So I laid down a strategy pattern from the very beginning.
+
+The key observation is simple: every provider ultimately does the same thing — _native SDK login → obtain token_.
+Hide the per-provider quirks behind the strategy, and let the outside deal only with normalized types.
+
+```typescript
+// types.ts
+export type SocialProvider = 'kakao' | 'apple' | 'google' | 'naver';
+
+// A new provider only needs to implement this interface.
+export interface SocialAuthStrategy {
+  readonly provider: SocialProvider;
+  isAvailable(): Promise<boolean>; // apple: true only on iOS 13+
+  signIn(): Promise<SocialAuthResult>; // on failure (incl. cancel) throws SocialAuthError
+}
+```
+
+The token field name differs per provider (`accessToken` / `identityToken` / `idToken`), but the result type normalizes it to a single `token`. The only extension point is the registry.
+
+```typescript
+// registry.ts — a new provider adds one line here
+const strategies: Partial<Record<SocialProvider, SocialAuthStrategy>> = {
+  kakao: kakaoProvider,
+  apple: appleProvider,
+  // google: googleProvider,
+  // naver: naverProvider,
+};
+```
+
+Errors are split by the layer where they occur. I wanted a single type at first, but soon realized the layers split cleanly into two.
+
+- **SDK layer (`SocialAuthError`)**: the native login step, _before_ any network call. User cancel (`canceled`), unsupported device (`unavailable`), etc.
+- **Backend layer (`AppError`)**: the auth API call step. Normalized in the axios interceptor.
+
+In particular, user cancellation only happens at the SDK layer — it can never be caught as a backend error.
+Had I lumped these into one type, I couldn't have cleanly written the "silently ignore cancellation" logic.
+
+Finally, SDK init is pulled out separately. Kakao requires `initializeKakaoSDK(appKey)` before `login()` (otherwise `SDKNotInitialized`). It only needs to run once at app entry, so I extracted it into `initSocialAuth()` called from `_layout.tsx`. If there's no app key, it skips init and just logs a warning, so it never blocks boot. Apple needs no pre-init.
+
+In short, adding a new provider means editing three places.
+The identifier in `types.ts`, one strategy in `providers/`, one registration line in `registry.ts`.
+The UI, the orchestration, and the backend calls stay untouched.
+
+## 4. Install, and registering plugins in `app.config.ts`
+
+After installing the packages I registered three plugins.
+
+1. Kakao core plugin — auto-injects the iOS URL scheme and `handleKakaoOpenUrl`
+2. **Merge** the Kakao Android Maven repo into `expo-build-properties`
+3. Apple auth plugin — auto-adds the "Sign in with Apple" entitlement
+
+```typescript
+// app.config.ts (excerpt)
+plugins: [
+  "expo-router",
+  "@react-native-firebase/app",
+  [
+    "expo-build-properties",
+    {
+      ios: { useFrameworks: "static", forceStaticLinking: ["RNFBApp"] },
+      // The Kakao Android SDK comes from a Kakao-specific Maven repository.
+      android: {
+        extraMavenRepos: ["https://devrepo.kakao.com/nexus/content/groups/public/"],
+      },
+    },
+  ],
+  ...(kakaoNativeAppKey ? [kakaoPlugin] : []), // see section 5
+  "expo-apple-authentication",
+],
+```
+
+A small pitfall here. `expo-build-properties` was already registered because of Firebase's `useFrameworks: "static"`.
+If you register the same plugin **twice** just to add the Kakao Maven repo, the later one overwrites the earlier.
+The same plugin must merge its options within a single entry.
+
+## 5. The first real bug — it threw on an empty app key and blocked the whole build
+
+I registered the Kakao plugin, ran `expo config`, and the build died before it even started.
+
+The cause was simple. The Kakao core plugin throws at the `expo config` step if `nativeAppKey` is empty.
+But at that point I hadn't yet been issued an app key (waiting on external console work).
+
+Evaluation of the app config itself failed just because the app key was missing, and as a side effect even builds unrelated to Kakao were blocked.
+
+The fix was conditional registration. The plugin enters the array only when the app key exists.
+
+```typescript
+// The Kakao plugin throws on an empty value, so register "only when the key exists."
+const kakaoNativeAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY;
+const kakaoPlugin = [
+  "@react-native-kakao/core",
+  { nativeAppKey: kakaoNativeAppKey, ios: { handleKakaoOpenUrl: true } },
+];
+
+// inside the plugins array:
+...(kakaoNativeAppKey ? [kakaoPlugin] : []),
+```
+
+With this, the build passes even without an app key (only Kakao is disabled), and once the key is filled in, the plugin turns on naturally.
+
+If a plugin depends on an externally-issued value and throws on it, one missing value can kill even unrelated builds.
+The habit of wrapping it in `...(key ? [plugin] : [])` protects both boot and build.
+
+## 6. EAS environment variables — I stumbled twice on where they live
+
+After being issued the app key, I had to register `EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY` as an EAS env for each of dev/prod.
+
+Running `eas env:create` from the repo root gave "project not linked."
+There's no Expo project at the monorepo root. The app lives in `apps/mobile`, and EAS must run from the directory with `app.config.ts` and the project link.
+
+Worse, running it wrong at the root auto-generated an empty `app.json` (`{"expo":{}}`) at the root. If this exists, tools may mistake the root for an Expo project, tangling things further. I just deleted it.
+
+```bash
+cd apps/mobile
+eas env:create
+eas env:pull            # generate .env.local for local testing → fill the key here
+```
+
+The env is read from a single place (`config/socialAuth.ts`). Expo inlines only `process.env.EXPO_PUBLIC_*` into the bundle, so the prefix matters.
+
+```typescript
+export const kakaoNativeAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY ?? '';
+```
+
+In a monorepo, run expo/eas commands from the app directory. That one line would have saved me both stumbles.
+
+## What to take from Part 1
+
+- [ ] Pick a package by **new-arch support metadata + whether it ships an Expo config plugin**, not by "fame."
+- [ ] Apple's name/email are one-time. Design upfront to capture them from the first response and carry them through signup.
+- [ ] If more providers are coming, use a strategy pattern from the start. Split errors into SDK layer and backend layer (cancellation is only caught at the SDK layer).
+- [ ] Wrap a config plugin that throws on a required value in `...(key ? [plugin] : [])`.
+- [ ] Run expo/eas commands from the app directory. Delete any empty `app.json` that appears.
+
+That was "the design before writing code."
+In [Part 2](/en/blog/articles/expo-social-login-build) I actually push a build and fight my way to a token on a device — measuring Kakao's cancel code empirically, and getting stuck hard on the Apple simulator.
