@@ -194,3 +194,33 @@ test.describe('SEO - Basic Meta Tags', () => {
     expect(robots).toContain('follow');
   });
 });
+
+test.describe('SEO - Favicon', () => {
+  test('should declare a PNG icon link in the document head', async ({ page }) => {
+    await page.goto('/ko');
+
+    const iconHref = await page.locator('link[rel="icon"]').first().getAttribute('href');
+    const iconType = await page.locator('link[rel="icon"]').first().getAttribute('type');
+
+    expect(iconHref).toMatch(/\/icon/);
+    expect(iconType).toBe('image/png');
+  });
+
+  test('should render the generated icon as a non-trivial PNG', async ({ request }) => {
+    const response = await request.get('/icon');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('image/png');
+
+    // 폰트가 실제로 임베드되어 'WS' 글리프가 렌더되면 투명/빈 아이콘보다 훨씬 크다.
+    const body = await response.body();
+    expect(body.length).toBeGreaterThan(2000);
+  });
+
+  test('should respond to a direct /favicon.ico request for legacy crawlers', async ({ request }) => {
+    const response = await request.get('/favicon.ico');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('image/png');
+  });
+});

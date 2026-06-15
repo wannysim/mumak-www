@@ -181,7 +181,15 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 생성되며 같은 문제 클래스(폰트 미로딩, 배경/대비, 브랜드 일관성)를 공유한다. 한 PR에서 공통 셸로 함께 정리한다.
 
-#### C-7-0. favicon이 구글 검색결과에서 빈 흰 동그라미로 나오는 라이브 버그 (최우선)
+#### C-7-0. favicon이 구글 검색결과에서 빈 흰 동그라미로 나오는 라이브 버그 (최우선) — 완료
+
+> 완료(별도 브랜치 `feature/blog-favicon-fix`). 세 근본 원인 모두 해소:
+>
+> 1. `app/icon.tsx` 배경을 `transparent` → 브랜드 다크 `#0a0a0a`로, 흰 'WS'가 어떤 배경(구글 흰 칩 포함)에서도 보이게 함.
+> 2. `loadOgFonts()`를 `ImageResponse`의 `fonts`로 전달 — Pretendard `fontWeight: 700`으로 렌더(이전엔 폰트 미전달로 기본 폰트·weight 무시). `fontWeight: 800`은 가용 woff(400/600/700) 기준 700으로 조정.
+> 3. 정적 `.ico` 바이너리 생성 도구가 없어, `next.config.mjs` redirect로 `/favicon.ico` → `/icon`(PNG, 307) 매핑. 루트 직접 요청 크롤러가 코드 생성 아이콘을 받게 함. `app/icon.tsx`가 `<link rel="icon" type="image/png">`을 별도 제공.
+>
+> 검증: 빌드 후 `/icon` 200·image/png·512x512 PNG(17KB, 글리프 임베드 확인), 다크 배경+흰 'WS' 시각 확인, `/favicon.ico` 307→/icon, 홈 `<link rel="icon">` 존재. `e2e/seo.spec.ts`에 favicon E2E 3건 추가. C-7-1(OG 고도화)은 미진행.
 
 - **증상**: 구글 검색결과에 사이트 favicon이 글자 없이 흰 동그라미만 보인다.
 - **근본 원인** (`app/icon.tsx`):
