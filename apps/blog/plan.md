@@ -134,6 +134,9 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **현황**: `react-doctor.yml`이 advisory 모드(`blocking: none`)로 운영 중이며 main baseline에 에러 3건이 남아 있다. 새 PR이 같은 수준의 문제를 추가해도 머지를 막지 못한다.
 - **개선안**: baseline 3건을 해결(또는 suppression 문서화)한 뒤 `blocking: error`로 상향.
 - **기대 효과**: 정적 품질 게이트가 실제로 게이트 역할을 하게 됨.
+- **blocking 전환 전 일괄 처리할 알려진 false positive (suppression 후보)**:
+  - **`no-inline-exhaustive-style` (PR #433, C-7-1)** — `src/shared/lib/og/template.tsx`의 `OgShell`(L41)·`OgNotFound`(L126) inline style 2건. **이 규칙은 일반 React 런타임 컴포넌트를 가정하지만, 해당 파일은 `next/og`(Satori) 빌드타임 이미지 템플릿이다.** (1) Satori는 inline style만 지원하므로 권고대로 CSS class/module/Tailwind/styled-component로 옮기면 렌더링이 깨진다. (2) `generateStaticParams` 기반 빌드타임 1회 렌더라 "매 렌더마다 재생성" 성능 논리가 무관하다. → CSS 이전이 아니라 **구조적 예외로 suppression**(또는 정적 style 객체를 모듈 const로 호이스팅해 규칙 회피)으로 처리한다. `icon.tsx`·blog/garden·기본 OG 이미지의 inline style도 같은 성격이라 함께 검토.
+  - **`no-side-effect-in-get-handler` 류 (C-8)** — `app/api/spotify/callback/route.ts`의 GET handler token exchange. OAuth 표준 redirect callback은 GET이며 CSRF는 state로 방어한다(C-8에서 no-store + state single-use로 보강 완료). 2단계 POST 구조 재설계 전까지 **구조적 예외**로 둔다.
 
 ---
 
