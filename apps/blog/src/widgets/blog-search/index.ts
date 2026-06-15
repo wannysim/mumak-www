@@ -1,1 +1,1 @@
-export { BlogSearch, type BlogSearchPost } from './ui/blog-search';
+export { BlogSearch } from './ui/blog-search';

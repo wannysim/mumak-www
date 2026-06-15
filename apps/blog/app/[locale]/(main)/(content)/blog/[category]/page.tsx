@@ -7,7 +7,7 @@ import { getCategories, getPosts, isValidCategory, type Category } from '@/src/e
 import { locales, type Locale } from '@/src/shared/config/i18n';
 import { PageHeader } from '@/src/shared/ui';
 import { BlogNav, getBlogNavCounts } from '@/src/widgets/blog-nav';
-import { BlogSearch, type BlogSearchPost } from '@/src/widgets/blog-search';
+import { BlogSearch } from '@/src/widgets/blog-search';
 import { PostCard } from '@/src/widgets/post-card';
 
 interface BlogCategoryPageProps {
@@ -47,7 +47,6 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
   const [t, tCommon] = await Promise.all([getTranslations('category'), getTranslations('common')]);
 
   const posts = getPosts(locale as Locale, category as Category);
-  const allPosts = getPosts(locale as Locale);
   const categories = getCategories();
 
   const categoryLabels = categories.reduce(
@@ -57,14 +56,6 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
     },
     {} as Record<Category, string>
   );
-
-  const searchPosts: BlogSearchPost[] = allPosts.map(post => ({
-    title: post.title,
-    description: post.description,
-    category: post.category,
-    slug: post.slug,
-    tags: post.tags ?? [],
-  }));
 
   return (
     <div className="space-y-8">
@@ -77,7 +68,7 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
           tagsLabel={tCommon('tags')}
           counts={getBlogNavCounts(locale as Locale)}
         />
-        <BlogSearch posts={searchPosts} categoryLabels={categoryLabels} triggerClassName="sm:w-72" />
+        <BlogSearch categoryLabels={categoryLabels} triggerClassName="sm:w-72" />
       </div>
 
       <section className="space-y-6">
