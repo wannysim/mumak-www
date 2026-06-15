@@ -1,0 +1,377 @@
+---
+title: 'Mobile Social Login and Refresh Token Design: idToken proves identity, refreshToken keeps our session alive'
+created: '2026-06-11'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'oauth', 'oidc', 'auth', 'react-native', 'mobile']
+---
+
+When OAuth/OIDC, `id_token`, access token, and refresh token all appear in one flow, they can all look like "login tokens." That was the confusing part for me too. Kakao or Apple gives an `idToken`, and then our backend returns `accessToken` and `refreshToken`, so it looks duplicated at first.
+
+> One-line summary: **A provider `idToken` is material for proving who the user is at sign-in time. Our service `accessToken` and `refreshToken` are session tokens for keeping the user signed in to our service. OIDC unification and refresh token design are connected, but they own different responsibilities.**
+
+## The three token roles
+
+The confusion comes from the shared word "token." By role, they split cleanly.
+
+| Token          | Issuer                                         | What it proves/allows                     | When it is used                                          |
+| -------------- | ---------------------------------------------- | ----------------------------------------- | -------------------------------------------------------- |
+| `idToken`      | external provider such as Kakao, Apple, Google | "this user authenticated at the provider" | right after social login, when backend verifies identity |
+| `accessToken`  | **our backend**                                | permission to call our service APIs       | every API request via `Authorization: Bearer ...`        |
+| `refreshToken` | **our backend**                                | permission to get a new access token      | when access token expires                                |
+
+In social login, the provider `idToken` is sign-in proof. Keeping the app session alive for days or months is handled by our own access/refresh tokens, not by the provider token.
+
+## Current mobile app flow
+
+The mobile app supports Kakao and Apple login. The shape is roughly:
+
+```text
+1. User taps Kakao/Apple login
+2. Mobile app starts provider SDK login
+3. Provider SDK returns idToken or identityToken
+4. App sends that token to our backend callback API
+5. Backend validates the provider token
+6. Backend returns our accessToken + refreshToken + user
+7. App stores tokens in SecureStore and also loads them into authStore
+8. Later API requests attach accessToken as Authorization: Bearer ...
+```
+
+The app is not doing all OAuth/OIDC validation itself. It logs in through the provider SDK, passes provider token to the backend, and the backend validates and issues our own tokens.
+
+## idToken flow and auth code flow
+
+[[oauth-code-flow-vs-id-token]] covers the broader comparison. For refresh design, the important parts are:
+
+**idToken handoff**
+
+```text
+provider login
+→ receive idToken
+→ send idToken to our backend
+→ backend validates idToken
+→ backend issues our service tokens
+```
+
+An `idToken` is an OIDC JWT representing the user's authentication. The backend must validate signature, issuer (`iss`), audience (`aud`), expiry (`exp`), and nonce when possible ([[oidc-nonce-token-binding]]).
+
+**auth code flow**
+
+```text
+provider login
+→ receive authorization code
+→ exchange code at provider token endpoint
+→ receive idToken/accessToken/etc.
+→ backend validates
+→ backend issues our service tokens
+```
+
+The auth code is not a token itself. It is closer to a one-time exchange ticket. For mobile public clients, Authorization Code + PKCE is the baseline recommendation.
+
+The key point: **whether the provider login uses idToken handoff or auth code, our service refresh token design barely changes.** Provider login is how we identify the user initially. Refresh token is how we keep our own service session alive.
+
+## Refresh Token Rotation
+
+Refresh Token Rotation means each refresh request replaces the refresh token with a new one.
+
+```text
+Login
+→ accessToken A1 + refreshToken R1
+
+Access token about to expire
+→ call /auth/refresh with R1
+→ receive accessToken A2 + refreshToken R2
+→ R1 is immediately invalidated
+
+Next refresh
+→ use R2
+→ receive A3 + R3
+→ R2 is invalidated
+```
+
+The benefit is theft detection. If someone steals old `R1` and uses it later, the server can detect that an already-rotated refresh token has reappeared. At that point the session or token family should be revoked.
+
+```text
+Normal app: uses R1 → server issues R2 and invalidates R1
+Attacker: uses stolen R1
+Server: detects reuse → revokes session/token family
+```
+
+## Expiry: access, idle, absolute
+
+Access tokens are short-lived; refresh tokens are longer-lived.
+
+| Token/policy                 | Starting point                                       |
+| ---------------------------- | ---------------------------------------------------- |
+| accessToken                  | 5-15 minutes. Starting with 15 minutes is reasonable |
+| refreshToken idle expiry     | 30 days                                              |
+| refreshToken absolute expiry | 90 or 180 days                                       |
+
+**Idle expiry** means "expire if unused for N days since the last refresh."
+
+```text
+Jan 1 login
+→ idle deadline = Jan 31
+
+Jan 20 refresh
+→ new refresh token
+→ idle deadline extends to Feb 19
+```
+
+If the user keeps using the app, the idle deadline keeps moving.
+
+**Absolute expiry** means "expire after at most N days since the original login/session creation, even if the app keeps being used."
+
+```text
+Jan 1 login
+→ absolute deadline = around Apr 1
+
+Jan 20 refresh
+→ idle deadline extends
+→ absolute deadline stays Apr 1
+
+Feb 10 refresh
+→ idle deadline extends
+→ absolute deadline still stays Apr 1
+```
+
+So:
+
+| Policy          | Meaning                                           |
+| --------------- | ------------------------------------------------- |
+| idle expiry     | expires if unused                                 |
+| absolute expiry | expires after the fixed maximum date even if used |
+
+The mistake I initially made was thinking absolute expiry also moves on every refresh. Usually it does not. It stays fixed from the original session.
+
+## Reopening the app
+
+If the refresh token is still valid, the app can keep the user signed in.
+
+```text
+1. App opens
+2. If accessToken is still valid, use it
+3. If accessToken is expired or close to expiry, call /auth/refresh with refreshToken
+4. Server returns new accessToken + new refreshToken
+5. App replaces stored tokens in SecureStore
+6. Session continues
+```
+
+If the refresh token is expired or revoked, the app needs Kakao/Apple login again.
+
+## Mobile and web storage
+
+On mobile, SecureStore / iOS Keychain / Android Keystore is the right direction. It is safer than AsyncStorage.
+
+Current shape:
+
+```text
+accessToken + refreshToken
+→ stored in expo-secure-store
+→ also loaded into Zustand authStore while app is running
+```
+
+This is not immediately fatal, but if refresh token becomes a long-lived session token, it is better to separate access and refresh storage behavior.
+
+| Token        | Mobile recommendation                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| accessToken  | short-lived; memory-first; SecureStore if needed                                                  |
+| refreshToken | long-lived; SecureStore-first; avoid keeping it in memory all the time; read only when refreshing |
+
+On the web, avoid `localStorage` for refresh tokens.
+
+| Token        | Web recommendation                      |
+| ------------ | --------------------------------------- |
+| refreshToken | `HttpOnly`, `Secure`, `SameSite` cookie |
+| accessToken  | memory when possible                    |
+
+The reason is XSS protection for the refresh token. [[access-refresh-token-pattern]] covers the web version in more detail.
+
+## Multi-device login problem
+
+It is tempting to think one refresh token per user is enough, especially if the product does not need device-sharing features. But user-level refresh tokens cause problems.
+
+**Problem 1 — replacing the user refresh token on each login**
+
+```text
+1. iPhone logs in
+   → user refreshToken = R1
+
+2. Android logs in
+   → user refreshToken replaced with R2
+
+3. iPhone still holds R1
+   → next refresh fails
+   → iPhone is unexpectedly signed out
+```
+
+Logging in on one device can sign out another device.
+
+**Problem 2 — returning the same existing refresh token**
+
+```text
+iPhone and Android share refreshToken R1
+```
+
+If one device leaks the token, every device session is at risk. Rotation also gets messy because multiple devices race on the same refresh token.
+
+So the server needs a **session unit**, not just a user unit.
+
+This is separate from a product-facing "device management UI." We may not need a device list, per-device logout UI, or detailed security screen yet. But internally, refresh tokens should be issued per session.
+
+Reasonable MVP:
+
+- create an `auth_session` row on login
+- issue refresh token per `auth_session`
+- apply refresh token rotation
+- current device logout revokes only the current session
+- logout-all revokes all sessions by `user_id`
+- add device management UI later if needed
+
+The table can start simple.
+
+```text
+auth_sessions
+- id
+- user_id
+- platform
+- refresh_token_hash
+- token_family_id
+- issued_at
+- last_used_at
+- idle_expires_at
+- absolute_expires_at
+- revoked_at
+```
+
+Later additions:
+
+```text
+- device_id
+- device_name
+- app_version
+- push_token_id
+- revoke_reason
+```
+
+The point is not "let's build device management UI." The point is **avoid refresh token collisions and sharing by using an internal session unit.**
+
+## Server-side refresh token storage
+
+Refresh tokens can be JWTs, but from a revocation and theft-detection perspective, opaque random tokens are usually cleaner.
+
+Recommendation:
+
+| Item               | Recommendation                                   |
+| ------------------ | ------------------------------------------------ |
+| refreshToken shape | long random string                               |
+| client             | receives the original token                      |
+| server DB          | never stores the original                        |
+| stored value       | hash such as `HMAC-SHA256(server_secret, token)` |
+
+Refresh flow:
+
+```text
+1. Client sends refreshToken
+2. Server hashes it
+3. Server compares with refresh_token_hash in DB
+4. If valid, invalidate old refresh token
+5. Issue new accessToken + new refreshToken
+6. Store new refreshToken hash
+```
+
+If an already-invalidated refresh token appears again, treat it as reuse and revoke the session or token family.
+
+## Client-side concerns
+
+### 1. Never log tokens
+
+Do not log accessToken, refreshToken, or idToken. It is easy to accidentally log a whole error object that contains token data. Keep the current direction of not putting token values into error messages.
+
+### 2. Refresh token storage must succeed
+
+With rotation, when a refresh response returns a new refresh token, SecureStore must be updated successfully. If storing fails and the client keeps the old token, the next refresh may look like a replay attack to the server.
+
+### 3. Prevent concurrent refresh
+
+When access token expires, multiple API calls may receive 401 at the same time. With rotation, this is dangerous.
+
+```text
+API A → refresh with R1
+API B → refresh with R1 at the same time
+
+Server:
+first request: R1 succeeds → R2 issued, R1 invalidated
+second request: R1 is already invalidated → looks like reuse
+```
+
+The client needs a refresh mutex or single-flight logic. If one refresh is already running, other requests should wait for its result.
+
+### 4. Logout should revoke server session
+
+If mobile logout only deletes SecureStore locally, the server-side session may remain valid. With refresh tokens, logout should also call something like `/auth/logout` to revoke the current session's refresh token.
+
+## Opinion on OIDC unification
+
+Unifying providers around OIDC is a reasonable direction if Apple already uses OIDC. From the client side, each provider SDK can return an `idToken`, and the backend can verify provider-specific claims.
+
+The prerequisites:
+
+- validate provider-specific issuer
+- validate audience/client_id
+- validate signature
+- validate `exp`
+- validate nonce when possible
+- identify social accounts by provider + `sub`
+- do not use email as the primary key
+
+Apple email/fullName may arrive only once, so the sign-up flow must capture it immediately. Providers like Naver may differ in OIDC support and ID Token behavior, so they need separate confirmation.
+
+Again: **OIDC is how we identify the user at the external provider; refresh token is how we maintain our own service session.** They are connected but owned by different parts of the design.
+
+## Meeting-ready conclusion
+
+For new mobile auth, moving to short-lived accessToken + refreshToken is the right direction.
+
+But refreshToken should not be one per user. If it is user-scoped, multiple devices either sign each other out or share the same refresh token. Even if the product does not expose device-level logout UI yet, the server should issue refresh tokens per session.
+
+As an MVP, create an `auth_session` table with `user_id`, `session_id`, `refresh_token_hash`, `token_family_id`, `last_used_at`, `idle_expires_at`, `absolute_expires_at`, and `revoked_at`, then apply session-scoped refresh token rotation.
+
+OIDC unification is fine. The client can send provider SDK `idToken` values to the backend, and the backend can verify `iss`/`aud`/signature/`exp`, then identify users by provider + `sub`.
+
+But OIDC and refresh token design are separate. Provider login proves identity once; our accessToken/refreshToken manage our service session.
+
+Current SecureStore usage is a good base. If refresh token rotation is added, keep refreshToken SecureStore-centered, use accessToken memory-first, and add refresh single-flight plus server-side revoke.
+
+## Common Misunderstandings
+
+- **Misunderstanding**: "If we have provider idToken, we do not need our refreshToken." → **Reality**: idToken proves initial identity; our refreshToken keeps our service session alive.
+- **Misunderstanding**: "One refreshToken per user is enough." → **Reality**: it breaks multi-device behavior or forces token sharing.
+- **Misunderstanding**: "Absolute expiry also extends on refresh." → **Reality**: idle extends; absolute usually stays fixed from the original session.
+- **Misunderstanding**: "SecureStore solves all client concerns." → **Reality**: storage is one layer. Rotation persistence, single-flight refresh, and server revoke still matter.
+- **Misunderstanding**: "No device logout UI means no session table." → **Reality**: UI and internal token issuance unit are separate concerns.
+
+## Check Yourself
+
+- Can you explain the difference between provider `idToken` and our `accessToken`/`refreshToken` in one sentence?
+- Why does refresh token design barely change whether login used idToken or auth code?
+- What is the difference between idle expiry and absolute expiry?
+- What breaks when there is only one user-level refresh token?
+- Why is concurrent refresh dangerous with rotation?
+- Why should social accounts be keyed by provider + `sub`, not email?
+
+## See Also
+
+- [[oauth-code-flow-vs-id-token]]
+- [[oidc-nonce-token-binding]]
+- [[access-refresh-token-pattern]]
+- [[web-auth-session-vs-token]]
+- [[frontend-network]]
+
+## References
+
+- [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://datatracker.ietf.org/doc/html/rfc9700)
+- [OAuth 2.0 for Browser-Based Apps (BCP draft)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps)
+- [OAuth 2.0 for Native Apps — RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252)
+- [OpenID Connect Core 1.0 — ID Token](https://openid.net/specs/openid-connect-core-1_0.html#IDToken)
+- [Refresh Token Rotation - Auth0](https://auth0.com/docs/secure/tokens/refresh-tokens/refresh-token-rotation)

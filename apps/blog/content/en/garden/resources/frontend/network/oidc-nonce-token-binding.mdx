@@ -1,0 +1,158 @@
+---
+title: 'OIDC nonce: How an ID Token proves it belongs to the request I just started'
+created: '2026-06-11'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'oauth', 'oidc', 'nonce']
+---
+
+When you add "Sign in with Google" or "Sign in with Apple", the provider returns an `id_token`, a signed JWT. If the signature is valid and `iss`, `aud`, and `exp` all look right, can we trust it? Not quite. **One thing is still left — `nonce`.** There are tokens that are correctly signed, correctly issued, correctly targeted, and still must be rejected. The nonce is what catches them.
+
+> One-line summary: **nonce is a one-time random value proving that this ID Token is the response to _the login request I just started_. Even if the signature is real, a nonce mismatch means the token came from another flow.**
+
+The base distinction is OAuth vs OIDC. In one line, **OAuth is authorization (what this app can do → access token), and OIDC layers authentication on top (who this user is → ID Token)**. I wrote the implementation-side version of that split in [Expo Social Login Part 3](/en/blog/articles/expo-social-login-backend). This note only digs into `nonce`.
+
+## Why signature alone is not enough
+
+An ID Token is a signed JWT, so the verifier can validate it offline with the provider's public key (JWKS). The usual checklist looks like this.
+
+| claim     | Question                          | What it blocks                        |
+| --------- | --------------------------------- | ------------------------------------- |
+| signature | Did the provider really sign it?  | forged tokens                         |
+| `iss`     | Is this the issuer I trust?       | wrong provider                        |
+| `aud`     | Is **my client_id** the audience? | tokens for another app                |
+| `exp`     | Is it still alive?                | stale tokens                          |
+| `nonce`   | Does it match the value I sent?   | **token injection from another flow** |
+
+The first four checks say, "this token is real, for me, and not expired." But a token can pass all four and still be unrelated to **the login flow this user just started**. The last row closes that gap.
+
+## What nonce actually does
+
+Follow the full flow. There are three parties: the client (my app/server), the provider, and the user moving between them.
+
+```
+[Client]                             [Provider]
+    │                                      │
+    │ 1. Generate nonce                    │
+    │    → store it (session/cookie)       │
+    │ 2. Auth request (..., nonce=abc)     │
+    ├─────────────────────────────────────▶│
+    │                                      │ user signs in / consents
+    │ 3. ID Token                          │
+    │◀─────────────────────────────────────┤
+    │   signed JWT { sub, iss, aud,        │
+    │                exp, nonce: "abc" }   │ ← provider embeds the same nonce
+    │                                      │
+    │ 4. Validate: token nonce == stored nonce ?
+    │    "abc" == "abc"  → accepted
+```
+
+Two details matter.
+
+1. **The client creates the nonce, sends it with the request, and stores it across request/response.**
+2. The provider embeds that nonce into the **signed** ID Token. So the nonce is inside the signed payload. If an attacker changes it, the signature breaks.
+
+OIDC Core pins this down: if a nonce was sent, the ID Token must contain a `nonce` claim, and the client must verify it matches the sent value. The spec defines nonce as a value used to associate a client session with an ID Token and mitigate replay attacks.
+
+> Why put nonce inside the signed token?
+>
+> In [[oauth-callback-security]], `state` comes back as a plain callback query parameter. That is why we treat it as single-use and consume it carefully. Nonce is different: it is inside the provider-signed token body. If an attacker brings a whole token from elsewhere, its nonce is already sealed at issuance time, and it will not match the nonce I stored for this flow.
+
+## state, PKCE, and nonce are not the same thing
+
+This is the confusing part. All three look like one-time random values, but they protect different surfaces.
+
+|           | Protects               | Comes back in                     | Verified by           | Blocks                          |
+| --------- | ---------------------- | --------------------------------- | --------------------- | ------------------------------- |
+| **state** | callback redirect      | front-channel **query parameter** | callback receiver     | **login CSRF**                  |
+| **PKCE**  | authorization **code** | verifier submitted back-channel   | token endpoint        | **code interception**           |
+| **nonce** | **ID Token itself**    | **claim inside signed JWT**       | **ID Token verifier** | **ID Token replay / injection** |
+
+The mental model:
+
+- **state is a serial number on the envelope.** "Is this callback the end of the flow I started?"
+- **PKCE is the exchange receipt.** "Is the party exchanging this code the same one that started the request?"
+- **nonce is a watermark inside the content.** "Was this token minted for the request I just started?"
+
+They are layers, not substitutes. State does not close the nonce gap, and nonce does not replace state.
+
+## What breaks without nonce: ID Token injection
+
+The dangerous case is this: an attacker gets a **validly signed** ID Token from somewhere — maybe from their own session, maybe from logs, maybe from another leak. Then they inject that token into the victim's login flow.
+
+Without nonce validation, the token can pass everything. The signature is real, `iss` is right, `aud` is my app, and `exp` is still valid. It was genuinely signed by the provider. So my backend may accept it as "this user logged in." The victim's session can end up bound to the attacker's account, or a stolen token can be replayed.
+
+Nonce is the check that says: **"The nonce in this token is not the one I just generated. Reject."** Without it, the temporal binding to the current login request disappears.
+
+## Frontend or backend?
+
+The rule is simple:
+
+> **The party that creates, stores, and validates the nonce should be the party that validates the ID Token.**
+
+Validation means "does the token's nonce match the nonce I stored earlier?" If generation and validation are split incorrectly, there is nothing meaningful to compare.
+
+| Architecture                           | ID Token validation | → nonce generation/storage/validation                                              |
+| -------------------------------------- | ------------------- | ---------------------------------------------------------------------------------- |
+| server-side / **BFF** confidential app | backend             | **all backend** (session/signed cookie)                                            |
+| public SPA validating tokens directly  | browser             | SPA stores and validates it, usually in sessionStorage, with the usual XSS caveats |
+| native / Expo                          | backend             | app passes the value, **backend validates**                                        |
+
+For this repo's current pattern, the answer is backend.
+
+- The Spotify flow creates and consumes `state` in a Next.js API route ([[oauth-callback-security]]).
+- The Expo social login flow validates ID Token signature, `iss`, `aud`, and `exp` in the backend.
+
+So nonce validation belongs in the backend validation step too. The frontend's job is transport; the backend owns the verdict.
+
+## Native detail: sometimes raw nonce and hashed nonce are split
+
+In native apps, especially Sign in with Apple integrations through Firebase or backend verification, you often see one extra hash step.
+
+```
+1. App: generate raw nonce
+2. App → provider: send SHA256(raw nonce)
+                   → ID Token contains this hashed value
+3. App → backend: send raw nonce
+4. Backend: SHA256(raw nonce) and compare with ID Token nonce claim
+```
+
+This lets the backend verify that the caller had the original nonce behind the value sealed into the ID Token. Providers and SDKs differ on whether they expect raw or hashed nonce, so implementation must follow the provider docs. The invariant is: **the value sent to the provider, the `nonce` claim in the ID Token, and the value the backend compares must be connected by the same rule.**
+
+> Why did we omit nonce for Kakao?
+>
+> `@react-native-kakao`'s native `login()` does not expose a nonce parameter. Without that input, there is nothing to bind. So Kakao ID Token validation intentionally checks signature + `iss`/`aud`/`exp` and omits nonce replay defense. That is an acknowledged SDK tradeoff, not a general recommendation. Providers that support nonce, such as Apple or Google, should wire backend nonce validation.
+
+## Common misunderstandings
+
+- **Misunderstanding**: "If signature, iss, aud, and exp pass, the token is safe." → **Reality**: it may still be a token from another flow. Nonce binds the token to the current request.
+- **Misunderstanding**: "State already exists, so nonce is redundant." → **Reality**: state protects the callback; nonce protects the token itself.
+- **Misunderstanding**: "PKCE replaces nonce." → **Reality**: PKCE protects the authorization code exchange. Token injection happens when accepting the ID Token.
+- **Misunderstanding**: "Nonce is a frontend check." → **Reality**: nonce belongs wherever ID Token validation belongs.
+- **Misunderstanding**: "Native can just send the same nonce to both provider and backend." → **Reality**: some providers expect a hashed nonce. Follow the provider's rule and compare consistently.
+
+## Check Yourself
+
+- When should you reject an ID Token even though signature, `iss`, `aud`, and `exp` all pass?
+- Can you explain state, PKCE, and nonce by what each one protects?
+- Why can't signature validation alone stop ID Token injection?
+- Why should nonce validation live with ID Token validation?
+- In this repo's architecture, what does the frontend do, and what does the backend decide?
+
+## See Also
+
+- [[oauth-callback-security]]
+- [[oauth-code-flow-vs-id-token]]
+- [[access-refresh-token-pattern]]
+- [[web-auth-session-vs-token]]
+- [[web-security-xss-csrf]]
+- [[frontend-network]]
+
+## References
+
+- [OpenID Connect Core 1.0 — §3.1.2.1 Authentication Request (nonce)](https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest)
+- [OpenID Connect Core 1.0 — §3.1.3.7 ID Token Validation](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation)
+- [RFC 6749 §10.12 — Cross-Site Request Forgery](https://datatracker.ietf.org/doc/html/rfc6749#section-10.12)
+- [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://datatracker.ietf.org/doc/html/rfc9700)
+- [OAuth 2.0 for Browser-Based Apps (BCP draft)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps)
+- [Authenticate Using Apple — Firebase](https://firebase.google.com/docs/auth/ios/apple)

@@ -1,0 +1,379 @@
+---
+title: '모바일 소셜 로그인과 Refresh Token 설계: idToken은 로그인 재료, refreshToken은 우리 세션'
+created: '2026-06-11'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'oauth', 'oidc', 'auth', 'react-native', 'mobile']
+---
+
+OAuth/OIDC, `id_token`, access token, refresh token이 한 흐름 안에 같이 나오면 전부 "로그인 토큰"처럼 보인다. 그래서 처음엔 나도 헷갈렸다. 카카오/애플에서 받은 `idToken`이 있는데, 또 우리 백엔드가 `accessToken`과 `refreshToken`을 주는 게 중복처럼 보였기 때문이다.
+
+> 한 줄 요약: **provider의 `idToken`은 "처음 이 사람이 누구인지 확인하는 재료"이고, 우리 서비스의 `accessToken`/`refreshToken`은 "우리 서비스 로그인 상태를 유지하는 세션 토큰"이다. OIDC 통일과 refresh token 설계는 연결돼 있지만, 책임은 다르다.**
+
+## 토큰 세 개의 역할
+
+헷갈림은 이름이 전부 token이라서 생긴다. 역할로 보면 갈라진다.
+
+| 토큰           | 누가 발급하나                       | 무엇을 증명/허용하나                   | 언제 쓰나                                     |
+| -------------- | ----------------------------------- | -------------------------------------- | --------------------------------------------- |
+| `idToken`      | 카카오·애플·구글 같은 외부 provider | "이 사용자는 provider 쪽에서 인증됐다" | 소셜 로그인 직후, 백엔드가 신원 확인할 때     |
+| `accessToken`  | **우리 백엔드**                     | 우리 서비스 API 호출 권한              | 평소 API 요청마다 `Authorization: Bearer ...` |
+| `refreshToken` | **우리 백엔드**                     | 새 access token을 받을 권한            | access token 만료 시 `/auth/refresh`          |
+
+소셜 로그인에서 provider의 `idToken`은 "최초 신원 확인 재료"다. 우리 앱의 로그인 상태를 며칠·몇 달 유지하는 건 provider `idToken`이 아니라, 백엔드가 발급한 우리 서비스용 access/refresh token이다.
+
+## 현재 모바일 앱 흐름
+
+현재 모바일 앱은 카카오/애플 로그인을 지원하고, 큰 흐름은 이렇다.
+
+```text
+1. 사용자가 카카오/애플 로그인 버튼 클릭
+2. 모바일 앱이 provider SDK로 로그인 실행
+3. provider SDK가 idToken 또는 identityToken 반환
+4. 앱이 이 토큰을 우리 백엔드 콜백 API로 전달
+5. 백엔드가 provider 토큰을 검증
+6. 백엔드가 우리 서비스용 accessToken + refreshToken + user 반환
+7. 앱은 토큰을 SecureStore에 저장하고 authStore에도 올림
+8. 이후 API 요청마다 accessToken을 Authorization: Bearer ... 헤더에 붙임
+```
+
+즉 모바일 앱이 OAuth/OIDC 검증을 직접 다 하는 구조가 아니다. 앱은 provider SDK로 로그인하고 provider token을 백엔드에 넘긴다. 실제 검증과 우리 서비스 토큰 발급은 백엔드가 담당한다.
+
+## idToken 방식과 auth code 방식
+
+이 둘은 [[oauth-code-flow-vs-id-token]]에서 더 길게 정리했지만, 모바일 refresh 설계 관점에서 필요한 결론만 다시 적으면 이렇다.
+
+**idToken 방식**
+
+```text
+provider 로그인
+→ idToken 받음
+→ 우리 백엔드에 idToken 전달
+→ 백엔드가 idToken 검증
+→ 우리 서비스 토큰 발급
+```
+
+`idToken`은 OpenID Connect에서 사용자의 인증 사실을 나타내는 JWT다. 백엔드는 이 토큰의 서명, issuer(`iss`), audience(`aud`), expiry(`exp`), 가능하면 nonce까지 검증해야 한다([[oidc-nonce-token-binding]]).
+
+**auth code 방식**
+
+```text
+provider 로그인
+→ authorization code 받음
+→ code를 provider token endpoint에서 교환
+→ idToken/accessToken 등을 받음
+→ 백엔드가 검증
+→ 우리 서비스 토큰 발급
+```
+
+auth code는 토큰 자체가 아니라 "토큰으로 교환할 수 있는 1회용 교환권"에 가깝다. 모바일 같은 public client에서는 Authorization Code + PKCE가 기본 권장선이다.
+
+다만 중요한 점은 따로 있다. **idToken 방식이든 auth code 방식이든, 우리 서비스의 refresh token 설계는 거의 달라지지 않는다.** provider 로그인 방식은 "처음 이 사람이 누구인지 확인하는 방법"이고, refresh token은 "우리 서비스 로그인 상태를 유지하는 방법"이기 때문이다.
+
+## Refresh Token Rotation
+
+Refresh Token Rotation은 refresh token을 여러 번 재사용하지 않고, refresh 요청마다 새 refresh token으로 교체하는 방식이다.
+
+```text
+로그인
+→ accessToken A1 + refreshToken R1 발급
+
+accessToken 만료 임박
+→ R1로 /auth/refresh 호출
+→ accessToken A2 + refreshToken R2 발급
+→ R1은 즉시 폐기
+
+다음 refresh
+→ R2 사용
+→ accessToken A3 + refreshToken R3 발급
+→ R2 폐기
+```
+
+이 방식의 장점은 탈취 감지다. 누군가 예전 refresh token `R1`을 훔쳐서 나중에 사용하면, 서버는 "이미 폐기된 refresh token이 다시 들어왔다"는 것을 알 수 있다. 그 순간 해당 session 또는 token family를 revoke해서 피해를 줄일 수 있다.
+
+```text
+정상 앱: R1 사용 → R2 발급, R1 폐기
+공격자: 훔쳐둔 R1 사용
+서버: 이미 폐기된 토큰 재사용 감지 → session/token family revoke
+```
+
+## access token과 refresh token 만료
+
+일반적으로 access token은 짧게, refresh token은 길게 둔다.
+
+| 토큰                         | 시작점                                    |
+| ---------------------------- | ----------------------------------------- |
+| accessToken                  | 5~15분. 우리 앱은 15분 정도부터 시작 가능 |
+| refreshToken idle expiry     | 30일                                      |
+| refreshToken absolute expiry | 90일 또는 180일                           |
+
+**idle expiry**는 "마지막으로 refresh token을 사용한 시점부터 N일 동안 사용하지 않으면 만료"라는 뜻이다.
+
+```text
+1월 1일 로그인
+→ idle deadline = 1월 31일
+
+1월 20일 refresh
+→ 새 refresh token 발급
+→ idle deadline = 2월 19일로 연장
+```
+
+앱을 계속 쓰면 idle 만료 시점은 계속 뒤로 밀린다.
+
+**absolute expiry**는 "계속 사용하더라도 최초 로그인/세션 생성 시점부터 최대 N일까지만 유효"하다는 뜻이다.
+
+```text
+1월 1일 로그인
+→ absolute deadline = 4월 1일 근처
+
+1월 20일 refresh
+→ idle deadline은 연장
+→ absolute deadline은 그대로 4월 1일
+
+2월 10일 refresh
+→ idle deadline은 연장
+→ absolute deadline은 그대로 4월 1일
+```
+
+즉 이렇게 구분하면 된다.
+
+| 만료 정책       | 의미                          |
+| --------------- | ----------------------------- |
+| idle expiry     | 안 쓰면 만료                  |
+| absolute expiry | 계속 써도 이 날짜 넘으면 만료 |
+
+내가 처음 헷갈렸던 부분은 absolute도 refresh할 때마다 갱신된다고 생각한 점이다. 일반적으로 absolute는 갱신하지 않고, 최초 세션 기준으로 고정한다.
+
+## 앱을 다시 열었을 때 로그인 유지
+
+refresh token이 아직 유효하면 앱은 로그인 상태를 유지할 수 있다.
+
+```text
+1. 앱 재접속
+2. accessToken이 아직 유효하면 그대로 사용
+3. accessToken이 만료됐거나 곧 만료되면 refreshToken으로 /auth/refresh 호출
+4. 서버가 새 accessToken + 새 refreshToken 발급
+5. 앱은 SecureStore의 토큰을 최신 값으로 교체
+6. 로그인 상태 유지
+```
+
+반대로 refresh token도 만료됐거나 revoke됐으면 다시 카카오/애플 로그인이 필요하다.
+
+## 모바일과 웹의 저장 위치
+
+모바일에서는 현재처럼 SecureStore, iOS Keychain, Android Keystore 계열에 저장하는 것이 맞다. AsyncStorage보다 안전하고, 기본 방향은 괜찮다.
+
+현재 구조는 대략 이렇다.
+
+```text
+accessToken + refreshToken
+→ expo-secure-store에 저장
+→ 앱 실행 중에는 Zustand authStore에도 올라감
+```
+
+보안적으로 당장 치명적인 문제는 아니지만, refresh token을 장기 세션으로 가져갈 거라면 access token과 refresh token의 저장 전략을 분리하는 편이 더 좋다.
+
+| 토큰         | 모바일 권장                                                                        |
+| ------------ | ---------------------------------------------------------------------------------- |
+| accessToken  | 짧은 수명. 메모리 중심. 필요하면 SecureStore에도 저장 가능                         |
+| refreshToken | 긴 수명. SecureStore 중심. 항상 메모리에 들고 있지 말고 refresh 요청 순간에만 읽기 |
+
+웹에서는 refresh token을 `localStorage`에 저장하는 것은 피하는 편이 좋다.
+
+| 토큰         | 웹 권장                               |
+| ------------ | ------------------------------------- |
+| refreshToken | `HttpOnly`, `Secure`, `SameSite` 쿠키 |
+| accessToken  | 가능하면 메모리                       |
+
+이유는 XSS로부터 refresh token을 보호하기 위해서다. 웹의 자세한 access/refresh 저장 전략은 [[access-refresh-token-pattern]]에 정리했다.
+
+## 여러 디바이스 로그인 문제
+
+처음에는 "우리 서비스는 계정 공유될 만한 서비스도 아니고, 플랫폼별로 이미 나뉘어 있으니 user 단위 refresh token 하나만 있어도 되지 않나?"라고 생각할 수 있다. 하지만 refresh token을 user 단위 1개로만 두면 문제가 생긴다.
+
+**문제 1 — 로그인할 때마다 refresh token을 새로 발급하는 경우**
+
+```text
+1. iPhone에서 로그인
+   → user refreshToken = R1
+
+2. Android에서 로그인
+   → user refreshToken = R2로 교체
+
+3. iPhone은 아직 R1을 들고 있음
+   → 다음 refresh 때 실패
+   → iPhone에서 의도치 않게 로그아웃
+```
+
+한 디바이스에서 로그인하면 다른 디바이스가 풀릴 수 있다.
+
+**문제 2 — 기존 refresh token을 그대로 반환하는 경우**
+
+```text
+iPhone, Android가 같은 refreshToken R1 공유
+```
+
+이 경우 한 디바이스에서 refresh token이 유출되면 모든 디바이스 세션이 위험해진다. rotation을 적용할 때도 여러 디바이스가 같은 refresh token을 경쟁적으로 쓰게 되어 꼬일 수 있다.
+
+그래서 user 단위가 아니라 **session 단위**가 필요하다.
+
+여기서 "디바이스별 제어 UI"와 "서버 내부 session 단위"는 구분해야 한다. 당장 필요 없을 수 있는 것은 내 기기 목록 화면, 특정 기기 로그아웃 UI, 디바이스별 상세 보안 제어다. 그래도 필요한 것은 refresh token 발급 단위로서의 session이다.
+
+현실적인 MVP는 이 정도다.
+
+- 로그인할 때 `auth_session` row 생성
+- refresh token은 `auth_session` 단위로 발급
+- refresh token rotation 적용
+- 현재 기기 로그아웃은 현재 session만 revoke
+- 전체 로그아웃이 필요하면 `user_id` 기준 모든 session revoke
+- 기기 목록 UI는 나중에 필요해지면 추가
+
+DB도 처음부터 복잡할 필요는 없다.
+
+```text
+auth_sessions
+- id
+- user_id
+- platform
+- refresh_token_hash
+- token_family_id
+- issued_at
+- last_used_at
+- idle_expires_at
+- absolute_expires_at
+- revoked_at
+```
+
+필요하면 나중에 추가한다.
+
+```text
+- device_id
+- device_name
+- app_version
+- push_token_id
+- revoke_reason
+```
+
+핵심은 "유저에게 디바이스별 제어를 제공하자"가 아니라, **refresh token 충돌과 공유를 막기 위해 내부 session 단위를 두자**다.
+
+## 서버에서 refresh token 저장 방식
+
+refresh token은 JWT처럼 안에 정보를 담아도 되지만, 보안과 폐기 관점에서는 opaque random token이 무난하다.
+
+추천은 이렇다.
+
+| 항목              | 권장                                          |
+| ----------------- | --------------------------------------------- |
+| refreshToken 형태 | 충분히 긴 랜덤 문자열                         |
+| 클라이언트        | 원문 전달                                     |
+| 서버 DB           | 원문 저장 금지                                |
+| 저장 값           | `HMAC-SHA256(server_secret, token)` 같은 해시 |
+
+refresh 요청 흐름은 이렇다.
+
+```text
+1. 클라이언트가 refreshToken 전달
+2. 서버가 해시 계산
+3. DB의 refresh_token_hash와 비교
+4. 유효하면 기존 refresh token 폐기
+5. 새 accessToken + 새 refreshToken 발급
+6. 새 refreshToken hash 저장
+```
+
+이미 폐기된 refresh token이 다시 들어오면 재사용 공격으로 보고 해당 session 또는 token family를 revoke한다.
+
+## 클라이언트에서 신경 쓸 점
+
+### 1. 토큰을 로그에 남기지 않기
+
+accessToken, refreshToken, idToken 모두 로그에 찍으면 안 된다. 디버깅 편하려고 에러 객체 전체를 찍다가 토큰이 섞이는 경우가 제일 흔하다. 현재 코드도 토큰 값 자체를 에러 메시지에 넣지 않으려는 방어가 있는데, 이 방향을 유지해야 한다.
+
+### 2. refresh token 저장 성공이 중요함
+
+rotation 구조에서는 refresh 응답으로 새 refresh token을 받았을 때 SecureStore에 반드시 최신 값으로 교체해야 한다. 저장 실패 시 클라이언트가 예전 refresh token을 계속 들고 있게 되고, 다음 refresh 때 서버가 재사용 공격처럼 볼 수 있다.
+
+### 3. 동시 refresh 방지
+
+access token이 만료된 순간 여러 API가 동시에 401을 받으면 refresh 요청이 여러 번 나갈 수 있다. rotation 구조에서는 이게 위험하다.
+
+```text
+API A → R1로 refresh
+API B → 동시에 R1로 refresh
+
+서버 입장:
+첫 번째 요청: R1 사용 성공 → R2 발급, R1 폐기
+두 번째 요청: 이미 폐기된 R1 재사용 → 공격처럼 보임
+```
+
+그래서 클라이언트에는 refresh mutex 또는 single-flight 로직이 필요하다. 한 번 refresh가 진행 중이면 다른 요청들은 그 refresh 결과를 기다리게 해야 한다.
+
+### 4. 로그아웃 시 서버 revoke
+
+현재 모바일이 로컬 SecureStore 삭제 중심이라면, refresh token 도입 후에는 로그아웃 시 서버에도 `/auth/logout` 같은 요청을 보내 해당 session의 refresh token을 revoke해야 한다. 로컬 삭제만 하면 "이 기기에서 더 이상 못 쓰는 것"일 뿐, 서버 세션은 살아 있을 수 있다.
+
+## OIDC 통일에 대한 의견
+
+백엔드가 Apple 로그인이 OIDC 방식이므로 모든 provider도 OIDC로 통일하고 싶어하는 것은 방향성 자체는 괜찮다. 클라이언트 입장에서는 provider별 SDK에서 `idToken`을 받아 백엔드에 넘기는 인터페이스로 단순화된다.
+
+다만 전제는 있다.
+
+- 백엔드는 provider별 issuer를 검증해야 한다.
+- audience/client_id를 검증해야 한다.
+- signature를 검증해야 한다.
+- `exp` 만료를 검증해야 한다.
+- 가능하면 nonce를 검증해야 한다.
+- provider + `sub`를 소셜 계정 식별자로 써야 한다.
+- email을 primary key로 쓰면 안 된다.
+
+Apple의 email/fullName은 최초 1회만 올 수 있으므로 가입 플로우에서 즉시 저장해야 한다. Naver 등 일부 provider는 OIDC 지원 여부나 `idToken` 제공 방식이 다를 수 있으므로 별도 확인이 필요하다.
+
+다시 한 번 핵심은 이것이다. **OIDC는 외부 provider에서 유저를 확인하는 방식이고, refresh token은 우리 서비스 세션을 유지하는 방식이다.** 둘은 연결되어 있지만 설계 책임은 다르다.
+
+## 회의에서 말할 수 있는 결론
+
+신규 모바일 인증은 accessToken 짧게 + refreshToken 구조로 전환하는 게 맞다고 본다.
+
+다만 refreshToken을 user 단위 1개로만 두면 여러 디바이스에서 서로 로그아웃되거나, 반대로 여러 디바이스가 같은 refreshToken을 공유하게 되는 문제가 있다.
+
+우리 서비스에서 디바이스별 로그아웃 UI까지는 당장 필요 없을 수 있지만, 서버 내부 refreshToken 발급 단위는 user가 아니라 session 단위로 두는 게 좋겠다.
+
+초기에는 device 정보까지 세세하게 관리하지 않더라도, `auth_session` 테이블에 `user_id`, `session_id`, `refresh_token_hash`, `token_family_id`, `last_used_at`, `idle_expires_at`, `absolute_expires_at`, `revoked_at` 정도를 두고, session 단위 refresh token rotation을 적용하면 충분해 보인다.
+
+OIDC 통일은 찬성한다. 클라이언트는 provider SDK에서 `idToken`을 받아 백엔드에 전달하고, 백엔드는 provider별 `iss`/`aud`/signature/`exp` 검증 후 provider + `sub`로 유저를 식별하면 된다.
+
+다만 OIDC 여부와 우리 refreshToken 설계는 별개다. provider 로그인은 최초 신원 확인이고, 우리 accessToken/refreshToken은 우리 서비스 세션 관리다.
+
+현재 모바일 토큰 저장은 SecureStore를 쓰고 있어 기본 방향은 괜찮지만, refresh token rotation을 도입한다면 refreshToken은 SecureStore 중심으로 두고, accessToken은 메모리 중심으로 운용하며, refresh single-flight와 서버 revoke까지 함께 설계하는 게 좋겠다.
+
+## 흔한 오해
+
+- **오해**: "provider의 idToken이 있으니 우리 refreshToken은 필요 없다." → **실제**: idToken은 최초 신원 확인 재료이고, 우리 서비스 세션 유지는 우리 access/refresh token이 담당한다.
+- **오해**: "user당 refreshToken 하나면 충분하다." → **실제**: 여러 디바이스에서 서로 로그아웃되거나, 같은 refreshToken을 공유하는 문제가 생긴다. 내부 session 단위가 필요하다.
+- **오해**: "absolute expiry도 refresh할 때마다 연장된다." → **실제**: idle은 연장되지만 absolute는 최초 세션 기준으로 고정하는 게 일반적이다.
+- **오해**: "SecureStore에 저장하면 클라이언트 쪽 고민은 끝이다." → **실제**: 저장 위치는 한 겹일 뿐이다. rotation 저장 성공, 동시 refresh 방지, 로그아웃 revoke가 같이 필요하다.
+- **오해**: "디바이스별 로그아웃 UI가 없으면 session 테이블도 필요 없다." → **실제**: UI와 내부 토큰 발급 단위는 별개다. refresh token 충돌과 공유를 막기 위해 session 단위는 필요하다.
+
+## 스스로 점검하기
+
+- provider `idToken`과 우리 서비스 `accessToken`/`refreshToken`의 역할 차이를 한 문장으로 말할 수 있나?
+- idToken 방식이든 auth code 방식이든 refresh token 설계가 거의 달라지지 않는 이유는?
+- idle expiry와 absolute expiry의 차이는 무엇이고, refresh 때 어느 쪽이 연장되나?
+- user 단위 refresh token 하나만 둘 때 여러 디바이스에서 어떤 문제가 생기나?
+- refresh token rotation에서 동시 refresh가 왜 위험하고, 클라이언트는 어떻게 막아야 하나?
+- OIDC 통일 시 email이 아니라 provider + `sub`를 식별자로 써야 하는 이유는?
+
+## 함께 보기
+
+- [[oauth-code-flow-vs-id-token]]
+- [[oidc-nonce-token-binding]]
+- [[access-refresh-token-pattern]]
+- [[web-auth-session-vs-token]]
+- [[frontend-network]]
+
+## 참고
+
+- [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://datatracker.ietf.org/doc/html/rfc9700)
+- [OAuth 2.0 for Browser-Based Apps (BCP draft)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps)
+- [OAuth 2.0 for Native Apps — RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252)
+- [OpenID Connect Core 1.0 — ID Token](https://openid.net/specs/openid-connect-core-1_0.html#IDToken)
+- [Refresh Token Rotation - Auth0](https://auth0.com/docs/secure/tokens/refresh-tokens/refresh-token-rotation)
