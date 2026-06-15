@@ -300,3 +300,32 @@ test.describe('GEO - Markdown source endpoint', () => {
     expect(response?.headers()['content-type']).toContain('text/html');
   });
 });
+
+test.describe('GEO - llms.txt', () => {
+  test('should serve a markdown content index at /llms.txt', async ({ request }) => {
+    const response = await request.get('/llms.txt');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('text/plain');
+
+    const body = await response.text();
+    expect(body.startsWith('# Wan Sim')).toBe(true);
+    expect(body).toContain('## Blog');
+    expect(body).toContain('## Garden');
+    // 블로그 항목은 AI 인용용 `.md` 원문 URL을 가리킨다.
+    expect(body).toMatch(/\/ko\/blog\/.+\.md\)/);
+  });
+});
+
+test.describe('GEO - AI crawler policy (robots.txt)', () => {
+  test('should disallow training bots and explicitly allow search bots', async ({ request }) => {
+    const response = await request.get('/robots.txt');
+
+    expect(response.ok()).toBe(true);
+    const body = await response.text();
+
+    expect(body).toContain('GPTBot');
+    expect(body).toContain('PerplexityBot');
+    expect(body).toContain('OAI-SearchBot');
+  });
+});

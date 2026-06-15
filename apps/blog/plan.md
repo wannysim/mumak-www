@@ -12,8 +12,8 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - [x] **wikilink 단일 소스화 PR** — A-3(스크립트 TS화) + B-1(globalDependencies `.env*` 제거) — PR #429
 - [ ] **CI 정리 PR** — B-3(blog-content.yml) + B-5(promote.yml)
 - [ ] **빌드 산출물 다이어트 PR** — C-1(폰트 서브셋) + B-2(blog#build outputs, 검증 전제)
-- [ ] **GEO 정책 결정** — D-1 (robots.ts AI 크롤러 정책, 코드 전 의사결정)
-- [~] **GEO PR 1** — D-3(마크다운 엔드포인트) 완료(GEO PR 2와 함께 진행) / D-2(llms.txt)는 D-1 정책 결정 의존이라 보류
+- [x] **GEO 정책 결정 + PR** — D-1(robots.ts AI 크롤러 정책: 학습봇 차단 / 검색·인용봇 명시 allow / 미분류봇 기본 허용) + D-2(llms.txt) 한 PR
+- [x] **GEO PR 1** — D-2(llms.txt)+D-3(마크다운 엔드포인트) 묶음. 실제로는 D-3는 GEO PR 2와, D-2는 D-1과 함께 처리되어 둘 다 완료
 - [x] **GEO PR 2** — D-4(RSS autodiscovery + full-content) + D-5(sitemap hreflang) + D-3(마크다운 엔드포인트)
 - [x] **코드 생성 이미지 PR** — C-7-0(favicon, #430) + C-7-1(OG `shared/lib/og` 셸 공통화 + 긴 텍스트 동적 폰트·keep-all + locale 카테고리 라벨 + 기본 OG 이미지) — 동적 alt는 빌드 이슈로 보류
 - [x] **Spotify OAuth callback 보안 보강 PR** — C-8 (state 1회 소비 누락 보강 + no-store/no-referrer/noindex 헤더 + route 단위 테스트)
@@ -269,14 +269,18 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 
 따라서 남은 과제는 전통 SEO의 빈틈 메우기보다 **GEO — AI 검색·어시스턴트가 콘텐츠를 발견·인용하게 만드는 영역**에 있다.
 
-### D-1. AI 크롤러 정책의 명시화 (GEO의 선결 의사결정)
+### D-1. AI 크롤러 정책의 명시화 (GEO의 선결 의사결정) — 완료
+
+> 완료. 소유자 결정: (1) 검색·실시간 인용 봇(OAI-SearchBot, ChatGPT-User, Claude-SearchBot, Claude-User, PerplexityBot, Perplexity-User)을 **명시적 allow**, (2) 어느 분류에도 없는 신규 봇은 **기본 허용(denylist 방식)**. `app/robots.ts`에 `AI_TRAINING_BOTS`(disallow)/`AI_SEARCH_BOTS`(explicit allow) 두 배열과 분류 기준·기본 처리 방침 주석을 코드로 박았다. `robots.test.ts`에 "검색봇은 절대 disallow되지 않음" + "명시적 allow 그룹 존재" 단언 추가, `e2e/seo.spec.ts`에 robots.txt 정책 E2E 추가.
 
 - **현황**: `app/robots.ts`가 차단하는 목록(GPTBot, anthropic-ai, ClaudeBot, CCBot, Google-Extended 등)은 전부 **학습(training)용** 크롤러다. 반면 AI 검색·실시간 인용용 에이전트(OAI-SearchBot, ChatGPT-User, Claude-SearchBot, Claude-User, PerplexityBot, Perplexity-User)는 목록에 없어 **누락에 의해 허용**되고 있다.
 - **검토**: "학습은 차단, AI 검색 인용은 허용"은 GEO 관점에서 합리적인 포지션이다 — ChatGPT/Claude/Perplexity 검색 결과에 출처로 인용되면서 모델 학습 데이터로는 제공하지 않는 분리. 문제는 현재 이 포지션이 의도가 아니라 우연의 산물이라는 점이다. 봇 목록은 계속 늘어나므로(예: 신규 봇이 학습·검색 겸용이면?) 정책 없이 목록만 있으면 drift한다.
 - **개선안**: robots.ts에 정책을 코드로 명시 — `AI_TRAINING_BOTS`(disallow)와 별도로 `AI_SEARCH_BOTS`(명시적 allow) 배열을 두고, 분류 기준 주석을 단다. 어느 쪽도 아닌 신규 봇의 기본 처리 방침(허용/차단)도 함께 문서화한다. **이것은 코드 작업 이전에 소유자의 정책 결정이 필요한 항목이다.**
 - **기대 효과**: AI 검색 인용 가시성을 의도된 상태로 고정. 이후 D-2~D-4의 전제.
 
-### D-2. `llms.txt` 제공
+### D-2. `llms.txt` 제공 — 완료
+
+> 완료. `app/llms.txt/route.ts`(force-static, 루트 도메인 `/llms.txt`)가 `buildLlmsTxt()`(`src/app/seo/llms-txt.ts`)로 사이트 소개 + `.md` 원문 관행 안내 + locale별 Blog/Garden 섹션(제목·설명·URL 목록)을 마크다운으로 생성. 블로그 항목은 D-3의 `.md` 클린 마크다운 URL을, garden은 노트 페이지 URL을 가리킨다. `getPosts`/`getNotes`를 재사용(React.cache)하고 sitemap/robots와 동일하게 빌드 타임 정적 생성(`○ /llms.txt`). 빌더·route 단위 테스트 + E2E 추가.
 
 - **현황**: 미제공. llms.txt는 AI 에이전트에게 사이트 구조와 핵심 콘텐츠를 마크다운으로 안내하는 신흥 컨벤션이다 (표준은 아니며 채택률은 형성 중 — 비용이 낮아 기대값이 양수인 수준으로 평가).
 - **개선안**: `app/llms.txt/route.ts` route handler 추가. 기존 `getPosts`/`getNotes` API를 재사용해 사이트 소개 + 섹션 설명 + 포스트/노트 제목·설명·URL 목록을 마크다운으로 생성. sitemap.ts와 동일하게 빌드 타임 정적 생성되도록 한다.

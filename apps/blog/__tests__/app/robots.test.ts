@@ -79,17 +79,36 @@ describe('robots', () => {
       expect(list).toEqual(expect.arrayContaining(['GPTBot', 'anthropic-ai', 'ClaudeBot', 'Google-Extended', 'CCBot']));
     });
 
-    it('should leave answer/search bots covered by the default allow rule', () => {
+    const SEARCH_BOTS = [
+      'OAI-SearchBot',
+      'ChatGPT-User',
+      'Claude-SearchBot',
+      'Claude-User',
+      'PerplexityBot',
+      'Perplexity-User',
+    ];
+    const flatten = (ua: string | string[] | undefined) => (Array.isArray(ua) ? ua : ua ? [ua] : []);
+
+    it('should never disallow answer/search bots', () => {
       const result = robots();
       const rules = Array.isArray(result.rules) ? result.rules : [result.rules];
-      const flatten = (ua: string | string[] | undefined) => (Array.isArray(ua) ? ua : ua ? [ua] : []);
       const explicitlyDisallowed = rules
         .filter(rule => rule.disallow === '/' || (Array.isArray(rule.disallow) && rule.disallow.includes('/')))
         .flatMap(rule => flatten(rule.userAgent));
 
-      for (const bot of ['OAI-SearchBot', 'ChatGPT-User', 'PerplexityBot', 'Perplexity-User', 'Claude-User']) {
+      for (const bot of SEARCH_BOTS) {
         expect(explicitlyDisallowed).not.toContain(bot);
       }
+    });
+
+    it('should explicitly allow answer/search bots (intentional, not by omission)', () => {
+      const result = robots();
+      const rules = Array.isArray(result.rules) ? result.rules : [result.rules];
+      const searchRule = rules.find(rule => flatten(rule.userAgent).includes('PerplexityBot'));
+
+      expect(searchRule).toBeDefined();
+      expect(searchRule?.allow).toBe('/');
+      expect(flatten(searchRule?.userAgent)).toEqual(expect.arrayContaining(SEARCH_BOTS));
     });
   });
 });
