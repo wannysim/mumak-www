@@ -8,13 +8,15 @@
 
 PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 기록한다. 과제 상세는 아래 섹션 참조.
 
-- [ ] **콘텐츠 파이프라인 PR** — A-1(zod 스키마) + A-2(로더 공통화) + A-4(React.cache) + A-5(커버리지 갭)
-- [ ] **wikilink 단일 소스화 PR** — A-3 (스크립트 TS화, 콘텐츠 파이프라인 PR 후속)
-- [ ] **CI 정리 PR** — B-1(globalDependencies) + B-3(blog-content.yml) + B-5(promote.yml)
+- [x] **콘텐츠 파이프라인 PR** — A-1(zod 스키마) + A-2(로더 공통화) + A-4(React.cache) + A-5(커버리지 갭) — PR #428
+- [x] **wikilink 단일 소스화 PR** — A-3(스크립트 TS화) + B-1(globalDependencies `.env*` 제거) — PR #429
+- [ ] **CI 정리 PR** — B-3(blog-content.yml) + B-5(promote.yml)
 - [ ] **빌드 산출물 다이어트 PR** — C-1(폰트 서브셋) + B-2(blog#build outputs, 검증 전제)
 - [ ] **GEO 정책 결정** — D-1 (robots.ts AI 크롤러 정책, 코드 전 의사결정)
 - [ ] **GEO PR 1** — D-2(llms.txt) + D-3(마크다운 엔드포인트)
 - [ ] **GEO PR 2** — D-4(RSS 보강) + D-5(sitemap hreflang)
+- [ ] **코드 생성 이미지 PR** — C-7 (favicon 라이브 버그 수정 + OG 긴 텍스트·locale·기본 이미지·템플릿 공통화)
+- [ ] **Spotify OAuth callback 보안 보강 PR** — C-8 (React Doctor Security 경고 검토 후 실질 보강)
 - [ ] **개별 소액**: C-2(MDX 이미지) / C-4(error.tsx) / B-6(react-doctor blocking) / D-6(콘텐츠 가이드)
 - [ ] **조건부·보류**: C-3(검색 인덱스, 콘텐츠 성장 시) / B-4(E2E 시간, 측정 후) / A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
 
@@ -26,7 +28,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 ## A. 소프트웨어 설계 · 유지보수성
 
-### A-1. Frontmatter 스키마 검증 도입 (zod)
+### A-1. Frontmatter 스키마 검증 도입 (zod) — 완료 (#428)
 
 - **현황**: `src/entities/post/api/posts.ts`, `src/entities/note/api/notes.ts`가 gray-matter의 `data`(사실상 `any`)를 `data.title || 'Untitled'`, `data.date || '1970-01-01'` 식의 기본값 fallback으로만 방어한다. 잘못된 frontmatter(예: `tags`가 문자열, `date` 포맷 오류)가 타입 오류 없이 빌드를 통과해 런타임 화면에서만 드러날 수 있다. `scripts/validate-content.mjs`(236줄), `scripts/validate-garden.mjs`(443줄)에 별도의 검증 로직이 있으나 src 코드와 규칙이 이원화되어 있다.
 - **개선안**:
@@ -36,7 +38,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
   4. validate 스크립트는 스키마를 재사용하는 방향으로 점진 통합 (A-3과 연계).
 - **기대 효과**: 콘텐츠 추가가 잦은 저장소에서 frontmatter 오류를 빌드 타임으로 앞당김. 검증 규칙의 단일 소스 확보.
 
-### A-2. 콘텐츠 로더 공통화 (entities/post vs entities/note)
+### A-2. 콘텐츠 로더 공통화 (entities/post vs entities/note) — 완료 (#428)
 
 - **현황**: `posts.ts`(82줄)와 `notes.ts`(178줄)에 `getMdxFiles()` 파일 탐색이 각각 구현되어 있고(post는 flat, note는 재귀), frontmatter 파싱 보일러플레이트도 중복이다. draft 필터링은 note만 `isPublishable()`로 함수화되어 있고 post는 인라인(`isProduction && post.draft`)으로 일관성이 없다.
 - **개선안**:
@@ -45,13 +47,13 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
   3. entity별 도메인 로직(post의 category, note의 wikilink/excerpt 추출)은 각 entity에 유지 — FSD 레이어 위반 없이 shared lib만 내려 쓴다.
 - **기대 효과**: 새 콘텐츠 타입(예: series, til) 추가 시 로더 재구현 불필요. 한쪽만 고치는 drift 방지.
 
-### A-3. wikilink 파싱 로직 단일 소스화
+### A-3. wikilink 파싱 로직 단일 소스화 — 완료 (#429)
 
 - **현황**: `src/shared/lib/wikilink/parser.ts`(테스트 커버리지 100%)가 마스터인데, `scripts/validate-garden.mjs:32-64`가 `parseWikilinkTarget` 등 같은 로직을 MJS로 복제하고 있다. parser 변경 시 스크립트를 수동 동기화해야 하고, 버그 수정이 한쪽에만 적용될 위험이 있다.
 - **개선안**: validate 스크립트를 TypeScript로 전환(`node --experimental-strip-types` 또는 `tsx` 실행)하여 `@/src/shared/lib/wikilink`를 직접 import. `turbo.json`의 `validate:garden` inputs에 wikilink lib 경로 추가.
 - **기대 효과**: wikilink 문법 확장(embed, anchor 등) 시 검증과 렌더링이 항상 동일한 규칙을 따름.
 
-### A-4. 콘텐츠 조회에 `React.cache()` 적용
+### A-4. 콘텐츠 조회에 `React.cache()` 적용 — 완료 (#428)
 
 - **현황**: `getPosts()`, `getNotes()`가 호출마다 파일시스템 풀 스캔 + 전체 파싱을 수행하며 `React.cache()`/`unstable_cache` 사용이 전무하다. 한 페이지 렌더에서 `generateMetadata`와 페이지 본문이 `getPost`를 각각 호출하고(슬러그 페이지에서 같은 파일을 2회 read+parse), 리스트 페이지는 본문·nav counts·검색 인덱스가 `getPosts`를 반복 호출한다.
 - **개선안**: entity public API(`getPosts`, `getPost`, `getNotes`, `getNote` 등)를 `React.cache()`로 감싸 렌더 단위 메모이즈. 인자(locale, category, slug)가 전부 원시 문자열이라 참조 동등성 함정 없이 그대로 동작한다.
@@ -77,7 +79,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 **도입 시 검증 절차**: `pnpm --filter blog build` 후 빌드 출력의 라우트 분류(○ Static)와 `.next/prerender-manifest.json`을 도입 전과 비교하고, `test:ci`(static-rendering 테스트 포함) 그린 확인. 추가로 안심하고 싶다면 static-rendering 테스트의 `EXPECTED_SSG_PATTERNS`가 이미 전 콘텐츠 라우트를 덮고 있으므로 그대로 신뢰하면 된다.
 
-### A-5. 테스트 커버리지 갭 보강
+### A-5. 테스트 커버리지 갭 보강 — 완료 (#428)
 
 - **현황**: 전체 96%대이지만 구멍이 있다 — `src/entities/note/para.ts` 함수 커버리지 0%(`isValidParaCategory` 미테스트), `src/shared/ui/page-header.tsx` 50%(description 없는 분기 미테스트), `posts.ts`/`notes.ts` 분기 커버리지 70%대(draft/status 필터 엣지 케이스).
 - **개선안**: 위 세 곳에 작은 단위 테스트 추가. A-1/A-2 리팩토링과 같은 PR에서 회귀 방지 테스트로 묶으면 효율적.
@@ -93,7 +95,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 ## B. CI/CD · Turborepo 효율화
 
-### B-1. `globalDependencies`에서 `.env*` 제거
+### B-1. `globalDependencies`에서 `.env*` 제거 — 완료 (#429)
 
 - **현황**: `turbo.json` 루트의 `globalDependencies`에 `.env*`가 포함되어 있어 로컬 `.env.local` 한 줄 변경이 모든 워크스페이스의 모든 task 캐시를 무효화한다. build task에는 이미 `env: ["NEXT_PUBLIC_*", "ANALYZE"]`와 `passThroughEnv`가 정의되어 있어 환경변수 변화는 task 단위로 추적된다.
 - **개선안**: `globalDependencies`를 `["package.json", "pnpm-lock.yaml", "turbo.json"]`으로 축소. task별 `inputs`의 `.env*`도 함께 정리. `pnpm turbo run build --filter=blog --dry-run=json`으로 해시 안정성 검증.
@@ -141,9 +143,9 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **현황**: `app/[locale]/layout.tsx`에서 `next/font/local`로 `PretendardVariable.woff2`(2.1MB)를 `display: 'swap'`으로 로드한다. next/font가 preload는 자동 처리하지만, 한글 전체 글리프가 포함된 2.1MB는 첫 방문 시 다운로드 부담이 크고 swap에 의한 FOUT 구간이 길어진다. 추가로 OG 이미지용 `Pretendard-{Regular,SemiBold,Bold}.woff` 3종(각 1.1MB, 총 3.3MB)이 standalone 산출물에 트레이싱되어 포함된다(`next.config.mjs` `outputFileTracingIncludes`).
 - **개선안**:
   1. 본문 폰트: 서브셋 빌드 도입 — Pretendard 공식 dynamic-subset 또는 `pyftsubset`으로 KS X 1001 + Latin 서브셋 생성. variable font 유지 시에도 2.1MB → 수백 KB 수준으로 감소 가능.
-  2. OG 폰트: Satori는 OG 이미지에 들어가는 글리프만 필요하므로 동일하게 서브셋 woff로 교체 — standalone 크기 감소는 B-2(413 문제)에도 직접 기여한다.
-  3. `size-limit` 또는 Lighthouse CI로 LCP/폰트 전송량 회귀 가드 추가 검토.
-- **기대 효과**: 첫 방문 LCP 및 한글 렌더 안정화. standalone 산출물 다이어트.
+  2. `size-limit` 또는 Lighthouse CI로 LCP/폰트 전송량 회귀 가드 추가 검토.
+- **OG 폰트는 제외**: `og-fonts.ts` 주석에 "제목이 한국어(동적)이므로 콘텐츠 기반 subset 불가, 풀셋 woff 사용"이 문서화된 결정으로 명시되어 있다. OG 라우트는 standalone 런타임에서 on-demand 렌더될 수 있어(`next.config.mjs` 트레이싱 주석 참조) 빌드 타임 글리프 확정에 기대는 서브셋은 미사전생성 경로에서 글리프 누락(tofu) 위험이 있다. 풀셋 유지가 맞고, 재검토하려면 C-7에서 다룬다.
+- **기대 효과**: 첫 방문 LCP 및 한글 렌더 안정화. 본문 variable 폰트 축소만으로도 standalone 산출물 다이어트에 기여.
 
 ### C-2. MDX 콘텐츠 이미지에 `next/image` 적용
 
@@ -174,6 +176,51 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **View Transitions**: 카테고리/태그 전환, blog↔garden 이동에 `document.startViewTransition` 점진 적용 (미지원 브라우저 자동 폴백).
 - **검색 팔레트 미세 UX**: 호버 프리뷰 등은 효용 낮음 — 사용자 피드백 있을 때만.
 - (참고: 초기 분석에서 "JSON-LD에 author/inLanguage 추가" 과제가 후보였으나, 검증 결과 `src/app/seo/json-ld.ts`에 author Person(`sameAs`, `knowsAbout` 포함)·`inLanguage`·`wordCount`까지 이미 구현되어 있어 제외했다.)
+
+### C-7. 코드 생성 이미지(favicon · OG) 고도화 및 커버리지 확대
+
+favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 생성되며 같은 문제 클래스(폰트 미로딩, 배경/대비, 브랜드 일관성)를 공유한다. 한 PR에서 공통 셸로 함께 정리한다.
+
+#### C-7-0. favicon이 구글 검색결과에서 빈 흰 동그라미로 나오는 라이브 버그 (최우선)
+
+- **증상**: 구글 검색결과에 사이트 favicon이 글자 없이 흰 동그라미만 보인다.
+- **근본 원인** (`app/icon.tsx`):
+  1. `backgroundColor: 'transparent'` + `color: '#ffffff'` 조합. 구글 검색결과는 favicon을 밝은 배경의 둥근 칩 안에 렌더하므로, 투명 배경 위 흰 "WS" 글자가 흰 칩에 묻혀 사라진다. 다크 테마 브라우저 탭에서는 정상으로 보여 그동안 드러나지 않았다.
+  2. `fontFamily: 'Pretendard, system-ui, ...'`라고 지정했지만 `ImageResponse`에 `fonts` 옵션을 넘기지 않는다. Satori는 시스템 폰트를 쓸 수 없어 번들 기본 폰트(regular)로 렌더되고 `fontWeight: 800`도 매칭 폰트가 없어 무시된다. OG 라우트가 `loadOgFonts`를 넘기는 것과 달리 icon에는 폰트 로딩이 빠져 있다.
+  3. `/favicon.ico` 정적 폴백이 없다 — `app/icon.tsx`만 존재. 일부 크롤러·구형 클라이언트는 루트 `/favicon.ico`를 직접 요청한다.
+- **개선안**:
+  1. 배경을 투명 대신 브랜드 다크(`#0a0a0a`, manifest `theme_color`·OG 배경과 동일)로 채운 둥근 사각형/원으로. 어떤 배경 위에서도 흰 "WS"가 보이게.
+  2. `loadOgFonts`(Bold 600/700)를 `ImageResponse`에 전달해 Pretendard로 렌더 — OG 이미지와 브랜드 일관성 확보.
+  3. `app/favicon.ico` 정적 파일 추가(루트 폴백). 구글 favicon 가이드라인(정사각형, robots 비차단 — `/icon`은 이미 허용 경로)은 나머지 충족.
+- **배포 후**: 코드 수정만으로 sitemap 재제출이 필요한 건 아니다. 구글은 favicon을 자체 주기(수일~수주)로 별도 갱신한다. 다만 Search Console에서 홈 URL 검사 → 색인 생성 요청으로 갱신을 앞당길 수 있다. 수정 없이 재크롤만 하면 현재의 투명-흰색 아이콘이 다시 캐시될 뿐이므로 코드 수정이 선행되어야 한다.
+- **검증**: 빌드 후 `/icon`·`/favicon.ico`를 흰 배경 위에 올려 글자가 보이는지 확인. `e2e/seo.spec.ts`/`e2e/font.spec.ts`에 icon 관련 단언이 있는지 확인하고 없으면 추가.
+
+#### C-7-1. OG 이미지 템플릿 고도화 및 커버리지 확대
+
+- **현황**: 코드 기반 OG 이미지 생성은 이미 구현되어 있다 — `blog/[category]/[slug]/opengraph-image.tsx`와 `garden/[slug]/opengraph-image.tsx`가 `next/og`(Satori) + Pretendard woff(400/600/700)로 1200x630 이미지를 `generateStaticParams` 기반 정적 생성한다. 제목(64px bold)과 설명(28px muted)은 분리되어 있고 각각 2줄 clamp, garden은 status 뱃지(locale별 라벨·색상)까지 갖췄다. 남은 갭은 다음 네 가지다:
+  1. **긴 텍스트 처리의 신뢰성 미검증**: clamp가 `WebkitLineClamp` + `-webkit-box` 조합인데, Satori는 브라우저가 아니라 비표준 `lineClamp` 속성을 별도로 지원하는 엔진이다. 이 조합이 Satori에서 실제로 동작하는지 최장 제목/설명 케이스로 검증된 적이 없다 — 동작하지 않으면 긴 제목이 잘리지 않고 넘친다.
+  2. **locale 대응 불완전**: blog 템플릿의 category 라벨이 raw slug 대문자("ESSAY")로 고정 — ko 공유 시에도 영문. garden은 라벨을 locale별로 처리하므로 비대칭. `export const alt`도 'Blog Post' 정적 문자열이라 스크린리더/접근성 관점에서 빈약하다.
+  3. **커버리지가 슬러그 페이지 2종뿐**: 홈, blog 인덱스/카테고리, garden 인덱스, tags, about, now를 공유하면 OG 이미지가 아예 없다.
+  4. **템플릿 중복**: 배경/푸터 브랜딩("Wan Sim / wannysim.com")/Not Found 폴백이 blog·garden 두 파일에 복붙되어 있어 디자인 변경 시 drift 위험.
+- **개선안**:
+  1. 긴 텍스트: 최장 ko/en 제목·설명 케이스를 로컬에서 `/{locale}/blog/.../opengraph-image` URL로 직접 렌더해 시각 검증. clamp가 동작하지 않으면 Satori 네이티브 `lineClamp` 속성으로 교체. 추가로 글자수 기반 동적 폰트 크기(예: 제목 30자 초과 시 64→52px, 50자 초과 시 44px)와 한국어 줄바꿈 `wordBreak: 'keep-all'` 적용. 글자수 임계는 ko(음절)와 en(단어)이 다르므로 locale별로 분리.
+  2. locale: category 라벨을 ko/en 매핑(에세이/아티클/노트)으로 교체 — 페이지 쪽 `staticTranslations`와 단일 소스로 공유. `generateImageMetadata`로 포스트 제목 기반 동적 alt 생성.
+  3. 커버리지: `app/[locale]/opengraph-image.tsx`에 사이트 기본 브랜드 이미지 1종 추가 — Next 파일 컨벤션상 하위 세그먼트에 상속되고 슬러그 레벨 구현이 우선하므로, 파일 하나로 나머지 전 페이지가 커버된다.
+  4. 공통화: 공통 셸(배경, 푸터, clamp 텍스트 블록, Not Found 폴백)을 `src/shared/lib/og/`에 template 컴포넌트로 추출하고 favicon(`icon.tsx`)·blog/garden·기본 이미지가 브랜드 배경·폰트 로딩을 공유.
+- **기대 효과**: 카카오톡/슬랙/X 등에 링크 공유 시 모든 페이지가 일관된 브랜드 이미지로 노출. 긴 제목에서도 깨지지 않는 카드. 포스트에 이미지를 직접 넣지 않아도 되는 현 워크플로우 유지.
+- **검증**: 대표 케이스(최장 ko 제목, 최장 en 제목, 설명 없음, 기본 이미지)를 빌드 후 산출물로 확인. `e2e/seo.spec.ts`에 og:image 메타 존재 검증이 있는지 확인하고 없으면 추가.
+
+### C-8. Spotify OAuth callback 보안 보강 (React Doctor Security 경고 대응)
+
+- **현황**: `app/api/spotify/callback/route.ts`는 Spotify Authorization Code Flow의 redirect URI이므로 GET으로 `code`/`state`를 받는다. 이후 같은 handler 안에서 Spotify token endpoint로 `fetch(..., { method: 'POST' })`를 호출해 refresh token을 발급받는다. React Doctor는 "GET handler의 side effect"로 경고하지만, OAuth callback 자체는 provider가 브라우저 redirect로 호출하는 GET 경로라 단순히 `POST` handler로 바꾸면 인증 플로우가 깨진다. 현재 CSRF 방어는 `spotify_auth_state` httpOnly cookie와 URL `state` 대조, 10분 만료, `sameSite: 'lax'`로 구현되어 있다.
+- **판단**: 이 경고는 일반적인 "GET이 서버 상태를 바꾸면 CSRF 위험" 원칙으로는 맞지만, 이 파일은 OAuth 표준 redirect callback이라는 특수 케이스다. 따라서 1차 개선은 GET을 POST로 바꾸는 것이 아니라, GET callback 전제를 유지하면서 토큰 응답과 state 소비 경로를 더 엄격하게 만드는 쪽이 맞다. React Doctor 경고 자체를 완전히 없애려면 GET callback이 중간 HTML을 반환하고 same-origin `POST` route가 token exchange를 수행하는 2단계 구조가 필요하지만, 작업량 대비 이득은 별도 검토가 필요하다.
+- **개선안**:
+  1. state 검증 통과 이후의 모든 응답 경로에서 `spotify_auth_state`를 소비하도록 정리한다. 특히 `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` 누락으로 500을 반환하는 경로도 state cookie를 삭제해야 주석의 "1회 소비" 계약과 일치한다.
+  2. refresh token을 담은 HTML 응답과 token exchange 실패 응답에 `Cache-Control: no-store, private`, `Pragma: no-cache`, `Referrer-Policy: no-referrer`, 필요 시 `X-Robots-Tag: noindex`를 추가한다. 토큰이 브라우저/프록시 캐시에 남거나 이후 navigation의 Referer로 새는 위험을 줄인다.
+  3. route 단위 테스트를 추가한다: state mismatch에서는 token endpoint를 호출하지 않음, env 누락/토큰 실패/성공 경로에서 state cookie를 소비함, 성공 HTML에 no-store/referrer 정책 헤더가 붙음.
+  4. 코드 주석을 "React Doctor 경고를 무시한다"가 아니라 "OAuth callback은 GET이 표준이며 CSRF는 state로 방어한다. 이 route는 no-store + state single-use로 보강한다"는 형태로 명확히 유지한다.
+- **기대 효과**: 실제 사용자 영향은 작지만, refresh token이 노출되는 일회성 관리 화면의 캐시/리퍼러 위험을 줄이고 OAuth state single-use 계약을 테스트로 고정한다. B-6(react-doctor baseline 해소) 전에 처리하면 Security 경고의 실질 위험을 낮춘 상태에서 remaining warning을 "OAuth callback 구조상 남는 항목"으로 판단할 수 있다.
+- **검증**: `app/api/spotify/callback/route.ts` 단위 테스트 추가 후 `pnpm --filter blog test -- app/api/spotify/callback`, `pnpm turbo run lint --filter=blog`, `pnpm turbo run check-types --filter=blog` 실행. 필요하면 `npx react-doctor@latest --verbose`로 이 경고가 남는지 확인하고, 남는 경우 B-6에서 baseline/suppression 정책을 별도로 결정한다.
 
 ---
 
@@ -238,39 +285,46 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 | 순위 | 과제                                     | 분류 | 작업량 | 효과                               |
 | ---- | ---------------------------------------- | ---- | ------ | ---------------------------------- |
-| 1    | B-1 globalDependencies `.env*` 제거      | CI   | 소     | 캐시 적중률 즉시 개선              |
-| 2    | A-1 frontmatter zod 검증                 | 설계 | 중     | 콘텐츠 오류 빌드 타임 포착         |
-| 3    | A-4 React.cache() 적용                   | 설계 | 소     | 빌드 시간 단축                     |
-| 4    | A-5 커버리지 갭 보강                     | 설계 | 소     | draft 노출 등 회귀 방지            |
-| 5    | C-1 폰트 서브셋 (본문 + OG)              | UX   | 중     | LCP 개선 + standalone 다이어트     |
-| 6    | A-2 콘텐츠 로더 공통화                   | 설계 | 중     | post/note drift 제거               |
-| 7    | A-3 wikilink 단일 소스화 (스크립트 TS화) | 설계 | 중     | 검증·렌더링 규칙 일치              |
-| 8    | B-3 blog-content.yml 중복 정리           | CI   | 소     | 워크플로우 단순화                  |
-| 9    | B-2 blog#build outputs 정리 (검증 전제)  | CI   | 중     | 413 특례 제거                      |
-| 10   | D-1 AI 크롤러 정책 명시화                | GEO  | 소     | 정책 결정 선행, 이후 D 과제의 전제 |
-| 11   | D-4 RSS autodiscovery + full-content     | GEO  | 소~중  | 발견성 즉효                        |
-| 12   | D-2 llms.txt + D-3 마크다운 엔드포인트   | GEO  | 중     | AI 인용 경로 확보                  |
-| 13   | D-5 sitemap hreflang alternates          | GEO  | 소     | 다국어 신호 보강                   |
-| 14   | C-2 MDX 이미지 next/image                | UX   | 중     | 콘텐츠 이미지 최적화               |
-| 15   | B-5 promote.yml dispatch + 알림          | CI   | 소     | 배포 운영성                        |
-| 16   | B-6 react-doctor blocking 전환           | CI   | 중     | 품질 게이트 실효화                 |
-| 17   | C-4 error.tsx 추가                       | UX   | 소     | 오류 UX                            |
-| 18   | D-6 콘텐츠 GEO 가이드 (AGENTS.md)        | GEO  | 소     | 문서 작업                          |
-| 19   | C-3 검색 인덱스 분리                     | UX   | 중     | 조건부(콘텐츠 성장 시)             |
-| 20   | B-4 E2E 시간 단축 (측정 후)              | CI   | 중     | 조건부(병목 확인 시)               |
-| 21   | A-6 tags 페이지 템플릿화                 | 설계 | 소     | 선택                               |
-| 22   | C-5 cacheComponents 재평가               | UX   | -      | 업그레이드 시 체크 항목            |
-| 23   | C-6 UX 폴리시 묶음                       | UX   | 소     | 선택                               |
+| 1    | C-7-0 favicon 라이브 버그 수정           | UX   | 소     | 구글 검색결과 빈 아이콘 즉시 해결  |
+| 2    | B-1 globalDependencies `.env*` 제거      | CI   | 소     | 캐시 적중률 즉시 개선              |
+| 3    | A-1 frontmatter zod 검증                 | 설계 | 중     | 콘텐츠 오류 빌드 타임 포착         |
+| 4    | A-4 React.cache() 적용                   | 설계 | 소     | 빌드 시간 단축                     |
+| 5    | A-5 커버리지 갭 보강                     | 설계 | 소     | draft 노출 등 회귀 방지            |
+| 6    | C-8 Spotify OAuth callback 보안 보강     | UX   | 소     | 토큰 응답 캐시/리퍼러 위험 축소    |
+| 7    | C-1 폰트 서브셋 (본문)                   | UX   | 중     | LCP 개선 + standalone 다이어트     |
+| 8    | A-2 콘텐츠 로더 공통화                   | 설계 | 중     | post/note drift 제거               |
+| 9    | A-3 wikilink 단일 소스화 (스크립트 TS화) | 설계 | 중     | 검증·렌더링 규칙 일치              |
+| 10   | B-3 blog-content.yml 중복 정리           | CI   | 소     | 워크플로우 단순화                  |
+| 11   | B-2 blog#build outputs 정리 (검증 전제)  | CI   | 중     | 413 특례 제거                      |
+| 12   | D-1 AI 크롤러 정책 명시화                | GEO  | 소     | 정책 결정 선행, 이후 D 과제의 전제 |
+| 13   | D-4 RSS autodiscovery + full-content     | GEO  | 소~중  | 발견성 즉효                        |
+| 14   | D-2 llms.txt + D-3 마크다운 엔드포인트   | GEO  | 중     | AI 인용 경로 확보                  |
+| 15   | D-5 sitemap hreflang alternates          | GEO  | 소     | 다국어 신호 보강                   |
+| 16   | C-7-1 OG 이미지 고도화 + 커버리지        | UX   | 중     | 링크 공유 경험, 전 페이지 커버     |
+| 17   | C-2 MDX 이미지 next/image                | UX   | 중     | 콘텐츠 이미지 최적화               |
+| 18   | B-5 promote.yml dispatch + 알림          | CI   | 소     | 배포 운영성                        |
+| 19   | B-6 react-doctor blocking 전환           | CI   | 중     | 품질 게이트 실효화                 |
+| 20   | C-4 error.tsx 추가                       | UX   | 소     | 오류 UX                            |
+| 21   | D-6 콘텐츠 GEO 가이드 (AGENTS.md)        | GEO  | 소     | 문서 작업                          |
+| 22   | C-3 검색 인덱스 분리                     | UX   | 중     | 조건부(콘텐츠 성장 시)             |
+| 23   | B-4 E2E 시간 단축 (측정 후)              | CI   | 중     | 조건부(병목 확인 시)               |
+| 24   | A-6 tags 페이지 템플릿화                 | 설계 | 소     | 선택                               |
+| 25   | C-5 cacheComponents 재평가               | UX   | -      | 업그레이드 시 체크 항목            |
+| 26   | C-6 UX 폴리시 묶음                       | UX   | 소     | 선택                               |
+
+> favicon(C-7-0)은 라이브 버그라 로드맵 1순위로 올렸지만, OG 고도화(C-7-1)와 같은 `next/og` 코드·공통 셸을 건드리므로 **코드 생성 이미지 PR 하나로 함께 처리**한다(아래 묶음 참조).
 
 ### 묶어서 진행하면 좋은 단위
 
 - **콘텐츠 파이프라인 PR**: A-1 + A-2 + A-4 + A-5 (스키마 → 로더 공통화 → 캐시 → 테스트가 자연스러운 한 흐름)
-- **빌드 산출물 다이어트 PR**: C-1(OG 폰트 서브셋) + B-2(outputs 정리) — standalone 크기 감소가 413 해결의 전제를 만들어 줌
-- **CI 정리 PR**: B-1 + B-3 (+ B-5)
+- **빌드 산출물 다이어트 PR**: C-1(본문 폰트 서브셋) + B-2(outputs 정리) — standalone 크기 감소가 413 해결의 전제를 만들어 줌
+- **CI 정리 PR**: B-3 (+ B-5)
 - **GEO PR**: D-1(정책 결정 후) → D-2 + D-3 한 PR(같은 콘텐츠 API 재사용) → D-4 + D-5 한 PR(피드·sitemap 소액 작업 묶음)
+- **코드 생성 이미지 PR**: C-7 단독 — favicon 버그 수정(C-7-0) 먼저 + 템플릿 공통화(`shared/lib/og` 셸·폰트 로딩) → OG 긴 텍스트/locale 보강 → 기본 OG 이미지 추가(C-7-1) 순서로 한 PR 안에서 진행. favicon은 단독으로 먼저 빼서 빠르게 배포하고 싶으면 분리 가능.
+- **Spotify OAuth callback 보안 보강 PR**: C-8 단독 권장 — `app/api/spotify/*` route와 테스트만 건드리는 소액 보안 작업이다. B-6(react-doctor baseline 해소) 전 선행하면 Security 경고의 실질 위험을 먼저 줄이고, 남는 React Doctor 경고를 구조적 예외로 볼지 2단계 POST 구조로 재설계할지 판단하기 쉽다.
 
 ### 비고
 
 - 모든 과제는 `check-types → lint → format:check → test:ci` preflight와 `pnpm --filter blog validate:design`을 통과해야 한다.
-- UI에 닿는 과제(C-2, C-4, A-6)는 `AGENTS.md`의 Blog/Garden UI Contract(shared primitive 우선, semantic token, data-slot)를 따른다.
+- UI에 닿는 과제(C-2, C-4, C-7, A-6)는 `AGENTS.md`의 Blog/Garden UI Contract(shared primitive 우선, semantic token, data-slot)를 따른다.
 - 라우팅·레이아웃·메타데이터에 닿는 과제는 `e2e/**` 영향 범위를 함께 검토한다.

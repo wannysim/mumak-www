@@ -47,6 +47,51 @@ describe('getNotes', () => {
     expect(note).toBeDefined();
     expect(note?.category).toBe(expectedCategory);
   });
+
+  it('production에서는 draft 노트를 목록에서 제외한다', () => {
+    const originalEnv = process.env.NODE_ENV;
+    Object.defineProperty(process.env, 'NODE_ENV', {
+      configurable: true,
+      value: 'production',
+      writable: true,
+    });
+
+    try {
+      expect(getNotes('ko').some(note => note.slug === 'bugonia')).toBe(false);
+    } finally {
+      Object.defineProperty(process.env, 'NODE_ENV', {
+        configurable: true,
+        value: originalEnv,
+        writable: true,
+      });
+    }
+  });
+
+  it('E2E_INCLUDE_DRAFT가 켜져 있으면 production에서도 draft 노트를 포함한다', () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalE2eIncludeDraft = process.env.E2E_INCLUDE_DRAFT;
+    Object.defineProperty(process.env, 'NODE_ENV', {
+      configurable: true,
+      value: 'production',
+      writable: true,
+    });
+    process.env.E2E_INCLUDE_DRAFT = 'true';
+
+    try {
+      expect(getNotes('ko').some(note => note.slug === 'bugonia')).toBe(true);
+    } finally {
+      Object.defineProperty(process.env, 'NODE_ENV', {
+        configurable: true,
+        value: originalEnv,
+        writable: true,
+      });
+      if (originalE2eIncludeDraft === undefined) {
+        delete process.env.E2E_INCLUDE_DRAFT;
+      } else {
+        process.env.E2E_INCLUDE_DRAFT = originalE2eIncludeDraft;
+      }
+    }
+  });
 });
 
 describe('getNote', () => {
@@ -105,6 +150,25 @@ describe('getNote', () => {
 
     expect(note).not.toBeNull();
     expect(note?.meta.category).toBe('resources');
+  });
+
+  it('production에서는 draft 노트 직접 조회를 차단한다', () => {
+    const originalEnv = process.env.NODE_ENV;
+    Object.defineProperty(process.env, 'NODE_ENV', {
+      configurable: true,
+      value: 'production',
+      writable: true,
+    });
+
+    try {
+      expect(getNote('ko', 'bugonia')).toBeNull();
+    } finally {
+      Object.defineProperty(process.env, 'NODE_ENV', {
+        configurable: true,
+        value: originalEnv,
+        writable: true,
+      });
+    }
   });
 });
 

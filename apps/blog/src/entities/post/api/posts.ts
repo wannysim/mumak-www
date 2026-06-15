@@ -1,8 +1,14 @@
-import fs from 'fs';
-import matter from 'gray-matter';
 import path from 'path';
+import { cache } from 'react';
 
 import type { Locale } from '@/src/shared/config/i18n';
+import {
+  isPublishable,
+  listMdxFiles,
+  PageFrontmatterSchema,
+  parseMdxFile,
+  PostFrontmatterSchema,
+} from '@/src/shared/lib/content';
 import { calculateReadingTime } from '@/src/shared/lib/reading-time';
 
 export interface PostMeta {
@@ -48,14 +54,6 @@ function getContentPath(locale: Locale, category?: string): string {
   return path.join(CONTENT_DIR, locale);
 }
 
-function getMdxFiles(dirPath: string): string[] {
-  if (!fs.existsSync(dirPath)) {
-    return [];
-  }
-
-  return fs.readdirSync(dirPath).filter(file => file.endsWith('.mdx'));
-}
-
 export function calculateWordCount(content: string): number {
   const text = content.replace(/```[\s\S]*?```/g, '').replace(/`[^`]*`/g, '');
   const koreanChars = (text.match(/[가-힣]/g) || []).length;
@@ -66,151 +64,103 @@ export function calculateWordCount(content: string): number {
   return koreanChars + words;
 }
 
-function parsePostFile(filePath: string, slug: string, category: string): PostMeta | null {
-  try {
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const { data, content } = matter(fileContent);
+function toPostMeta(filePath: string, slug: string, category: string): PostMeta {
+  const { frontmatter, content } = parseMdxFile(filePath, PostFrontmatterSchema);
 
-    return {
-      slug,
-      title: data.title || 'Untitled',
-      date: data.date || '1970-01-01',
-      updated: data.updated,
-      description: data.description || '',
-      category,
-      tags: data.tags || [],
-      draft: data.draft || false,
-      readingTime: calculateReadingTime(content),
-    };
-  } catch {
-    return null;
-  }
+  return {
+    slug,
+    title: frontmatter.title,
+    date: frontmatter.date,
+    updated: frontmatter.updated,
+    description: frontmatter.description,
+    category,
+    tags: frontmatter.tags,
+    draft: frontmatter.draft,
+    readingTime: calculateReadingTime(content),
+  };
 }
 
-export function getPosts(locale: Locale, category?: string): PostMeta[] {
+function getPostsUncached(locale: Locale, category?: string): PostMeta[] {
   const posts: PostMeta[] = [];
-  const isProduction = process.env.NODE_ENV === 'production';
-
   const categoriesToSearch = category && isValidCategory(category) ? [category] : CATEGORIES;
 
   for (const cat of categoriesToSearch) {
     const categoryPath = getContentPath(locale, cat);
-    const files = getMdxFiles(categoryPath);
+    const files = listMdxFiles(categoryPath);
 
-    for (const file of files) {
-      const slug = file.replace(/\.mdx$/, '');
-      const filePath = path.join(categoryPath, file);
-      const post = parsePostFile(filePath, slug, cat);
+    for (const filePath of files) {
+      const slug = path.basename(filePath, '.mdx');
+      const post = toPostMeta(filePath, slug, cat);
 
-      if (post) {
-        // Filter out drafts in production
-        if (isProduction && post.draft) {
-          continue;
-        }
+      if (isPublishable(post)) {
         posts.push(post);
       }
     }
   }
 
-  // Sort by date (newest first)
   return posts.toSorted((a, b) => {
     return new Date(b.date).getTime() - new Date(a.date).getTime();
   });
 }
 
-export function getPost(locale: Locale, category: string, slug: string): Post | null {
-  const isProduction = process.env.NODE_ENV === 'production';
-
+function getPostUncached(locale: Locale, category: string, slug: string): Post | null {
   if (!isValidCategory(category)) {
     return null;
   }
 
-  const filePath = path.join(getContentPath(locale, category), `${slug}.mdx`);
+  const categoryPath = getContentPath(locale, category);
+  const filePath = path.join(categoryPath, `${slug}.mdx`);
+  const files = new Set(listMdxFiles(categoryPath));
 
-  if (!fs.existsSync(filePath)) {
+  if (!files.has(filePath)) {
     return null;
   }
 
-  try {
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const { data, content } = matter(fileContent);
+  const { frontmatter, content } = parseMdxFile(filePath, PostFrontmatterSchema);
+  const meta: PostMeta = {
+    slug,
+    title: frontmatter.title,
+    date: frontmatter.date,
+    updated: frontmatter.updated,
+    description: frontmatter.description,
+    category,
+    tags: frontmatter.tags,
+    draft: frontmatter.draft,
+    readingTime: calculateReadingTime(content),
+  };
 
-    const isDraft = data.draft || false;
-
-    // 프로덕션에서 draft 포스트는 직접 URL 접근도 차단
-    if (isProduction && isDraft) {
-      return null;
-    }
-
-    const meta: PostMeta = {
-      slug,
-      title: data.title || 'Untitled',
-      date: data.date || '1970-01-01',
-      updated: data.updated,
-      description: data.description || '',
-      category,
-      tags: data.tags || [],
-      draft: isDraft,
-      readingTime: calculateReadingTime(content),
-    };
-
-    return {
-      meta,
-      content,
-    };
-  } catch {
-    return null;
-  }
+  return isPublishable(meta) ? { meta, content } : null;
 }
 
-export function getAllPostSlugs(locale: Locale): Array<{
+function getAllPostSlugsUncached(locale: Locale): Array<{
   category: string;
   slug: string;
 }> {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const slugs: Array<{ category: string; slug: string }> = [];
-
-  for (const category of CATEGORIES) {
-    const categoryPath = getContentPath(locale, category);
-    const files = getMdxFiles(categoryPath);
-
-    for (const file of files) {
-      const slug = file.replace(/\.mdx$/, '');
-      const filePath = path.join(categoryPath, file);
-      const post = parsePostFile(filePath, slug, category);
-
-      // 파싱 실패 또는 프로덕션에서 draft 포스트는 정적 페이지 생성 제외
-      if (!post || (isProduction && post.draft)) {
-        continue;
-      }
-
-      slugs.push({ category, slug });
-    }
-  }
-
-  return slugs;
+  return getPosts(locale).map(({ category, slug }) => ({ category, slug }));
 }
 
-export function getPage(locale: Locale, pageName: string): { meta: PageMeta; content: string } | null {
-  const filePath = path.join(getContentPath(locale), `${pageName}.mdx`);
+function getPageUncached(locale: Locale, pageName: string): { meta: PageMeta; content: string } | null {
+  const contentPath = getContentPath(locale);
+  const filePath = path.join(contentPath, `${pageName}.mdx`);
+  const files = new Set(listMdxFiles(contentPath));
 
-  if (!fs.existsSync(filePath)) {
+  if (!files.has(filePath)) {
     return null;
   }
 
-  try {
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const { data, content } = matter(fileContent);
+  const { frontmatter, content } = parseMdxFile(filePath, PageFrontmatterSchema);
 
-    return {
-      meta: {
-        title: data.title || 'Untitled',
-        description: data.description || '',
-        lastUpdated: data.lastUpdated,
-      },
-      content,
-    };
-  } catch {
-    return null;
-  }
+  return {
+    meta: {
+      title: frontmatter.title,
+      description: frontmatter.description,
+      lastUpdated: frontmatter.lastUpdated,
+    },
+    content,
+  };
 }
+
+export const getPosts = cache(getPostsUncached);
+export const getPost = cache(getPostUncached);
+export const getAllPostSlugs = cache(getAllPostSlugsUncached);
+export const getPage = cache(getPageUncached);
