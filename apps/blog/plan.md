@@ -107,6 +107,21 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **현황**: standalone 산출물이 커서 remote cache 업로드가 413으로 실패했고(#384), 현재는 CI의 blog turbo 호출에만 `TURBO_CACHE_ARG='--cache=local:rw,remote:r'`을 주입해 회피 중이다(turbo.json 주석 참조, #403). ci.yml과 e2e.yml 양쪽에 환경변수를 잊지 않고 넣어야 하는 휴먼 에러 여지가 있다.
 - **개선안**: `blog#build`에 `outputs`를 명시해 `.next/standalone/**`을 캐시 산출물에서 제외하는 방안 검토. **전제 조건**: e2e job이 turbo 캐시 hit 시 standalone 없이도 동작하는지 확인 필요 — `scripts/start-e2e.mjs`가 standalone을 전제하므로, 캐시 hit 경로에서 standalone이 복원되지 않으면 e2e가 깨진다. (a) e2e job에서는 캐시 미스 시에만 빌드하는 현 구조 유지 + outputs 제외, (b) standalone 제외가 불가하면 현 방식 유지 + 주석으로 고정, 둘 중 검증 후 선택.
 - **기대 효과**: 성공 시 CI 워크플로우에서 blog 특례 분기 제거, 설정 단순화.
+- **조사·측정 결과 (2026-06, 빌드 다이어트 착수 시 — #384의 진단이 틀렸음을 확인)**:
+  - **`blog#build` outputs**: `outputs` 미선언이라 base `build`의 `[".next/**", "!.next/cache/**", ...]`를 field-merge 상속한다. 따라서 `.next/standalone/**`까지 캐시에 들어가긴 한다.
+  - **그러나 측정상 standalone은 413의 주범이 아니다.** 로컬 prod 빌드 후 압축(remote 업로드와 동일) 크기:
+    - 전체 `.next`(현재 413 유발 아티팩트): **316.9MB**
+    - `.next/standalone` 제외 후: **285.1MB** (고작 31.7MB만 감소)
+    - 즉 standalone은 압축 31.7MB(전체의 10%)뿐. outputs에서 빼도 285MB라 413은 거의 그대로다.
+  - **진짜 원인 = 프리렌더 산출물 볼륨**: `.next/server/app`에 HTML **78.7MB(633개)** + RSC **101.9MB(7,359개)**. ko/ 아래 라우트 디렉터리만 2,211개(전체 ~4,400 라우트). RSC 1,372개가 30KB 초과, 100개가 100KB 초과. 리스트/태그 페이지 1장 HTML이 ~210KB. → **C-3(리스트 페이지가 전체 포스트/노트 검색 필드를 RSC payload에 직렬화)와 직결**되며, 태그 페이지(garden 302 + blog 122 = 424개) prerender 수도 한 몫 한다. 이 본문 출력은 빌드의 핵심 산출물이라 outputs에서 제외 불가.
+  - **`remote:r`는 blog에서 사실상 죽은 옵션**: remote write가 늘 413으로 실패하면 remote에 아무것도 안 올라가므로 `remote:r`(읽기)도 영구 미스다. 즉 blog의 현 `--cache=local:rw,remote:r`는 기능상 `local:rw`와 동일하고, blog에 remote cache는 사실상 무효다.
+  - **e2e 제약(여전히 유효)**: `scripts/start-e2e.mjs`는 standalone `server.js`가 없으면 CI에서 `process.exit(1)` hard-fail. `test:e2e dependsOn build`라 build 캐시 hit 시 standalone 미복원이면 깨진다(standalone을 outputs에서 빼는 시나리오의 제약).
+- **정정된 결론 / 선택지**:
+  - turbo `outputs` 조정으로는 413을 풀 수 없다(standalone 제외는 무효). 근본 해결은 **빌드 산출물 볼륨 축소**다.
+  - (1) **C-3 우선**: 리스트/태그 페이지의 검색 인덱스를 RSC 직렬화에서 빼 정적 `/search-index.json` lazy-fetch로 전환 → 모든 리스트 페이지의 RSC·HTML 동반 축소. 413을 부수효과로 완화하면서 그 자체로 정당한 개선. **B-2의 실질 해결 경로로 C-3에 의존시키는 것을 권장.**
+  - (2) 태그/저가치 라우트 prerender 축소(ISR/on-demand) — 빌드 크기·413 동시 완화, 단 렌더링 전략 변경(첫 히트 지연 트레이드오프).
+  - (3) 즉시 정리(저비용): blog에서 죽은 `remote:r`를 떼고 `--cache=local:rw`로 단순화 + turbo.json/CI 주석을 "413 원인은 standalone이 아니라 prerender 볼륨, blog는 local-only가 의도"로 정정. "해결"이 아니라 정직한 현행 고정.
+  - C-3로 산출물을 충분히 줄여도 Vercel remote cache 한도 미만으로 떨어지는지는 push 후 CI에서만 확정 가능(로컬에서 한도 측정 불가).
 
 ### B-3. `blog-content.yml`과 ci.yml의 콘텐츠 검증 중복 정리
 
@@ -148,8 +163,16 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **개선안**:
   1. 본문 폰트: 서브셋 빌드 도입 — Pretendard 공식 dynamic-subset 또는 `pyftsubset`으로 KS X 1001 + Latin 서브셋 생성. variable font 유지 시에도 2.1MB → 수백 KB 수준으로 감소 가능.
   2. `size-limit` 또는 Lighthouse CI로 LCP/폰트 전송량 회귀 가드 추가 검토.
-- **OG 폰트는 제외**: `og-fonts.ts` 주석에 "제목이 한국어(동적)이므로 콘텐츠 기반 subset 불가, 풀셋 woff 사용"이 문서화된 결정으로 명시되어 있다. OG 라우트는 standalone 런타임에서 on-demand 렌더될 수 있어(`next.config.mjs` 트레이싱 주석 참조) 빌드 타임 글리프 확정에 기대는 서브셋은 미사전생성 경로에서 글리프 누락(tofu) 위험이 있다. 풀셋 유지가 맞고, 재검토하려면 C-7에서 다룬다.
+- **OG 폰트는 제외**: `og-fonts.ts`(현재 위치 `src/shared/lib/og/og-fonts.ts`) 주석에 "제목이 한국어(동적)이므로 콘텐츠 기반 subset 불가, 풀셋 woff 사용"이 문서화된 결정으로 명시되어 있다. OG 라우트는 standalone 런타임에서 on-demand 렌더될 수 있어(`next.config.mjs` 트레이싱 주석 참조) 빌드 타임 글리프 확정에 기대는 서브셋은 미사전생성 경로에서 글리프 누락(tofu) 위험이 있다. 풀셋 유지가 맞고, 재검토하려면 C-7에서 다룬다.
 - **기대 효과**: 첫 방문 LCP 및 한글 렌더 안정화. 본문 variable 폰트 축소만으로도 standalone 산출물 다이어트에 기여.
+- **조사·결정 (2026-06 착수)**:
+  - 현황 확정: 본문 폰트는 `app/[locale]/layout.tsx`에서 `next/font/local`로 `../../public/assets/fonts/PretendardVariable.woff2`(2.1MB, `weight: '45 920'`, `display: swap`)를 로드 → self-host + preload되어 클라이언트로 전송됨(LCP 직격).
+  - 코드베이스에서 실제 사용하는 font-weight는 400 / 500(`font-medium`) / 600(`font-semibold`) / 700(`font-bold`)뿐. 45~920 전 축은 불필요.
+  - 서브셋 툴(`pyftsubset`/fontTools)은 현재 환경에 미설치 → 일회성 로컬 설치로 생성, **산출물은 사전 생성해 커밋**(JS 모노레포에 Python 빌드 의존성 미도입, CI 무변경).
+  - **결정한 접근**: (1) 변수축을 wght 400~700로 instance, (2) charset = Latin + 전체 현대 한글(AC00–D7A3) + 한글 자모 + 공통 구두점/기호, (3) 한자·이모지 등 미포함 글리프는 fallback 폰트(`ui-sans-serif`)로 per-glyph 대체(= tofu 아님, 표준 동작). 전체 한글을 유지하므로 한국어 본문 tofu 위험 없음.
+  - 회귀 가드: 서브셋 woff2 파일 크기 상한 단언 테스트(또는 size-limit) 추가. 검증은 빌드 후 한글 본문/제목 실제 렌더 + 전송량 before/after 기록.
+  - 예상 절감: 한자 등 제거로 2.1MB → 대략 0.8~1.2MB(전체 한글 유지로 극적이진 않으나 본문 폰트라 안전 우선).
+  - 진행 단위: B-2와 분리한 별도 PR(`feature/blog-build-diet-fonts`). B-2는 위 조사대로 보류·문서화 쪽이 유력.
 
 ### C-2. MDX 콘텐츠 이미지에 `next/image` 적용
 
@@ -157,11 +180,20 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **개선안**: `img` 오버라이드를 `next/image` 기반으로 교체. 로컬 콘텐츠 이미지는 빌드 시 dimensions를 읽어 주입(또는 frontmatter/원격은 `fill` + aspect-ratio 컨테이너). 콘텐츠 내 이미지 사용 빈도 먼저 조사 후 진행.
 - **기대 효과**: 콘텐츠 이미지 전송량 감소, CLS 제거.
 
-### C-3. 검색 인덱스 전달 방식 개선 (성장 대비)
+### C-3. 검색 인덱스 전달 방식 개선 (성장 대비 → B-2의 실질 해결 경로로 승격)
 
-- **현황**: blog/garden 리스트 페이지가 전체 포스트/노트의 검색용 필드를 RSC props로 클라이언트 검색 위젯에 직렬화한다. 현재 규모(수 KB~10여 KB)에서는 문제없지만, 노트가 수백 개로 늘면 모든 리스트 페이지의 RSC payload가 함께 커진다.
-- **개선안**: 정적 검색 인덱스 라우트(`/[locale]/search-index.json` route handler, 빌드 시 정적 생성)를 만들고 SearchPalette가 열릴 때(Cmd+K) lazy fetch. `use cache` 디렉티브(`useCache: true` 이미 활성)와 궁합이 좋다.
-- **기대 효과**: 리스트 페이지 초기 payload를 콘텐츠 수와 무관하게 유지. 임계치(예: 노트 300개 또는 payload 30KB) 도달 시 착수하는 조건부 과제로 관리.
+> **우선순위 상향 (2026-06)**: 원래 "임계치 도달 시 착수하는 조건부 과제"였으나, B-2(remote cache 413) 측정 과정에서 **이 직렬화가 빌드 산출물 비대화의 주범**임이 확인됐다. C-3는 이제 (1) 그 자체의 payload 다이어트이자 (2) **B-2 413을 부수효과로 완화**하는 실질 해결 경로다. 빌드 다이어트 묶음(C-1 다음)으로 이어가기 좋은 다음 작업.
+
+- **현황 (코드 확인)**: 클라이언트 검색 위젯이 **전체 포스트/노트의 검색용 필드를 props로 받아** 각 페이지 RSC payload에 통째로 직렬화한다.
+  - blog: `src/widgets/blog-search/ui/blog-search.tsx`의 `BlogSearch({ posts: BlogSearchPost[] })`. `BlogSearchPost = { title, description, category, slug, tags }`. `app/[locale]/(main)/(content)/blog/page.tsx`(인덱스)와 `blog/[category]/page.tsx`(카테고리)에서 `allPosts.map(...)`으로 만들어 `<BlogSearch posts={searchPosts} />`로 내려준다.
+  - garden: `src/widgets/garden-sidebar/ui/garden-sidebar.tsx`가 전체 노트로 `searchGroups`를 만들어 `SearchPalette`에 넘긴다. 사이드바는 **모든 garden 라우트**에 붙는다.
+  - 공통 위젯: `src/shared/ui/search-palette.tsx`, `search-trigger.tsx`, hook `src/shared/hooks/use-search-palette-shortcut.ts`.
+- **그래서 생기는 문제 (B-2 측정과 동일 근거)**: 같은 검색 데이터셋이 blog 인덱스 + 카테고리 + **태그 페이지 424개**(garden 302 + blog 122) + 모든 garden 페이지(사이드바)에 **중복 직렬화**된다. 그 결과 `.next/server/app`의 RSC가 101.9MB(7,359개, 1,372개가 30KB 초과)까지 불어난다. 노트 증가 시 모든 페이지가 함께 커지는 구조.
+- **개선안 (SSG 유지가 핵심 — ISR 전환 아님)**: 검색 데이터셋을 페이지 props에서 빼고 **단일 정적 산출물** `/[locale]/search-index.json`(route handler, 빌드 타임 정적 생성)로 1회만 만든다. `SearchPalette`는 사용자가 검색을 **열 때(Cmd+K/클릭)만 그 JSON을 lazy fetch**한다. `use cache` 디렉티브(`useCache: true` 이미 활성)와 궁합이 좋다.
+  - **렌더링 전략 불변**: 모든 페이지는 그대로 SSG/정적 prerender. 페이지별 빠른 정적 서빙 장점 100% 유지. 오히려 각 페이지가 검색 데이터셋을 안 싣어 **초기 payload가 줄어 더 가벼워진다**.
+  - 유일한 동작 변화: 검색 데이터가 "검색창 처음 열 때" JSON 1회 fetch로 온다(매 페이지 로드마다가 아님). 검색은 가끔 여는 동작이라 순이득.
+- **구현 메모**: (1) `BlogSearch`/`GardenSidebar`에서 props로 받던 검색 데이터를 위젯 내부 lazy fetch로 전환(검색 open 시 1회, 결과 메모이즈). (2) `search-index.json` route handler는 entities/post·note 로더 재사용(`React.cache()` 적용된 단일 소스). (3) locale별 분리. (4) 위젯 단위 테스트(데이터 fetch 모킹) + 검색 동작 E2E 회귀 확인. (5) draft 노트 노출 정책(`E2E_INCLUDE_DRAFT`)이 인덱스 생성에도 동일하게 적용되는지 확인.
+- **기대 효과**: 리스트 페이지 초기 payload를 콘텐츠 수와 무관하게 유지. 빌드 산출물(RSC) 대폭 축소 → **B-2 413 완화**. 단, Vercel remote cache 한도 미만으로 떨어지는지는 push 후 CI에서만 확정 가능(로컬에서 한도 측정 불가) — B-2 항목의 정정된 결론 참조.
 
 ### C-4. 라우트 세그먼트 `error.tsx` 추가
 
