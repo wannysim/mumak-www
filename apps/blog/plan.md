@@ -13,8 +13,8 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - [ ] **CI 정리 PR** — B-3(blog-content.yml) + B-5(promote.yml)
 - [ ] **빌드 산출물 다이어트 PR** — C-1(폰트 서브셋) + B-2(blog#build outputs, 검증 전제)
 - [ ] **GEO 정책 결정** — D-1 (robots.ts AI 크롤러 정책, 코드 전 의사결정)
-- [ ] **GEO PR 1** — D-2(llms.txt) + D-3(마크다운 엔드포인트)
-- [ ] **GEO PR 2** — D-4(RSS 보강) + D-5(sitemap hreflang)
+- [~] **GEO PR 1** — D-3(마크다운 엔드포인트) 완료(GEO PR 2와 함께 진행) / D-2(llms.txt)는 D-1 정책 결정 의존이라 보류
+- [x] **GEO PR 2** — D-4(RSS autodiscovery + full-content) + D-5(sitemap hreflang) + D-3(마크다운 엔드포인트)
 - [ ] **코드 생성 이미지 PR** — C-7 (favicon 라이브 버그 수정 + OG 긴 텍스트·locale·기본 이미지·템플릿 공통화)
 - [ ] **Spotify OAuth callback 보안 보강 PR** — C-8 (React Doctor Security 경고 검토 후 실질 보강)
 - [ ] **개별 소액**: C-2(MDX 이미지) / C-4(error.tsx) / B-6(react-doctor blocking) / D-6(콘텐츠 가이드)
@@ -260,25 +260,27 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 - **개선안**: `app/llms.txt/route.ts` route handler 추가. 기존 `getPosts`/`getNotes` API를 재사용해 사이트 소개 + 섹션 설명 + 포스트/노트 제목·설명·URL 목록을 마크다운으로 생성. sitemap.ts와 동일하게 빌드 타임 정적 생성되도록 한다.
 - **기대 효과**: AI 에이전트의 콘텐츠 발견 경로 추가. 작업량 소(반나절).
 
-### D-3. 포스트의 마크다운 원문 엔드포인트
+### D-3. 포스트의 마크다운 원문 엔드포인트 — 완료
 
 - **현황**: 콘텐츠 원본이 이미 MDX(마크다운)인데, 에이전트와 AI 검색은 HTML을 파싱해 본문을 복원해야 한다. wikilink·커스텀 컴포넌트가 섞인 HTML은 인용 품질을 떨어뜨린다.
 - **개선안**: 슬러그별 마크다운 변형 제공 — `/[locale]/blog/[category]/[slug].md` route handler(또는 `llms-full.txt` 단일 파일)로 frontmatter 제거 + wikilink를 일반 링크로 치환한 클린 마크다운을 서빙. `getPost`의 `content`를 그대로 쓰므로 거의 공짜. llms.txt(D-2)에서 각 항목의 `.md` URL을 안내.
+- **완료**: route handler `app/[locale]/(main)/(content)/blog/[category]/[slug]/raw/route.ts`(SSG, `force-static` + `generateStaticParams`)가 `toPostDocumentMarkdown`(H1 제목 + 설명 + canonical 링크 + wikilink→일반 링크 변환 본문)을 `text/markdown`으로 서빙. pretty `.md` URL은 `next.config.mjs`의 `beforeFiles` rewrite(`/:locale/blog/:category/:slug.md` → `.../raw`)로 매핑 — `[slug]` 페이지가 `first.md`를 먼저 가로채지 않도록 beforeFiles 사용. wikilink 변환은 `transformWikilinksToMarkdown`(parser·정규식을 `transformWikilinks`와 공유, A-3 단일 소스 유지)로 처리. blog 포스트엔 현재 wikilink가 없지만 추가돼도 안전. 단위 테스트(transformer/markdown formatter) + E2E(`.md` 200/text/markdown, 비-`.md` 페이지 정상)로 검증.
 - **기대 효과**: AI 인용 정확도 향상, 에이전트 친화적 콘텐츠 소비 경로. D-2와 같은 PR로 묶기 좋다.
 
-### D-4. RSS 피드 보강 (full-content + 발견성)
+### D-4. RSS 피드 보강 (full-content + 발견성) — 완료 (garden 피드만 선택 보류)
 
 - **현황**: `app/[locale]/feed.xml/route.ts`가 최신 20개의 제목·description만 포함한다. AI 리트리버와 RSS 리더 모두 본문이 있는 피드를 선호한다. 또한 피드 링크가 footer 앵커로만 존재하고, HTML `<head>`의 `<link rel="alternate" type="application/rss+xml">` 광고가 없어 자동 발견(autodiscovery)이 안 된다.
 - **개선안**:
-  1. `content:encoded`로 본문 포함(마크다운→HTML 변환 또는 D-3의 클린 마크다운 재사용). 전체가 부담이면 최근 N개만 full로.
-  2. layout `generateMetadata`의 `alternates.types`에 `application/rss+xml` 추가 — 한 줄짜리 작업.
-  3. garden 노트용 피드 추가 여부 검토(선택).
+  1. `content:encoded`로 본문 포함(마크다운→HTML 변환 또는 D-3의 클린 마크다운 재사용). 전체가 부담이면 최근 N개만 full로. — **완료**: D-3의 `bodyToMarkdown`(wikilink→링크) + `markdownToHtml`(marked, GFM)로 본문을 HTML로 변환해 `content:encoded`(CDATA, `]]>` 이스케이프)로 최신 20개 포함. `xmlns:content` 네임스페이스 추가. blog 포스트의 JSX 데모는 전부 코드펜스 안이라 `<pre><code>`로 이스케이프되어 피드에 raw JSX가 새지 않음(테스트로 고정). 마크다운→HTML은 remark 생태계(ESM, Jest 변환 이슈) 대신 zero-dep `marked`를 써서 사이트 MDX 렌더링과 분리된 경량 경로로 둠. E2E로 `content:encoded` 존재 검증.
+  2. layout `generateMetadata`의 `alternates.types`에 `application/rss+xml` 추가 — **완료**. layout이 static `metadata`라 locale을 모르고, 콘텐츠 페이지가 `alternates`를 통째로 override하므로(Next.js shallow merge), 단일 소스인 `buildAlternates`에 `types`를 추가해 모든 콘텐츠 페이지가 `<link rel="alternate" type="application/rss+xml" href="/{locale}/feed.xml">`를 자동으로 광고하도록 했다. 빌드 산출물 602개 HTML에서 locale별로 올바르게 출력됨을 확인.
+  3. garden 노트용 피드 추가 여부 검토(선택). — 미진행(선택 항목).
 - **기대 효과**: 피드 기반 구독·수집 경로 강화. autodiscovery는 즉효성 있는 소액 과제.
 
-### D-5. sitemap에 hreflang alternates 추가
+### D-5. sitemap에 hreflang alternates 추가 — 완료
 
 - **현황**: 페이지 메타데이터에는 hreflang이 완비되어 있지만, `app/sitemap.ts`의 각 entry에는 `alternates.languages`가 없다. Next.js sitemap API가 이를 지원하므로 ko/en 대응 URL을 sitemap 수준에서도 선언할 수 있다.
 - **개선안**: sitemap entry 생성 시 `alternates: { languages: { ko: ..., en: ... } }` 추가. `buildAlternates`를 재사용해 페이지 메타데이터와 단일 소스 유지.
+- **완료**: `app/sitemap.ts`에 `localizedEntry(locale, path, fields)` 헬퍼를 도입해 URL과 `alternates.languages`를 `buildAlternates` 한 곳에서 만든다(URL 조립 중복 제거 + hreflang 동시 부여). 각 entry가 ko/en/x-default 세 hreflang을 갖고, sitemap.xml 산출물에서 `<xhtml:link rel="alternate" hreflang="...">`로 출력됨을 확인. `__tests__/app/sitemap.test.ts`에 alternates 단언 추가.
 - **기대 효과**: 다국어 페이지 관계를 크롤러에 이중으로 신호. 검색 콘솔의 hreflang 진단 안정화.
 
 ### D-6. 콘텐츠 차원의 GEO 관행 (운영 가이드)

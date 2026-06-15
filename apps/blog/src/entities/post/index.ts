@@ -8,3 +8,4 @@ export {
   getPosts,
   isValidCategory,
 } from './api/posts';
+export { toPostDocumentMarkdown, toPostContentHtml } from './api/markdown';

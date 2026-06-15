@@ -77,6 +77,26 @@ export function transformWikilinks(content: string, options: TransformOptions): 
   });
 }
 
+export interface MarkdownTransformOptions {
+  // wikilink target을 일반 마크다운 링크의 href로 변환한다.
+  hrefFor: (input: LinkResolverInput) => string;
+}
+
+// wikilink를 일반 마크다운 링크(`[label](href)`)로 치환한다. 마크다운 원문/피드처럼
+// JSX(WikiLink) 컴포넌트를 렌더할 수 없는 소비 경로용. 파서(parseWikilinkTarget)와
+// 정규식을 transformWikilinks와 공유해 문법 해석을 단일 소스로 유지한다.
+export function transformWikilinksToMarkdown(content: string, options: MarkdownTransformOptions): string {
+  const { hrefFor } = options;
+
+  return content.replace(WIKILINK_REGEX, (_raw, _embedMarker, rawTarget: string, label?: string) => {
+    const target = parseWikilinkTarget(rawTarget ?? '');
+    const href = hrefFor({ slug: target.slug, heading: target.heading, blockId: target.blockId });
+    const displayLabel = (label?.trim() || target.target).replace(/]/g, '\\]');
+
+    return `[${displayLabel}](${href})`;
+  });
+}
+
 export interface GardenResolverOptions {
   existingSlugs: Set<string>;
   hasHeadingAnchor: (slug: string, heading: string) => boolean;

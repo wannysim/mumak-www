@@ -224,3 +224,51 @@ test.describe('SEO - Favicon', () => {
     expect(response.headers()['content-type']).toContain('image/png');
   });
 });
+
+test.describe('SEO - RSS autodiscovery', () => {
+  test('should advertise the locale RSS feed via link rel=alternate', async ({ page }) => {
+    await page.goto('/ko/blog');
+
+    const feedHref = await page.locator('link[rel="alternate"][type="application/rss+xml"]').getAttribute('href');
+
+    expect(feedHref).toMatch(/\/ko\/feed\.xml$/);
+  });
+
+  test('should point autodiscovery at the matching locale feed', async ({ page }) => {
+    await page.goto('/en/blog');
+
+    const feedHref = await page.locator('link[rel="alternate"][type="application/rss+xml"]').getAttribute('href');
+
+    expect(feedHref).toMatch(/\/en\/feed\.xml$/);
+  });
+
+  test('should serve full content in the RSS feed via content:encoded', async ({ request }) => {
+    const response = await request.get('/en/feed.xml');
+
+    expect(response.ok()).toBe(true);
+    const body = await response.text();
+    expect(body).toContain('xmlns:content="http://purl.org/rss/1.0/modules/content/"');
+    expect(body).toContain('<content:encoded>');
+  });
+});
+
+test.describe('GEO - Markdown source endpoint', () => {
+  test('should serve clean markdown at the .md URL (rewrite)', async ({ request }) => {
+    const response = await request.get('/ko/blog/essay/first.md');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('text/markdown');
+
+    const body = await response.text();
+    // 클린 마크다운 문서: H1 제목으로 시작하고 wikilink 원문(`[[`)이 남지 않는다.
+    expect(body.trimStart().startsWith('# ')).toBe(true);
+    expect(body).not.toContain('[[');
+  });
+
+  test('should keep the HTML post page working at the non-.md URL', async ({ page }) => {
+    const response = await page.goto('/ko/blog/essay/first');
+
+    expect(response?.status()).toBe(200);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  });
+});
