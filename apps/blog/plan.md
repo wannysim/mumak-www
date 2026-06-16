@@ -19,7 +19,8 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - [x] **Spotify OAuth callback 보안 보강 PR** — C-8 (state 1회 소비 누락 보강 + no-store/no-referrer/noindex 헤더 + route 단위 테스트)
 - [x] **콘텐츠 GEO 가이드** — D-6 (`apps/blog/AGENTS.md`에 TL;DR·질문형 헤딩·`updated` 갱신·FAQPage 관행 추가) — C-7 PR과 함께 진행
 - [ ] **개별 소액**: C-2(MDX 이미지) / C-4(error.tsx) / B-6(react-doctor blocking)
-- [x] **C-3(검색 인덱스 정적 분리)** — 완료(2026-06-15). 단 B-2(413)는 미해결, 후속은 `.segment.rsc` 조사로 분리(B-2 항목 참조)
+- [x] **C-3(검색 인덱스 정적 분리)** — 완료(2026-06-15, #436)
+- [x] **B-2(remote cache 413 해결)** — 완료(2026-06-16, #437). standalone 중복 프리렌더를 outputs에서 제외 → 아티팩트 29.5MB(zstd), remote write 재개. 세그먼트 캐시 후속은 조사 후 비레버로 폐기(B-2 항목 참조)
 - [ ] **조건부·보류**: B-4(E2E 시간, 측정 후) / A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
 
 ## 현재 상태 요약
@@ -103,9 +104,18 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **개선안**: `globalDependencies`를 `["package.json", "pnpm-lock.yaml", "turbo.json"]`으로 축소. task별 `inputs`의 `.env*`도 함께 정리. `pnpm turbo run build --filter=blog --dry-run=json`으로 해시 안정성 검증.
 - **기대 효과**: 로컬·CI 캐시 적중률 상승. 작업량 5분 수준으로 효율 대비 가장 싸다.
 
-### B-2. `blog#build` remote cache 413 근본 해결 (TURBO_CACHE_ARG 제거)
+### B-2. `blog#build` remote cache 413 근본 해결 (TURBO_CACHE_ARG 제거) — 완료 (#437)
 
-- **현황**: standalone 산출물이 커서 remote cache 업로드가 413으로 실패했고(#384), 현재는 CI의 blog turbo 호출에만 `TURBO_CACHE_ARG='--cache=local:rw,remote:r'`을 주입해 회피 중이다(turbo.json 주석 참조, #403). ci.yml과 e2e.yml 양쪽에 환경변수를 잊지 않고 넣어야 하는 휴먼 에러 여지가 있다.
+> 완료(2026-06-16, #437). **진짜 원인은 `output: standalone`이 프리렌더 출력(`.next/server`)을 `.next/standalone` 안에 한 벌 더 복제해, 캐시에 같은 산출물이 두 벌 올라가던 것.** turbo.json `blog#build` outputs에 `!.next/server/**`만 더해 top-level 복제본을 캐시에서 빼고(standalone 복제본은 유지), ci.yml/e2e.yml의 blog 전용 `--cache=local:rw,remote:r`를 제거해 remote read/write를 재개했다.
+>
+> - **측정 방법 정정 (중요)**: 아래 "조사·측정 결과"의 raw 바이트 수치(316.9MB, RSC 101.9MB, `.segment.rsc` 68MB 등)는 **413과 직접 무관한 지표**였다. 413은 turbo가 remote에 올리는 **zstd 압축 아티팩트** 크기에 걸린다. 실측 CI 아티팩트(`.turbo/cache/<hash>.tar.zst`, dev 오염 제거 후 clean build):
+>   - top-level server 제외 전: 프리렌더 출력이 두 벌이라 과대.
+>   - **top-level server 제외 후(현재 develop): 29.5MB(zstd).** 413 한도 대비 여유 충분.
+>   - 로컬 `.turbo/cache` 아티팩트로 측정할 땐 `next dev`가 만든 `.next/dev`(약 357MB raw)가 `.next/**` outputs glob에 걸려 끼어드니, 측정 전 `.next`를 지우고 clean build 해야 CI와 일치한다.
+> - **안전성 검증**: top-level `.next/server`를 치운 cache-hit 상황을 로컬 재현해 E2E 통과(`start-e2e.mjs`는 standalone server.js만 실행, top-level은 `next start`용이라 미사용). CI에서도 `Validate (blog)` remote write 413 없이 통과, E2E(blog) 460 그린.
+> - **세그먼트 캐시 후속(아래 1') 조사 결과 (2026-06-16): 진행 안 함.** `.segment.rsc`는 raw 68MB지만 거의 중복 RSC라 zstd가 ~2MB로 압축한다(같은 압축레벨 비교: with 31.7MB / without 29.7MB → 차이 2.0MB). 이미 29.5MB로 여유가 큰 아티팩트에서 2MB 위해 standalone 런타임 prefetch 의존성 리스크·E2E 재검증·복잡도를 감수할 가치가 없다. **"68MB=67%"라는 raw 프레이밍이 오해를 부른 것**이고, 압축 후 기준으로는 비레버다. 재조사 불필요.
+
+- **현황(완료 전)**: standalone 산출물이 커서 remote cache 업로드가 413으로 실패했고(#384), CI의 blog turbo 호출에만 `TURBO_CACHE_ARG='--cache=local:rw,remote:r'`을 주입해 회피 중이었다(#403). ci.yml과 e2e.yml 양쪽에 환경변수를 잊지 않고 넣어야 하는 휴먼 에러 여지가 있었다.
 - **개선안**: `blog#build`에 `outputs`를 명시해 `.next/standalone/**`을 캐시 산출물에서 제외하는 방안 검토. **전제 조건**: e2e job이 turbo 캐시 hit 시 standalone 없이도 동작하는지 확인 필요 — `scripts/start-e2e.mjs`가 standalone을 전제하므로, 캐시 hit 경로에서 standalone이 복원되지 않으면 e2e가 깨진다. (a) e2e job에서는 캐시 미스 시에만 빌드하는 현 구조 유지 + outputs 제외, (b) standalone 제외가 불가하면 현 방식 유지 + 주석으로 고정, 둘 중 검증 후 선택.
 - **기대 효과**: 성공 시 CI 워크플로우에서 blog 특례 분기 제거, 설정 단순화.
 - **조사·측정 결과 (2026-06, 빌드 다이어트 착수 시 — #384의 진단이 틀렸음을 확인)**:
@@ -121,12 +131,11 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
     - RSC 101.9MB의 실제 구성: `.rsc` 33.7MB(633개) + **`.segment.rsc` 68.2MB(6,726개, 67%)**. 후자는 Next 세그먼트 캐시 아티팩트(`_full.segment.rsc` 페이지 전체 복제 포함)이고, `.rsc`의 큰 파일은 전부 garden 페이지(사이드바 노트 트리 + NoteCard 본문). **검색 데이터가 아니라 렌더된 카드/노트 본문 + 세그먼트 캐시가 볼륨의 본체다.**
   - **`remote:r`는 blog에서 사실상 죽은 옵션**: remote write가 늘 413으로 실패하면 remote에 아무것도 안 올라가므로 `remote:r`(읽기)도 영구 미스다. 즉 blog의 현 `--cache=local:rw,remote:r`는 기능상 `local:rw`와 동일하고, blog에 remote cache는 사실상 무효다.
   - **e2e 제약(여전히 유효)**: `scripts/start-e2e.mjs`는 standalone `server.js`가 없으면 CI에서 `process.exit(1)` hard-fail. `test:e2e dependsOn build`라 build 캐시 hit 시 standalone 미복원이면 깨진다(standalone을 outputs에서 빼는 시나리오의 제약).
-- **정정된 결론 / 선택지**:
-  - turbo `outputs` 조정으로는 413을 풀 수 없다(standalone 제외는 무효). 근본 해결은 **빌드 산출물 볼륨 축소**다.
-  - ~~(1) **C-3 우선**~~ → **C-3 완료(2026-06-15)했으나 B-2는 미해결.** C-3는 정당한 payload 다이어트지만 실측 절감이 ~0.07%라 413을 풀지 못한다. B-2의 실질 해결 경로를 C-3에 의존시킨 전제는 폐기한다.
-  - (1') **세그먼트 캐시 아티팩트(`.segment.rsc` 68MB, 67%)가 최대 레버** — Next의 `_full.segment.rsc`(페이지 전체 복제) + per-segment 파일이 RSC 볼륨의 2/3다. `useCache: true`만 켜고 `cacheComponents`는 안 쓰는데도 생성된다. 이게 standalone 런타임/네비게이션 prefetch에 필요한지, turbo `outputs`에서 제외 가능한지(런타임 서빙에 필요하면 불가), 혹은 비활성 옵션이 있는지 조사가 다음 B-2 작업. **별도 work item으로 분리.**
-  - (2) 태그/저가치 라우트 prerender 축소(ISR/on-demand) — 빌드 크기·413 동시 완화, 단 렌더링 전략 변경(첫 히트 지연 트레이드오프).
-  - (3) 즉시 정리(저비용): blog에서 죽은 `remote:r`를 떼고 `--cache=local:rw`로 단순화 + turbo.json/CI 주석을 "413 원인은 standalone이 아니라 prerender 볼륨, blog는 local-only가 의도"로 정정. "해결"이 아니라 정직한 현행 고정.
+- **정정된 결론 (최종, #437로 해결됨)**:
+  - 이전 결론 "turbo `outputs` 조정으로는 413을 풀 수 없다"는 **틀렸다.** 그 결론은 raw 바이트와 dev 오염이 섞인 측정에 기댄 것이었다. 압축 아티팩트 기준으로 보면, standalone과 **중복되는 top-level `.next/server`를 outputs에서 빼는 것**만으로 아티팩트가 29.5MB(zstd)로 떨어져 413이 풀린다(#437).
+  - ~~(1) **C-3 우선**~~ → **C-3 완료(2026-06-15)했으나 B-2 해결과 무관.** C-3는 정당한 payload 다이어트지만 실측 절감 ~0.07%. B-2를 C-3에 의존시킨 전제는 폐기.
+  - ~~(1') **세그먼트 캐시 아티팩트가 최대 레버**~~ → **조사 후 폐기(2026-06-16).** raw 68MB는 압축하면 ~2MB라 비레버. 위 완료 노트 참조.
+  - (2) 태그/저가치 라우트 prerender 축소(ISR/on-demand)는 별개의 빌드 시간/볼륨 과제로 남는다(413과는 무관해짐). 필요 시 B-4와 함께 검토.
 
 ### B-3. `blog-content.yml`과 ci.yml의 콘텐츠 검증 중복 정리
 
@@ -191,7 +200,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 >
 > - **신규**: `src/shared/lib/search`(타입 + 경로 헬퍼), `app/[locale]/search-index.json/route.ts`(`force-static` + `generateStaticParams` ko/en, `getPosts` 재사용 → draft 노출 정책 자동 상속), `src/shared/hooks/use-search-index.ts`(locale별 모듈 캐시, 검색 open 시 1회 fetch, 실패 시 빈 인덱스로 graceful degrade; locale은 호출부 주입 — shared 배럴이 next-intl ESM을 끌지 않게).
 > - **변경**: `BlogSearch`에서 `posts` prop 제거(`useLocale` + `useSearchIndex`로 fetch), 블로그 인덱스/카테고리 page 2종에서 `searchPosts`(+ category page의 미사용 `allPosts`) 제거.
-> - **실측 효과**: 블로그 리스트 RSC 페이지당 ~5KB 감소(76.3KB→71.0KB 등). 빌드 전체로는 ~70KB(~0.07%). **B-2(413)는 풀리지 않는다** — 진짜 볼륨은 `.segment.rsc`(68MB) + 렌더된 카드/노트 본문이다(B-2 항목의 정정 참조). garden은 사이드바 트리에 검색이 free-ride라 추출할 중복이 없어 손대지 않았다.
+> - **실측 효과**: 블로그 리스트 RSC 페이지당 ~5KB 감소(76.3KB→71.0KB 등). 빌드 전체로는 ~70KB(~0.07%). **C-3로는 B-2(413)가 풀리지 않는다** — B-2는 별도로 standalone 중복 프리렌더 제거(#437)로 해결됐다(B-2 항목 참조). garden은 사이드바 트리에 검색이 free-ride라 추출할 중복이 없어 손대지 않았다.
 > - **검증**: `blog-search.test.tsx`(fetch 모킹, 8), route `route.test.ts`(4), 전체 `test:ci` 882 그린, 검색 E2E(blog+garden) + `seo.spec.ts`에 search-index 엔드포인트 계약 E2E 2건 추가, 전부 그린. standalone 빌드에서 `/ko|en/search-index.json` 정적 생성·서빙 확인.
 
 > **(폐기된 우선순위 상향 메모, 2026-06)**: 원래 "임계치 도달 시 착수하는 조건부 과제"였고, 한때 B-2 측정 과정에서 이 직렬화를 빌드 비대화의 주범으로 보고 "B-2 실질 해결 경로"로 승격했으나, 착수 시 실측 결과 검색 데이터는 빌드의 ~0.07%에 불과해 그 전제는 틀린 것으로 확인됐다(위 완료 노트 + B-2 정정 참조).
@@ -377,7 +386,7 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 | 8    | A-2 콘텐츠 로더 공통화                   | 설계 | 중     | post/note drift 제거               |
 | 9    | A-3 wikilink 단일 소스화 (스크립트 TS화) | 설계 | 중     | 검증·렌더링 규칙 일치              |
 | 10   | B-3 blog-content.yml 중복 정리           | CI   | 소     | 워크플로우 단순화                  |
-| 11   | B-2 blog#build outputs 정리 (검증 전제)  | CI   | 중     | 413 특례 제거                      |
+| 11   | B-2 blog#build outputs 정리 (검증 전제)  | CI   | 중     | 완료(2026-06-16, #437) — 413 해결  |
 | 12   | D-1 AI 크롤러 정책 명시화                | GEO  | 소     | 정책 결정 선행, 이후 D 과제의 전제 |
 | 13   | D-4 RSS autodiscovery + full-content     | GEO  | 소~중  | 발견성 즉효                        |
 | 14   | D-2 llms.txt + D-3 마크다운 엔드포인트   | GEO  | 중     | AI 인용 경로 확보                  |
