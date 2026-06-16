@@ -61,13 +61,15 @@ jobs:
           changed_files: ${{ steps.changed-files.outputs.all_changed_files }}
 
   # Step 2: Prepare matrix (only E2E-enabled apps)
+  # scopes-to-matrix가 만든 앱 배열을 shard-matrix가 앱별 e2eShards만큼 펼친다.
+  # count는 여전히 "영향받은 앱 수"라 if 가드 의미가 그대로다(shard 수가 아님).
   prepare-matrix:
     name: Prepare Matrix
     needs: detect-scopes
     if: needs.detect-scopes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.convert.outputs.matrix }}
+      matrix: ${{ steps.shard.outputs.matrix }}
       count: ${{ steps.convert.outputs.count }}
     steps:
       - name: Checkout
@@ -80,11 +82,18 @@ jobs:
           scopes: ${{ needs.detect-scopes.outputs.scopes }}
           filter_e2e: "true"
 
+      - name: Expand matrix into shards
+        id: shard
+        uses: ./.github/actions/shard-matrix
+        with:
+          matrix: ${{ steps.convert.outputs.matrix }}
+
   # Step 3: Run E2E tests for each affected app.
   # Each app's Playwright config fans out to chromium/firefox/webkit in CI,
   # keeping browser coverage while exposing one GitHub check per app.
   e2e:
-    name: E2E (${{ matrix.app }})
+    # shards>1인 앱(blog)만 ` 1/4` suffix가 붙고, 미분할 앱은 기존 이름 그대로다.
+    name: E2E (${{ matrix.app }}${{ matrix.shards != 1 && format(' {0}/{1}', matrix.shard, matrix.shards) || '' }})
     needs: [detect-scopes, prepare-matrix]
     if: needs.detect-scopes.outputs.has_changes == 'true' && needs.prepare-matrix.outputs.count != '0'
     timeout-minutes: 20
@@ -95,7 +104,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+        include: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
     env:
       # ci.yml validate job과 동일하게 blog도 remote read/write를 모두 쓴다.
       # turbo.json `blog#build`가 top-level `.next/server`를 outputs에서 제외하므로,
@@ -118,18 +127,24 @@ jobs:
 
       # ci.yml의 validate job과 동일한 cache key prefix 사용 → 같은 SHA의 build
       # 결과를 공유받아 e2e의 build 단계가 캐시 히트로 빠르게 통과한다.
+      # shard를 key에 넣어 같은 앱의 여러 shard 잡이 동일 key를 동시에 save하며
+      # "Unable to reserve cache"로 충돌하는 것을 막는다. restore-keys의 앱 prefix는
+      # 그대로라 ci.yml이 save한 build 캐시(`<os>-turbo-<app>-<sha>`)를 여전히 공유받는다.
       - name: Restore Turbo cache
         id: turbo-cache
         uses: actions/cache/restore@v5
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ matrix.app }}-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-${{ matrix.app }}-${{ matrix.shard }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-${{ matrix.app }}-
             ${{ runner.os }}-turbo-
 
+      # shards>1이면 Playwright --shard로 분할 실행한다(turbo가 `--` 뒤 인자를
+      # test:e2e 스크립트로 그대로 전달 → playwright-e2e.sh가 playwright에 forward).
+      # 각 shard는 ciWorkers=1을 그대로 유지하고, 잡 수준으로만 병렬화된다.
       - name: Run E2E tests
-        run: pnpm turbo run test:e2e --filter=${{ matrix.app }} $TURBO_CACHE_ARG
+        run: pnpm turbo run test:e2e --filter=${{ matrix.app }} $TURBO_CACHE_ARG ${{ matrix.shards != 1 && format('-- --shard={0}/{1}', matrix.shard, matrix.shards) || '' }}
 
       - name: Save Turbo cache
         if: success() && steps.turbo-cache.outputs.cache-hit != 'true'
@@ -138,11 +153,12 @@ jobs:
           path: .turbo
           key: ${{ steps.turbo-cache.outputs.cache-primary-key }}
 
+      # artifact 이름은 shard별로 분리해야 한다(upload-artifact v4+는 동일 이름 충돌 시 실패).
       - name: Upload test results
         uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-report-${{ matrix.app }}
+          name: playwright-report-${{ matrix.app }}${{ matrix.shards != 1 && format('-{0}', matrix.shard) || '' }}
           path: |
             apps/${{ matrix.app }}/playwright-report/
             apps/${{ matrix.app }}/test-results/
