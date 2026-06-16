@@ -173,6 +173,33 @@ test.describe('SEO - Open Graph', () => {
     const twitterCard = await page.locator('meta[name="twitter:card"]').getAttribute('content');
     expect(twitterCard).toBe('summary_large_image');
   });
+
+  test('should advertise the default OG image on the home page', async ({ page }) => {
+    await page.goto('/ko');
+
+    const ogImage = await page.locator('meta[property="og:image"]').first().getAttribute('content');
+    expect(ogImage).toMatch(/\/ko\/opengraph-image/);
+
+    const ogImageType = await page.locator('meta[property="og:image:type"]').first().getAttribute('content');
+    expect(ogImageType).toBe('image/png');
+  });
+
+  test('should advertise and serve a per-post OG image', async ({ page, request }) => {
+    await page.goto('/ko/blog/articles/react-compiler-rust-port');
+
+    const ogImage = await page.locator('meta[property="og:image"]').first().getAttribute('content');
+    expect(ogImage).toMatch(/\/blog\/.+\/opengraph-image/);
+
+    // 해시 세그먼트가 바뀌어도 깨지지 않도록 메타 URL에서 경로를 그대로 가져온다.
+    const { pathname, search } = new URL(ogImage!);
+    const response = await request.get(`${pathname}${search}`);
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('image/png');
+    // 폰트·텍스트가 실제로 렌더되면 빈 배경 이미지보다 훨씬 크다.
+    const body = await response.body();
+    expect(body.length).toBeGreaterThan(5000);
+  });
 });
 
 test.describe('SEO - Basic Meta Tags', () => {
@@ -192,5 +219,143 @@ test.describe('SEO - Basic Meta Tags', () => {
     const robots = await page.locator('meta[name="robots"]').getAttribute('content');
     expect(robots).toContain('index');
     expect(robots).toContain('follow');
+  });
+});
+
+test.describe('SEO - Favicon', () => {
+  test('should declare a PNG icon link in the document head', async ({ page }) => {
+    await page.goto('/ko');
+
+    const iconHref = await page.locator('link[rel="icon"]').first().getAttribute('href');
+    const iconType = await page.locator('link[rel="icon"]').first().getAttribute('type');
+
+    expect(iconHref).toMatch(/\/icon/);
+    expect(iconType).toBe('image/png');
+  });
+
+  test('should render the generated icon as a non-trivial PNG', async ({ request }) => {
+    const response = await request.get('/icon');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('image/png');
+
+    // 폰트가 실제로 임베드되어 'WS' 글리프가 렌더되면 투명/빈 아이콘보다 훨씬 크다.
+    const body = await response.body();
+    expect(body.length).toBeGreaterThan(2000);
+  });
+
+  test('should respond to a direct /favicon.ico request for legacy crawlers', async ({ request }) => {
+    const response = await request.get('/favicon.ico');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('image/png');
+  });
+});
+
+test.describe('SEO - RSS autodiscovery', () => {
+  test('should advertise the locale RSS feed via link rel=alternate', async ({ page }) => {
+    await page.goto('/ko/blog');
+
+    const feedHref = await page.locator('link[rel="alternate"][type="application/rss+xml"]').getAttribute('href');
+
+    expect(feedHref).toMatch(/\/ko\/feed\.xml$/);
+  });
+
+  test('should point autodiscovery at the matching locale feed', async ({ page }) => {
+    await page.goto('/en/blog');
+
+    const feedHref = await page.locator('link[rel="alternate"][type="application/rss+xml"]').getAttribute('href');
+
+    expect(feedHref).toMatch(/\/en\/feed\.xml$/);
+  });
+
+  test('should serve full content in the RSS feed via content:encoded', async ({ request }) => {
+    const response = await request.get('/en/feed.xml');
+
+    expect(response.ok()).toBe(true);
+    const body = await response.text();
+    expect(body).toContain('xmlns:content="http://purl.org/rss/1.0/modules/content/"');
+    expect(body).toContain('<content:encoded>');
+  });
+});
+
+test.describe('GEO - Markdown source endpoint', () => {
+  test('should serve clean markdown at the .md URL (rewrite)', async ({ request }) => {
+    const response = await request.get('/ko/blog/essay/first.md');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('text/markdown');
+
+    const body = await response.text();
+    // 클린 마크다운 문서: H1 제목으로 시작하고 wikilink 원문(`[[`)이 남지 않는다.
+    expect(body.trimStart().startsWith('# ')).toBe(true);
+    expect(body).not.toContain('[[');
+  });
+
+  test('should keep the HTML post page working at the non-.md URL', async ({ page }) => {
+    const response = await page.goto('/ko/blog/essay/first');
+
+    // rewrite는 `.md`만 가로채고, 일반 URL은 HTML 페이지를 그대로 서빙해야 한다.
+    expect(response?.status()).toBe(200);
+    expect(response?.headers()['content-type']).toContain('text/html');
+  });
+});
+
+test.describe('GEO - llms.txt', () => {
+  test('should serve a markdown content index at /llms.txt', async ({ request }) => {
+    const response = await request.get('/llms.txt');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('text/plain');
+
+    const body = await response.text();
+    expect(body.startsWith('# Wan Sim')).toBe(true);
+    expect(body).toContain('## Blog');
+    expect(body).toContain('## Garden');
+    // 블로그 항목은 AI 인용용 `.md` 원문 URL을 가리킨다.
+    expect(body).toMatch(/\/ko\/blog\/.+\.md\)/);
+  });
+});
+
+test.describe('Search - static search index endpoint (C-3)', () => {
+  test('should serve a static JSON search index that the palette lazy-fetches', async ({ request }) => {
+    const response = await request.get('/ko/search-index.json');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('application/json');
+    expect(response.headers()['cache-control']).toContain('public');
+
+    const body = (await response.json()) as { posts: Array<{ title: string; slug: string; category: string }> };
+    expect(Array.isArray(body.posts)).toBe(true);
+    expect(body.posts.length).toBeGreaterThan(0);
+
+    // 인덱스는 페이지 목록과 같은 getPosts 소스를 쓴다(draft 노출 정책 동일 적용). 검색 E2E가
+    // 실제로 여는 essay/first가 인덱스에도 들어 있어야 한다.
+    const first = body.posts.find(post => post.slug === 'first' && post.category === 'essay');
+    expect(first).toBeDefined();
+    expect(first?.title).toBeTruthy();
+  });
+
+  test('should serve the English search index as well', async ({ request }) => {
+    const response = await request.get('/en/search-index.json');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('application/json');
+
+    const body = (await response.json()) as { posts: unknown[] };
+    expect(body.posts.length).toBeGreaterThan(0);
+  });
+});
+
+test.describe('GEO - AI crawler policy (robots.txt)', () => {
+  test('should disallow training bots and explicitly allow search bots', async ({ request }) => {
+    const response = await request.get('/robots.txt');
+
+    expect(response.ok()).toBe(true);
+    const body = await response.text();
+
+    expect(body).toContain('GPTBot');
+    expect(body).toContain('PerplexityBot');
+    expect(body).toContain('OAI-SearchBot');
   });
 });

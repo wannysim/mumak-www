@@ -41,20 +41,41 @@ const nextConfig = {
     useCache: true,
     optimizePackageImports: ['next-mdx-remote-client', '@mumak/ui', 'lucide-react', 'next-themes', 'next-intl'],
   },
+  async rewrites() {
+    // `/{locale}/blog/{category}/{slug}.md` → 포스트 마크다운 원문 핸들러.
+    // beforeFiles: [slug] 페이지가 `first.md`를 먼저 매칭해 버리기 전에 가로챈다.
+    return {
+      beforeFiles: [
+        {
+          source: '/:locale/blog/:category/:slug.md',
+          destination: '/:locale/blog/:category/:slug/raw',
+        },
+      ],
+    };
+  },
   async redirects() {
     const categories = ['essay', 'articles', 'notes'];
-    return categories.flatMap(category => [
+    return [
+      // 루트 /favicon.ico를 직접 요청하는 크롤러·구형 클라이언트를 코드 생성 PNG
+      // 아이콘(/icon)으로 보낸다. app/icon.tsx가 <link rel="icon">을 별도로 제공한다.
       {
-        source: `/:locale/${category}`,
-        destination: `/:locale/blog/${category}`,
-        permanent: true,
+        source: '/favicon.ico',
+        destination: '/icon',
+        permanent: false,
       },
-      {
-        source: `/:locale/${category}/:slug`,
-        destination: `/:locale/blog/${category}/:slug`,
-        permanent: true,
-      },
-    ]);
+      ...categories.flatMap(category => [
+        {
+          source: `/:locale/${category}`,
+          destination: `/:locale/blog/${category}`,
+          permanent: true,
+        },
+        {
+          source: `/:locale/${category}/:slug`,
+          destination: `/:locale/blog/${category}/:slug`,
+          permanent: true,
+        },
+      ]),
+    ];
   },
   async headers() {
     return [

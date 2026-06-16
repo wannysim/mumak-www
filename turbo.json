@@ -1,13 +1,15 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
-  "globalDependencies": ["package.json", "pnpm-lock.yaml", "turbo.json", ".env*"],
+  "globalDependencies": ["package.json", "pnpm-lock.yaml", "turbo.json"],
   "globalEnv": ["NODE_ENV", "CI", "VERCEL", "VERCEL_ENV", "EXPO_OS"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**", "out/**", "*.tsbuildinfo"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      // `.next/dev`는 next dev/Turbopack의 로컬 dev 캐시(빌드 산출물 아님)이며 .next/**에 걸려
+      // 캐시 아티팩트를 부풀린다(로컬에서 dev 후 build 시). 빌드 출력이 아니므로 제외한다.
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "dist/**", "out/**", "*.tsbuildinfo"],
       "env": ["NEXT_PUBLIC_*", "ANALYZE"],
       "passThroughEnv": [
         "NODE_ENV",
@@ -21,13 +23,18 @@
       "outputs": []
     },
     "blog#build": {
-      // blog의 standalone .next 산출물은 remote cache 업로드 시 413을 유발한다(#384).
-      // 과거엔 `cache: false`로 막았으나(#389), 이는 LOCAL task cache까지 꺼버려
-      // 한 job 안에서 check-types→test:ci→build가 매번 next build를 재실행했다(#403).
-      // 이제 task cache는 그대로 두고, CI에서 blog turbo 호출에만 `--cache=local:rw,remote:r`로
-      // remote write만 차단한다(413 회피 + local 캐시 재사용). `cache: false`를 다시 넣지 말 것.
+      // blog는 output: standalone이라 프리렌더 출력(.next/server)이 .next/standalone 안에
+      // 한 벌 더 복제된다. 캐시에 같은 산출물이 두 벌 올라가 remote 업로드를 413으로 키운다(#384).
+      // E2E는 .next/standalone/apps/blog/server.js만 실행하고(scripts/start-e2e.mjs), top-level
+      // .next/server는 `next start`용이라 이 앱의 CI/배포 어디서도 쓰지 않는다. 따라서 캐시
+      // outputs에서 top-level `.next/server`만 제외해 산출물을 절반 가까이 줄인다(117.8→65.3MB gz).
+      // standalone 복제본은 그대로 캐시되므로 cache-hit 시에도 E2E가 동작한다(로컬 재현 검증함).
+      // base build의 outputs를 그대로 두고 `!.next/server/**`만 더한다.
+      // blog#build의 outputs는 base build를 상속이 아니라 대체하므로, base에 더한 `!.next/dev/**`도
+      // 여기 다시 명시한다(로컬 dev 캐시가 standalone 아티팩트에 섞이지 않게).
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/server/**", "!.next/dev/**"],
       "env": ["NEXT_PUBLIC_*", "ANALYZE"],
       "passThroughEnv": [
         "NODE_ENV",
@@ -136,7 +143,7 @@
       "outputs": []
     },
     "validate:garden": {
-      "inputs": ["content/**/garden/**/*.mdx", "scripts/validate-garden.mjs"],
+      "inputs": ["content/**/garden/**/*.mdx", "scripts/validate-garden.ts", "src/shared/lib/wikilink/**/*.ts"],
       "outputs": []
     },
     "validate:design": {

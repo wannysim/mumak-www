@@ -213,12 +213,39 @@ for (const { file, slot } of REQUIRED_SLOTS) {
   }
 }
 
+// Rule 5: hand-authored external anchors must open in a new tab.
+// A raw <a> with a literal external href (http(s):// or //) must set target="_blank".
+// Internal links, variable hrefs (e.g. SocialLinks' href={url}), and the
+// ExternalLink primitive (which pins target/rel) are not affected.
+const ANCHOR_TAG_RE = /<a\b[\s\S]*?>/g;
+const LITERAL_EXTERNAL_HREF_RE = /href=(?:["'`]|\{`)(?:https?:)?\/\//;
+const HAS_TARGET_BLANK_RE = /target=(?:"_blank"|'_blank'|\{)/;
+
+for (const filePath of sourceFiles) {
+  const rel = relative(filePath);
+  const content = fs.readFileSync(filePath, 'utf8');
+
+  for (const match of content.matchAll(ANCHOR_TAG_RE)) {
+    const tag = match[0];
+    if (!LITERAL_EXTERNAL_HREF_RE.test(tag) || HAS_TARGET_BLANK_RE.test(tag)) continue;
+
+    const lineNo = content.slice(0, match.index).split('\n').length;
+    add(
+      'external-anchor',
+      rel,
+      lineNo,
+      'external <a> without target="_blank" — use the ExternalLink primitive from shared/ui'
+    );
+  }
+}
+
 const RULE_TITLES = {
   'raw-color': 'Raw palette colors',
   'arbitrary-z-index': 'Arbitrary z-index',
   'recipe-drift': 'Re-inlined shared recipe',
   'primitive-consumer': 'Missing shared primitive usage',
   'missing-slot': 'Missing data-slot anchor',
+  'external-anchor': 'External link missing new-tab behavior',
 };
 
 function printConsole() {

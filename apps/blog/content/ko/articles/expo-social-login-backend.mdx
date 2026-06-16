@@ -1,0 +1,226 @@
+---
+title: 'Expo 소셜 로그인 (3/3) — 백엔드 연동: OIDC, nonce, 그리고 Apple Code 1000'
+date: '2026-06-15'
+description: '토큰을 백엔드에 붙이며 겪은 개념(OIDC·nonce)과 빌드 내부(entitlement)의 삽질. Apple Code 1000의 진짜 범인도 여기서 밝혀진다'
+tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
+draft: false
+---
+
+[2부](/ko/blog/articles/expo-social-login-build)에서 네이티브 SDK로 토큰을 얻는 데까지 왔다(Phase A).
+
+3부는 그 골격 위에 백엔드 인증(Phase B)을 붙인 기록이다.
+이번엔 코드 바깥이 아니라 개념(OIDC·nonce)과 빌드 내부(entitlement)에서 헤맸다.
+그리고 2부에서 "시뮬레이터 신뢰 불가"로 결론냈던 Apple `Code 1000`의 진짜 범인도 여기서 밝혀진다.
+
+- [1부 — 설계: 패키지 선택부터 provider-agnostic 골격까지](/ko/blog/articles/expo-social-login)
+- [2부 — 빌드와 디바이스, 토큰을 얻기까지](/ko/blog/articles/expo-social-login-build)
+- **3부 (이 글)** — 백엔드 연동: OIDC, nonce, 그리고 Apple Code 1000
+
+백엔드(NestJS)는 개발자 로컬 서버였고, 앱은 `.env.local`의 `EXPO_PUBLIC_API_BASE_URL`로 거기에 붙었다.
+
+## 12. 백엔드 계약이 swagger에 다 없어서, 직접 찔러봤다
+
+Phase B의 시작은 백엔드가 뭘 받는지 아는 것이었다.
+swagger를 열었더니 엔드포인트는 있는데 요청 파라미터가 문서화돼 있지 않았다.
+
+- `GET /auth/apple-callback` — 파라미터는 `Platform` 헤더뿐
+- `GET /auth/kakao-mobile-callback` — 파라미터는 `Platform` 헤더뿐
+- `GET /auth/google-callback-token` — 여긴 `accessToken` query가 명시돼 있었다
+
+토큰을 query로 받는 건 분명한데(google이 그러니까), apple/kakao는 파라미터명을 swagger만으론 알 수 없었다.
+GET이라 더미값으로 안전하게 찔러볼 수 있어서, 실엔드포인트를 직접 프로빙했다.
+
+```bash
+curl -H "Platform: myapp" "$BASE/auth/apple-callback?idToken=test"
+# → 401 {"message":"Invalid Apple token"}   ← idToken을 읽다 실패 = 파라미터명 맞음
+
+curl -H "Platform: myapp" "$BASE/auth/kakao-mobile-callback?code=test"
+# → 500 "authorization code not found"        ← code(인가코드)를 기대한다!
+```
+
+여기서 두 가지가 드러났다.
+
+1. 모든 엔드포인트가 `Platform: myapp` 헤더를 필수로 요구한다(멀티 앱 백엔드의 출처 식별자). → apiClient 기본 헤더로 박았다.
+2. 카카오 콜백은 `code`(인가 코드)를 받아 서버가 직접 토큰 교환을 한다. 그런데 우리 SDK는 인가 코드를 안 준다. 여기서 계약 불일치가 터졌다(14장).
+
+```typescript
+// apiClient.ts — 모든 요청에 Platform 헤더 주입
+export const apiClient = axios.create({
+  baseURL: env.apiBaseUrl,
+  timeout: 10_000,
+  headers: { Platform: 'myapp' },
+});
+```
+
+API 문서가 불완전하면, 실엔드포인트를 안전하게 프로빙(GET + 더미값)해 계약을 역추적한다.
+에러 메시지가 파라미터명을 알려준다. `Invalid Apple token`은 idToken을 읽었다는 뜻이고, `authorization code not found`는 code를 기대한다는 뜻이다.
+
+## 13. 잠깐, OAuth와 OIDC와 nonce
+
+14장의 결정을 이해하려면 개념 세 개가 필요하다. 최대한 짧게.
+
+**OAuth 2.0은 인가(authorization)다.** "이 앱이 사용자를 대신해 무엇을 할 수 있는가"를 위임한다. 결과물은 access token이고, 이걸로 리소스 API를 호출한다(예: 카카오 `/v2/user/me`).
+
+**OIDC는 OAuth 위에 얹은 인증(authentication) 레이어다.** "이 사용자가 누구인지"를 증명하는 ID Token을 추가로 발급한다. ID Token은 서명된 JWT다.
+
+둘의 차이는 백엔드 검증 방식에서 갈린다.
+
+|             | access token                                  | ID token (OIDC)                           |
+| ----------- | --------------------------------------------- | ----------------------------------------- |
+| 정체        | 보통 불투명 문자열                            | 서명된 JWT                                |
+| 백엔드 검증 | provider API를 **호출**해야 함 → 네트워크 1회 | 공개키(JWKS)로 **서명만 검증** → 오프라인 |
+| 담긴 정보   | 없음                                          | `sub`, `iss`, `aud`, `exp` 등 claim       |
+
+Apple의 `identityToken`이 바로 ID Token이다. 그래서 Apple 검증은 "서명 + iss/aud/exp 확인"으로 끝난다. 1부에서 Apple이 (개념상) 쉬웠던 이유다.
+그리고 카카오도 OIDC를 켜면 `idToken`을 준다. 이게 14장의 열쇠다.
+
+**nonce**는 클라이언트가 만든 1회용 난수다.
+로그인 요청에 실어 보내면, provider가 ID Token의 `nonce` claim에 그대로 박아 돌려준다. 백엔드는 "받은 nonce == 보낸 nonce"를 검증한다.
+이게 막는 건 replay attack(탈취한 토큰 재사용)과 token injection(다른 세션 토큰 끼워넣기)이다. 내가 방금 시작한 요청에 대한 응답이 맞는지를 묶는 장치다.
+
+## 14. 카카오: `code` 불일치에서 OIDC `idToken`으로 갈아탔다
+
+12장의 불일치를 다시 보자.
+
+백엔드는 `code`(인가 코드)를 기대하는데, `@react-native-kakao`의 네이티브 `login()`은 인가 코드를 노출하지 않는다.
+SDK가 코드 교환을 내부에서 끝내고, 우리에겐 `accessToken`(OIDC를 켜면 `idToken`까지)만 준다.
+
+선택지는 셋이었다.
+
+1. 백엔드가 accessToken을 받게 한다 → 백엔드가 카카오 API로 검증(google 패턴)
+2. 앱이 직접 인가 코드 플로우를 태운다(expo-auth-session) → 작업량 큼, SDK 버리는 셈
+3. OIDC idToken을 보낸다 → 백엔드가 Apple과 똑같이 서명만 검증
+
+결론은 3번(OIDC)이었다. Apple과 검증 방식이 통일되고, 백엔드가 카카오 API를 왕복하지 않아도 된다.
+전제는 카카오 디벨로퍼스 콘솔에서 OpenID Connect를 활성화하는 것. 이게 켜져 있어야 `login()` 응답에 `idToken`이 채워진다.
+
+```typescript
+// kakaoProvider.ts — auth mode 스위치로 보낼 토큰을 택일
+const kakaoToken = await login();
+if (kakaoAuthMode === 'oidc') {
+  if (!kakaoToken.idToken) {
+    // 콘솔 OIDC 미활성 시 idToken이 비어 온다 → 명확히 실패시켜 원인 추적을 쉽게
+    throw socialAuthError('kakao', 'provider', '카카오 idToken을 받지 못했습니다. (콘솔 OIDC 활성화 필요)', kakaoToken);
+  }
+  return kakaoToken.idToken;
+}
+return kakaoToken.accessToken; // 폴백 경로도 코드에 보존
+```
+
+두 경로(accessToken/oidc)를 모두 살려두고 `EXPO_PUBLIC_KAKAO_AUTH_MODE` 스위치 하나로 토큰 추출과 백엔드 엔드포인트를 동시에 택일하게 했다. 검증 후 기본값을 `oidc`로 박았다.
+
+다만 nonce는 카카오에 한해 검증하지 않기로 했다. 이유가 둘이다.
+
+`@react-native-kakao/user`의 네이티브 `login()`은 nonce를 노출하지 않는다. nonce 파라미터는 web 변형에만 있고, 업스트림에 관련 이슈/PR도 없다. 카카오에서 nonce를 쓰려면 `patch-package`로 네이티브를 패치하는 수밖에 없었다.
+그 비용을 감수할 가치가 낮다고 보고, 카카오 idToken은 서명 + iss/aud/exp만 검증하고 nonce(replay 방어)는 생략하기로 백엔드와 합의했다.
+
+이 결정의 근거는 `kakaoProvider` 주석에 명시해 뒀다.
+"왜 안 했나"를 코드 옆에 남기는 게 중요하다. 안 그러면 다음 사람이 "nonce 빠졌네, 버그?"라고 오해한다.
+
+## 15. Apple 시뮬레이터, 이번엔 됐다 — Code 1000의 진짜 범인은 entitlement였다
+
+2부에서 Apple `Code 1000`을 "시뮬레이터 + iCloud 미로그인"으로 결론냈다.
+이번에 Apple을 다시 붙이는데 또 `Code 1000`이 떴다. 그런데 raw 에러까지 찍어보니 원인이 달랐다.
+
+```text
+[SDK] unknown / raw=Error: The authorization attempt failed for an unknown reason
+```
+
+역설적으로, 이 에러가 떴다는 건 네이티브 모듈이 정상 링크돼 `ASAuthorizationController`까지 발사됐다는 뜻이다. 모듈이 없으면 "module not linked" 류 에러가 난다.
+그래서 빌드 산출물을 직접 까봤다.
+
+```bash
+codesign -d --entitlements - "$APP"
+# → <dict></dict>   ← 비어있다! com.apple.developer.applesignin 없음
+```
+
+진짜 범인은 이거였다. 지금 시뮬레이터에 깔린 dev client는 `expo-apple-authentication`를 `app.config.ts`에 넣기 *전*에 빌드된 바이너리였다.
+그래서 entitlement가 빌드에 없었고, entitlement 없는 앱의 Sign in with Apple은 무조건 `Code 1000`으로 죽는다. JS/env 리로드로는 절대 안 고쳐지는 순수 네이티브 문제였다.
+
+즉 `Code 1000`은 원인이 둘 이상이다. (a) 빌드에 entitlement가 없음, (b) 시뮬레이터/iCloud 환경.
+2부는 (b)로 추정했지만 이번 핵심은 (a)였다. entitlement만 제대로 박으니 시뮬레이터에서도 Apple 로그인이 됐다(Apple ID 로그인 상태에서). "시뮬레이터 신뢰 불가"는 절반만 맞았던 셈이다.
+
+해결은 prebuild로 entitlement를 주입한 뒤 재빌드하는 것이었다.
+
+```bash
+cd apps/mobile
+npx expo prebuild --clean -p ios   # ios/만 재생성 → entitlement 주입
+```
+
+그런데 검증할 때 또 함정이 있었다. 재빌드한 .app을 `codesign -d`로 봤더니 여전히 비어 보였다.
+알고 보니 시뮬레이터 빌드의 entitlement는 별도 파일에 들어간다.
+
+```bash
+find ios/build -name "*-Simulated.xcent" -exec /usr/libexec/PlistBuddy -c Print {} \;
+# → com.apple.developer.applesignin = Array { Default }
+```
+
+`*-Simulated.xcent`가 시뮬레이터 런타임이 실제로 읽는 entitlements다. `codesign -d`(임베드 서명)는 시뮬레이터에선 비어 보이는 게 정상이다.
+`applesignin`은 원래 팀/프로파일이 필요한 제한된 entitlement지만, 시뮬레이터는 `FAKETEAMID`로 적용해주기 때문에 실인증서 없이도 동작한다.
+
+`Code 1000`이면 코드보다 (1) 빌드에 entitlement가 박혔는지(`*-Simulated.xcent` 확인), (2) 시뮬레이터 Apple ID 로그인 여부를 먼저 본다.
+네이티브 모듈/플러그인을 추가했으면 반드시 재빌드. 추가 _전_ 빌드엔 당연히 entitlement가 없다.
+
+## 16. 시뮬레이터 빌드의 함정 — `expo run:ios`가 자꾸 맥으로 갔다
+
+재빌드하려고 `expo run:ios`를 돌렸더니 엉뚱한 에러가 떴다.
+
+```text
+CommandError: No code signing certificates are available to use.
+```
+
+시뮬레이터로 빌드하려는데 왜 코드 서명 얘기가? 기기 목록을 보니 범인이 나왔다.
+
+실기기가 없으니 `expo run:ios`가 비대화형 상황에서 맥(자기 자신)을 기본 타겟으로 골라버린 것이다.
+맥/기기 빌드는 코드 서명이 필요해서 죽었다. `--device <시뮬레이터UDID>`를 줘도 `--device` 플래그 자체가 "기기 경로"로 분기해 같은 에러가 났다.
+
+해결은 expo를 우회해 `xcodebuild`로 시뮬레이터 destination을 직접 박는 것이었다.
+
+```bash
+xcrun simctl boot "iPhone 17"
+
+cd apps/mobile/ios
+xcodebuild -workspace MyAppDev.xcworkspace -scheme MyAppDev \
+  -configuration Debug -sdk iphonesimulator \
+  -destination 'id=<UDID>' -derivedDataPath build build
+
+xcrun simctl install booted "build/Build/Products/Debug-iphonesimulator/MyAppDev.app"
+xcrun simctl launch booted com.example.myapp.dev
+```
+
+여기서 또 한 번 미끄러졌다. "No code signing" 에러를 피하려고 `CODE_SIGNING_ALLOWED=NO`를 줬더니, 빌드는 됐는데 entitlement 임베드 단계가 통째로 스킵돼서 15장의 문제가 도로 재현됐다.
+시뮬레이터는 기본 ad-hoc 서명(`CODE_SIGN_IDENTITY = -`, 인증서 불필요)으로 빌드해야 entitlement가 박힌다. 서명 관련 오버라이드를 아무것도 주지 않는 게 정답이었다.
+애초에 "No code signing" 에러는 타겟이 맥/기기였기 때문이지, 시뮬레이터 빌드엔 인증서가 필요 없다.
+
+## 17. env를 바꿨는데 안 먹는다 — `EXPO_PUBLIC_*`는 Metro `--clear`로
+
+백엔드는 개발자 로컬 서버였고, `.env.local`의 API URL을 거기로 바꿨는데 바로 안 먹었다.
+
+`EXPO_PUBLIC_*`는 런타임이 아니라 번들 빌드 시점에 코드로 인라인된다.
+그래서 `.env.local`만 고치고 앱을 리로드해도, 이미 떠 있던 Metro가 옛 값을 물고 있어 안 바뀐다. `--clear`로 재시작해야 새 env가 번들에 박힌다.
+
+```bash
+yarn myapp:start --clear   # Metro 재시작 + 캐시 클리어 → 새 EXPO_PUBLIC_* 인라인
+```
+
+14장에서 넣은 `EXPO_PUBLIC_KAKAO_AUTH_MODE=oidc`도 똑같았다. Metro 재시작 전엔 계속 기본(accessToken) 모드로 돌았다.
+새 env를 넣고 Metro를 `--clear`로 재시작하자, Apple과 카카오(OIDC) 둘 다 end-to-end 로그인에 성공했다.
+
+## 마무리
+
+1부의 어려움이 코드 바깥(빌드·콘솔·실행 위치)이었다면, 3부의 어려움은 개념(OIDC·nonce)과 빌드 내부(entitlement)에 있었다.
+
+가장 큰 배움은 Apple `Code 1000`의 진짜 범인이 entitlement였다는 것이다.
+같은 증상도 원인이 여럿이라는 것. 2부에서 "시뮬레이터 신뢰 불가"로 닫았던 결론이, 3부에서 "사실은 entitlement였다"로 뒤집힌 게 이 시리즈에서 제일 마음에 남는다.
+
+결국 Apple과 카카오(OIDC)를 "서명된 idToken 검증"이라는 같은 패턴으로 통일했다.
+1부에서 잡아둔 provider-agnostic 골격 위에 백엔드 연동을 한 겹 더 얹은 셈이다. 다음 공급자(구글/네이버)는 세 곳만 고치면 붙고, 그땐 이 골격이 효자 노릇을 할 거라 기대한다.
+
+## 3부에서 챙길 것
+
+- [ ] API 문서가 비면 실엔드포인트를 GET + 더미값으로 프로빙해 에러 메시지에서 파라미터명을 읽는다. 공통 헤더는 클라이언트 기본값으로.
+- [ ] 모바일 SDK가 인가 코드를 안 주면 OIDC `idToken`으로 합의를 끌어낸다(Apple과 검증 통일). 단 provider 콘솔에서 OIDC 활성화가 선행돼야 한다.
+- [ ] 보안 기능을 의도적으로 생략했다면 그 근거를 코드 주석에 남긴다.
+- [ ] Apple `Code 1000`은 entitlement부터. `codesign -d`가 아니라 `*-Simulated.xcent`로 확인하고, 모듈/플러그인 추가 후엔 재빌드한다.
+- [ ] 시뮬레이터는 `xcodebuild -sdk iphonesimulator`로 직접 빌드한다. 서명 오버라이드(`CODE_SIGNING_*=NO`)를 주면 entitlement가 스킵된다.
+- [ ] `EXPO_PUBLIC_*`를 바꾸면 Metro를 `--clear`로 재시작한다.

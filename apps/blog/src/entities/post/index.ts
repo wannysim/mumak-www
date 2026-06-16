@@ -8,3 +8,5 @@ export {
   getPosts,
   isValidCategory,
 } from './api/posts';
+export { toPostDocumentMarkdown, toPostContentHtml } from './api/markdown';
+export { CATEGORY_LABELS, getCategoryLabel } from './api/category-labels';

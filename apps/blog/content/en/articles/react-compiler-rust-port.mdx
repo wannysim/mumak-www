@@ -1,0 +1,118 @@
+---
+title: 'React Compiler Goes Rust, and AI Wrote Most of It'
+date: '2026-06-11'
+description: 'The questions raised by PR #36173 - performance, AI-authored code at scale, and a React governance that just gained independence'
+tags: ['react', 'rust', 'compiler', 'ai', 'open-source']
+draft: false
+---
+
+On June 9th, [the PR porting React Compiler to Rust](https://github.com/react/react/pull/36173) was merged.
+This is not just a performance patch.
+What pushed me to write this was a single sentence in the PR description.
+
+> The architecture was heavily guided by humans (me, @josephsavona), but the majority was coded by AI.
+
+That sentence stuck with me far longer than the performance numbers did.
+So I decided to lay out the change itself, along with the many voices that surfaced around it.
+
+## What It Means to Port React Compiler to Rust
+
+First, the context. React Compiler is the compiler that automatically inserts the `useMemo`,
+`useCallback`, and `memo` we used to write by hand, at build time.
+It's the core infrastructure behind a "React where you don't have to think about memoization,"
+and until now it was written in TypeScript and ran as a Babel plugin.
+
+This PR **rewrites that compiler entirely in Rust**.
+The key point is that it's a "port," not a "redesign."
+It keeps the exact same architecture as the TypeScript version.
+
+- Take the AST and convert it into an HIR (High-level Intermediate Representation)
+- Build a CFG (control-flow graph) and SSA (static single assignment) on top of it
+- Run the same passes in the same order as the TS version -- a pass-by-pass port
+
+Because only the language changed, not the design, the goal becomes "run the exact same behavior on a faster runtime."
+
+## What Changed
+
+The essentials:
+
+- **Performance**: about 3x faster as a Babel plugin, and roughly 10x faster if you isolate the transformation logic. The JS runtime overhead is gone, so it's net faster.
+- **Bundler neutrality**: it uses a Rust representation of the Babel AST as the public API, with one crate per implementor (`react_compiler_swc`, `react_compiler_oxc`, and so on). It opens the door to running the same compiler not just in Babel but in OXC and SWC too.
+- **Verification**: all 1,725 fixtures pass, and per-pass intermediate representation (IR) comparisons confirm near-identical behavior to the TS version.
+
+The direction itself feels natural.
+The frontend toolchain has already shifted its center of gravity to Rust (SWC, OXC, Turbopack, Biome),
+and given that a compiler runs on every single build, speed is developer experience.
+You could see this as React Compiler simply joining the move toward "compiled tooling."
+
+But what the community actually argued about wasn't performance.
+
+## The Real Debate Is "Who Wrote It"
+
+The moment the PR merged, opinions split across [Hacker News](https://news.ycombinator.com/item?id=48473662) and elsewhere.
+The crux is clear: **can humans truly stay accountable for a large body of code that AI mostly wrote?**
+
+The critical voices go roughly like this.
+
+- **Is review even possible**: a PR of tens of thousands of lines landed with almost no public discussion. That contrasts with the practice -- as with React Fiber -- of signaling big changes well ahead through RFCs and conference talks. Skepticism: "does review actually happen at that scale?"
+- **Quality of AI code**: the observation that "LLMs tend to paper over problems rather than understand them deeply." If you escape Rust's borrow checker via workarounds like `RefCell`, issues that should have been caught at compile time get pushed to runtime.
+- **Knowledge transfer (cognitive debt)**: if maintainers take over without fully understanding the implementation details, you risk locking in a structure where every future change depends on the LLM again.
+
+The defense isn't weak either.
+
+- **Tests as guardrails**: with 1,725 fixtures and per-pass IR comparisons, the guarantee of "not breaking existing behavior" is secured in a different way than a human reading line by line.
+- **Rust itself as a guardrail**: the type system and borrow checker provide substantial safety for free.
+- **Pragmatism**: "build something that works quickly, then refine once it settles" is a standard approach. And this was shared as experimental, work-in-progress, in a stage of gathering partner feedback.
+
+I think both sides have a point.
+What makes this PR special, though, is that the debate is no longer the abstract "should AI write code,"
+but something that **actually happened in one of the most important pieces of frontend infrastructure.**
+
+## Of All Times, Right After React Gained Independence
+
+The timing is striking.
+
+Just recently, in [October 2025, Meta transferred React to the React Foundation under the Linux Foundation](https://www.techzine.eu/news/devops/135353/meta-transfers-react-to-linux-foundation/).
+The GitHub organization also moved from `facebook/react` to `react/react`.
+The stated rationale was "no longer keeping it under the direct influence of a single company."
+The Foundation manages the infrastructure (GitHub, CI, trademarks, React Conf, ecosystem grants),
+while a separate, independent governance structure decides the technical direction.
+Founding members include Amazon, Callstack, Expo, Meta, Microsoft, Software Mansion, and Vercel.
+
+So here's the picture.
+**Right after spinning off governance to "reduce a single vendor's influence,"
+one of the biggest changes landed with almost no public discussion -- and with most of its code written by AI.**
+
+It's hard to call this a contradiction outright.
+Governance independence is about "ownership of decisions,"
+while this PR is about "how the implementation gets built" -- different layers.
+But it's also true that there's a gap between the "more open React" the community expected
+and the merge process it actually witnessed.
+
+## How I See It
+
+The performance gain is a clear benefit. 3-10x is not nothing.
+I also think the direction is right. What I'm uncertain about isn't the speed or the language choice, but **who maintains it.**
+
+I, too, have felt [a strange unease while delegating almost everything to AI lately](/en/notes/thought-25-11-21.mdx).
+The sense that a problem wasn't solved so much as it simply vanished.
+This PR looks like the industrial-scale version of that feeling.
+If [surviving as a developer in the AI era](/en/essay/ai-survival.mdx) is being redefined as
+"the ability to understand and take responsibility for code that AI wrote,"
+then the Rust port of React Compiler is the sharpest example of that shift.
+
+The real test isn't right after the merge -- it's six months from now.
+When a subtle bug report comes in,
+can a maintainer trace that Rust code **with a human mind** and fix it?
+Or does it get handed back to the LLM with "fix this"?
+That answer will likely decide whether this experiment counts as a success.
+
+For now, I'm watching with interest.
+Because React is, once again, setting a precedent everyone will follow -- for better or worse.
+
+## Resources
+
+- [Port React Compiler to Rust (PR #36173)](https://github.com/react/react/pull/36173) -- react/react
+- [Port React Compiler to Rust (discussion)](https://news.ycombinator.com/item?id=48473662) -- Hacker News
+- [Meta transfers React to Linux Foundation](https://www.techzine.eu/news/devops/135353/meta-transfers-react-to-linux-foundation/) -- Techzine
+- [React Compiler in Rust: 10x Faster & The End of TypeScript?](https://www.stork.ai/blog/reacts-rust-rewrite-just-killed-manual-hooks) -- Stork.AI

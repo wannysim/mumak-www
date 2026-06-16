@@ -11,6 +11,7 @@ interface BuildAlternatesParams {
 interface AlternatesResult {
   canonical: string;
   languages: Record<string, string>;
+  types: Record<string, string>;
 }
 
 export function buildAlternates({ locale, path, availableLocales }: BuildAlternatesParams): AlternatesResult {
@@ -28,5 +29,10 @@ export function buildAlternates({ locale, path, availableLocales }: BuildAlterna
   return {
     canonical: `${BASE_URL}/${locale}${normalizedPath}`,
     languages,
+    // RSS autodiscovery: 모든 페이지가 현재 locale의 피드를 <link rel="alternate">로 광고한다.
+    // buildAlternates를 단일 소스로 둬서 페이지마다 인라인으로 추가하지 않는다.
+    types: {
+      'application/rss+xml': `${BASE_URL}/${locale}/feed.xml`,
+    },
   };
 }

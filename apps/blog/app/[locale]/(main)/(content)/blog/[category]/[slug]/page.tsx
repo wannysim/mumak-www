@@ -6,7 +6,7 @@ import { Suspense } from 'react';
 
 import { mdxComponents } from '@/mdx-components';
 import { buildAlternates, generateBlogPostingJsonLd, generateBreadcrumbJsonLd, JsonLdScript } from '@/src/app/seo';
-import { calculateWordCount, getAllPostSlugs, getPost, isValidCategory } from '@/src/entities/post';
+import { calculateWordCount, getAllPostSlugs, getCategoryLabel, getPost, isValidCategory } from '@/src/entities/post';
 import { Link, locales, type Locale } from '@/src/shared/config/i18n';
 import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
@@ -15,20 +15,19 @@ import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
 
+// 카테고리 라벨은 getCategoryLabel(entities/post) 단일 소스를 쓴다.
 const staticTranslations = {
   ko: {
     home: '홈',
     blog: '블로그',
     backToList: '목록으로 돌아가기',
     readingTimeUnit: '분',
-    category: { essay: '에세이', articles: '아티클', notes: '노트' },
   },
   en: {
     home: 'Home',
     blog: 'Blog',
     backToList: 'Back to list',
     readingTimeUnit: ' min',
-    category: { essay: 'Essay', articles: 'Articles', notes: 'Notes' },
   },
 } as const;
 
@@ -102,7 +101,7 @@ export default async function PostPage({ params }: PostPageProps) {
 
   const localeKey = (locale === 'ko' ? 'ko' : 'en') as keyof typeof staticTranslations;
   const translations = staticTranslations[localeKey];
-  const categoryTitle = translations.category[category as keyof typeof translations.category];
+  const categoryTitle = getCategoryLabel(category, locale as Locale);
 
   const blogPostingJsonLd = generateBlogPostingJsonLd({
     post: post.meta,

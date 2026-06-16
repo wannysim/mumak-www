@@ -97,10 +97,11 @@ jobs:
       matrix:
         app: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
     env:
-      # ci.yml validate job과 동일하게, blog turbo 호출에만 remote write를 막는다(#384/#403).
-      # E2E는 별도 job이라 validate의 .turbo를 actions/cache로 복원해 build를 캐시 히트로
-      # 재사용한다. blog#build의 remote 업로드 413을 피하려고 여기서도 동일 플래그를 유지한다.
-      TURBO_CACHE_ARG: ${{ matrix.app == 'blog' && '--cache=local:rw,remote:r' || '' }}
+      # ci.yml validate job과 동일하게 blog도 remote read/write를 모두 쓴다.
+      # turbo.json `blog#build`가 top-level `.next/server`를 outputs에서 제외하므로,
+      # cache-hit 시 standalone(.next/standalone) 복제본만 복원돼도 E2E는 정상 동작한다
+      # (start-e2e.mjs가 standalone server.js만 실행 — 로컬 cache-hit 재현으로 검증함).
+      TURBO_CACHE_ARG: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v6

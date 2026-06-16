@@ -1,14 +1,21 @@
 import { ImageResponse } from 'next/og';
 
-import { getAllPostSlugs, getPost, isValidCategory } from '@/src/entities/post';
+import { getAllPostSlugs, getCategoryLabel, getPost, isValidCategory } from '@/src/entities/post';
 import { locales, type Locale } from '@/src/shared/config/i18n';
-import { loadOgFonts } from '@/src/shared/lib/og';
+import {
+  loadOgFonts,
+  OgClampText,
+  OgEyebrow,
+  OgFooter,
+  OgNotFound,
+  OgShell,
+  OG_SIZE,
+  OG_TITLE_LINES,
+  resolveTitleFontSize,
+} from '@/src/shared/lib/og';
 
-export const alt = 'Blog Post';
-export const size = {
-  width: 1200,
-  height: 630,
-};
+export const alt = 'Wan Sim — Blog';
+export const size = OG_SIZE;
 export const contentType = 'image/png';
 
 export function generateStaticParams() {
@@ -18,146 +25,46 @@ export function generateStaticParams() {
   });
 }
 
-// 폰트 로딩은 요청마다 동일하므로 모듈 스코프에서 한 번만 수행한다.
-const fontOptionsPromise = loadOgFonts().then(fonts => ({ ...size, fonts }));
-
 interface Props {
   params: Promise<{ locale: string; category: string; slug: string }>;
 }
+
+// 폰트 로딩은 요청마다 동일하므로 모듈 스코프에서 한 번만 수행한다.
+const fontOptionsPromise = loadOgFonts().then(fonts => ({ ...size, fonts }));
 
 export default async function Image({ params }: Props) {
   const [{ locale, category, slug }, fontOptions] = await Promise.all([params, fontOptionsPromise]);
 
   if (!isValidCategory(category)) {
-    return new ImageResponse(
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#0a0a0a',
-          color: '#fafafa',
-          fontSize: 48,
-          fontFamily: 'Pretendard',
-        }}
-      >
-        Not Found
-      </div>,
-      fontOptions
-    );
+    return new ImageResponse(<OgNotFound />, fontOptions);
   }
 
   const post = getPost(locale as Locale, category, slug);
 
   if (!post) {
-    return new ImageResponse(
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#0a0a0a',
-          color: '#fafafa',
-          fontSize: 48,
-          fontFamily: 'Pretendard',
-        }}
-      >
-        Not Found
-      </div>,
-      fontOptions
-    );
+    return new ImageResponse(<OgNotFound />, fontOptions);
   }
 
+  const typedLocale = locale as Locale;
+
   return new ImageResponse(
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        padding: 80,
-        backgroundColor: '#0a0a0a',
-        color: '#fafafa',
-        fontFamily: 'Pretendard',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 24,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 24,
-            color: '#a1a1aa',
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-          }}
-        >
-          {category}
-        </div>
-        <div
-          style={{
-            fontSize: 64,
-            fontWeight: 700,
-            lineHeight: 1.2,
-            maxWidth: '90%',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-          }}
-        >
-          {post.meta.title}
-        </div>
-        <div
-          style={{
-            fontSize: 28,
-            color: '#a1a1aa',
-            maxWidth: '80%',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-          }}
-        >
-          {post.meta.description}
-        </div>
+    <OgShell>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <OgEyebrow>{getCategoryLabel(category, typedLocale)}</OgEyebrow>
+        <OgClampText
+          text={post.meta.title}
+          fontSize={resolveTitleFontSize(post.meta.title, typedLocale)}
+          weight={700}
+          lineHeight={1.2}
+          lines={OG_TITLE_LINES}
+          maxWidth="90%"
+        />
+        {post.meta.description ? (
+          <OgClampText text={post.meta.description} fontSize={28} color="#a1a1aa" lines={2} maxWidth="80%" />
+        ) : null}
       </div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 32,
-            fontWeight: 600,
-          }}
-        >
-          Wan Sim
-        </div>
-        <div
-          style={{
-            fontSize: 24,
-            color: '#a1a1aa',
-          }}
-        >
-          wannysim.com
-        </div>
-      </div>
-    </div>,
+      <OgFooter />
+    </OgShell>,
     fontOptions
   );
 }

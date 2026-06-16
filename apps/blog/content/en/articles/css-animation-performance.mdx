@@ -27,7 +27,7 @@ The difference is clear in the Chrome DevTools Performance panel.
 - `width` version: Layout events repeat every frame, many dropped frames
 - `transform` version: Only Composite runs, almost no frame drops
 
-I wrote about why this happens in my [browser rendering pipeline](/en/garden/browser-rendering-pipeline) note.
+I wrote about why this happens in my [browser rendering pipeline](/en/garden/resources/frontend/browser/browser-rendering-pipeline.mdx) note.
 The gist is:
 
 - `width` change → **Recalculate from Layout** → Main thread blocking
@@ -169,7 +169,7 @@ The rules are simple:
 
 ## Resources
 
-- [Browser Rendering Pipeline](/en/garden/browser-rendering-pipeline) -- Background for this article
+- [Browser Rendering Pipeline](/en/garden/resources/frontend/browser/browser-rendering-pipeline.mdx) -- Background for this article
 - [CSS Triggers](https://csstriggers.com/) -- Check which properties trigger Layout/Paint/Composite
 - [content-visibility: the new CSS property that boosts your rendering performance](https://web.dev/articles/content-visibility) -- web.dev
 - [CSS Containment](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_containment) -- MDN

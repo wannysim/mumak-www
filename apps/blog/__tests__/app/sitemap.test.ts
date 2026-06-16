@@ -77,6 +77,34 @@ describe('sitemap', () => {
     });
   });
 
+  describe('hreflang alternates', () => {
+    it('should attach languages alternates for every locale to each entry', () => {
+      const result = sitemap();
+
+      result.forEach(entry => {
+        expect(entry.alternates?.languages).toBeDefined();
+        for (const locale of locales) {
+          expect(entry.alternates?.languages?.[locale]).toMatch(new RegExp(`/${locale}(/|$)`));
+        }
+      });
+    });
+
+    it('should cross-reference ko and en URLs for the same path', () => {
+      const result = sitemap();
+      const koHome = result.find(entry => entry.url.endsWith('/ko'));
+
+      expect(koHome?.alternates?.languages?.ko).toBe(koHome?.url);
+      expect(koHome?.alternates?.languages?.en).toBe(koHome?.url?.replace(/\/ko$/, '/en'));
+    });
+
+    it('should declare x-default pointing to the default locale URL', () => {
+      const result = sitemap();
+      const enBlog = result.find(entry => entry.url.endsWith('/en/blog'));
+
+      expect(enBlog?.alternates?.languages?.['x-default']).toBe(enBlog?.url?.replace(/\/en\/blog$/, '/ko/blog'));
+    });
+  });
+
   describe('garden pages', () => {
     it('should include garden main pages for all locales', () => {
       const result = sitemap();

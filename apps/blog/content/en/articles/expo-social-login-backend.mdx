@@ -1,0 +1,231 @@
+---
+title: 'Expo Social Login (3/3) — Backend Integration: OIDC, nonce, and Apple Code 1000'
+date: '2026-06-15'
+description: 'Wiring the token to the backend brought struggles in concepts (OIDC/nonce) and inside the build (entitlement). The real culprit behind Apple Code 1000 is revealed here too'
+tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
+draft: false
+---
+
+In [Part 2](/en/blog/articles/expo-social-login-build) I got to a token via the native SDK (Phase A).
+
+Part 3 is the record of wiring backend authentication (Phase B) onto that skeleton.
+This time I struggled not outside the code, but in the concepts (OIDC/nonce) and inside the build (entitlement).
+And the real culprit behind the Apple `Code 1000` I'd concluded was "the simulator can't be trusted" in Part 2 is revealed here.
+
+- [Part 1 — Design: from picking a package to a provider-agnostic skeleton](/en/blog/articles/expo-social-login)
+- [Part 2 — Build and device: getting to a token](/en/blog/articles/expo-social-login-build)
+- **Part 3 (this post)** — Backend integration: OIDC, nonce, and Apple Code 1000
+
+The backend (NestJS) was a developer's local server, and the app connected to it through `EXPO_PUBLIC_API_BASE_URL` in `.env.local`.
+
+## 12. The backend contract wasn't fully in Swagger, so I probed it
+
+Phase B started with knowing what the backend accepts.
+I opened Swagger — the endpoints were there, but the request parameters weren't documented.
+
+- `GET /auth/apple-callback` — only the `Platform` header
+- `GET /auth/kakao-mobile-callback` — only the `Platform` header
+- `GET /auth/google-callback-token` — here the `accessToken` query was specified
+
+It was clear tokens come in via query (since Google does), but I couldn't tell apple/kakao's parameter names from Swagger alone.
+Since they're GET, I could poke safely with dummy values, so I probed the real endpoints directly.
+
+```bash
+curl -H "Platform: myapp" "$BASE/auth/apple-callback?idToken=test"
+# → 401 {"message":"Invalid Apple token"}   ← failed reading idToken = correct param name
+
+curl -H "Platform: myapp" "$BASE/auth/kakao-mobile-callback?code=test"
+# → 500 "authorization code not found"        ← it expects code (authorization code)!
+```
+
+Two things surfaced.
+
+1. Every endpoint requires the `Platform: myapp` header (the origin identifier for a multi-app backend). → I baked it into the apiClient defaults.
+2. The Kakao callback takes `code` (authorization code) and the server does the token exchange itself. But our SDK doesn't give an authorization code. This is where the contract mismatch blew up (section 14).
+
+```typescript
+// apiClient.ts — inject the Platform header on every request
+export const apiClient = axios.create({
+  baseURL: env.apiBaseUrl,
+  timeout: 10_000,
+  headers: { Platform: 'myapp' },
+});
+```
+
+When API docs are incomplete, safely probe the real endpoints (GET + dummy values) to reverse-engineer the contract.
+Error messages reveal parameter names. `Invalid Apple token` means it read idToken; `authorization code not found` means it expects code.
+
+## 13. A quick word on OAuth, OIDC, and nonce
+
+To understand the decision in section 14, you need three concepts. As briefly as possible.
+
+**OAuth 2.0 is authorization.** It delegates "what this app can do on behalf of the user." The output is an access token, which you use to call resource APIs (e.g., Kakao `/v2/user/me`).
+
+**OIDC is an authentication layer on top of OAuth.** It additionally issues an ID Token proving "who this user is." The ID Token is a signed JWT.
+
+The difference splits at how the backend validates.
+
+|                    | access token                                    | ID token (OIDC)                                                    |
+| ------------------ | ----------------------------------------------- | ------------------------------------------------------------------ |
+| What it is         | usually an opaque string                        | a signed JWT                                                       |
+| Backend validation | must **call** the provider API → one round-trip | **verify only the signature** with the public key (JWKS) → offline |
+| Contained info     | none                                            | claims like `sub`, `iss`, `aud`, `exp`                             |
+
+Apple's `identityToken` is exactly an ID Token. That's why Apple validation ends at "verify signature + iss/aud/exp." It's why Apple was (conceptually) easy in Part 1.
+And Kakao also gives an `idToken` once you enable OIDC. That's the key to section 14.
+
+**A nonce** is a one-time random number created by the client.
+You send it with the login request, the provider embeds it into the ID Token's `nonce` claim and returns it, and the backend verifies "the received nonce == the one I sent."
+This prevents replay attacks (reusing a stolen token) and token injection (slipping in a token from another session). It binds the response to the request I just started.
+
+## 14. Kakao: switching from a `code` mismatch to the OIDC `idToken`
+
+Let's revisit the mismatch from section 12.
+
+The backend expects `code` (authorization code), but `@react-native-kakao`'s native `login()` doesn't expose the authorization code.
+The SDK finishes the code exchange internally and gives us only an `accessToken` (plus an `idToken` if OIDC is on).
+
+There were three options.
+
+1. Make the backend accept the accessToken → the backend validates via the Kakao API (the Google pattern)
+2. Have the app run the authorization code flow itself (expo-auth-session) → large effort, basically abandoning the SDK
+3. Send the OIDC idToken → the backend verifies only the signature, exactly like Apple
+
+The conclusion was option 3 (OIDC). Validation is unified with Apple, and the backend doesn't round-trip to the Kakao API.
+The prerequisite is enabling OpenID Connect in the Kakao Developers console. It must be on for the `login()` response to fill `idToken`.
+
+```typescript
+// kakaoProvider.ts — pick the token to send via the auth-mode switch
+const kakaoToken = await login();
+if (kakaoAuthMode === 'oidc') {
+  if (!kakaoToken.idToken) {
+    // If console OIDC is off, idToken comes back empty → fail clearly for easy root-cause tracing
+    throw socialAuthError(
+      'kakao',
+      'provider',
+      'Did not receive a Kakao idToken. (console OIDC must be enabled)',
+      kakaoToken
+    );
+  }
+  return kakaoToken.idToken;
+}
+return kakaoToken.accessToken; // keep the fallback path in code too
+```
+
+I kept both paths (accessToken/oidc) alive and let a single `EXPO_PUBLIC_KAKAO_AUTH_MODE` switch select both the token extraction and the backend endpoint. After verification, I set the default to `oidc`.
+
+But I decided not to verify the nonce for Kakao specifically. Two reasons.
+
+`@react-native-kakao/user`'s native `login()` doesn't expose a nonce. The nonce parameter exists only in the web variant, with no related issues/PRs upstream. To use a nonce with Kakao, the only option was patching the native code with `patch-package`.
+Judging the cost not worth it, we agreed with the backend to verify the Kakao idToken only by signature + iss/aud/exp and omit the nonce (replay defense).
+
+I documented the rationale in the `kakaoProvider` comments.
+Leaving "why we didn't" next to the code matters. Otherwise the next person misreads it as "nonce is missing, a bug?"
+
+## 15. The Apple simulator worked this time — Code 1000's real culprit was the entitlement
+
+In Part 2 I concluded Apple `Code 1000` was "simulator + not signed into iCloud."
+Wiring Apple again this time, `Code 1000` came up again. But dumping the raw error revealed a different cause.
+
+```text
+[SDK] unknown / raw=Error: The authorization attempt failed for an unknown reason
+```
+
+Paradoxically, this error appearing means the native module is linked correctly and `ASAuthorizationController` fired. If the module were missing you'd get a "module not linked" kind of error.
+So I dug into the build artifact directly.
+
+```bash
+codesign -d --entitlements - "$APP"
+# → <dict></dict>   ← empty! no com.apple.developer.applesignin
+```
+
+This was the real culprit. The dev client on the simulator was a binary built _before_ `expo-apple-authentication` was added to `app.config.ts`.
+So the entitlement wasn't in the build, and Sign in with Apple on an app without it always dies with `Code 1000`. A pure native problem that a JS/env reload can never fix.
+
+So `Code 1000` has more than one cause. (a) the entitlement isn't in the build, (b) the simulator/iCloud environment.
+Part 2 guessed (b), but this time the key was (a). Once the entitlement was properly baked in, Apple login worked even on the simulator (with an Apple ID signed in). "The simulator can't be trusted" was only half right.
+
+The fix was injecting the entitlement via prebuild, then rebuilding.
+
+```bash
+cd apps/mobile
+npx expo prebuild --clean -p ios   # regenerate only ios/ → inject the entitlement
+```
+
+But there was another pitfall when verifying. The rebuilt .app still looked empty under `codesign -d`.
+Turns out simulator-build entitlements go into a separate file.
+
+```bash
+find ios/build -name "*-Simulated.xcent" -exec /usr/libexec/PlistBuddy -c Print {} \;
+# → com.apple.developer.applesignin = Array { Default }
+```
+
+`*-Simulated.xcent` is the entitlements the simulator runtime actually reads. `codesign -d` (embedded signature) looking empty is normal on the simulator.
+`applesignin` is normally a restricted entitlement requiring a team/profile, but the simulator applies it via `FAKETEAMID`, so it works without a real certificate.
+
+On `Code 1000`, before the code, check (1) whether the entitlement is baked into the build (`*-Simulated.xcent`), (2) whether the simulator is signed into an Apple ID.
+If you added a native module/plugin, rebuild. A build from _before_ the addition obviously lacks the entitlement.
+
+## 16. The simulator-build pitfall — `expo run:ios` kept going to the Mac
+
+To rebuild, I ran `expo run:ios` and got an odd error.
+
+```text
+CommandError: No code signing certificates are available to use.
+```
+
+I'm building for the simulator — why the code signing talk? The device list revealed the culprit.
+
+With no real device, `expo run:ios` in a non-interactive situation picked the Mac (itself) as the default target.
+A Mac/device build needs code signing, so it died. Even passing `--device <simulatorUDID>` failed the same way, because the `--device` flag itself branches into the "device path."
+
+The fix was to bypass expo and set the simulator destination directly with `xcodebuild`.
+
+```bash
+xcrun simctl boot "iPhone 17"
+
+cd apps/mobile/ios
+xcodebuild -workspace MyAppDev.xcworkspace -scheme MyAppDev \
+  -configuration Debug -sdk iphonesimulator \
+  -destination 'id=<UDID>' -derivedDataPath build build
+
+xcrun simctl install booted "build/Build/Products/Debug-iphonesimulator/MyAppDev.app"
+xcrun simctl launch booted com.example.myapp.dev
+```
+
+I slipped once more here. To dodge the "No code signing" error I passed `CODE_SIGNING_ALLOWED=NO`, the build succeeded, but the entitlement-embedding step was skipped entirely, reproducing the section 15 problem.
+The simulator must build with the default ad-hoc signing (`CODE_SIGN_IDENTITY = -`, no certificate needed) for the entitlement to be baked in. Passing no signing-related overrides at all was the answer.
+The "No code signing" error happened because the target was the Mac/device in the first place; simulator builds don't need a certificate.
+
+## 17. Changed env but it won't take — `EXPO_PUBLIC_*` needs Metro `--clear`
+
+The backend was a developer's local server, and I changed the API URL in `.env.local` to point there — but it didn't take effect immediately.
+
+`EXPO_PUBLIC_*` is inlined into the code at bundle-build time, not at runtime.
+So editing only `.env.local` and reloading the app doesn't change it — the already-running Metro is still holding the old value. You have to restart with `--clear` for the new env to be baked in.
+
+```bash
+yarn myapp:start --clear   # restart Metro + clear cache → inline the new EXPO_PUBLIC_*
+```
+
+The `EXPO_PUBLIC_KAKAO_AUTH_MODE=oidc` I added in section 14 was the same. Before restarting Metro it kept running in the default (accessToken) mode.
+Once the new env was in and Metro restarted with `--clear`, both Apple and Kakao (OIDC) logged in end-to-end.
+
+## Wrapping up
+
+If Part 1's difficulty was outside the code (build, console, where you run things), Part 3's was in the concepts (OIDC/nonce) and inside the build (entitlement).
+
+The biggest lesson was that the real culprit behind Apple `Code 1000` was the entitlement.
+That the same symptom can have multiple causes. The conclusion I'd closed as "the simulator can't be trusted" in Part 2, flipped to "it was actually the entitlement" in Part 3 — that's what stays with me most from this series.
+
+In the end I unified Apple and Kakao (OIDC) under the same "verify a signed idToken" pattern.
+It's one more layer of backend integration on top of the provider-agnostic skeleton from Part 1. The next provider (Google/Naver) plugs in by editing just three places, and that's when I expect this skeleton to earn its keep.
+
+## What to take from Part 3
+
+- [ ] When docs are empty, probe the real endpoints with GET + dummy values and read parameter names from error messages. Put common headers in the client defaults.
+- [ ] If the mobile SDK doesn't give an authorization code, drive an agreement toward the OIDC `idToken` (unifying validation with Apple). But OIDC must be enabled in the provider console first.
+- [ ] If you intentionally omit a security feature, leave the rationale in a code comment.
+- [ ] Apple `Code 1000` starts with the entitlement. Check via `*-Simulated.xcent`, not `codesign -d`, and rebuild after adding a module/plugin.
+- [ ] Build to the simulator directly with `xcodebuild -sdk iphonesimulator`. Signing overrides (`CODE_SIGNING_*=NO`) skip the entitlement.
+- [ ] After changing `EXPO_PUBLIC_*`, restart Metro with `--clear`.

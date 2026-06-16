@@ -1,0 +1,144 @@
+---
+title: 'Authorization Code and ID Token: What should the frontend send to the backend?'
+created: '2026-06-11'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['frontend', 'network', 'security', 'oauth', 'oidc', 'auth']
+---
+
+When adding social login, the same question keeps appearing: what should the frontend send to the backend? Some examples send a `code`; others send an `idToken`. Both seem valid, so which one is more secure, and which one is preferred today?
+
+> One-line summary: **The default preference is Authorization Code + PKCE. But when a mobile SDK hides the code and only exposes a verifiable ID Token, sending the ID Token to the backend for strict validation is also a practical pattern. The important point is that ID Token handoff is not a simpler replacement for Authorization Code; it is an implementation pattern driven by SDK reality.**
+
+First, align the levels. **Authorization Code is a process for obtaining tokens safely. ID Token is an authentication result issued by OIDC.** In a normal OIDC Authorization Code Flow, you receive a `code`, exchange it at the token endpoint, and get an `id_token` as part of the result. They are not originally competitors. One is the process, the other is an output.
+
+They only look like alternatives in practice because some native/social SDKs do the code exchange internally and only expose an `idToken` to the app.
+
+## The simple analogy
+
+**Authorization Code is an exchange ticket.**
+
+```
+provider gives the browser/app a short-lived ticket (code)
+→ my server or app takes it to the token endpoint
+→ exchanges it for real tokens (access/id/refresh)
+```
+
+The ticket is short-lived and single-use. Real tokens are obtained through the back channel, so they do not have to travel through browser URLs or history.
+
+**ID Token is a signed identity certificate.**
+
+```
+provider gives a signed certificate saying "this user is sub=123"
+→ backend verifies the signature and claims
+→ backend issues our own session/token
+```
+
+The ID Token is already an output. It is a signed JWT that says who the user is. When the backend receives it, it should not exchange it again; it should validate signature, `iss`, `aud`, `exp`, and `nonce` ([[oidc-nonce-token-binding]]).
+
+## The security difference
+
+The biggest difference is **how much real token material crosses the frontend boundary**.
+
+| Criterion              | Authorization Code + PKCE                 | ID Token handoff                                 |
+| ---------------------- | ----------------------------------------- | ------------------------------------------------ |
+| What frontend receives | short-lived one-time `code`               | already signed `id_token`                        |
+| Backend role           | exchange code at token endpoint           | validate ID Token and issue app session          |
+| Token exposure         | lower; tokens arrive through back channel | higher; ID Token reaches app/frontend            |
+| Replay defense         | code single-use + PKCE + state            | signature/claims + **nonce**                     |
+| Refresh token          | natural for server/BFF                    | usually unavailable unless SDK/provider gives it |
+| Provider API calls     | access token can call APIs                | ID Token is not for resource APIs                |
+
+The security intuition for Authorization Code is: **the browser/app carries an exchange ticket, not the cash.** To turn the ticket into tokens, the client also needs the PKCE `code_verifier`. A stolen code is not enough.
+
+The security intuition for ID Token handoff is: **the app carries an already signed identity certificate to the backend.** The backend can verify the certificate, but the certificate did cross the app/frontend boundary. So the backend must verify not only that it was genuinely signed, but also that it belongs to the login request just started. That is the nonce check.
+
+## What is preferred today?
+
+The modern direction is clear.
+
+1. **Avoid Implicit Flow.** Returning tokens directly through the frontend channel is the old shape.
+2. **Authorization Code + PKCE is the default.** This is the current baseline for SPAs and native public clients.
+3. **On the web, if there is a backend, BFF/server-side is preferred.** Keep OAuth tokens out of the browser and give the browser an httpOnly session cookie instead ([[access-refresh-token-pattern]]).
+4. **In mobile SDK land, ID Token handoff is common.** Apple `identityToken` and Kakao OIDC `idToken` are practical examples where the SDK may not expose a code.
+
+In one sentence:
+
+> **Standards-wise, prefer Authorization Code + PKCE. In mobile/social SDK reality, ID Token validation is also a valid sign-in pattern when the SDK only gives an ID Token.**
+
+## Web choice
+
+The browser is the sensitive part, so token exposure matters a lot.
+
+| Web architecture                             | Preference                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| server-rendered / BFF                        | **Authorization Code + PKCE → backend stores tokens → browser gets session cookie**       |
+| SPA with backend                             | Prefer BFF; otherwise Code + PKCE with memory access token and httpOnly refresh cookie    |
+| pure SPA                                     | Authorization Code + PKCE; memory-first token storage; refresh rotation if refresh exists |
+| frontend receives ID Token for backend login | possible, but use it only as a one-time login proof and let backend issue its own session |
+
+Avoid taking an ID Token received in the browser, putting it into `localStorage`, and treating it as the app's long-term login token. An ID Token is a provider-issued authentication proof, not your app's session token.
+
+## Mobile/app choice
+
+The principle is still Authorization Code + PKCE. Native apps cannot safely hide a client secret, so PKCE matters. `expo-auth-session` and AppAuth-style libraries are built around this.
+
+Social SDKs change the picture.
+
+| App situation                       | Preference                                                                                     |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| You can control the OAuth/OIDC flow | **Authorization Code + PKCE**                                                                  |
+| SDK exposes `authorizationCode`     | decide who exchanges the code; backend exchange must match redirect URI/client/PKCE boundaries |
+| SDK only exposes `idToken`          | backend validates ID Token strictly                                                            |
+| SDK cannot accept nonce             | document the tradeoff; at least validate signature/`iss`/`aud`/`exp` strictly                  |
+
+When sending an `authorizationCode` to the backend, first check whether the backend can legitimately exchange that code at the token endpoint. If PKCE is involved, the design must account for who created and stored the `code_verifier`, and whether the redirect URI and client registration match the backend exchange. Provider SDK contracts differ, so "we have a code" does not automatically mean "the backend can exchange it."
+
+This is exactly what happened with Kakao: the native `login()` did not expose an authorization code, but OIDC could return an `idToken`. So the backend validation path used the ID Token. Nonce was intentionally omitted because the SDK did not expose the input, and the tradeoff was documented in [Expo Social Login Part 3](/en/blog/articles/expo-social-login-backend).
+
+For Apple or Google, if nonce is supported, wire it. The main weakness of ID Token handoff is replay/token injection, and nonce is the defense.
+
+## My selection rule
+
+| Question                                              | Answer                                                         |
+| ----------------------------------------------------- | -------------------------------------------------------------- |
+| Do we have a backend and can keep tokens server-side? | **Authorization Code + PKCE + BFF/server-side**                |
+| Do we need to call provider APIs repeatedly?          | code flow is more natural because access/refresh tokens matter |
+| Do we only need social sign-in identity?              | ID Token validation can be enough                              |
+| Does the SDK expose code?                             | prefer evaluating code flow                                    |
+| Does the SDK expose only idToken?                     | backend ID Token validation                                    |
+| Can we send and verify nonce?                         | do it                                                          |
+
+The thing to avoid is "the frontend received a provider token, so let's use it forever as our login token." Provider tokens are external authentication/authorization artifacts. After validation, your backend should mint your own app session or tokens.
+
+## Common misunderstandings
+
+- **Misunderstanding**: "Authorization Code and ID Token are same-level alternatives." → **Reality**: code is a flow artifact; ID Token is an OIDC output.
+- **Misunderstanding**: "ID Token is signed, so it is always safer than code." → **Reality**: signature blocks forgery, not valid-token injection from another flow. That needs nonce.
+- **Misunderstanding**: "Code flow is old server stuff; SPA/mobile should use ID Token." → **Reality**: modern guidance prefers Authorization Code + PKCE even for SPAs and native apps.
+- **Misunderstanding**: "ID Token can be used as our API access token." → **Reality**: ID Token is authentication proof. Backend should issue its own session/token.
+- **Misunderstanding**: "Mobile apps do not need nonce." → **Reality**: mobile can also face replay/injection. If provider/SDK supports nonce, validate it.
+
+## Check Yourself
+
+- Can you explain why Authorization Code is a process and ID Token is an output?
+- Why does code flow reduce token exposure?
+- Why is signature validation alone not enough for ID Token handoff?
+- What would you pick for BFF web, pure SPA, and native SDK login?
+- Why should provider tokens not become your long-lived app session directly?
+
+## See Also
+
+- [[oauth-callback-security]]
+- [[oidc-nonce-token-binding]]
+- [[access-refresh-token-pattern]]
+- [[web-auth-session-vs-token]]
+- [[frontend-network]]
+
+## References
+
+- [RFC 9700 — Best Current Practice for OAuth 2.0 Security](https://datatracker.ietf.org/doc/html/rfc9700)
+- [OAuth 2.0 for Browser-Based Apps (BCP draft)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps)
+- [OAuth 2.1](https://oauth.net/2.1/)
+- [OpenID Connect Core 1.0 — ID Token](https://openid.net/specs/openid-connect-core-1_0.html#IDToken)
+- [OAuth 2.0 for Native Apps — RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252)

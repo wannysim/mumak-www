@@ -1,11 +1,14 @@
 import type { MDXComponents } from 'mdx/types';
 import Image from 'next/image';
-import Link from 'next/link';
 import { isValidElement, type ReactNode } from 'react';
 
+import { Link } from '@/src/shared/config/i18n';
+import { EXTERNAL_LINK_REL, isExternalHref, isInAppHref, normalizeMdxInAppHref } from '@/src/shared/lib/url';
 import { normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
 import { BrokenWikiEmbed, BrokenWikiLink, WikiEmbed, WikiLink } from '@/src/shared/ui';
 import { SocialLinks } from '@/src/widgets/footer';
+
+const MDX_LINK_CLASS = 'text-primary underline underline-offset-4 hover:text-primary/80';
 
 function extractText(node: ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') {
@@ -56,11 +59,29 @@ export const mdxComponents: MDXComponents = {
     </h6>
   ),
   p: ({ children }) => <p className="my-4 leading-relaxed">{children}</p>,
-  a: ({ href, children }) => (
-    <Link href={href || '#'} className="text-primary underline underline-offset-4 hover:text-primary/80">
-      {children}
-    </Link>
-  ),
+  a: ({ href, children }) => {
+    if (isExternalHref(href)) {
+      return (
+        <a href={href} target="_blank" rel={EXTERNAL_LINK_REL} className={MDX_LINK_CLASS}>
+          {children}
+        </a>
+      );
+    }
+
+    if (isInAppHref(href)) {
+      return (
+        <Link href={normalizeMdxInAppHref(href)} className={MDX_LINK_CLASS}>
+          {children}
+        </Link>
+      );
+    }
+
+    return (
+      <a href={href ?? '#'} className={MDX_LINK_CLASS}>
+        {children}
+      </a>
+    );
+  },
   ul: ({ children }) => <ul className="my-4 ml-6 list-disc space-y-2">{children}</ul>,
   ol: ({ children }) => <ol className="my-4 ml-6 list-decimal space-y-2">{children}</ol>,
   li: ({ children }) => <li className="leading-relaxed">{children}</li>,
