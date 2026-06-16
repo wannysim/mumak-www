@@ -22,7 +22,8 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - [x] **마감 묶음**: C-4(error.tsx + global-error.tsx) + B-6(react-doctor blocking 전환) — 한 PR로 완료
 - [x] **C-3(검색 인덱스 정적 분리)** — 완료(2026-06-15, #436)
 - [x] **B-2(remote cache 413 해결)** — 완료(2026-06-16, #437). standalone 중복 프리렌더를 outputs에서 제외 → 아티팩트 29.5MB(zstd), remote write 재개. 세그먼트 캐시 후속은 조사 후 비레버로 폐기(B-2 항목 참조)
-- [ ] **조건부·보류**: B-4(E2E 시간, 측정 후) / A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
+- [x] **B-4(E2E 시간 단축)** — 완료(2026-06-16). 1) Playwright 컨테이너 브라우저 재다운로드 갈래는 종료(발생 안 함). 2) blog E2E를 `--shard` 4분할로 병렬화(ciWorkers=1 유지). B-4 항목 측정 노트 참조.
+- [ ] **조건부·보류**: A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
 
 ## 현재 상태 요약
 
@@ -149,9 +150,24 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
   - **커버리지 불변식**: content/garden/design 3종은 ci.yml `Validate (blog)`에서 계속 돈다(삭제로 사라지지 않음).
   - **연동 작업**: `Validate Blog Content`가 develop·main ruleset의 required status check이므로, 워크플로 삭제와 함께 두 ruleset에서 해당 context를 제거해야 한다(미제거 시 체크가 생성되지 않아 PR 머지가 막힘). ci.yml `CI Success`(required)가 검증을 계속 강제하므로 커버리지 공백은 없다.
 
-### B-4. Playwright 브라우저 캐시 / E2E 소요 시간 단축
+### B-4. Playwright 브라우저 캐시 / E2E 소요 시간 단축 — 완료(2026-06-16)
 
-- **현황**: e2e.yml이 Playwright 컨테이너(v1.58.2) 기반으로 앱별 병렬 실행하며, blog는 안정성을 위해 `ciWorkers: 1`이다. 브라우저 바이너리 캐시는 별도 관리되지 않는다.
+> 완료. 측정상 E2E 워크플로 wall-clock ~7.5~8분 중 blog가 7분 단일 병목이었다(나머지 mumak-next/react/native는 병렬로 1~2분). 원인은 안정성 때문에 blog만 `ciWorkers: 1` 직렬 실행이라는 점.
+>
+> - **갈래 1 (브라우저 재다운로드) — 조사 후 종료.** 추가 다운로드는 발생하지 않는다. e2e.yml은 `mcr.microsoft.com/playwright:v1.58.2-noble` 컨테이너에서 돌고, `test:e2e`는 `playwright test`만 호출한다(`playwright install` 호출 지점이 저장소 어디에도 없음 — workflows/scripts 전역 grep으로 확인). `@playwright/test`는 `^1.58.2`로 컨테이너 버전(v1.58.2)과 정렬돼 있어 버전 불일치로 인한 누락/재설치도 없다. 즉 이 갈래는 손댈 것이 없다.
+> - **갈래 2 (shard 분할) — 적용.** blog E2E를 Playwright `--shard`로 4분할해 잡 수준으로 병렬화하되, 각 shard는 `ciWorkers: 1`을 그대로 유지해 안정성을 보존한다. 구현:
+>   - `apps.yml`에 `e2eShards`(앱별 shard 수, 미설정=1) 추가 — blog=4.
+>   - `.github/actions/shard-matrix` 신설: scopes-to-matrix의 앱 배열을 `{app,shard,shards}` object 매트릭스로 펼친다. ci.yml이 쓰는 scopes-to-matrix의 string 배열 출력은 불변(e2e.yml 전용).
+>   - e2e.yml `prepare-matrix`가 shard-matrix를 거쳐 `include` 매트릭스를 내보내고, e2e 잡이 shards>1이면 `-- --shard=N/M`를 turbo→playwright로 전달. 잡 이름은 `E2E (blog 1/4)`…처럼 분기하고, 미분할 앱은 `E2E (mumak-next)` 기존 이름 그대로.
+>   - turbo 캐시 key에 shard를 넣어 동일 앱 shard 잡들의 save 충돌을 방지(restore-keys 앱 prefix는 유지 → ci.yml build 캐시 공유). 실패 artifact 이름도 shard별 분리.
+> - **CI 의미 검증.** develop·main 필수 체크는 `CI Success`/`E2E Success` 둘뿐이고 개별 `E2E (app)`는 비필수(rulesets로 확인). `E2E Success`는 `needs.e2e.result`로 매트릭스 전체(모든 shard)를 집계하므로 shard 하나라도 실패하면 실패한다 — exactly-once 게이팅 의미 불변. ci.yml은 scopes-to-matrix string 배열을 그대로 소비해 영향 없음.
+> - **측정/검증.**
+>   - 분할 정확성: `--shard=N/4 --list`로 4 shard가 468 tests(16 spec × 3 browser)를 117/117/117/117로 정확히 균등 분할(중복·누락 0) 확인.
+>   - 인자 전달: `turbo run test:e2e --filter=blog -- --shard=2/4 --list`가 `playwright-e2e.sh --shard=2/4 --list`로 forward됨을 로컬에서 확인.
+>   - **기대 효과**: blog 테스트 실행 시간 ~7분 → shard당 ~117 tests 직렬 ≈ ~1.75분(+잡 오버헤드). blog wall-clock이 다른 앱(1~2분) 수준으로 내려와 E2E 워크플로 병목이 해소된다. 실제 CI wall-clock은 PR 첫 실행에서 확정.
+> - **갈래 3 (develop fallback restore-key) — 불필요.** restore-keys에 이미 `<os>-turbo-<app>-`, `<os>-turbo-` 광역 fallback이 있어 develop이 채운 캐시를 자연히 공유한다. B-2(#437)로 blog remote write도 재개돼 shard 잡들이 build 산출물을 remote로 공유한다. 별도 develop 전용 key 추가는 레버가 작아 보류.
+
+- **현황(완료 전)**: e2e.yml이 Playwright 컨테이너(v1.58.2) 기반으로 앱별 병렬 실행하며, blog는 안정성을 위해 `ciWorkers: 1`이다. 브라우저 바이너리 캐시는 별도 관리되지 않는다.
 - **개선안**:
   1. 컨테이너 이미지에 브라우저가 사전 포함되어 있으므로 추가 다운로드가 실제 발생하는지 로그로 먼저 확인 (발생하지 않으면 이 항목은 종료).
   2. blog E2E 스펙이 16개로 가장 많으므로, 시간이 문제가 되면 `--shard` 매트릭스로 분할해 `ciWorkers: 1` 제약을 우회.
