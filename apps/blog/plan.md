@@ -10,7 +10,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 - [x] **콘텐츠 파이프라인 PR** — A-1(zod 스키마) + A-2(로더 공통화) + A-4(React.cache) + A-5(커버리지 갭) — PR #428
 - [x] **wikilink 단일 소스화 PR** — A-3(스크립트 TS화) + B-1(globalDependencies `.env*` 제거) — PR #429
-- [ ] **CI 정리 PR** — B-3(blog-content.yml) + B-5(promote.yml)
+- [x] **CI 정리 PR** — B-3(blog-content.yml 삭제) + B-5(promote.yml exactly-once 배포·중복배포 수정) — PR #440
 - [ ] **빌드 산출물 다이어트 PR** — C-1(폰트 서브셋) + B-2(blog#build outputs, 검증 전제)
 - [x] **GEO 정책 결정 + PR** — D-1(robots.ts AI 크롤러 정책: 학습봇 차단 / 검색·인용봇 명시 allow / 미분류봇 기본 허용) + D-2(llms.txt) 한 PR
 - [x] **GEO PR 1** — D-2(llms.txt)+D-3(마크다운 엔드포인트) 묶음. 실제로는 D-3는 GEO PR 2와, D-2는 D-1과 함께 처리되어 둘 다 완료
