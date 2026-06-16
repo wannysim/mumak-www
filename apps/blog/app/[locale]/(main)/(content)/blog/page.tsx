@@ -6,7 +6,7 @@ import { getCategories, getPosts, type Category } from '@/src/entities/post';
 import { type Locale } from '@/src/shared/config/i18n';
 import { PageHeader } from '@/src/shared/ui';
 import { BlogNav, getBlogNavCounts } from '@/src/widgets/blog-nav';
-import { BlogSearch, type BlogSearchPost } from '@/src/widgets/blog-search';
+import { BlogSearch } from '@/src/widgets/blog-search';
 import { PostCard } from '@/src/widgets/post-card';
 
 interface BlogPageProps {
@@ -41,14 +41,6 @@ export default async function BlogPage({ params }: BlogPageProps) {
     {} as Record<Category, string>
   );
 
-  const searchPosts: BlogSearchPost[] = posts.map(post => ({
-    title: post.title,
-    description: post.description,
-    category: post.category,
-    slug: post.slug,
-    tags: post.tags ?? [],
-  }));
-
   return (
     <div className="space-y-8">
       <PageHeader title={t('title')} description={t('description')} />
@@ -60,7 +52,7 @@ export default async function BlogPage({ params }: BlogPageProps) {
           tagsLabel={tCommon('tags')}
           counts={getBlogNavCounts(locale as Locale)}
         />
-        <BlogSearch posts={searchPosts} categoryLabels={categoryLabels} triggerClassName="sm:w-72" />
+        <BlogSearch categoryLabels={categoryLabels} triggerClassName="sm:w-72" />
       </div>
 
       <section className="space-y-6">
