@@ -71,6 +71,12 @@
     "description": "The page you requested does not exist.",
     "backHome": "Back to Home"
   },
+  "error": {
+    "title": "Something went wrong",
+    "description": "An unexpected error prevented this page from loading. Please try again in a moment.",
+    "retry": "Try again",
+    "backHome": "Back to Home"
+  },
   "about": {
     "title": "About",
     "description": "Hello, I'm Wan Sim.",
