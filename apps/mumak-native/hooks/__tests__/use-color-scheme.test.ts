@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { renderHook } from '@testing-library/react-native';
 import * as ReactNative from 'react-native';
 
 import { useColorScheme } from '../use-color-scheme';
@@ -29,23 +29,29 @@ describe('useColorScheme', () => {
 });
 
 describe('useColorScheme.web', () => {
+  const getColorScheme = jest.spyOn(ReactNative.Appearance, 'getColorScheme');
+  const addChangeListener = jest
+    .spyOn(ReactNative.Appearance, 'addChangeListener')
+    .mockReturnValue({ remove: jest.fn() });
+
   afterEach(() => {
-    mockedUseRNColorScheme.mockReset();
+    getColorScheme.mockReset();
+    addChangeListener.mockClear();
   });
 
-  it('returns light before hydration and then follows a dark client scheme', async () => {
-    mockedUseRNColorScheme.mockReturnValue('dark');
+  it('follows a dark client scheme', () => {
+    getColorScheme.mockReturnValue('dark');
 
     const { result } = renderHook(() => useWebColorScheme());
 
-    await waitFor(() => expect(result.current).toBe('dark'));
+    expect(result.current).toBe('dark');
   });
 
-  it('keeps light after hydration when the client scheme is not dark', async () => {
-    mockedUseRNColorScheme.mockReturnValue('light');
+  it('falls back to light when the client scheme is not dark', () => {
+    getColorScheme.mockReturnValue('light');
 
     const { result } = renderHook(() => useWebColorScheme());
 
-    await waitFor(() => expect(result.current).toBe('light'));
+    expect(result.current).toBe('light');
   });
 });
