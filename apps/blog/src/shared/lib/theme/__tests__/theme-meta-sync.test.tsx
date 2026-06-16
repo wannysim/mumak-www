@@ -31,6 +31,11 @@ describe('themeMetaSyncInlineScript', () => {
     expect(themeMetaSyncInlineScript).toContain('content');
   });
 
+  it('should strip the media attribute (macOS Safari manual toggle fix)', () => {
+    expect(themeMetaSyncInlineScript).toContain('removeAttribute');
+    expect(themeMetaSyncInlineScript).toContain('media');
+  });
+
   it('should use MutationObserver to watch for class changes', () => {
     expect(themeMetaSyncInlineScript).toContain('MutationObserver');
     expect(themeMetaSyncInlineScript).toContain('observe');
@@ -145,7 +150,7 @@ describe('themeMetaSync', () => {
     });
   });
 
-  it('skips setAttribute when content already matches expected value', () => {
+  it('skips content setAttribute when content already matches and no media attribute exists', () => {
     metaTag.setAttribute('content', '#ffffff');
     const setAttrSpy = jest.spyOn(metaTag, 'setAttribute');
 
@@ -153,6 +158,33 @@ describe('themeMetaSync', () => {
 
     expect(setAttrSpy).not.toHaveBeenCalled();
     setAttrSpy.mockRestore();
+  });
+
+  it('removes the media attribute so manual toggle wins over OS appearance (macOS Safari)', () => {
+    metaTag.setAttribute('media', '(prefers-color-scheme: light)');
+
+    themeMetaSync(colors);
+
+    expect(metaTag.hasAttribute('media')).toBe(false);
+  });
+
+  it('strips media from every theme-color tag while syncing content', () => {
+    metaTag.setAttribute('media', '(prefers-color-scheme: light)');
+    metaTag.setAttribute('content', '#ffffff');
+
+    const darkMediaTag = document.createElement('meta');
+    darkMediaTag.setAttribute('name', 'theme-color');
+    darkMediaTag.setAttribute('media', '(prefers-color-scheme: dark)');
+    darkMediaTag.setAttribute('content', '#000000');
+    document.head.appendChild(darkMediaTag);
+
+    document.documentElement.classList.add('dark');
+    themeMetaSync(colors);
+
+    document.querySelectorAll('meta[name="theme-color"]').forEach(tag => {
+      expect(tag.hasAttribute('media')).toBe(false);
+      expect(tag.getAttribute('content')).toBe('#000000');
+    });
   });
 
   it('registers MutationObservers for documentElement class and head subtree', () => {
