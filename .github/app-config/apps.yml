@@ -5,6 +5,9 @@
 # - app: 앱 디렉토리 이름 (apps/{app})
 # - type: 앱 타입 (next, vite, node 등)
 # - hasE2E: E2E 테스트 포함 여부
+# - e2eShards: E2E를 Playwright --shard로 나눌 잡 수 (생략 시 1 = 미분할)
+#   - 안정성 때문에 ciWorkers=1로 직렬 실행하는 앱(blog)의 wall-clock을 줄이는 용도.
+#     각 shard는 여전히 worker 1개지만 여러 잡으로 병렬 실행된다. e2e.yml만 사용한다(ci.yml 무관).
 # - packageDependencies: packages/{name} 변경 시 영향을 받는 앱 매핑
 #   - workspace package를 새로 의존하면 여기에 package 디렉터리명을 추가한다.
 #   - packageDependencies에 없는 package가 바뀌면 안전을 위해 전체 앱 검증을 고려한다.
@@ -13,6 +16,9 @@ apps:
   - app: blog
     type: next
     hasE2E: true
+    # blog는 CI 안정성 때문에 ciWorkers=1(직렬)이라 E2E 단일 잡이 ~7분으로 워크플로 병목이었다(B-4).
+    # 468 tests(3 browsers)를 4 shard로 나눠 shard당 ~117 tests로 병렬화한다. worker=1 제약은 유지.
+    e2eShards: 4
     packageDependencies:
       - ui
       - typescript-config

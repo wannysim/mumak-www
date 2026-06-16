@@ -1,0 +1,73 @@
+name: "Shard Matrix"
+description: "Expand an E2E app matrix into per-shard jobs using each app's e2eShards config"
+
+# scopes-to-matrix가 만든 앱 이름 배열(예: ["blog","mumak-next"])을 받아
+# apps.yml의 `e2eShards`만큼 잡으로 펼친 object 매트릭스로 변환한다.
+#   입력:  ["blog","mumak-next"]            (blog: e2eShards=4, 나머지 미설정=1)
+#   출력:  [{"app":"blog","shard":1,"shards":4}, ... {"app":"mumak-next","shard":1,"shards":1}]
+# ci.yml은 scopes-to-matrix의 string 배열을 그대로 쓰므로 이 액션과 무관하다(e2e.yml 전용).
+
+inputs:
+  matrix:
+    description: "JSON string array of app names (output of scopes-to-matrix)"
+    required: true
+  apps_config:
+    description: "Path to apps config file (reads e2eShards per app)"
+    required: false
+    default: ".github/app-config/apps.yml"
+
+outputs:
+  matrix:
+    description: "JSON array of {app, shard, shards} objects for a matrix include"
+    value: ${{ steps.shard.outputs.matrix }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Expand matrix into shards
+      id: shard
+      shell: bash
+      run: |
+        set -e
+
+        MATRIX='${{ inputs.matrix }}'
+        APPS_CONFIG="${{ inputs.apps_config }}"
+
+        echo "=========================================="
+        echo "Shard Matrix"
+        echo "=========================================="
+        echo "Input: $MATRIX"
+        echo ""
+
+        # apps.yml에서 특정 앱의 e2eShards 값을 읽는다. 없으면 빈 문자열(=1로 취급).
+        get_shards() {
+          awk -v target="$1" '
+            /^[[:space:]]*-[[:space:]]*app:[[:space:]]*/ {
+              app = $NF; gsub(/[[:space:]]/, "", app)
+              in_target = (app == target)
+              next
+            }
+            in_target && /^[[:space:]]*e2eShards:[[:space:]]*[0-9]+/ {
+              v = $NF; gsub(/[[:space:]]/, "", v)
+              print v; exit
+            }
+          ' "$APPS_CONFIG" 2>/dev/null
+        }
+
+        ENTRIES="[]"
+        for APP in $(echo "$MATRIX" | jq -r '.[]'); do
+          SHARDS=$(get_shards "$APP")
+          SHARDS=${SHARDS:-1}
+          for SHARD in $(seq 1 "$SHARDS"); do
+            ENTRIES=$(echo "$ENTRIES" | jq -c \
+              --arg app "$APP" --argjson shard "$SHARD" --argjson shards "$SHARDS" \
+              '. + [{app: $app, shard: $shard, shards: $shards}]')
+          done
+          echo "  $APP -> $SHARDS shard(s)"
+        done
+
+        echo ""
+        echo "Output: $ENTRIES"
+        echo "=========================================="
+
+        echo "matrix=$ENTRIES" >> "$GITHUB_OUTPUT"
