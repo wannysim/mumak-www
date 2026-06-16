@@ -1,42 +1,40 @@
 'use client';
 
 import { FileText } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import * as React from 'react';
 
-import { useSearchPaletteShortcut } from '@/src/shared/hooks';
+import { useSearchIndex, useSearchPaletteShortcut } from '@/src/shared/hooks';
+import type { SearchIndexPost } from '@/src/shared/lib/search';
 import { SearchPalette, SearchTrigger, type SearchPaletteGroup } from '@/src/shared/ui';
 import { ClientErrorBoundary } from '@/src/shared/ui/client-error-boundary';
 
-export interface BlogSearchPost {
-  title: string;
-  description: string;
-  category: string;
-  slug: string;
-  tags: string[];
-}
-
 interface BlogSearchProps {
-  posts: BlogSearchPost[];
   categoryLabels: Record<string, string>;
   triggerClassName?: string;
 }
 
-export function BlogSearch({ posts, categoryLabels, triggerClassName }: BlogSearchProps) {
+export function BlogSearch({ categoryLabels, triggerClassName }: BlogSearchProps) {
   return (
     <ClientErrorBoundary name="BlogSearch">
-      <BlogSearchContent posts={posts} categoryLabels={categoryLabels} triggerClassName={triggerClassName} />
+      <BlogSearchContent categoryLabels={categoryLabels} triggerClassName={triggerClassName} />
     </ClientErrorBoundary>
   );
 }
 
-function BlogSearchContent({ posts, categoryLabels, triggerClassName }: BlogSearchProps) {
+function BlogSearchContent({ categoryLabels, triggerClassName }: BlogSearchProps) {
   const t = useTranslations('blog.search');
+  const locale = useLocale();
   const [open, setOpen] = React.useState(false);
   useSearchPaletteShortcut(setOpen);
 
+  // 검색 데이터셋은 페이지 RSC payload가 아니라, 검색창을 처음 열 때 정적 search-index.json에서
+  // 1회 lazy fetch한다 (C-3).
+  const index = useSearchIndex(locale, open);
+  const posts = React.useMemo<SearchIndexPost[]>(() => index?.posts ?? [], [index]);
+
   const groups = React.useMemo<SearchPaletteGroup[]>(() => {
-    const grouped = new Map<string, BlogSearchPost[]>();
+    const grouped = new Map<string, SearchIndexPost[]>();
     for (const post of posts) {
       const list = grouped.get(post.category) ?? [];
       list.push(post);

@@ -317,6 +317,36 @@ test.describe('GEO - llms.txt', () => {
   });
 });
 
+test.describe('Search - static search index endpoint (C-3)', () => {
+  test('should serve a static JSON search index that the palette lazy-fetches', async ({ request }) => {
+    const response = await request.get('/ko/search-index.json');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('application/json');
+    expect(response.headers()['cache-control']).toContain('public');
+
+    const body = (await response.json()) as { posts: Array<{ title: string; slug: string; category: string }> };
+    expect(Array.isArray(body.posts)).toBe(true);
+    expect(body.posts.length).toBeGreaterThan(0);
+
+    // 인덱스는 페이지 목록과 같은 getPosts 소스를 쓴다(draft 노출 정책 동일 적용). 검색 E2E가
+    // 실제로 여는 essay/first가 인덱스에도 들어 있어야 한다.
+    const first = body.posts.find(post => post.slug === 'first' && post.category === 'essay');
+    expect(first).toBeDefined();
+    expect(first?.title).toBeTruthy();
+  });
+
+  test('should serve the English search index as well', async ({ request }) => {
+    const response = await request.get('/en/search-index.json');
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('application/json');
+
+    const body = (await response.json()) as { posts: unknown[] };
+    expect(body.posts.length).toBeGreaterThan(0);
+  });
+});
+
 test.describe('GEO - AI crawler policy (robots.txt)', () => {
   test('should disallow training bots and explicitly allow search bots', async ({ request }) => {
     const response = await request.get('/robots.txt');

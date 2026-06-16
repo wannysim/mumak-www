@@ -19,7 +19,8 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - [x] **Spotify OAuth callback 보안 보강 PR** — C-8 (state 1회 소비 누락 보강 + no-store/no-referrer/noindex 헤더 + route 단위 테스트)
 - [x] **콘텐츠 GEO 가이드** — D-6 (`apps/blog/AGENTS.md`에 TL;DR·질문형 헤딩·`updated` 갱신·FAQPage 관행 추가) — C-7 PR과 함께 진행
 - [ ] **개별 소액**: C-2(MDX 이미지) / C-4(error.tsx) / B-6(react-doctor blocking)
-- [ ] **조건부·보류**: C-3(검색 인덱스, 콘텐츠 성장 시) / B-4(E2E 시간, 측정 후) / A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
+- [x] **C-3(검색 인덱스 정적 분리)** — 완료(2026-06-15). 단 B-2(413)는 미해결, 후속은 `.segment.rsc` 조사로 분리(B-2 항목 참조)
+- [ ] **조건부·보류**: B-4(E2E 시간, 측정 후) / A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
 
 ## 현재 상태 요약
 
@@ -113,15 +114,19 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
     - 전체 `.next`(현재 413 유발 아티팩트): **316.9MB**
     - `.next/standalone` 제외 후: **285.1MB** (고작 31.7MB만 감소)
     - 즉 standalone은 압축 31.7MB(전체의 10%)뿐. outputs에서 빼도 285MB라 413은 거의 그대로다.
-  - **진짜 원인 = 프리렌더 산출물 볼륨**: `.next/server/app`에 HTML **78.7MB(633개)** + RSC **101.9MB(7,359개)**. ko/ 아래 라우트 디렉터리만 2,211개(전체 ~4,400 라우트). RSC 1,372개가 30KB 초과, 100개가 100KB 초과. 리스트/태그 페이지 1장 HTML이 ~210KB. → **C-3(리스트 페이지가 전체 포스트/노트 검색 필드를 RSC payload에 직렬화)와 직결**되며, 태그 페이지(garden 302 + blog 122 = 424개) prerender 수도 한 몫 한다. 이 본문 출력은 빌드의 핵심 산출물이라 outputs에서 제외 불가.
+  - **진짜 원인 = 프리렌더 산출물 볼륨**: `.next/server/app`에 HTML **78.7MB(633개)** + RSC **101.9MB(7,359개)**. ko/ 아래 라우트 디렉터리만 2,211개(전체 ~4,400 라우트). RSC 1,372개가 30KB 초과, 100개가 100KB 초과. 리스트/태그 페이지 1장 HTML이 ~210KB. 이 본문 출력은 빌드의 핵심 산출물이라 outputs에서 제외 불가.
+  - **정정 (2026-06-15, C-3 착수 시 실측)**: 위에서 "C-3와 직결"이라 본 것은 과대평가였다. 검색 필드 직렬화는 RSC 비대화의 주범이 아니다.
+    - `BlogSearch`를 실제로 렌더하는 페이지는 **블로그 인덱스 + 카테고리 2종뿐**(태그 페이지는 검색 미렌더). garden 사이드바는 검색 그룹을 트리 prop에서 클라이언트로 만들 뿐이라 **검색 전용 중복 직렬화가 없다**(트리는 네비게이션용이라 SSG 유지 필수).
+    - `searchPosts`(ko 19개) 직렬화 ≈ 페이지당 ~5KB. C-3로 줄어든 실측: 블로그 리스트 RSC 76.3KB→71.0KB 등 페이지당 ~5KB, 전체 빌드 기준 **~70KB(101.9MB의 ~0.07%)**.
+    - RSC 101.9MB의 실제 구성: `.rsc` 33.7MB(633개) + **`.segment.rsc` 68.2MB(6,726개, 67%)**. 후자는 Next 세그먼트 캐시 아티팩트(`_full.segment.rsc` 페이지 전체 복제 포함)이고, `.rsc`의 큰 파일은 전부 garden 페이지(사이드바 노트 트리 + NoteCard 본문). **검색 데이터가 아니라 렌더된 카드/노트 본문 + 세그먼트 캐시가 볼륨의 본체다.**
   - **`remote:r`는 blog에서 사실상 죽은 옵션**: remote write가 늘 413으로 실패하면 remote에 아무것도 안 올라가므로 `remote:r`(읽기)도 영구 미스다. 즉 blog의 현 `--cache=local:rw,remote:r`는 기능상 `local:rw`와 동일하고, blog에 remote cache는 사실상 무효다.
   - **e2e 제약(여전히 유효)**: `scripts/start-e2e.mjs`는 standalone `server.js`가 없으면 CI에서 `process.exit(1)` hard-fail. `test:e2e dependsOn build`라 build 캐시 hit 시 standalone 미복원이면 깨진다(standalone을 outputs에서 빼는 시나리오의 제약).
 - **정정된 결론 / 선택지**:
   - turbo `outputs` 조정으로는 413을 풀 수 없다(standalone 제외는 무효). 근본 해결은 **빌드 산출물 볼륨 축소**다.
-  - (1) **C-3 우선**: 리스트/태그 페이지의 검색 인덱스를 RSC 직렬화에서 빼 정적 `/search-index.json` lazy-fetch로 전환 → 모든 리스트 페이지의 RSC·HTML 동반 축소. 413을 부수효과로 완화하면서 그 자체로 정당한 개선. **B-2의 실질 해결 경로로 C-3에 의존시키는 것을 권장.**
+  - ~~(1) **C-3 우선**~~ → **C-3 완료(2026-06-15)했으나 B-2는 미해결.** C-3는 정당한 payload 다이어트지만 실측 절감이 ~0.07%라 413을 풀지 못한다. B-2의 실질 해결 경로를 C-3에 의존시킨 전제는 폐기한다.
+  - (1') **세그먼트 캐시 아티팩트(`.segment.rsc` 68MB, 67%)가 최대 레버** — Next의 `_full.segment.rsc`(페이지 전체 복제) + per-segment 파일이 RSC 볼륨의 2/3다. `useCache: true`만 켜고 `cacheComponents`는 안 쓰는데도 생성된다. 이게 standalone 런타임/네비게이션 prefetch에 필요한지, turbo `outputs`에서 제외 가능한지(런타임 서빙에 필요하면 불가), 혹은 비활성 옵션이 있는지 조사가 다음 B-2 작업. **별도 work item으로 분리.**
   - (2) 태그/저가치 라우트 prerender 축소(ISR/on-demand) — 빌드 크기·413 동시 완화, 단 렌더링 전략 변경(첫 히트 지연 트레이드오프).
   - (3) 즉시 정리(저비용): blog에서 죽은 `remote:r`를 떼고 `--cache=local:rw`로 단순화 + turbo.json/CI 주석을 "413 원인은 standalone이 아니라 prerender 볼륨, blog는 local-only가 의도"로 정정. "해결"이 아니라 정직한 현행 고정.
-  - C-3로 산출물을 충분히 줄여도 Vercel remote cache 한도 미만으로 떨어지는지는 push 후 CI에서만 확정 가능(로컬에서 한도 측정 불가).
 
 ### B-3. `blog-content.yml`과 ci.yml의 콘텐츠 검증 중복 정리
 
@@ -180,9 +185,16 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **개선안**: `img` 오버라이드를 `next/image` 기반으로 교체. 로컬 콘텐츠 이미지는 빌드 시 dimensions를 읽어 주입(또는 frontmatter/원격은 `fill` + aspect-ratio 컨테이너). 콘텐츠 내 이미지 사용 빈도 먼저 조사 후 진행.
 - **기대 효과**: 콘텐츠 이미지 전송량 감소, CLS 제거.
 
-### C-3. 검색 인덱스 전달 방식 개선 (성장 대비 → B-2의 실질 해결 경로로 승격)
+### C-3. 검색 인덱스 전달 방식 개선 (성장 대비) — 완료
 
-> **우선순위 상향 (2026-06)**: 원래 "임계치 도달 시 착수하는 조건부 과제"였으나, B-2(remote cache 413) 측정 과정에서 **이 직렬화가 빌드 산출물 비대화의 주범**임이 확인됐다. C-3는 이제 (1) 그 자체의 payload 다이어트이자 (2) **B-2 413을 부수효과로 완화**하는 실질 해결 경로다. 빌드 다이어트 묶음(C-1 다음)으로 이어가기 좋은 다음 작업.
+> 완료(2026-06-15, `feature/blog-search-index`). 검색 데이터셋을 페이지 RSC props에서 빼 정적 `/[locale]/search-index.json`(route handler, SSG)으로 1회만 만들고, `BlogSearch`가 검색창을 열 때만 lazy fetch한다. 페이지는 그대로 SSG.
+>
+> - **신규**: `src/shared/lib/search`(타입 + 경로 헬퍼), `app/[locale]/search-index.json/route.ts`(`force-static` + `generateStaticParams` ko/en, `getPosts` 재사용 → draft 노출 정책 자동 상속), `src/shared/hooks/use-search-index.ts`(locale별 모듈 캐시, 검색 open 시 1회 fetch, 실패 시 빈 인덱스로 graceful degrade; locale은 호출부 주입 — shared 배럴이 next-intl ESM을 끌지 않게).
+> - **변경**: `BlogSearch`에서 `posts` prop 제거(`useLocale` + `useSearchIndex`로 fetch), 블로그 인덱스/카테고리 page 2종에서 `searchPosts`(+ category page의 미사용 `allPosts`) 제거.
+> - **실측 효과**: 블로그 리스트 RSC 페이지당 ~5KB 감소(76.3KB→71.0KB 등). 빌드 전체로는 ~70KB(~0.07%). **B-2(413)는 풀리지 않는다** — 진짜 볼륨은 `.segment.rsc`(68MB) + 렌더된 카드/노트 본문이다(B-2 항목의 정정 참조). garden은 사이드바 트리에 검색이 free-ride라 추출할 중복이 없어 손대지 않았다.
+> - **검증**: `blog-search.test.tsx`(fetch 모킹, 8), route `route.test.ts`(4), 전체 `test:ci` 882 그린, 검색 E2E(blog+garden) + `seo.spec.ts`에 search-index 엔드포인트 계약 E2E 2건 추가, 전부 그린. standalone 빌드에서 `/ko|en/search-index.json` 정적 생성·서빙 확인.
+
+> **(폐기된 우선순위 상향 메모, 2026-06)**: 원래 "임계치 도달 시 착수하는 조건부 과제"였고, 한때 B-2 측정 과정에서 이 직렬화를 빌드 비대화의 주범으로 보고 "B-2 실질 해결 경로"로 승격했으나, 착수 시 실측 결과 검색 데이터는 빌드의 ~0.07%에 불과해 그 전제는 틀린 것으로 확인됐다(위 완료 노트 + B-2 정정 참조).
 
 - **현황 (코드 확인)**: 클라이언트 검색 위젯이 **전체 포스트/노트의 검색용 필드를 props로 받아** 각 페이지 RSC payload에 통째로 직렬화한다.
   - blog: `src/widgets/blog-search/ui/blog-search.tsx`의 `BlogSearch({ posts: BlogSearchPost[] })`. `BlogSearchPost = { title, description, category, slug, tags }`. `app/[locale]/(main)/(content)/blog/page.tsx`(인덱스)와 `blog/[category]/page.tsx`(카테고리)에서 `allPosts.map(...)`으로 만들어 `<BlogSearch posts={searchPosts} />`로 내려준다.
@@ -376,7 +388,7 @@ favicon과 OG 이미지는 둘 다 `next/og`(Satori) `ImageResponse`로 코드 �
 | 19   | B-6 react-doctor blocking 전환           | CI   | 중     | 품질 게이트 실효화                 |
 | 20   | C-4 error.tsx 추가                       | UX   | 소     | 오류 UX                            |
 | 21   | D-6 콘텐츠 GEO 가이드 (AGENTS.md)        | GEO  | 소     | 문서 작업                          |
-| 22   | C-3 검색 인덱스 분리                     | UX   | 중     | 조건부(콘텐츠 성장 시)             |
+| 22   | C-3 검색 인덱스 분리                     | UX   | 중     | 완료(2026-06-15)                   |
 | 23   | B-4 E2E 시간 단축 (측정 후)              | CI   | 중     | 조건부(병목 확인 시)               |
 | 24   | A-6 tags 페이지 템플릿화                 | 설계 | 소     | 선택                               |
 | 25   | C-5 cacheComponents 재평가               | UX   | -      | 업그레이드 시 체크 항목            |
