@@ -134,6 +134,9 @@ test.describe('Theme color meta tag sync', () => {
     // Check theme-color meta tag - should have dark color
     const themeColorMeta = page.locator('meta[name="theme-color"]').first();
     await expect(themeColorMeta).toHaveAttribute('content', '#0a0a0a');
+
+    // media 속성이 제거돼야 macOS Safari가 수동 토글을 따른다
+    await expect(themeColorMeta).not.toHaveAttribute('media', /.+/);
   });
 
   test('theme-color meta tag syncs with light theme', async ({ page }) => {
