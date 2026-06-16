@@ -164,7 +164,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 > - **측정/검증.**
 >   - 분할 정확성: `--shard=N/4 --list`로 4 shard가 468 tests(16 spec × 3 browser)를 117/117/117/117로 정확히 균등 분할(중복·누락 0) 확인.
 >   - 인자 전달: `turbo run test:e2e --filter=blog -- --shard=2/4 --list`가 `playwright-e2e.sh --shard=2/4 --list`로 forward됨을 로컬에서 확인.
->   - **기대 효과**: blog 테스트 실행 시간 ~7분 → shard당 ~117 tests 직렬 ≈ ~1.75분(+잡 오버헤드). blog wall-clock이 다른 앱(1~2분) 수준으로 내려와 E2E 워크플로 병목이 해소된다. 실제 CI wall-clock은 PR 첫 실행에서 확정.
+>   - **실측 (#444 첫 CI, 7개 잡 전부 green)**: blog 4 shard = 3.10 / 3.43 / 3.83 / **3.88분**, 나머지 앱 1.2~1.35분. E2E 워크플로 wall-clock = 가장 느린 잡 기준 **~3.9분**(이전 단일 blog 잡 ~7분 → 거의 반감). per-shard 고정 오버헤드(build 캐시 복원 + standalone 기동 + 3 브라우저 부팅)가 있어 이론치 ~1.75분이 아닌 ~3.9분으로 수렴 — 4 shard가 합리적 수렴점이고, shard를 더 늘려도 오버헤드가 지배해 효용이 작다. `E2E Success`/`CI Success` 둘 다 green으로 게이팅 의미 불변 확인.
 > - **갈래 3 (develop fallback restore-key) — 불필요.** restore-keys에 이미 `<os>-turbo-<app>-`, `<os>-turbo-` 광역 fallback이 있어 develop이 채운 캐시를 자연히 공유한다. B-2(#437)로 blog remote write도 재개돼 shard 잡들이 build 산출물을 remote로 공유한다. 별도 develop 전용 key 추가는 레버가 작아 보류.
 
 - **현황(완료 전)**: e2e.yml이 Playwright 컨테이너(v1.58.2) 기반으로 앱별 병렬 실행하며, blog는 안정성을 위해 `ciWorkers: 1`이다. 브라우저 바이너리 캐시는 별도 관리되지 않는다.
