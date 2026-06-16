@@ -7,7 +7,9 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**", "out/**", "*.tsbuildinfo"],
+      // `.next/dev`는 next dev/Turbopack의 로컬 dev 캐시(빌드 산출물 아님)이며 .next/**에 걸려
+      // 캐시 아티팩트를 부풀린다(로컬에서 dev 후 build 시). 빌드 출력이 아니므로 제외한다.
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "dist/**", "out/**", "*.tsbuildinfo"],
       "env": ["NEXT_PUBLIC_*", "ANALYZE"],
       "passThroughEnv": [
         "NODE_ENV",
@@ -28,9 +30,11 @@
       // outputs에서 top-level `.next/server`만 제외해 산출물을 절반 가까이 줄인다(117.8→65.3MB gz).
       // standalone 복제본은 그대로 캐시되므로 cache-hit 시에도 E2E가 동작한다(로컬 재현 검증함).
       // base build의 outputs를 그대로 두고 `!.next/server/**`만 더한다.
+      // blog#build의 outputs는 base build를 상속이 아니라 대체하므로, base에 더한 `!.next/dev/**`도
+      // 여기 다시 명시한다(로컬 dev 캐시가 standalone 아티팩트에 섞이지 않게).
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$"],
-      "outputs": [".next/**", "!.next/cache/**", "!.next/server/**"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/server/**", "!.next/dev/**"],
       "env": ["NEXT_PUBLIC_*", "ANALYZE"],
       "passThroughEnv": [
         "NODE_ENV",
