@@ -18,8 +18,11 @@ on:
   # default branch — useful for tracking the overall number commit-by-commit
   # and catching regressions that slipped past PR review. PR-specific steps
   # (the sticky summary comment) are skipped automatically on `push` events.
-  # With `blocking: none` this push run is observe-only: it surfaces the
-  # baseline (currently 3 errors on main) without gating merges.
+  # With `blocking: error` this run gates merges on error-severity findings.
+  # The former 3-error baseline is cleared (B-6): two were genuine fixes in
+  # code (mumak-native color-scheme hooks — unconditional hook hoisted out of a
+  # ternary, web hydration moved to useSyncExternalStore), and one structural
+  # OAuth false positive is downgraded to `warn` in doctor.config.json.
   # Comment this block out if you only want PR-time scans.
   push:
     branches: [main]
@@ -59,13 +62,14 @@ jobs:
       # action is part of the merge gate.
       - uses: millionco/react-doctor@v2
         with:
-          # Advisory mode: report findings but always exit 0. `main` currently
-          # has 3 baseline errors, so `blocking: error` would keep failing the
-          # push full scan after the v2 upgrade. Raise to `blocking: error`
-          # once the baseline is cleared (or narrowly suppressed via a
-          # doctor.config.*); only consider `blocking: warning` if the team
-          # agrees to gate on warnings too.
-          blocking: none
+          # Gating mode: error-severity findings fail the run. Baseline cleared
+          # in B-6 (see push comment above). The one unavoidable false positive
+          # — nextjs-no-side-effect-in-get-handler on the Spotify OAuth GET
+          # callback — is downgraded to `warn` in doctor.config.json: the rule
+          # can't be scoped per-file, and an OAuth redirect must be GET (CSRF is
+          # mitigated by single-use `state` + no-store, see C-8). Consider
+          # `blocking: warning` only if the team agrees to gate on warnings too.
+          blocking: error
           # Sticky PR summary comment (issue counts, score, change metrics).
           comment: true
           # Inline review comments on changed lines, each with a suggested fix.

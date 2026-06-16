@@ -11,14 +11,15 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - [x] **콘텐츠 파이프라인 PR** — A-1(zod 스키마) + A-2(로더 공통화) + A-4(React.cache) + A-5(커버리지 갭) — PR #428
 - [x] **wikilink 단일 소스화 PR** — A-3(스크립트 TS화) + B-1(globalDependencies `.env*` 제거) — PR #429
 - [x] **CI 정리 PR** — B-3(blog-content.yml 삭제) + B-5(promote.yml exactly-once 배포·중복배포 수정) — PR #440
-- [ ] **빌드 산출물 다이어트 PR** — C-1(폰트 서브셋) + B-2(blog#build outputs, 검증 전제)
+- [x] **빌드 산출물 다이어트 PR** — C-1(폰트 서브셋, #435) + B-2(blog#build outputs, #437) — 둘 다 완료
 - [x] **GEO 정책 결정 + PR** — D-1(robots.ts AI 크롤러 정책: 학습봇 차단 / 검색·인용봇 명시 allow / 미분류봇 기본 허용) + D-2(llms.txt) 한 PR
 - [x] **GEO PR 1** — D-2(llms.txt)+D-3(마크다운 엔드포인트) 묶음. 실제로는 D-3는 GEO PR 2와, D-2는 D-1과 함께 처리되어 둘 다 완료
 - [x] **GEO PR 2** — D-4(RSS autodiscovery + full-content) + D-5(sitemap hreflang) + D-3(마크다운 엔드포인트)
 - [x] **코드 생성 이미지 PR** — C-7-0(favicon, #430) + C-7-1(OG `shared/lib/og` 셸 공통화 + 긴 텍스트 동적 폰트·keep-all + locale 카테고리 라벨 + 기본 OG 이미지) — 동적 alt는 빌드 이슈로 보류
 - [x] **Spotify OAuth callback 보안 보강 PR** — C-8 (state 1회 소비 누락 보강 + no-store/no-referrer/noindex 헤더 + route 단위 테스트)
 - [x] **콘텐츠 GEO 가이드** — D-6 (`apps/blog/AGENTS.md`에 TL;DR·질문형 헤딩·`updated` 갱신·FAQPage 관행 추가) — C-7 PR과 함께 진행
-- [ ] **개별 소액**: C-2(MDX 이미지) / C-4(error.tsx) / B-6(react-doctor blocking)
+- [x] **C-2(MDX 이미지 `next/image`)** — 완료 (`mdx-components.tsx` `img` 오버라이드가 `next/image` lazy 렌더)
+- [x] **마감 묶음**: C-4(error.tsx + global-error.tsx) + B-6(react-doctor blocking 전환) — 한 PR로 완료
 - [x] **C-3(검색 인덱스 정적 분리)** — 완료(2026-06-15, #436)
 - [x] **B-2(remote cache 413 해결)** — 완료(2026-06-16, #437). standalone 중복 프리렌더를 outputs에서 제외 → 아티팩트 29.5MB(zstd), remote write 재개. 세그먼트 캐시 후속은 조사 후 비레버로 폐기(B-2 항목 참조)
 - [ ] **조건부·보류**: B-4(E2E 시간, 측정 후) / A-6(선택) / C-5(업그레이드 시 재평가) / C-6(선택)
@@ -170,9 +171,18 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
   - gate 3-state(ready/pending/blocked): blocked일 때만 `promote/gate` failure status로 "develop green인데 무배포"를 조기 노출. 배포 성공 시 success status(=guard 기준).
   - **한계**: 중복배포 방지는 concurrency 직렬화 가정에 의존(동시 실행 시 TOCTOU 잔존). `workflow_run` 트리거 변경은 기본 브랜치(main)에 반영돼야 활성화 → 다음 release 때 적용된다(현재 main은 develop보다 21커밋 뒤).
 
-### B-6. react-doctor baseline 해소 후 blocking 전환
+### B-6. react-doctor baseline 해소 후 blocking 전환 — 완료
 
-- **현황**: `react-doctor.yml`이 advisory 모드(`blocking: none`)로 운영 중이며 main baseline에 에러 3건이 남아 있다. 새 PR이 같은 수준의 문제를 추가해도 머지를 막지 못한다.
+> 완료. `react-doctor.yml`을 `blocking: error`로 전환했다. baseline 에러 3건은 전부 false positive/표준 패턴이었고, **저장소 전역**에 분포(blog 1 + mumak-native 2 — 워크플로는 `project: "*"` 전역 스캔이므로 blog 한정 과제가 아니었다)했다.
+>
+> - **에러 3건 처리**:
+>   1. **mumak-native `hooks/use-color-scheme.ts` (`rules-of-hooks`)** — 훅이 조건부 호출이 아니라 삼항 피연산자에 있어 오탐. 호출을 변수로 호이스트해 **코드로 해소**(suppression 불필요).
+>   2. **mumak-native `hooks/use-color-scheme.web.ts` (`set-state-in-effect`)** — 정적 렌더링 hydration 패턴을 `useSyncExternalStore`(getServerSnapshot='light')로 재작성해 **코드로 해소**. 동일 동작 유지, 테스트도 `Appearance` mock 기반으로 갱신.
+>   3. **blog `app/api/spotify/callback/route.ts` (`nextjs-no-side-effect-in-get-handler`, Security)** — OAuth redirect는 GET일 수밖에 없어 코드 해소 불가. **`doctor.config.json`에서 이 룰만 `warn`으로 강등**(C-8의 single-use state + no-store가 CSRF 방어).
+> - **메커니즘 발견 (중요)**: react-doctor는 **CI가 인정하는 파일 단위 suppression이 없다.** `rules set`은 룰+심각도(전역)만 받고, `.react-doctor/false-positives.md`는 에이전트 triage 전용이라 CLI 게이트 카운트에 안 잡힌다. 그래서 #3은 룰 전역 강등이 유일한 경로였다. 위 false positive 후보 중 `no-inline-exhaustive-style`는 **warning**이라 `blocking: error`에서 게이트되지 않으므로 별도 조치 불필요했다.
+> - **검증**: 전역 스캔 0 errors(blog 56/native 95/next 78/react 78/ui 55, 전부 warning만). lint·check-types·format·native test(22) 그린.
+
+- **현황(완료 전)**: `react-doctor.yml`이 advisory 모드(`blocking: none`)로 운영 중이며 main baseline에 에러 3건이 남아 있다. 새 PR이 같은 수준의 문제를 추가해도 머지를 막지 못한다.
 - **개선안**: baseline 3건을 해결(또는 suppression 문서화)한 뒤 `blocking: error`로 상향.
 - **기대 효과**: 정적 품질 게이트가 실제로 게이트 역할을 하게 됨.
 - **blocking 전환 전 일괄 처리할 알려진 false positive (suppression 후보)**:
@@ -183,7 +193,9 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 ## C. Next.js 활용 · 사용자 경험
 
-### C-1. 폰트 로딩 최적화 (LCP 개선 효과 가장 큼)
+### C-1. 폰트 로딩 최적화 (LCP 개선 효과 가장 큼) — 완료 (#435)
+
+> 완료(#435). `PretendardVariable`를 wght 400~700 instance + Latin/전체 현대 한글/공통 구두점 charset으로 서브셋(2.1MB → 1.24MB). 원본은 `fonts/PretendardVariable.source.woff2`, 재생성은 `scripts/subset-body-font.sh`. OG 폰트는 동적 한국어 제목 tofu 위험으로 풀셋 유지(문서화된 결정). 따라서 별도 폰트 에셋 추가 다운로드는 불필요.
 
 - **현황**: `app/[locale]/layout.tsx`에서 `next/font/local`로 `PretendardVariable.woff2`(2.1MB)를 `display: 'swap'`으로 로드한다. next/font가 preload는 자동 처리하지만, 한글 전체 글리프가 포함된 2.1MB는 첫 방문 시 다운로드 부담이 크고 swap에 의한 FOUT 구간이 길어진다. 추가로 OG 이미지용 `Pretendard-{Regular,SemiBold,Bold}.woff` 3종(각 1.1MB, 총 3.3MB)이 standalone 산출물에 트레이싱되어 포함된다(`next.config.mjs` `outputFileTracingIncludes`).
 - **개선안**:
@@ -200,7 +212,9 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
   - 예상 절감: 한자 등 제거로 2.1MB → 대략 0.8~1.2MB(전체 한글 유지로 극적이진 않으나 본문 폰트라 안전 우선).
   - 진행 단위: B-2와 분리한 별도 PR(`feature/blog-build-diet-fonts`). B-2는 위 조사대로 보류·문서화 쪽이 유력.
 
-### C-2. MDX 콘텐츠 이미지에 `next/image` 적용
+### C-2. MDX 콘텐츠 이미지에 `next/image` 적용 — 완료
+
+> 완료. `mdx-components.tsx`의 `img` 오버라이드가 `next/image`(width/height + `loading="lazy"` + `rounded-lg`)로 렌더한다. 현재 콘텐츠 내 마크다운 이미지는 6건뿐이라 추가 dimension 주입(빌드 타임 측정)은 필요 시 후속으로 둔다.
 
 - **현황**: `mdx-components.tsx`의 `img` 오버라이드가 lazy loading만 적용하고 `next/image`를 사용하지 않아, 콘텐츠 이미지는 AVIF/WebP 변환·srcset·CLS 방지(width/height) 혜택을 받지 못한다. `next.config.mjs`의 이미지 최적화 설정(AVIF/WebP, deviceSizes)은 준비되어 있다.
 - **개선안**: `img` 오버라이드를 `next/image` 기반으로 교체. 로컬 콘텐츠 이미지는 빌드 시 dimensions를 읽어 주입(또는 frontmatter/원격은 `fill` + aspect-ratio 컨테이너). 콘텐츠 내 이미지 사용 빈도 먼저 조사 후 진행.
@@ -228,9 +242,11 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 - **구현 메모**: (1) `BlogSearch`/`GardenSidebar`에서 props로 받던 검색 데이터를 위젯 내부 lazy fetch로 전환(검색 open 시 1회, 결과 메모이즈). (2) `search-index.json` route handler는 entities/post·note 로더 재사용(`React.cache()` 적용된 단일 소스). (3) locale별 분리. (4) 위젯 단위 테스트(데이터 fetch 모킹) + 검색 동작 E2E 회귀 확인. (5) draft 노트 노출 정책(`E2E_INCLUDE_DRAFT`)이 인덱스 생성에도 동일하게 적용되는지 확인.
 - **기대 효과**: 리스트 페이지 초기 payload를 콘텐츠 수와 무관하게 유지. 빌드 산출물(RSC) 대폭 축소 → **B-2 413 완화**. 단, Vercel remote cache 한도 미만으로 떨어지는지는 push 후 CI에서만 확정 가능(로컬에서 한도 측정 불가) — B-2 항목의 정정된 결론 참조.
 
-### C-4. 라우트 세그먼트 `error.tsx` 추가
+### C-4. 라우트 세그먼트 `error.tsx` 추가 — 완료
 
-- **현황**: graph(`GraphErrorBoundary`)와 선택적 위젯(`ClientErrorBoundary`)은 부분 실패를 격리하지만, 라우트 레벨 `error.tsx`/`global-error.tsx`가 없어 예기치 못한 렌더 오류 시 Next 기본 오류 화면이 노출된다.
+> 완료. `app/[locale]/(main)/error.tsx`(reset 버튼 + 홈 링크, not-found와 동일 토큰, `error` i18n 네임스페이스 ko/en) + 최소 `app/global-error.tsx`(루트 레이아웃 실패 폴백 — IntlProvider 밖이라 중립 문구 하드코딩, 자체 `<html>/<body>` + globals.css). 단위 테스트 3건(reset 와이어링 + 에러 로깅)로 회귀 고정. 빌드 분류 영향 없음(dynamic API 미사용).
+
+- **현황(완료 전)**: graph(`GraphErrorBoundary`)와 선택적 위젯(`ClientErrorBoundary`)은 부분 실패를 격리하지만, 라우트 레벨 `error.tsx`/`global-error.tsx`가 없어 예기치 못한 렌더 오류 시 Next 기본 오류 화면이 노출된다.
 - **개선안**: `app/[locale]/(main)/error.tsx`(reset 버튼 + i18n 문구) 및 최소한의 `global-error.tsx` 추가. 기존 not-found.tsx와 같은 디자인 토큰 사용.
 - **기대 효과**: 오류 상황에서도 브랜드 일관성 있는 UX. 작업량 소.
 

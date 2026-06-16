@@ -71,6 +71,12 @@
     "description": "요청하신 페이지가 존재하지 않습니다.",
     "backHome": "홈으로 돌아가기"
   },
+  "error": {
+    "title": "문제가 발생했습니다",
+    "description": "예기치 못한 오류로 페이지를 표시하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "retry": "다시 시도",
+    "backHome": "홈으로 돌아가기"
+  },
   "about": {
     "title": "소개",
     "description": "안녕하세요, 심완입니다.",
