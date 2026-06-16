@@ -10,7 +10,7 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 - [x] **콘텐츠 파이프라인 PR** — A-1(zod 스키마) + A-2(로더 공통화) + A-4(React.cache) + A-5(커버리지 갭) — PR #428
 - [x] **wikilink 단일 소스화 PR** — A-3(스크립트 TS화) + B-1(globalDependencies `.env*` 제거) — PR #429
-- [ ] **CI 정리 PR** — B-3(blog-content.yml) + B-5(promote.yml)
+- [x] **CI 정리 PR** — B-3(blog-content.yml 삭제) + B-5(promote.yml exactly-once 배포·중복배포 수정) — PR #440
 - [ ] **빌드 산출물 다이어트 PR** — C-1(폰트 서브셋) + B-2(blog#build outputs, 검증 전제)
 - [x] **GEO 정책 결정 + PR** — D-1(robots.ts AI 크롤러 정책: 학습봇 차단 / 검색·인용봇 명시 allow / 미분류봇 기본 허용) + D-2(llms.txt) 한 PR
 - [x] **GEO PR 1** — D-2(llms.txt)+D-3(마크다운 엔드포인트) 묶음. 실제로는 D-3는 GEO PR 2와, D-2는 D-1과 함께 처리되어 둘 다 완료
@@ -137,11 +137,16 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
   - ~~(1') **세그먼트 캐시 아티팩트가 최대 레버**~~ → **조사 후 폐기(2026-06-16).** raw 68MB는 압축하면 ~2MB라 비레버. 위 완료 노트 참조.
   - (2) 태그/저가치 라우트 prerender 축소(ISR/on-demand)는 별개의 빌드 시간/볼륨 과제로 남는다(413과는 무관해짐). 필요 시 B-4와 함께 검토.
 
-### B-3. `blog-content.yml`과 ci.yml의 콘텐츠 검증 중복 정리
+### B-3. `blog-content.yml`과 ci.yml의 콘텐츠 검증 중복 정리 — 결정: 삭제
 
 - **현황**: ci.yml의 blog validate job이 `validate:content / validate:garden / validate:design`을 모두 실행하는데, `blog-content.yml`이 PR/push에서 `validate:content`를 한 번 더 돈다. GitHub은 PR 이벤트에 path filter를 지원하지 않아 콘텐츠 무관 PR에도 job이 생성된다.
 - **개선안**: 콘텐츠만 바뀐 PR에서 ci.yml 전체(빌드·테스트 포함)보다 빠른 피드백이 필요한지 먼저 결정. (a) 필요 없으면 blog-content.yml 삭제, (b) "콘텐츠 전용 빠른 경로"로 남길 거면 garden 검증까지 포함시키고 ci.yml과 역할을 문서화. 현재는 반쪽짜리 중복 상태가 최악.
 - **기대 효과**: 워크플로우 수 감소, check 의미 명확화.
+- **결정 (2026-06-16): (a) blog-content.yml 삭제**.
+  - `detect-scopes`는 `apps/blog/content/**`만 바뀐 PR도 `apps/blog/`에 매치해 blog를 affected로 잡는다 → ci.yml의 `Validate (blog)` job이 어차피 돌고, 거기서 content/garden/design 3종이 **build 단계보다 먼저** 실행된다. 따라서 `blog-content.yml`은 컴퓨트를 아끼지 못하고, garden/design은 검증하지 않아 빠른 경로로서도 불완전(반쪽 중복).
+  - (b)로 정식화하면 3종이 양쪽에서 도는 중복이 오히려 늘어 B-3 목표와 배치된다.
+  - **커버리지 불변식**: content/garden/design 3종은 ci.yml `Validate (blog)`에서 계속 돈다(삭제로 사라지지 않음).
+  - **연동 작업**: `Validate Blog Content`가 develop·main ruleset의 required status check이므로, 워크플로 삭제와 함께 두 ruleset에서 해당 context를 제거해야 한다(미제거 시 체크가 생성되지 않아 PR 머지가 막힘). ci.yml `CI Success`(required)가 검증을 계속 강제하므로 커버리지 공백은 없다.
 
 ### B-4. Playwright 브라우저 캐시 / E2E 소요 시간 단축
 
@@ -152,11 +157,18 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
   3. PR에서 turbo 캐시 restore-keys에 develop 기준 fallback key를 추가해 build 캐시 적중률을 올림.
 - **기대 효과**: E2E 피드백 시간 단축. 측정 후 적용이 원칙(현재 병목인지부터 확인).
 
-### B-5. promote.yml 운영성 보강
+### B-5. promote.yml 운영성 보강 — 완료(중복 배포 버그 동반 수정)
 
 - **현황**: develop에서 CI/E2E 둘 다 성공 시 자동으로 Vercel production 배포하는 구조(이중 gate, concurrency 보호)는 견고하다. 다만 수동 트리거가 없어 긴급 재배포/특정 SHA 배포가 불가하고, gate 실패 시 알림 없이 조용히 종료되어 "develop은 그린인데 배포가 안 된 상태"를 인지하기 어렵다.
 - **개선안**: `workflow_dispatch` 트리거 추가(옵션으로 ref 지정), gate 실패 시 GitHub commit status 또는 알림 step 추가.
 - **기대 효과**: 배포 운영 대응력 향상, 무배포 상태의 조기 발견.
+- **추가 발견 (2026-06-16, Actions 기록 분석)**: CI/E2E가 거의 동시에 끝나면 양쪽 `workflow_run` 트리거가 각자 gate를 통과해 **같은 commit을 production에 두 번 배포**하고 있었다(concurrency가 직렬화는 하나 dedupe는 안 함). 또 한쪽이 먼저 끝나면 promote가 checkout/setup까지 한 뒤 pending으로 종료돼 "혼자 중단"처럼 보였다.
+- **구현 (exactly-once 배포)**:
+  - gate를 checkout 이전으로 이동 → 흔한 pending 종료가 수 초짜리 no-op(checkout/setup/build 비용 0). 대상 SHA는 자동=트리거 commit, 수동=ref를 `gh api`로 해석.
+  - **idempotency guard**: 자동 경로에서 `promote/gate` commit status가 이미 success면 종료. concurrency 직렬화(`promote-<sha>`, cancel-in-progress:false)와 합쳐 중복 배포 차단. 수동 재배포는 가드 우회.
+  - `workflow_dispatch(ref)` 추가. 이중 gate는 수동 경로에서도 강제(non-green 강제배포 우회 미제공 = 배포 안전 불변식 유지).
+  - gate 3-state(ready/pending/blocked): blocked일 때만 `promote/gate` failure status로 "develop green인데 무배포"를 조기 노출. 배포 성공 시 success status(=guard 기준).
+  - **한계**: 중복배포 방지는 concurrency 직렬화 가정에 의존(동시 실행 시 TOCTOU 잔존). `workflow_run` 트리거 변경은 기본 브랜치(main)에 반영돼야 활성화 → 다음 release 때 적용된다(현재 main은 develop보다 21커밋 뒤).
 
 ### B-6. react-doctor baseline 해소 후 blocking 전환
 

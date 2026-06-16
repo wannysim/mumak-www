@@ -5,46 +5,98 @@ name: Promote to Production
 # develop HEAD를 Vercel production(wannysim.com)으로 배포한다.
 #
 # 두 워크플로는 독립적이라 끝나는 순서가 매번 다르다. 먼저 끝난 쪽이
-# 트리거하면 gate 단계에서 "아직 나머지 대기 중"으로 판단해 조용히 종료하고,
-# 나중에 끝난 쪽이 트리거했을 때 비로소 둘 다 green이라 promote를 실행한다.
+# 트리거하면 gate가 "아직 나머지 대기 중(pending)"으로 판단해 즉시 종료하고
+# (checkout/build 이전이라 비용은 수 초), 나중에 끝난 쪽이 트리거했을 때
+# 비로소 둘 다 green이라 promote를 실행한다.
+#
+# 두 워크플로가 거의 동시에 끝나면 양쪽 트리거가 모두 gate를 통과해 같은 commit을
+# 두 번 배포하던 문제가 있었다(중복 production deploy). 이를 막기 위해:
+#  - concurrency(promote-<sha>, cancel-in-progress: false)로 같은 commit의 promote
+#    실행을 직렬화하고(진행 중 배포는 절대 취소하지 않는다),
+#  - 직렬화된 두 번째 실행은 gate에서 `promote/gate` commit status가 이미 success인지
+#    확인해 중복 배포를 건너뛴다(자동 경로 한정 idempotency guard).
 on:
   workflow_run:
     workflows: ["CI", "E2E Tests"]
     types: [completed]
+  # 수동 트리거: 긴급 재배포·특정 SHA 배포용. ref를 비우면 develop HEAD를 쓴다.
+  # 이중 gate(CI+E2E 모두 success)는 수동 경로에서도 그대로 강제한다 — green이 아닌
+  # 커밋을 강제 배포하는 우회는 의도적으로 제공하지 않는다(배포 안전 불변식 유지).
+  # 단, 이미 배포된 SHA의 재배포는 허용해야 하므로 idempotency guard는 수동 경로에서 건너뛴다.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "배포할 ref/SHA (비우면 develop HEAD)"
+        required: false
+        type: string
 
 concurrency:
-  # 같은 commit에 대한 중복 promote 방지 (CI/E2E가 거의 동시에 끝날 수 있음).
-  # 진행 중인 배포는 취소하지 않는다.
-  group: promote-${{ github.event.workflow_run.head_sha }}
+  # 같은 commit에 대한 promote 실행을 직렬화해 중복 배포를 방지한다.
+  # 진행 중인 배포는 취소하지 않는다(cancel-in-progress: false).
+  # 수동 트리거는 입력 ref(없으면 실행 ref)로 키를 잡는다.
+  group: promote-${{ github.event.workflow_run.head_sha || github.event.inputs.ref || github.ref }}
   cancel-in-progress: false
 
 permissions:
   contents: read
   actions: read
+  statuses: write
 
 jobs:
   promote:
-    name: Promote develop HEAD to production
+    name: Promote to production
     runs-on: ubuntu-latest
-    # develop 브랜치 + 트리거한 워크플로가 성공했을 때만 진행한다.
+    # 자동 경로: develop 브랜치 + 트리거한 워크플로가 성공했을 때만.
+    # 수동 경로(workflow_dispatch): 항상 진입하되, 아래 gate에서 동일한 이중 검증을 거친다.
     if: >
-      github.event.workflow_run.head_branch == 'develop' &&
-      github.event.workflow_run.conclusion == 'success'
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.head_branch == 'develop' &&
+       github.event.workflow_run.conclusion == 'success')
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Checkout (triggering commit)
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+      # checkout 이전에 대상 SHA를 먼저 확정한다. 자동 경로는 트리거 commit을 그대로
+      # 쓰고, 수동 경로는 입력 ref를 gh api로 SHA로 해석한다. 이렇게 하면 pending으로
+      # 종료되는 흔한 경우에 checkout/setup/build 비용을 전혀 치르지 않는다.
+      - name: Resolve target SHA
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ref="${{ github.event.inputs.ref }}"
+            ref="${ref:-develop}"
+            sha=$(gh api "repos/${{ github.repository }}/commits/$ref" --jq '.sha')
+          else
+            sha="${{ github.event.workflow_run.head_sha }}"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       # CI와 E2E 두 summary 워크플로가 같은 SHA에서 모두 success인지 확인한다.
-      # 하나라도 success가 아니면(아직 진행 중 포함) 여기서 깔끔히 종료한다.
+      # - already: 이미 promote success인 SHA(자동 경로) → 중복 배포 방지로 종료
+      # - ready:   둘 다 success → 배포 진행
+      # - pending: 한쪽이 아직 완료 전 → 조용히 종료(나중에 끝난 쪽이 다시 트리거)
+      # - blocked: 한쪽이라도 실패/취소로 종료 → 배포 불가를 commit status로 노출
       - name: Gate — require both CI and E2E success
         id: gate
         env:
-          GH_TOKEN: ${{ github.token }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
+          SHA: ${{ steps.target.outputs.sha }}
         run: |
-          ok=1
+          # idempotency guard: 자동 경로에서 이 SHA가 이미 promote success면 종료한다.
+          # 거의 동시에 끝난 CI/E2E가 각각 트리거해도, 직렬화된 두 번째 실행이 여기서
+          # 멈춰 같은 commit을 두 번 배포하지 않는다. 수동 재배포는 이 가드를 건너뛴다.
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            promoted=$(gh api "repos/${{ github.repository }}/commits/$SHA/statuses" \
+              --jq 'map(select(.context == "promote/gate")) | .[0].state // ""' 2>/dev/null || echo "")
+            if [ "$promoted" = "success" ]; then
+              echo "Already promoted $SHA — skipping duplicate deploy."
+              echo "proceed=false" >> "$GITHUB_OUTPUT"
+              echo "state=already" >> "$GITHUB_OUTPUT"
+              echo "Promote skipped: \`$SHA\` already promoted." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          fi
+
+          ready=1
+          failed=0
           for wf in "CI" "E2E Tests"; do
             conclusion=$(gh run list \
               --repo "${{ github.repository }}" \
@@ -53,18 +105,50 @@ jobs:
               --commit "$SHA" \
               --json conclusion,status \
               --jq 'map(select(.status=="completed")) | .[0].conclusion // "pending"')
-            echo "$wf => ${conclusion:-pending}"
-            if [ "$conclusion" != "success" ]; then
-              ok=0
+            conclusion=${conclusion:-pending}
+            echo "$wf => $conclusion"
+            if [ "$conclusion" = "success" ]; then
+              :
+            elif [ "$conclusion" = "pending" ]; then
+              ready=0
+            else
+              failed=1
+              ready=0
             fi
           done
-          if [ "$ok" != "1" ]; then
-            echo "Both workflows are not green yet for $SHA — skipping promote."
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-          else
+
+          if [ "$ready" = "1" ]; then
             echo "Both CI and E2E succeeded for $SHA — promoting."
             echo "proceed=true" >> "$GITHUB_OUTPUT"
+            echo "state=ready" >> "$GITHUB_OUTPUT"
+            echo "Promoting $SHA to production." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$failed" = "1" ]; then
+            echo "CI/E2E not both green for $SHA — promote blocked."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "state=blocked" >> "$GITHUB_OUTPUT"
+            echo "Promote blocked: CI/E2E are not both green for \`$SHA\`." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Both workflows are not green yet for $SHA — skipping promote."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "state=pending" >> "$GITHUB_OUTPUT"
+            echo "Promote skipped: CI/E2E still in progress for \`$SHA\`." >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      # gate가 명확한 실패로 막혔을 때만 commit status를 남긴다("develop은 그린인데
+      # 배포가 안 된 상태"의 조기 발견). pending/already는 정상이므로 status를 더럽히지 않는다.
+      - name: Report blocked promote (commit status)
+        if: steps.gate.outputs.state == 'blocked'
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/${{ steps.target.outputs.sha }}" \
+            -f state=failure \
+            -f context=promote/gate \
+            -f description="CI/E2E not both green — production promote skipped"
+
+      - name: Checkout (target commit)
+        if: steps.gate.outputs.proceed == 'true'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.target.outputs.sha }}
 
       - name: Setup Node.js and pnpm
         if: steps.gate.outputs.proceed == 'true'
@@ -101,3 +185,13 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      # 배포가 끝까지 성공한 경우에만 success status를 남긴다. 이 status가 위
+      # idempotency guard의 기준이 되어, 같은 SHA의 두 번째 자동 promote를 차단한다.
+      - name: Report successful promote (commit status)
+        if: steps.gate.outputs.proceed == 'true' && success()
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/${{ steps.target.outputs.sha }}" \
+            -f state=success \
+            -f context=promote/gate \
+            -f description="Promoted to production"
