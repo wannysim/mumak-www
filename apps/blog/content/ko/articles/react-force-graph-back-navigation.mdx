@@ -173,32 +173,105 @@ maintainer도 이슈 #596에서 "언마운트 후 다시 remount되는 동작은
 
 PR 본문에는 `Refs vasturiano/react-force-graph#596`을 넣어 이슈와 명시적으로 연결했다.
 
-## 6. PR이 머지된 뒤: 우리 코드 정리 순서
+## 6. PR이 머지된 뒤: 우리 코드 정리
 
-이 글은 PR이 release된 뒤 공개할 예정이라, 머지 이후 `apps/blog`에서 밟을 순서를 체크리스트로 남긴다.
+PR은 머지됐고, `react-kapsule@2.6.0`도 publish됐다.
+남은 일은 이 블로그가 실제로 그 수정 버전을 바라보게 만드는 것이었다.
 
-**1) `react-kapsule` 버전 끌어올리기**
+여기서 중요한 점은 `apps/blog/package.json`에 `react-kapsule`을 직접 dependency로 추가하지 않았다는 것이다.
+블로그 코드는 `react-kapsule`을 직접 import하지 않는다. `react-force-graph-3d`가 내부에서 쓰는 transitive dependency일 뿐이다.
+직접 의존성으로 올리면 "내 코드가 쓰는 패키지"처럼 보이므로 의존성 표면이 불필요하게 넓어진다.
 
-- `react-force-graph-3d`가 새 `react-kapsule`을 dependency range로 자동으로 끌어오는지 `pnpm-lock.yaml`에서 확인한다.
-- 자동 반영이 안 되면 `package.json`의 `pnpm.overrides`로 `react-kapsule`을 새 버전에 고정한다.
-- `pnpm why react-kapsule`로 실제 해석된 버전이 올라갔는지 확인한다.
+다행히 `react-force-graph-3d@1.29.1`의 dependency range는 `react-kapsule: ^2.5`다.
+`2.6.0`은 같은 major 안의 minor release라 semver 범위 안에 들어온다.
+문제는 기존 lockfile이 `2.5.7`을 계속 잡고 있다는 점뿐이었다.
 
-**2) workaround를 끄고 fix가 실제로 동작하는지 먼저 확인**
+처음엔 이렇게 transitive update만 시도했다.
 
-- `apps/blog/src/features/graph/ui/graph-canvas.tsx`의 `FORCE_GRAPH_REMOUNT_WORKAROUND`를 임시로 `false`로 둔다.
-- 로컬에서 그래프 진입 → 다른 글로 이동 → 브라우저 뒤로가기로 복귀했을 때 drag/zoom/click이 살아 있는지 수동으로 확인한다.
+```bash
+pnpm update react-kapsule@2.6.0 --filter blog --lockfile-only
+```
 
-**3) E2E로 회귀를 고정한 뒤 workaround 제거**
+하지만 이 저장소에서는 원하는 transitive만 올라가지 않았다.
+그래서 workspace override로 정확히 한 패키지만 고정했다.
 
-- `apps/blog/e2e/graph.spec.ts`에 "뒤로가기/앞으로가기 후 인터랙션이 살아 있는가" 시나리오를 추가한다.
-- 이때 DOM이 보이는지만 확인하면 부족하다. 이 버그가 정확히 "보이는데 안 만져지는" 종류였기 때문이다. 노드 클릭 후 detail 패널이 열리는지, 휠/드래그 후 관찰 가능한 UI 상태가 바뀌는지처럼 **인터랙션의 결과**까지 본다.
-- 새 E2E가 통과하면 `FORCE_GRAPH_REMOUNT_WORKAROUND` 분기와 `graphKey` 관련 코드를 걷어낸다.
+```yaml
+# pnpm-workspace.yaml
+overrides:
+  react-kapsule: 2.6.0
+```
 
-**4) (선택) `3d-force-graph` 업데이트는 별개 작업**
+`pnpm@11.5.1`은 freshly published package를 받는 과정에서 release-age 예외도 함께 기록했다.
+이 항목은 새 버전을 의도적으로 받는다는 표식이고, 핵심 고정 장치는 위의 `overrides`다.
 
-- 리소스 정리 개선을 위한 것이며 이번 fix와 무관하므로, 섞지 말고 별도 PR로 다룬다.
+```yaml
+minimumReleaseAgeExclude:
+  - react-kapsule@2.6.0
+```
 
-이 순서를 다 밟고 나면 이 글의 `draft`를 해제해 공개한다.
+그 다음 lockfile을 다시 계산한다.
+
+```bash
+pnpm install --lockfile-only
+```
+
+결과적으로 `pnpm-lock.yaml`의 `react-force-graph-3d@1.29.1` snapshot이 이렇게 바뀐다.
+
+```diff
+ react-force-graph-3d@1.29.1(react@19.2.6):
+   dependencies:
+     3d-force-graph: 1.79.1
+     prop-types: 15.8.1
+     react: 19.2.6
+-    react-kapsule: 2.5.7(react@19.2.6)
++    react-kapsule: 2.6.0(react@19.2.6)
+```
+
+실제 설치 상태까지 맞춘 뒤에는 이렇게 확인한다.
+
+```bash
+pnpm install
+pnpm why react-kapsule --filter blog
+```
+
+기대하는 출력은 `react-force-graph-3d@1.29.1` 아래의 `react-kapsule`이 `2.6.0` 하나로 해석되는 상태다.
+
+```text
+react-kapsule@2.6.0
+└─┬ react-force-graph-3d@1.29.1
+  └── blog@... (dependencies)
+```
+
+이제 로컬 workaround를 걷어낼 수 있다.
+`apps/blog/src/features/graph/ui/graph-canvas.tsx`에서 `key` 강제 remount용 상태와 분기를 삭제했다.
+
+```diff
+-const hasMountedRef = useRef(false);
+-const [graphKey, setGraphKey] = useState(0);
+-
+-useEffect(() => {
+-  if (FORCE_GRAPH_REMOUNT_WORKAROUND && hasMountedRef.current) {
+-    setGraphKey(prev => prev + 1);
+-  }
+-  hasMountedRef.current = true;
+-}, []);
+-
+ <ForceGraph
+-  key={FORCE_GRAPH_REMOUNT_WORKAROUND ? graphKey : undefined}
+   ref={fgRef}
+   ...
+ />
+```
+
+검증은 단순히 캔버스가 보이는지로 끝내면 안 된다.
+이 버그는 정확히 "보이는데 안 만져지는" 종류였기 때문이다.
+그래프 진입 → 다른 글로 이동 → 브라우저 뒤로가기로 복귀한 뒤 drag/zoom/click이 살아 있는지 확인해야 한다.
+자동화한다면 `apps/blog/e2e/graph.spec.ts`에서 노드 클릭 후 detail panel이 열리는지처럼 **인터랙션의 결과**를 검증해야 한다.
+
+`3d-force-graph` 업데이트는 이번 수정과 분리했다.
+리소스 정리 개선은 별개 문제고, #596의 핵심은 `react-kapsule`의 재초기화 skip이기 때문이다.
+
+여기까지 끝나면 로컬 우회 코드 없이 upstream fix만으로 그래프가 복구된다.
 
 ## 마치며
 
@@ -212,5 +285,6 @@ PR 본문에는 `Refs vasturiano/react-force-graph#596`을 넣어 이슈와 명�
 ## 참고
 
 - [react-force-graph #596](https://github.com/vasturiano/react-force-graph/issues/596) -- 원 이슈
+- [react-kapsule #15](https://github.com/vasturiano/react-kapsule/pull/15) -- upstream fix PR
 - [3d-force-graph #732](https://github.com/vasturiano/3d-force-graph/issues/732) -- 연관 리소스 정리 이슈
 - [Synchronizing with Effects -- react.dev](https://react.dev/learn/synchronizing-with-effects) -- Strict Mode와 effect 더블 인보크

@@ -173,32 +173,105 @@ Before the change, `hidden → visible` doesn't re-run kapsule init; after it, i
 
 The PR body includes `Refs vasturiano/react-force-graph#596` to link the issue explicitly.
 
-## 6. After the PR Merges: Cleaning Up Our Code
+## 6. After the PR Merged: Cleaning Up Our Code
 
-This post will go live after the PR is released, so here's a checklist of the steps to take in `apps/blog` once it's merged.
+The PR was merged, and `react-kapsule@2.6.0` was published.
+The last step was making this blog actually resolve to that fixed version.
 
-**1) Bump `react-kapsule`**
+The important detail: I did **not** add `react-kapsule` as a direct dependency in `apps/blog/package.json`.
+The blog doesn't import `react-kapsule` directly. It is a transitive dependency used internally by `react-force-graph-3d`.
+Adding it directly would make the dependency surface look broader than it really is.
 
-- Check in `pnpm-lock.yaml` whether `react-force-graph-3d` pulls in the new `react-kapsule` automatically via its dependency range.
-- If it doesn't, pin `react-kapsule` to the new version via `pnpm.overrides` in `package.json`.
-- Confirm the actually-resolved version went up with `pnpm why react-kapsule`.
+Fortunately, `react-force-graph-3d@1.29.1` declares `react-kapsule: ^2.5`.
+`2.6.0` is still inside that semver range.
+The only problem was that the existing lockfile kept resolving `2.5.7`.
 
-**2) Turn off the workaround and confirm the fix actually works first**
+I first tried updating just the transitive package.
 
-- Temporarily set `FORCE_GRAPH_REMOUNT_WORKAROUND` to `false` in `apps/blog/src/features/graph/ui/graph-canvas.tsx`.
-- Locally, enter the graph → navigate to a post → return via browser back, and manually confirm drag/zoom/click are alive.
+```bash
+pnpm update react-kapsule@2.6.0 --filter blog --lockfile-only
+```
 
-**3) Pin the regression with E2E, then remove the workaround**
+In this repo, that did not move the transitive resolution I wanted.
+So I pinned exactly that package through a workspace override.
 
-- Add a "do interactions survive back/forward navigation" scenario to `apps/blog/e2e/graph.spec.ts`.
-- A DOM-visibility-only check isn't enough, precisely because this bug was the "visible but untouchable" kind. Check **the result of an interaction** -- whether a detail panel opens after a node click, whether observable UI state changes after a wheel/drag.
-- Once the new E2E passes, strip out the `FORCE_GRAPH_REMOUNT_WORKAROUND` branch and the `graphKey` code.
+```yaml
+# pnpm-workspace.yaml
+overrides:
+  react-kapsule: 2.6.0
+```
 
-**4) (Optional) The `3d-force-graph` update is a separate task**
+`pnpm@11.5.1` also recorded a release-age exception while accepting the freshly published package.
+That entry is the explicit "yes, this new version is intentional" marker; the actual resolution mechanism is the override above.
 
-- It's for resource-cleanup improvements and is unrelated to this fix, so handle it in its own PR rather than mixing them.
+```yaml
+minimumReleaseAgeExclude:
+  - react-kapsule@2.6.0
+```
 
-After all of these steps, clear this post's `draft` flag and publish.
+Then regenerate the lockfile.
+
+```bash
+pnpm install --lockfile-only
+```
+
+The important lockfile change is that the `react-force-graph-3d@1.29.1` snapshot now points at `react-kapsule@2.6.0`.
+
+```diff
+ react-force-graph-3d@1.29.1(react@19.2.6):
+   dependencies:
+     3d-force-graph: 1.79.1
+     prop-types: 15.8.1
+     react: 19.2.6
+-    react-kapsule: 2.5.7(react@19.2.6)
++    react-kapsule: 2.6.0(react@19.2.6)
+```
+
+After syncing the actual install, confirm the resolved graph.
+
+```bash
+pnpm install
+pnpm why react-kapsule --filter blog
+```
+
+The target state is a single `react-kapsule@2.6.0` under `react-force-graph-3d@1.29.1`.
+
+```text
+react-kapsule@2.6.0
+└─┬ react-force-graph-3d@1.29.1
+  └── blog@... (dependencies)
+```
+
+With that in place, the local workaround can be removed.
+In `apps/blog/src/features/graph/ui/graph-canvas.tsx`, I deleted the state and branch that forced a new `key`.
+
+```diff
+-const hasMountedRef = useRef(false);
+-const [graphKey, setGraphKey] = useState(0);
+-
+-useEffect(() => {
+-  if (FORCE_GRAPH_REMOUNT_WORKAROUND && hasMountedRef.current) {
+-    setGraphKey(prev => prev + 1);
+-  }
+-  hasMountedRef.current = true;
+-}, []);
+-
+ <ForceGraph
+-  key={FORCE_GRAPH_REMOUNT_WORKAROUND ? graphKey : undefined}
+   ref={fgRef}
+   ...
+ />
+```
+
+The verification cannot stop at "the canvas is visible."
+This bug was specifically "visible but untouchable."
+The real check is: enter the graph → navigate to a post → return via browser back → confirm drag/zoom/click still work.
+If this is automated in `apps/blog/e2e/graph.spec.ts`, it should assert **the result of an interaction**, such as a detail panel opening after a node click.
+
+I kept the `3d-force-graph` update separate.
+Resource cleanup is a different problem; #596 was about skipped re-initialization in `react-kapsule`.
+
+At this point, the graph runs without the local workaround and relies on the upstream fix.
 
 ## Closing
 
@@ -212,5 +285,6 @@ I wrote up the general trap of library lifecycle guards separately in the [garde
 ## References
 
 - [react-force-graph #596](https://github.com/vasturiano/react-force-graph/issues/596) -- the original issue
+- [react-kapsule #15](https://github.com/vasturiano/react-kapsule/pull/15) -- the upstream fix PR
 - [3d-force-graph #732](https://github.com/vasturiano/3d-force-graph/issues/732) -- the related resource-cleanup issue
 - [Synchronizing with Effects -- react.dev](https://react.dev/learn/synchronizing-with-effects) -- Strict Mode and effect double-invoke

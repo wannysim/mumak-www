@@ -5,6 +5,7 @@ overrides:
   '@types/react': 19.2.15
   '@types/react-dom': 19.2.3
   jest-mock: ^30.4.1
+  react-kapsule: 2.6.0
 allowBuilds:
   '@parcel/watcher': false
   '@swc/core': false
@@ -13,3 +14,5 @@ allowBuilds:
   msw: false
   sharp: false
   unrs-resolver: false
+minimumReleaseAgeExclude:
+  - react-kapsule@2.6.0
