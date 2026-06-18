@@ -68,7 +68,7 @@ body {
     opacity: 0;
   }
   to {
-    opacity: 0.3;
+    opacity: var(--album-opacity, 0.3);
   }
 }
 

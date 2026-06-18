@@ -1,4 +1,7 @@
+import type { CSSProperties } from 'react';
+
 import type { Palette } from '@/lib/color/palette';
+import type { AmbientConfig } from '@/lib/settings/config';
 
 /** 스와치 인덱스별 블롭 배치/궤도 프리셋. */
 const BLOB_PRESETS = [
@@ -12,11 +15,19 @@ const BLOB_PRESETS = [
 /**
  * 팔레트 + 앨범 아트 기반 ambient 배경.
  * (뒤→앞) 베이스 단색 → 블러된 앨범 아트(Ken Burns) → 스와치 mesh 블롭 → 가독 오버레이.
- * 모든 색에 transition 을 걸어 곡 전환 시 부드럽게 morph 된다.
- * 애니메이션은 inline style 로 주고, prefers-reduced-motion 은 index.css 가 무효화한다.
+ * 강도/속도/개수는 config 로 제어하고, prefers-reduced-motion 은 index.css 가 무효화한다.
  */
-export function AmbientBackground({ palette, albumImageUrl }: { palette: Palette; albumImageUrl: string }) {
-  const colorTransition = 'background-color 1200ms ease';
+export function AmbientBackground({
+  palette,
+  albumImageUrl,
+  config,
+}: {
+  palette: Palette;
+  albumImageUrl: string;
+  config: AmbientConfig;
+}) {
+  const colorTransition = `background-color ${config.morphMs}ms ease`;
+  const swatches = palette.swatches.slice(0, config.blobCount);
 
   return (
     <div
@@ -24,29 +35,41 @@ export function AmbientBackground({ palette, albumImageUrl }: { palette: Palette
       style={{ backgroundColor: palette.base, transition: colorTransition }}
       aria-hidden="true"
     >
-      {albumImageUrl ? (
+      {albumImageUrl && config.albumLayerOpacity > 0 ? (
         <div
           key={albumImageUrl}
-          className="stage-anim absolute inset-0 scale-125 bg-cover bg-center opacity-30 blur-3xl"
-          style={{
-            backgroundImage: `url(${albumImageUrl})`,
-            animation: 'stage-kenburns 40s ease-in-out infinite alternate, stage-fade-in 1200ms ease',
-          }}
+          className="stage-anim absolute inset-0 scale-125 bg-cover bg-center blur-3xl"
+          style={
+            {
+              backgroundImage: `url(${albumImageUrl})`,
+              opacity: config.albumLayerOpacity,
+              '--album-opacity': config.albumLayerOpacity,
+              animation: config.kenBurns
+                ? 'stage-kenburns 40s ease-in-out infinite alternate, stage-fade-in 1200ms ease'
+                : 'stage-fade-in 1200ms ease',
+            } as CSSProperties
+          }
         />
       ) : null}
 
-      {palette.swatches.map((color, index) => {
+      {swatches.map((color, index) => {
         const preset = BLOB_PRESETS[index % BLOB_PRESETS.length] ?? BLOB_PRESETS[0];
         return (
           <div
             key={`${color}-${index}`}
-            className={`stage-anim absolute rounded-full opacity-50 blur-[90px] mix-blend-screen ${preset.className}`}
-            style={{ backgroundColor: color, animation: preset.animation, transition: colorTransition }}
+            className={`stage-anim absolute rounded-full mix-blend-screen ${preset.className}`}
+            style={{
+              backgroundColor: color,
+              opacity: config.blobOpacity,
+              filter: `blur(${config.blobBlur}px)`,
+              animation: preset.animation,
+              transition: colorTransition,
+            }}
           />
         );
       })}
 
-      <div className="absolute inset-0 bg-black/30" />
+      <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${config.overlayDarkness})` }} />
     </div>
   );
 }
