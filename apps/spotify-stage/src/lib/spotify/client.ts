@@ -1,7 +1,13 @@
 /** Spotify Web API 의 /me/player 를 호출해 NowPlaying 으로 정규화한다. */
 
 import { SPOTIFY_PLAYER_ENDPOINT } from './constants';
-import { KNOWN_DEVICE_TYPES, type NowPlaying, type SpotifyDeviceInfo, type SpotifyDeviceType } from './types';
+import {
+  KNOWN_DEVICE_TYPES,
+  type NowPlaying,
+  type RepeatState,
+  type SpotifyDeviceInfo,
+  type SpotifyDeviceType,
+} from './types';
 
 interface SpotifyArtist {
   name: string;
@@ -27,6 +33,12 @@ interface SpotifyPlayerResponse {
   item: SpotifyTrack | null;
   progress_ms: number | null;
   device?: SpotifyDevice;
+  shuffle_state?: boolean;
+  repeat_state?: string;
+}
+
+function normalizeRepeat(state: string | undefined): RepeatState {
+  return state === 'track' || state === 'context' ? state : 'off';
 }
 
 /** 401(토큰 만료) 을 호출부가 구분할 수 있도록 별도 결과로 표현한다. */
@@ -62,6 +74,8 @@ function toNowPlaying(response: SpotifyPlayerResponse): NowPlaying | null {
     progressMs: response.progress_ms ?? null,
     durationMs: track.duration_ms ?? null,
     device: normalizeDevice(response.device),
+    shuffleState: response.shuffle_state ?? false,
+    repeatState: normalizeRepeat(response.repeat_state),
   };
 }
 

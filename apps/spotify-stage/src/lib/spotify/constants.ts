@@ -5,10 +5,17 @@ export const SPOTIFY_TOKEN_ENDPOINT = 'https://accounts.spotify.com/api/token';
 export const SPOTIFY_PLAYER_ENDPOINT = 'https://api.spotify.com/v1/me/player';
 
 /**
- * device 정보가 포함된 전체 player 상태를 받으려면 user-read-playback-state 가 필요하다.
- * user-read-currently-playing 은 트랙만 주고 device 를 주지 않으므로 둘 다 요청한다.
+ * - user-read-playback-state: device 포함 전체 player 상태 + 큐 읽기
+ * - user-read-currently-playing: 현재 곡
+ * - user-read-recently-played: Just Played(최근 재생)
+ * - user-modify-playback-state: 재생 조작(next/prev/play/pause/shuffle/repeat). Premium 필요.
  */
-export const SPOTIFY_SCOPES = ['user-read-playback-state', 'user-read-currently-playing'] as const;
+export const SPOTIFY_SCOPES = [
+  'user-read-playback-state',
+  'user-read-currently-playing',
+  'user-read-recently-played',
+  'user-modify-playback-state',
+] as const;
 
 /** 공개 클라이언트(PKCE)라 client_secret 없이 client_id 만 사용한다. */
 export const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID ?? '';

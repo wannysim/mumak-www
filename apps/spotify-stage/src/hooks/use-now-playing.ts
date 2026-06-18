@@ -20,6 +20,8 @@ interface UseNowPlayingReturn {
   needsReauth: boolean;
   /** 마지막으로 데이터를 받은 시각(epoch ms). 진행률 보간 baseline. */
   fetchedAt: number;
+  /** 즉시 한 번 다시 폴링한다(재생 조작 직후 등). */
+  refresh: () => void;
 }
 
 function subscribeVisibility(onChange: () => void): () => void {
@@ -120,5 +122,9 @@ export function useNowPlaying({
     };
   }, [enabled, isVisible, poll, playingInterval, idleInterval]);
 
-  return { data, isLoading, needsReauth, fetchedAt };
+  const refresh = useCallback(() => {
+    poll().catch(() => undefined);
+  }, [poll]);
+
+  return { data, isLoading, needsReauth, fetchedAt, refresh };
 }

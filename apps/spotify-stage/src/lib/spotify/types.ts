@@ -21,6 +21,8 @@ export interface SpotifyDeviceInfo {
   volumePercent: number | null;
 }
 
+export type RepeatState = 'off' | 'track' | 'context';
+
 export interface NowPlaying {
   isPlaying: boolean;
   title: string;
@@ -32,6 +34,16 @@ export interface NowPlaying {
   progressMs: number | null;
   durationMs: number | null;
   device: SpotifyDeviceInfo | null;
+  shuffleState: boolean;
+  repeatState: RepeatState;
+}
+
+/** 큐/최근 재생 등 목록 표시용 경량 트랙 정보. */
+export interface TrackBrief {
+  title: string;
+  artist: string;
+  albumImageUrl: string;
+  songUrl: string;
 }
 
 export const KNOWN_DEVICE_TYPES: ReadonlySet<SpotifyDeviceType> = new Set([

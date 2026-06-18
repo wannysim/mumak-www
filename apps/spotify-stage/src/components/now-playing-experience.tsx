@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { AmbientBackground } from '@/components/ambient-background';
 import { ControlPanel } from '@/components/control-panel';
 import { NowPlayingStage } from '@/components/now-playing-stage';
+import { PlaybackControls } from '@/components/playback-controls';
+import { QueuePanel } from '@/components/queue-panel';
 import { IdleScreen, LoadingScreen } from '@/components/status-screen';
 import { useAlbumPalette } from '@/hooks/use-album-palette';
 import { useNowPlaying } from '@/hooks/use-now-playing';
@@ -15,7 +17,7 @@ import { useStageSettings } from '@/hooks/use-stage-settings';
  * App 은 인증 라우팅만 담당하도록 분리한다.
  */
 export function NowPlayingExperience({ onSignOut }: { onSignOut: () => void }) {
-  const { data, isLoading, needsReauth, fetchedAt } = useNowPlaying();
+  const { data, isLoading, needsReauth, fetchedAt, refresh } = useNowPlaying();
   const palette = useAlbumPalette(data?.albumImageUrl);
   const { settings, setAmbient, setThemeChoice, reset } = useStageSettings();
 
@@ -45,6 +47,8 @@ export function NowPlayingExperience({ onSignOut }: { onSignOut: () => void }) {
         onThemeChoiceChange={setThemeChoice}
         onReset={reset}
       />
+      <QueuePanel currentSongUrl={data.songUrl} />
+      <PlaybackControls nowPlaying={data} onChanged={refresh} />
       <button
         onClick={onSignOut}
         className="fixed right-4 top-4 z-20 flex size-9 items-center justify-center rounded-full bg-black/30 text-white/70 backdrop-blur-md transition hover:bg-black/50 hover:text-white"
