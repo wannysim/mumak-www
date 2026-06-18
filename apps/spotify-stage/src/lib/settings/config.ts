@@ -19,6 +19,14 @@ export interface AmbientConfig {
   morphMs: number;
   /** 사용할 블롭(스와치) 개수 (1~5). */
   blobCount: number;
+  /** feTurbulence 기반 액체 왜곡 적용 여부. */
+  liquid: boolean;
+  /** 액체 왜곡 변위 강도(feDisplacementMap scale). */
+  liquidScale: number;
+  /** 마우스/자이로 패럴랙스 적용 여부. */
+  parallax: boolean;
+  /** 패럴랙스 최대 이동량(px). */
+  parallaxStrength: number;
 }
 
 export const DEFAULT_AMBIENT_CONFIG: AmbientConfig = {
@@ -29,6 +37,10 @@ export const DEFAULT_AMBIENT_CONFIG: AmbientConfig = {
   overlayDarkness: 0.3,
   morphMs: 1200,
   blobCount: 5,
+  liquid: true,
+  liquidScale: 36,
+  parallax: true,
+  parallaxStrength: 24,
 };
 
 /** 'auto' 는 실제 device.type 을 따른다. 나머지는 강제 테마. */

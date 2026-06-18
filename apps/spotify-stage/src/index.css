@@ -53,6 +53,20 @@ body {
   }
 }
 
+/* 블롭이 유기적으로 모양을 바꾸며 흐르는 느낌 (border-radius 모핑) */
+@keyframes stage-blob-morph {
+  0%,
+  100% {
+    border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+  }
+  33% {
+    border-radius: 67% 33% 47% 53% / 58% 56% 44% 42%;
+  }
+  66% {
+    border-radius: 38% 62% 56% 44% / 49% 38% 62% 51%;
+  }
+}
+
 /* 블러된 앨범 아트의 느린 줌/팬 (Ken Burns) */
 @keyframes stage-kenburns {
   0% {

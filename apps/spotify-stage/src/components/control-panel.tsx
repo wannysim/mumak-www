@@ -40,8 +40,18 @@ const SLIDER_ROWS: SliderRow[] = [
   { key: 'blobOpacity', label: '블롭 강도', min: 0, max: 1, step: 0.05 },
   { key: 'blobBlur', label: '블롭 블러', min: 40, max: 140, step: 5, format: v => `${v}px` },
   { key: 'blobCount', label: '블롭 개수', min: 1, max: 5, step: 1, format: v => `${v}개` },
+  { key: 'liquidScale', label: '액체 왜곡', min: 0, max: 100, step: 5 },
+  { key: 'parallaxStrength', label: '패럴랙스 강도', min: 0, max: 60, step: 4, format: v => `${v}px` },
   { key: 'overlayDarkness', label: '어둡기(가독성)', min: 0, max: 0.7, step: 0.05 },
   { key: 'morphMs', label: '색 전환 속도', min: 0, max: 3000, step: 100, format: v => `${v}ms` },
+];
+
+type ToggleKey = 'kenBurns' | 'liquid' | 'parallax';
+
+const TOGGLE_ROWS: ReadonlyArray<{ key: ToggleKey; label: string }> = [
+  { key: 'kenBurns', label: 'Ken Burns (앨범 줌/팬)' },
+  { key: 'liquid', label: '액체 그라데이션' },
+  { key: 'parallax', label: '패럴랙스 (마우스/자이로)' },
 ];
 
 export function ControlPanel({
@@ -123,13 +133,15 @@ export function ControlPanel({
           </section>
 
           <section className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs text-zinc-400">Ken Burns (앨범 줌/팬)</Label>
-              <Switch
-                checked={settings.ambient.kenBurns}
-                onCheckedChange={checked => onAmbientChange({ kenBurns: checked })}
-              />
-            </div>
+            {TOGGLE_ROWS.map(toggle => (
+              <div key={toggle.key} className="flex items-center justify-between">
+                <Label className="text-xs text-zinc-400">{toggle.label}</Label>
+                <Switch
+                  checked={settings.ambient[toggle.key]}
+                  onCheckedChange={checked => onAmbientChange({ [toggle.key]: checked })}
+                />
+              </div>
+            ))}
 
             {SLIDER_ROWS.map(row => {
               const value = settings.ambient[row.key] as number;
