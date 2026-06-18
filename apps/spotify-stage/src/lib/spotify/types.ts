@@ -36,6 +36,8 @@ export interface NowPlaying {
   device: SpotifyDeviceInfo | null;
   shuffleState: boolean;
   repeatState: RepeatState;
+  /** 대표(첫) 아티스트 ID. 장르 조회용. */
+  artistId: string | null;
 }
 
 /** 큐/최근 재생 등 목록 표시용 경량 트랙 정보. */

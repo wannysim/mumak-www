@@ -42,13 +42,15 @@ const SLIDER_ROWS: SliderRow[] = [
   { key: 'blobCount', label: '블롭 개수', min: 1, max: 5, step: 1, format: v => `${v}개` },
   { key: 'liquidScale', label: '액체 왜곡', min: 0, max: 100, step: 5 },
   { key: 'parallaxStrength', label: '패럴랙스 강도', min: 0, max: 60, step: 4, format: v => `${v}px` },
+  { key: 'reactiveSensitivity', label: '리액티브 민감도', min: 0, max: 1, step: 0.05 },
   { key: 'overlayDarkness', label: '어둡기(가독성)', min: 0, max: 0.7, step: 0.05 },
   { key: 'morphMs', label: '색 전환 속도', min: 0, max: 3000, step: 100, format: v => `${v}ms` },
 ];
 
-type ToggleKey = 'kenBurns' | 'liquid' | 'parallax';
+type ToggleKey = 'kenBurns' | 'liquid' | 'parallax' | 'reactive';
 
 const TOGGLE_ROWS: ReadonlyArray<{ key: ToggleKey; label: string }> = [
+  { key: 'reactive', label: '리액티브 인텐시티 (곡 기반)' },
   { key: 'kenBurns', label: 'Ken Burns (앨범 줌/팬)' },
   { key: 'liquid', label: '액체 그라데이션' },
   { key: 'parallax', label: '패럴랙스 (마우스/자이로)' },
@@ -57,12 +59,14 @@ const TOGGLE_ROWS: ReadonlyArray<{ key: ToggleKey; label: string }> = [
 export function ControlPanel({
   settings,
   realDeviceType,
+  energy,
   onAmbientChange,
   onThemeChoiceChange,
   onReset,
 }: {
   settings: StageSettings;
   realDeviceType: SpotifyDeviceType | undefined;
+  energy: number;
   onAmbientChange: (patch: Partial<AmbientConfig>) => void;
   onThemeChoiceChange: (choice: ThemeChoice) => void;
   onReset: () => void;
@@ -142,6 +146,21 @@ export function ControlPanel({
                 />
               </div>
             ))}
+
+            {settings.ambient.reactive ? (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <Label className="text-zinc-400">이 곡 energy</Label>
+                  <span className="tabular-nums text-zinc-500">{energy.toFixed(2)}</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-emerald-400 transition-[width] duration-500"
+                    style={{ width: `${Math.round(energy * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
 
             {SLIDER_ROWS.map(row => {
               const value = settings.ambient[row.key] as number;

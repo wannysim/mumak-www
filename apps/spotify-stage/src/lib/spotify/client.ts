@@ -10,6 +10,7 @@ import {
 } from './types';
 
 interface SpotifyArtist {
+  id?: string;
   name: string;
 }
 
@@ -76,6 +77,7 @@ function toNowPlaying(response: SpotifyPlayerResponse): NowPlaying | null {
     device: normalizeDevice(response.device),
     shuffleState: response.shuffle_state ?? false,
     repeatState: normalizeRepeat(response.repeat_state),
+    artistId: track.artists[0]?.id ?? null,
   };
 }
 

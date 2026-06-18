@@ -27,6 +27,10 @@ export interface AmbientConfig {
   parallax: boolean;
   /** 패럴랙스 최대 이동량(px). */
   parallaxStrength: number;
+  /** 곡 energy 에 따라 애니메이션 강도를 키울지. */
+  reactive: boolean;
+  /** 리액티브 민감도(0~1). energy 가 강도에 미치는 정도. */
+  reactiveSensitivity: number;
 }
 
 export const DEFAULT_AMBIENT_CONFIG: AmbientConfig = {
@@ -41,6 +45,8 @@ export const DEFAULT_AMBIENT_CONFIG: AmbientConfig = {
   liquidScale: 36,
   parallax: true,
   parallaxStrength: 24,
+  reactive: true,
+  reactiveSensitivity: 0.6,
 };
 
 /** 'auto' 는 실제 device.type 을 따른다. 나머지는 강제 테마. */

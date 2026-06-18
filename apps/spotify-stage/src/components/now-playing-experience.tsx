@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 
 import { AmbientBackground } from '@/components/ambient-background';
 import { ControlPanel } from '@/components/control-panel';
+import { EnergyBurst } from '@/components/energy-burst';
 import { NowPlayingStage } from '@/components/now-playing-stage';
 import { PlaybackControls } from '@/components/playback-controls';
 import { QueuePanel } from '@/components/queue-panel';
@@ -10,6 +11,7 @@ import { IdleScreen, LoadingScreen } from '@/components/status-screen';
 import { useAlbumPalette } from '@/hooks/use-album-palette';
 import { useNowPlaying } from '@/hooks/use-now-playing';
 import { useStageSettings } from '@/hooks/use-stage-settings';
+import { useTrackEnergy } from '@/hooks/use-track-energy';
 
 /**
  * 인증된 사용자에게만 마운트되는 "재생 중" 경험.
@@ -20,6 +22,7 @@ export function NowPlayingExperience({ onSignOut }: { onSignOut: () => void }) {
   const { data, isLoading, needsReauth, fetchedAt, refresh } = useNowPlaying();
   const palette = useAlbumPalette(data?.albumImageUrl);
   const { settings, setAmbient, setThemeChoice, reset } = useStageSettings();
+  const energy = useTrackEnergy(data, palette);
 
   // refresh token 이 폐기돼 재인증이 필요하면 상위에 알려 로그인 화면으로 되돌린다.
   useEffect(() => {
@@ -36,13 +39,24 @@ export function NowPlayingExperience({ onSignOut }: { onSignOut: () => void }) {
     return <IdleScreen onSignOut={onSignOut} />;
   }
 
+  const intensity = settings.ambient.reactive ? energy * settings.ambient.reactiveSensitivity : 0;
+
   return (
     <div className="relative min-h-svh w-full overflow-hidden">
-      <AmbientBackground palette={palette} albumImageUrl={data.albumImageUrl} config={settings.ambient} />
+      <AmbientBackground
+        palette={palette}
+        albumImageUrl={data.albumImageUrl}
+        config={settings.ambient}
+        intensity={intensity}
+      />
+      {settings.ambient.reactive ? (
+        <EnergyBurst trackKey={data.songUrl} energy={energy} accent={palette.accent} />
+      ) : null}
       <NowPlayingStage nowPlaying={data} palette={palette} fetchedAt={fetchedAt} themeChoice={settings.themeChoice} />
       <ControlPanel
         settings={settings}
         realDeviceType={data.device?.type}
+        energy={energy}
         onAmbientChange={setAmbient}
         onThemeChoiceChange={setThemeChoice}
         onReset={reset}
