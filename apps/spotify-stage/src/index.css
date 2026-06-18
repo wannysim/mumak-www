@@ -1,0 +1,79 @@
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./assets/fonts/PretendardVariable.woff2') format('woff2-variations');
+  font-weight: 45 920;
+  font-display: swap;
+}
+
+body {
+  font-family: 'Pretendard', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #09090b;
+}
+
+/* ambient 배경 블롭의 느린 부유 애니메이션 */
+@keyframes stage-float-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6%, 8%, 0) scale(1.12);
+  }
+}
+
+@keyframes stage-float-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-7%, -6%, 0) scale(1.08);
+  }
+}
+
+@keyframes stage-float-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-5%, 7%, 0) scale(1.15);
+  }
+}
+
+@keyframes stage-float-d {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(8%, -5%, 0) scale(0.95);
+  }
+}
+
+/* 블러된 앨범 아트의 느린 줌/팬 (Ken Burns) */
+@keyframes stage-kenburns {
+  0% {
+    transform: scale(1.25) translate3d(0, 0, 0);
+  }
+  100% {
+    transform: scale(1.4) translate3d(-3%, -3%, 0);
+  }
+}
+
+@keyframes stage-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-anim {
+    animation: none !important;
+  }
+}
