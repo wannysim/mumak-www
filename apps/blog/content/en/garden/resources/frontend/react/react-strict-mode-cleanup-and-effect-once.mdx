@@ -1,0 +1,145 @@
+---
+title: 'Strict Mode Cleanup and useEffectOnce: Guarding for "Run Once" That Leaks Into "Never Again"'
+created: '2026-06-21'
+status: 'budding'
+parent: 'frontend-react'
+tags: ['frontend', 'react', 'effect', 'lifecycle']
+---
+
+You guard an effect so a non-React library (chart, 3D, map) initializes only once -- and then, after a real unmount and re-mount, it never initializes again. How does a guard meant for "run only once" leak into "never run again"?
+
+> One-line summary: **If you record "already done" with a ref flag to avoid Strict Mode's development-only double invoke, then unless you reset that flag after a real cleanup, the next mount mistakes itself for an "already-initialized instance." Don't just look at setup -- check whether cleanup restores the state the next lifecycle needs.**
+
+## Why Strict Mode Calls Effects Twice
+
+In development, Strict Mode intentionally runs the effect one extra time right after mount. The order is:
+
+```
+mount → setup → cleanup → setup
+              └ an extra round added only in development
+```
+
+The purpose is to **force-verify that cleanup exactly undoes setup.** If cleanup is sloppy (leaked listeners, duplicate subscriptions), the symptom surfaces early in this double invoke. In production it runs once. The timing of effects themselves is laid out as render → commit → paint → effect in [[react-you-might-not-need-an-effect]].
+
+The trouble is heavy external widgets. Building a 3D scene and grabbing a WebGL context twice in development is slow or flickery. So libraries add a guard to "truly initialize only once."
+
+## The Typical "Run Once" Guard
+
+The common implementation is a ref flag. A ref isn't reset by re-renders and keeps its value as long as the component instance lives -- a property covered in [[react-hooks-under-the-hood]].
+
+```js
+const effectCalled = useRef(false);
+
+useEffect(() => {
+  if (effectCalled.current) return; // skip on the second call
+  effectCalled.current = true;
+
+  const instance = createWidget(domEl.current); // heavy initialization
+  return () => instance.destroy();
+}, []);
+```
+
+The development double invoke is blocked by this -- the second setup just returns.
+But there's a quiet trap here.
+
+## The Trap: Cleanup Doesn't Reset the Flag
+
+Follow it in order.
+
+1. First mount: `effectCalled = true`, widget initialized.
+2. **Real unmount**: `destroy()` runs. But `effectCalled` stays `true`.
+3. **Re-mount** -- but only on a path where React reuses the same hook state/ref: `effectCalled` is already `true`, so initialization is **skipped.**
+4. Result: the widget is never rebuilt. The DOM container may reappear, but the internal instance (controls, renderer, listeners) is gone.
+
+The symptom shows up as "visible but untouchable." The container is there, but what should live on top of it is dead.
+
+The key point is that **what the guard meant to block differs from what it actually blocked.**
+
+- Meant to block: a development-only double setup within the same lifecycle.
+- Actually blocked: even the legitimate re-initialization after a real cleanup.
+
+## Why an Unmount Alone Doesn't Reset the Ref
+
+Intuitively you'd think "if it unmounts, the ref should be gone too." Usually that's right -- if the component truly disappears, its hook state is discarded.
+The problem is that React has **paths where it can reuse the fiber and hook state** when it re-renders a component in the same slot (certain navigation / re-entry patterns). In that case the ref carries over its previous value -- `effectCalled` still `true`.
+
+I used to treat this fiber reuse as "a state that reproduces occasionally and is hard to trigger explicitly." But React `<Activity>` creates exactly that state **deterministically**. `<Activity mode="hidden">` unmounts its children while **preserving the fiber and hook state** -- so you can hand-craft the situation where "the destructor ran but the refs are still alive."
+
+```tsx
+// visible → hidden: destructor runs (fiber/refs preserved)
+// hidden → visible: setup runs again with the same refs = the path where init gets blocked
+<Activity mode={visible ? 'visible' : 'hidden'}>
+  <Widget />
+</Activity>
+```
+
+So when pinning this guard trap with a test, it's far simpler and more stable to drive a `hidden → visible` transition with `<Activity>` and assert "does initialization run again?" than to mimic browser history via E2E. [[react-fiber-architecture]] gives the bigger picture of how React handles fibers as units of work.
+
+## Two Ways to Fix It
+
+### Path 1 — Reset the flag in cleanup (library / root)
+
+If you own the guard, reset the flag at the end of a real cleanup so the next setup can initialize again.
+
+```js
+return () => {
+  if (isStrictModeDummyCleanup) return; // still skip the development-only dummy cleanup
+
+  try {
+    instance.destroy();
+  } finally {
+    effectCalled.current = false; // reset so init runs again on the next mount
+  }
+};
+```
+
+Invariants to hold:
+
+- During the development-only dummy cleanup, do not run the destructor.
+- During a real cleanup, run the destructor exactly once.
+- After a real cleanup, reset the flag so the next setup runs.
+- Even if the destructor throws, reset the flag (`finally`) -- recovering the next lifecycle takes priority.
+
+### Path 2 — Force a remount with key (consumer / stopgap)
+
+If you're a consumer who can't fix the library, change the problematic component's `key` to force-replace it with a new instance. When the key changes, the hook state/ref is thrown away wholesale, so the guard flag starts fresh at `false`.
+
+```tsx
+<Widget key={remountKey} />
+```
+
+The root fix is Path 1; Path 2 is the stopgap until then. It's good to leave a marker (a flag/comment) on a stopgap so you can remove it later.
+
+## The Generalized Lesson
+
+This isn't a bug specific to one library -- it's a pattern trap of lifecycle guards.
+
+- A flag that guarantees "run only once" becomes "can never run again" if you don't reset it.
+- If you only look at setup and think of cleanup merely as setup's mirror, you'll miss this. **Cleanup must also prepare the starting point for the next lifecycle.**
+- The more a piece of code "defends" against Strict Mode's double invoke, the more you should suspect it of blocking the genuine re-mount path.
+
+| Aspect              | What to block                                 | What not to block                         |
+| ------------------- | --------------------------------------------- | ----------------------------------------- |
+| Double-invoke guard | dev-only duplicate setup within one lifecycle | re-initialization after a real cleanup    |
+| Cleanup duty        | leaked listeners / instances                  | failing to reset state for the next setup |
+
+## Self-Check
+
+- Can you state why Strict Mode calls effects twice and what it's trying to verify?
+- If you implement "initialize only once" with a ref flag, on which mount path does the next initialization get blocked?
+- How do you distinguish a real cleanup from Strict Mode's dummy cleanup in code?
+- When you see a "visible but untouchable" symptom, which layer would you suspect first?
+- Why use `try/finally` when resetting the flag in cleanup?
+
+## See Also
+
+- [[react-you-might-not-need-an-effect|You Might Not Need an Effect]]
+- [[react-hooks-under-the-hood|How Hooks Work Under the Hood]]
+- [[react-fiber-architecture|Fiber Architecture]]
+- [[react-state-batching-and-rerender|State Batching and the Render/Commit Split]]
+
+## References
+
+- [Synchronizing with Effects -- react.dev](https://react.dev/learn/synchronizing-with-effects)
+- [You Might Not Need an Effect -- react.dev](https://react.dev/learn/you-might-not-need-an-effect)
+- [react-force-graph #596](https://github.com/vasturiano/react-force-graph/issues/596) -- the real bug that started this note

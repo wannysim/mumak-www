@@ -8,6 +8,7 @@ overrides:
   '@types/react': 19.2.15
   '@types/react-dom': 19.2.3
   jest-mock: ^30.4.1
+  react-kapsule: 2.6.0
 
 importers:
 
@@ -8429,8 +8430,8 @@ packages:
   react-is@19.2.6:
     resolution: {integrity: sha512-XjBR15BhXuylgWGuslhDKqlSayuqvqBX91BP8pauG8kd1zY8kotkNWbXksTCNRarse4kuGbe2kIY05ARtwNIvw==}
 
-  react-kapsule@2.5.7:
-    resolution: {integrity: sha512-kifAF4ZPD77qZKc4CKLmozq6GY1sBzPEJTIJb0wWFK6HsePJatK3jXplZn2eeAt3x67CDozgi7/rO8fNQ/AL7A==}
+  react-kapsule@2.6.0:
+    resolution: {integrity: sha512-HzLJoYb1n1kfwjXbqFFcRR0EA6oPsJ64tNdDmCSaL/bz2o9wUZRSb0cMe//grLFeF9EVoL4CD/e6ozLyzEv+PQ==}
     engines: {node: '>=12'}
     peerDependencies:
       react: '>=16.13.1'
@@ -19080,7 +19081,7 @@ snapshots:
       3d-force-graph: 1.79.1
       prop-types: 15.8.1
       react: 19.2.6
-      react-kapsule: 2.5.7(react@19.2.6)
+      react-kapsule: 2.6.0(react@19.2.6)
 
   react-freeze@1.0.4(react@19.2.3):
     dependencies:
@@ -19098,7 +19099,7 @@ snapshots:
 
   react-is@19.2.6: {}
 
-  react-kapsule@2.5.7(react@19.2.6):
+  react-kapsule@2.6.0(react@19.2.6):
     dependencies:
       jerrypick: 1.1.2
       react: 19.2.6
