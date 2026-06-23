@@ -56,7 +56,7 @@ Written top to bottom, the stacked layers are:
 Since a full reload works, the initialization code on the from-scratch mount path is fine.
 So the problem isn't "normal initialization" -- it's the path where **initialization should run again on a re-mount after unmount, but doesn't.**
 
-This is where you have to keep both Next.js App Router behavior and React Strict Mode in mind.
+This is where you have to keep React Strict Mode in mind.
 In development, Strict Mode intentionally invokes effects twice (setup → cleanup → setup). Libraries commonly add a "only truly initialize once" guard to survive this double invoke.
 The trouble starts when that guard also **blocks the genuine re-mount after a real unmount.**
 
@@ -99,8 +99,6 @@ That's the identity of "visible but untouchable."
 **After the real cleanup, the lifecycle flags were never reset, so the next mount mistakes itself for an "already-initialized instance."**
 
 > A guard meant for "run only once" leaked into "never run again." I wrote up the generalized lesson separately in the garden note [Strict Mode cleanup and useEffectOnce](/en/garden/react-strict-mode-cleanup-and-effect-once).
-
-As an aside, a related issue noted that `3d-force-graph`'s `_destructor` doesn't fully clean up control/renderer/scene resources. But the maintainer replied that `three-render-objects`'s destructor handles that, and it appears to be addressed separately in recent versions. **The core of #596 isn't resource cleanup -- it's re-initialization being skipped in `react-kapsule`** -- so it's cleaner, for both analysis and the fix, not to mix the two.
 
 ## 4. A Stopgap Workaround
 
@@ -236,12 +234,6 @@ pnpm why react-kapsule --filter blog
 
 The target state is a single `react-kapsule@2.6.0` under `react-force-graph-3d@1.29.1`.
 
-```text
-react-kapsule@2.6.0
-└─┬ react-force-graph-3d@1.29.1
-  └── blog@... (dependencies)
-```
-
 With that in place, the local workaround can be removed.
 In `apps/blog/src/features/graph/ui/graph-canvas.tsx`, I deleted the state and branch that forced a new `key`.
 
@@ -279,8 +271,6 @@ Starting from a one-line symptom ("it's untouchable after going back"), I went d
 If I compress the lesson into one line:
 
 **A guard meant to ensure "run only once" easily leaks into "can never run again."** Don't just look at setup -- check whether the state needed for the next lifecycle is restored after a real cleanup.
-
-I wrote up the general trap of library lifecycle guards separately in the [garden note](/en/garden/react-strict-mode-cleanup-and-effect-once).
 
 ## References
 
