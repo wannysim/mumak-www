@@ -1,0 +1,24 @@
+# 스모크 플로우: 앱이 부팅되고 탭 내비게이션이 동작하는지 검증한다.
+# Home 헤더가 뜬다는 것은 부팅 + AppProviders 트리 + expo-router가 모두 살아있다는 신호다.
+#
+# appId는 app.json의 ios.bundleIdentifier / android.package와 일치해야 한다.
+# 빌드의 bundle id가 바뀌면(예: 실 배포용 id 확정 시) 여기도 함께 갱신한다.
+# 단일 id가 iOS·Android 양쪽에 쓰인다.
+appId: com.example.mumaknative
+tags:
+  - smoke
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    text: 'Home'
+- assertVisible: 'Edit app/(tabs)/index.tsx to start building.'
+# 탭 라벨은 텍스트 매칭이 불안정해(아이콘+라벨, 안전영역) tabBarButtonTestID로 탭한다.
+# 이 id는 app/(tabs)/_layout.tsx의 Tabs.Screen options와 일치해야 한다(단위 테스트가 계약을 고정).
+- tapOn:
+    id: 'tab-explore'
+- assertVisible:
+    text: 'Second tab placeholder.'
+- tapOn:
+    id: 'tab-home'
+- assertVisible: 'Edit app/(tabs)/index.tsx to start building.'
