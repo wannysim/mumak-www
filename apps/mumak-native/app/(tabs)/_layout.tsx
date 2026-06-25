@@ -31,6 +31,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: HomeTabIcon,
+          tabBarButtonTestID: 'tab-home',
         }}
       />
       <Tabs.Screen
@@ -38,6 +39,7 @@ export default function TabLayout() {
         options={{
           title: 'Explore',
           tabBarIcon: ExploreTabIcon,
+          tabBarButtonTestID: 'tab-explore',
         }}
       />
     </Tabs>
