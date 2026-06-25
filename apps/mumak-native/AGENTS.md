@@ -201,10 +201,10 @@ const styles = StyleSheet.create({
 2. Maestro CLI + Java 설치 (CLI는 JVM 앱이라 Java 필수). 공식 설치: `curl -fsSL https://get.maestro.mobile.dev | bash`.
 3. `pnpm --filter mumak-native test:e2e:native`.
 
-CI (Android): `.github/workflows/maestro.yml` — `expo prebuild` + Gradle 디버그 APK를 Android 에뮬레이터(reactivecircus/android-emulator-runner)에 설치해 돌린다. EAS 계정 불필요.
+CI (Android): `.github/workflows/maestro.yml` — `expo prebuild` + Gradle **release APK(JS 번들 내장)** 를 Android 에뮬레이터(reactivecircus/android-emulator-runner)에 설치해 돌린다. EAS 계정 불필요. PR #447에서 1회 실측 통과 검증함.
 
-- **게이팅(의도적 보수)**: PR 필수 체크가 아니다. 콜드 빌드+에뮬레이터로 느리고 첫 실행 검증 전이라, `workflow_dispatch` + main push(native paths)에서만 돈다. 안정화 후 `pull_request` 편입을 검토한다.
-- 디버그 APK는 Metro에서 JS를 받으므로 워크플로우가 테스트 동안 Metro를 백그라운드로 띄우고 `adb reverse tcp:8081`로 연결한다.
+- **게이팅(의도적 보수)**: PR 필수 체크가 아니다. 콜드 빌드+에뮬레이터로 ~30분이라 PR마다 돌리기엔 무겁다. `workflow_dispatch` + main push(native paths)에서만 돈다. 필요해지면 `pull_request` 편입을 재검토한다.
+- **release APK를 쓰는 이유**: 디버그 APK는 런타임에 Metro에서 JS를 받는데, CI에선 번들 로드 타이밍 때문에 검은 화면으로 flaky했다. release 빌드는 JS를 내장(standalone)해 Metro/`adb reverse` 없이 결정적으로 뜬다. Expo 템플릿 release buildType은 기본 debug 키스토어로 서명하므로 키스토어 설정 불필요.
 - macOS 러너(iOS) 대신 ubuntu(Android)를 쓴다 — 비용 10배 차이.
 
 - 새 핵심 플로우(로그인, 딥링크 등)가 생기면 `flows/`에 파일을 추가하고 `tags`로 분류한다.

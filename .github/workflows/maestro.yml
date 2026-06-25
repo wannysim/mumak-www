@@ -3,22 +3,15 @@ name: Maestro Native E2E
 # 네이티브 런타임(실제 빌드) 위에서 도는 Maestro 스모크.
 #
 # 웹 E2E(e2e.yml, Playwright)와 인프라가 완전히 다르다(Android 에뮬레이터 필요)므로 별도 워크플로우로 둔다.
-# EAS 계정 없이 `expo prebuild` + Gradle 디버그 APK로 빌드한다.
+# EAS 계정 없이 `expo prebuild` + Gradle release APK(JS 번들 내장)로 빌드한다.
 #
 # 게이팅(의도적으로 보수적):
-#   - PR 필수 체크가 아니다. 콜드 빌드 + 에뮬레이터로 ~15-20분이 걸리고, 첫 실행 검증 전이다.
+#   - PR 필수 체크가 아니다. 콜드 빌드 + 에뮬레이터로 ~30분이 걸려 PR마다 돌리기엔 무겁다.
 #   - 수동 실행(workflow_dispatch) + main에 네이티브 변경이 push될 때만 돈다.
-#   - 안정화되면 pull_request 트리거와 branch protection 편입을 검토한다.
+#   - PR #447에서 1회 실측 통과 검증함([Passed] smoke). 필요해지면 pull_request 편입을 재검토한다.
 
 on:
   workflow_dispatch:
-  # TEMP(검증용): 머지 전 이 브랜치에서 1회 실측하려고 PR 트리거를 임시로 켠다.
-  # 검증이 끝나면 이 pull_request 블록을 제거해 보수적 게이팅(dispatch + main push)으로 되돌린다.
-  pull_request:
-    paths:
-      - "apps/mumak-native/**"
-      - "packages/shared/**"
-      - ".github/workflows/maestro.yml"
   push:
     branches: [main]
     paths:
