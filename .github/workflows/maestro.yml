@@ -12,6 +12,13 @@ name: Maestro Native E2E
 
 on:
   workflow_dispatch:
+  # TEMP(검증용): 머지 전 이 브랜치에서 1회 실측하려고 PR 트리거를 임시로 켠다.
+  # 검증이 끝나면 이 pull_request 블록을 제거해 보수적 게이팅(dispatch + main push)으로 되돌린다.
+  pull_request:
+    paths:
+      - "apps/mumak-native/**"
+      - "packages/shared/**"
+      - ".github/workflows/maestro.yml"
   push:
     branches: [main]
     paths:
