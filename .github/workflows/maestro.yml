@@ -73,18 +73,13 @@ jobs:
         working-directory: apps/mumak-native
         run: pnpm exec expo prebuild --platform android --no-install
 
-      # 디버그 APK. 디버그 빌드는 Metro에서 JS 번들을 받으므로, 테스트 동안 Metro를 띄워 둔다.
-      - name: Build debug APK
+      # release APK는 JS 번들을 내장한 standalone 산출물이라 Metro가 필요 없다(CI 안정성).
+      # Expo 템플릿의 release buildType은 기본적으로 debug 키스토어로 서명하므로 키스토어 설정 불필요.
+      - name: Build release APK (JS 번들 내장)
         working-directory: apps/mumak-native/android
-        run: ./gradlew :app:assembleDebug --no-daemon
+        run: ./gradlew :app:assembleRelease --no-daemon
 
-      - name: Start Metro bundler
-        working-directory: apps/mumak-native
-        run: |
-          pnpm exec expo start --no-dev --minify > "$RUNNER_TEMP/metro.log" 2>&1 &
-          echo "metro_pid=$!" >> "$GITHUB_ENV"
-
-      # 에뮬레이터를 부팅하고, APK 설치 → adb reverse(Metro 연결) → Maestro 스모크 실행을 script로 수행한다.
+      # 에뮬레이터를 부팅하고, APK 설치 → Maestro 스모크 실행. 번들이 내장돼 Metro/adb reverse가 없다.
       - name: Run Maestro smoke on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -94,13 +89,8 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            adb install -r apps/mumak-native/android/app/build/outputs/apk/debug/app-debug.apk
-            adb reverse tcp:8081 tcp:8081
+            adb install -r apps/mumak-native/android/app/build/outputs/apk/release/app-release.apk
             maestro test apps/mumak-native/maestro/
-
-      - name: Stop Metro
-        if: always()
-        run: kill "${metro_pid}" 2>/dev/null || true
 
       - name: Upload Maestro artifacts
         if: always()
