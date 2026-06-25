@@ -64,7 +64,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Install Maestro CLI
-        uses: mobile-dev-inc/action-maestro-cli@v1
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
       # expo prebuild로 android/ 네이티브 프로젝트를 생성한다(리포에는 gitignore됨).
       - name: Prebuild Android project
