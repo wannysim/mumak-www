@@ -4,7 +4,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { buildAlternates } from '@/src/app/seo';
 import { getPosts, isValidCategory } from '@/src/entities/post';
 import { type Locale } from '@/src/shared/config/i18n';
-import { ArrowLink } from '@/src/shared/ui';
+import { ArrowLink, PageHeader } from '@/src/shared/ui';
 import { PostCard } from '@/src/widgets/post-card';
 import { SpotifyVinylClient } from '@/src/widgets/spotify-vinyl';
 
@@ -43,7 +43,9 @@ export default async function HomePage({ params }: HomePageProps) {
   return (
     <div className="space-y-8 pb-12">
       <div className="flex flex-col md:flex-row gap-8 md:items-center md:justify-between py-4">
-        <div className="max-w-2xl space-y-3">
+        <div className="max-w-2xl space-y-4">
+          <PageHeader title={t('title')} description={t('description')} />
+
           <p className="text-lg text-muted-foreground whitespace-pre-wrap leading-relaxed">{t('intro')}</p>
 
           <ArrowLink href="/about">{t('aboutCta')}</ArrowLink>

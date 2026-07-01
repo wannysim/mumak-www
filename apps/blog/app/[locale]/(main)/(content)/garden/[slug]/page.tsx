@@ -25,6 +25,7 @@ import { Link, locales, type Locale } from '@/src/shared/config/i18n';
 import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
 import { createGardenResolver, transformWikilinks } from '@/src/shared/lib/wikilink';
+import { Breadcrumbs } from '@/src/shared/ui';
 import { LinkedNotesSection } from '@/src/widgets/linked-notes-section';
 import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
@@ -167,9 +168,12 @@ export default async function NotePage({ params }: NotePageProps) {
     <div className="max-w-3xl mx-auto">
       <JsonLdScript data={noteJsonLd} />
       <JsonLdScript data={breadcrumbJsonLd} />
+      <Breadcrumbs
+        items={[{ label: t.home, href: '/' }, { label: t.garden, href: '/garden' }, { label: note.meta.title }]}
+      />
       <article>
         <header className="mb-8">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <Badge variant={statusVariants[note.meta.status]}>{t.status[note.meta.status]}</Badge>
             <time className="text-sm text-muted-foreground" dateTime={note.meta.created}>
               {formatDateForLocale(note.meta.created, locale).text}

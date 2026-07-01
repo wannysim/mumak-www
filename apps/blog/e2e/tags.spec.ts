@@ -76,8 +76,9 @@ test.describe('Tags Feature', () => {
     });
 
     test('should show the full tag list (parity with /blog/tags index)', async ({ page }) => {
-      const tagLinkLocator = (p: typeof page) =>
-        p.locator('a[href*="/blog/tags/"]').filter({ hasNot: p.locator('nav') });
+      // 태그 목록(TagCloud)만 센다. 상세 페이지의 PostCard 태그 칩도 이제 실제 링크라,
+      // 스코프를 TagCloud로 한정하지 않으면 개수가 부풀려진다.
+      const tagLinkLocator = (p: typeof page) => p.locator('[data-slot="tag-cloud"] a[href*="/blog/tags/"]');
 
       await page.goto('/ko/blog/tags');
       const indexCount = await tagLinkLocator(page).count();
@@ -176,8 +177,8 @@ test.describe('Tags Feature', () => {
     test('should navigate from tag page to post and back', async ({ page }) => {
       await page.goto('/ko/blog/tags/thought');
 
-      // Click on a post
-      const postLink = page.locator('article').first().locator('xpath=ancestor::a');
+      // Click on a post (카드는 stretched-link 패턴: 제목 링크가 카드 전체를 덮는다)
+      const postLink = page.locator('article').first().locator('a[data-slot="content-card-link"]');
       await postLink.click();
 
       // Should be on post detail page

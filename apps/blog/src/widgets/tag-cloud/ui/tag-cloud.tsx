@@ -15,7 +15,7 @@ interface TagCloudProps {
 
 export function TagCloud({ tags, activeTag, showCount = true, basePath = '/blog/tags' }: TagCloudProps) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div data-slot="tag-cloud" className="flex flex-wrap gap-2">
       {tags.map(tag => {
         const isActive = activeTag === tag.name;
 

@@ -4,6 +4,9 @@ test.describe('Home Page', () => {
   test('should display intro section', async ({ page }) => {
     await page.goto('/ko');
 
+    // 랜딩 페이지에도 단일 h1이 있어야 한다 (문서 개요 / SEO / 히어로 계층).
+    await expect(page.getByRole('heading', { level: 1, name: 'Wan Sim' })).toBeVisible();
+
     // 로고 링크 확인 (Navigation에 있는 "Wan Sim" 텍스트)
     await expect(page.getByRole('link', { name: 'Wan Sim' })).toBeVisible();
 
@@ -49,6 +52,7 @@ test.describe('Home Page', () => {
   test('should work in English', async ({ page }) => {
     await page.goto('/en');
 
+    await expect(page.getByRole('heading', { level: 1, name: 'Wan Sim' })).toBeVisible();
     // 로고 링크 확인 (Navigation에 있는 "Wan Sim" 텍스트)
     await expect(page.getByRole('link', { name: 'Wan Sim' })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'Latest Post' })).toBeVisible();
