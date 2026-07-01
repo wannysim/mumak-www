@@ -247,7 +247,7 @@ jobs:
       # action 자체는 incremental upload를 지원해 여러 step으로 안전하게 호출 가능.
       - name: Upload blog coverage to Codecov
         if: hashFiles('coverage-artifacts/coverage-blog/lcov.info') != ''
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-artifacts/coverage-blog/lcov.info
@@ -256,7 +256,7 @@ jobs:
 
       - name: Upload mumak-next coverage to Codecov
         if: hashFiles('coverage-artifacts/coverage-mumak-next/lcov.info') != ''
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-artifacts/coverage-mumak-next/lcov.info
@@ -265,7 +265,7 @@ jobs:
 
       - name: Upload mumak-react coverage to Codecov
         if: hashFiles('coverage-artifacts/coverage-mumak-react/lcov.info') != ''
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-artifacts/coverage-mumak-react/lcov.info
@@ -274,7 +274,7 @@ jobs:
 
       - name: Upload mumak-native coverage to Codecov
         if: hashFiles('coverage-artifacts/coverage-mumak-native/lcov.info') != ''
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-artifacts/coverage-mumak-native/lcov.info
