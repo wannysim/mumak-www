@@ -9,7 +9,8 @@
     "notes": "노트",
     "language": "언어",
     "tags": "태그",
-    "graph": "그래프"
+    "graph": "그래프",
+    "viewGraph": "그래프로 탐색"
   },
   "footer": {
     "about": "소개",

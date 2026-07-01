@@ -9,7 +9,8 @@
     "notes": "Notes",
     "language": "Language",
     "tags": "Tags",
-    "graph": "Graph"
+    "graph": "Graph",
+    "viewGraph": "Explore the graph"
   },
   "footer": {
     "about": "About",

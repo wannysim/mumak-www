@@ -8,6 +8,7 @@ function FooterSkeleton() {
           <div className="flex flex-row items-center gap-6">
             <Skeleton className="h-4 w-12 rounded" />
             <Skeleton className="h-4 w-8 rounded" />
+            <Skeleton className="h-4 w-12 rounded" />
             <Skeleton className="size-4 rounded" />
             <Skeleton className="size-4 rounded" />
             <Skeleton className="size-4 rounded" />

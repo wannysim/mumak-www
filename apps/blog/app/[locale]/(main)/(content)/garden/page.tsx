@@ -1,10 +1,11 @@
+import { Waypoints } from 'lucide-react';
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { buildAlternates } from '@/src/app/seo';
 import { getNotes, PARA_CATEGORY_KEYS, PARA_LABELS } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
-import { PageHeader } from '@/src/shared/ui';
+import { ArrowLink, PageHeader } from '@/src/shared/ui';
 import { GardenNav, getGardenNavCounts } from '@/src/widgets/garden-nav';
 import { GardenOverview } from '@/src/widgets/garden-overview';
 import { NoteCard } from '@/src/widgets/note-card';
@@ -54,7 +55,13 @@ export default async function GardenPage({ params }: GardenPageProps) {
 
   return (
     <div className="space-y-8">
-      <PageHeader title={t('title')} description={t('noteCount', { count: notes.length })} />
+      <div className="space-y-3">
+        <PageHeader title={t('title')} description={t('noteCount', { count: notes.length })} />
+        <ArrowLink href={{ pathname: '/graph', query: { tab: 'garden' } }}>
+          <Waypoints className="size-4" aria-hidden />
+          {tCommon('viewGraph')}
+        </ArrowLink>
+      </div>
 
       <GardenNav
         allLabel={tCommon('all')}
