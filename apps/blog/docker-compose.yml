@@ -1,0 +1,45 @@
+# Portainer stack for apps/blog (phase 1 of the Vercel exit).
+# Pulls a prebuilt image from GHCR and runs it — the home server never builds.
+# Ingress: the existing nginx-proxy-manager forwards <public-host> -> <server-lan-ip>:3000
+# and terminates TLS (Let's Encrypt). No cloudflared needed.
+services:
+  blog:
+    image: ghcr.io/wannysim/mumak-blog:latest # pin :<sha> for deterministic rollbacks
+    container_name: mumak-blog
+    restart: unless-stopped
+    ports:
+      - '3000:3000' # host:container — NPM proxies to the host's :3000
+    environment:
+      NODE_ENV: production
+      # PORT / HOSTNAME are already baked into the image (3000 / 0.0.0.0).
+      # Runtime-only server secrets — safe to change without a rebuild.
+      # Leave unset and the now-playing widget just no-ops.
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      SPOTIFY_REFRESH_TOKEN: ${SPOTIFY_REFRESH_TOKEN:-}
+      # DO NOT put NEXT_PUBLIC_* here — they are inlined at build time; setting them
+      # here does nothing. DO NOT set VERCEL_ENV (analytics auto-disables off Vercel).
+    volumes:
+      # Persist the optimized-image / 'use cache' output across restarts.
+      # NOTE: this is NOT the future image-UPLOAD store — that gets its own volume.
+      - blog_next_cache:/app/apps/blog/.next/cache
+    healthcheck:
+      # slim image has no curl — use node fetch. Hit a stable 200 route, not "/"
+      # ("/" 307-redirects to /ko|/en because localePrefix is 'always').
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/ko/blog').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    # Seams for later phases (do not build now):
+    # logging: {}            # log driver / shipper (-> Loki -> existing grafana)
+    # depends_on: [postgres] # when a DB phase lands (reuse the existing postgres:16)
+
+volumes:
+  blog_next_cache:
