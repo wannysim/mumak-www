@@ -47,7 +47,7 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
-    "@tailwindcss/typography": "^0.5.19",
+    "@tailwindcss/typography": "^0.5.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -71,13 +71,13 @@
   },
   "devDependencies": {
     "@mumak/typescript-config": "workspace:*",
-    "@tailwindcss/postcss": "^4.3.0",
+    "@tailwindcss/postcss": "^4.3.2",
     "@turbo/gen": "^2.9.16",
     "@types/node": "^25.9.1",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "shadcn": "^4.4.0",
-    "tailwindcss": "^4.3.0",
+    "tailwindcss": "^4.3.2",
     "typescript": "^5.9.3"
   }
 }
