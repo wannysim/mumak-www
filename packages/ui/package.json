@@ -72,7 +72,7 @@
   "devDependencies": {
     "@mumak/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4.3.0",
-    "@turbo/gen": "^2.9.16",
+    "@turbo/gen": "^2.10.2",
     "@types/node": "^25.9.1",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
