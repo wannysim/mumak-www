@@ -10,6 +10,7 @@ jest.mock('next-intl/server', () => ({
     const translations: Record<string, string> = {
       about: 'About',
       now: 'Now',
+      graph: 'Graph',
     };
     return translations[key] || key;
   }),
@@ -50,6 +51,15 @@ describe('Footer', () => {
     const nowLink = screen.getByRole('link', { name: 'Now' });
     expect(nowLink).toBeInTheDocument();
     expect(nowLink).toHaveAttribute('href', '/now');
+  });
+
+  it('should render Graph link (global fallback entry to the immersive graph)', async () => {
+    const jsx = await Footer();
+    render(jsx);
+
+    const graphLink = screen.getByRole('link', { name: 'Graph' });
+    expect(graphLink).toBeInTheDocument();
+    expect(graphLink).toHaveAttribute('href', '/graph');
   });
 
   it('should render copyright', async () => {

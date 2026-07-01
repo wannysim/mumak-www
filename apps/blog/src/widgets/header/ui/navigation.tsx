@@ -8,10 +8,12 @@ import { ClientErrorBoundary } from '@/src/shared/ui/client-error-boundary';
 import { MobileMenu } from './mobile-menu';
 import { NavLinks } from './nav-links';
 
+// 그래프는 블로그/가든의 형제 콘텐츠 섹션이 아니라 두 섹션을 가로지르는 몰입형 "보기"다.
+// (immersive 라우트 그룹, 풀스크린) 그래서 전역 nav 형제에서 빼고, 각 섹션(blog/garden)
+// 인덱스의 PageHeader 아래 ArrowLink로 해당 탭에 딥링크한다.
 const navItems = [
   { href: '/blog', labelKey: 'blog' },
   { href: '/garden', labelKey: 'garden' },
-  { href: '/graph', labelKey: 'graph' },
 ] as const;
 
 export async function Navigation() {

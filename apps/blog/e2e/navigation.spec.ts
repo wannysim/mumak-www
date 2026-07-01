@@ -338,13 +338,18 @@ test.describe('Navigation', () => {
       await expect(footer).toContainText('Wan Sim');
     });
 
-    test('should display RSS, About, and Now links', async ({ page }) => {
+    test('should display RSS, About, Now, and Graph links', async ({ page }) => {
       await page.goto('/ko');
 
       const footer = page.locator('footer');
       await expect(footer.getByRole('link', { name: '소개' })).toBeVisible();
       await expect(footer.getByRole('link', { name: 'RSS' })).toBeVisible();
       await expect(footer.getByRole('link', { name: 'Now' })).toBeVisible();
+
+      // 그래프 전역 폴백 진입점(전역 nav에서 뺀 대신 footer에 텍스트 링크)
+      const graphLink = footer.getByRole('link', { name: '그래프' });
+      await expect(graphLink).toBeVisible();
+      await expect(graphLink).toHaveAttribute('href', '/ko/graph');
     });
 
     test('should navigate to About page from footer', async ({ page }) => {

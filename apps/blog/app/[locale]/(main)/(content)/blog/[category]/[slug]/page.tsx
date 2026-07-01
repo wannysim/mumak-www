@@ -10,6 +10,7 @@ import { calculateWordCount, getAllPostSlugs, getCategoryLabel, getPost, isValid
 import { Link, locales, type Locale } from '@/src/shared/config/i18n';
 import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
+import { Breadcrumbs } from '@/src/shared/ui';
 import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 
@@ -123,6 +124,14 @@ export default async function PostPage({ params }: PostPageProps) {
     <div className="max-w-3xl mx-auto">
       <JsonLdScript data={blogPostingJsonLd} />
       <JsonLdScript data={breadcrumbJsonLd} />
+      <Breadcrumbs
+        items={[
+          { label: translations.home, href: '/' },
+          { label: translations.blog, href: '/blog' },
+          { label: categoryTitle, href: `/blog/${category}` },
+          { label: post.meta.title },
+        ]}
+      />
       <article>
         <header className="mb-8">
           <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
