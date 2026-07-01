@@ -119,6 +119,7 @@ describe('GardenSidebar', () => {
   beforeEach(() => {
     mockUsePathname.mockReturnValue('/garden');
     mockPush.mockClear();
+    localStorage.clear();
   });
 
   it('renders categories that have notes and hides empty ones', () => {
@@ -245,5 +246,41 @@ describe('GardenSidebar', () => {
     expect(itemLabels.some(label => label.includes('First Subnote'))).toBe(true);
     expect(itemLabels.some(label => label.includes('Second Subnote'))).toBe(true);
     expect(itemLabels.some(label => label.includes('Active Project'))).toBe(true);
+  });
+
+  describe('desktop collapse', () => {
+    it('shows a collapse control by default and toggles to an expand control', async () => {
+      const user = userEvent.setup();
+      render(<GardenSidebar categories={categories} />);
+
+      // 기본은 펼침 → 접기 버튼이 보인다 (mock 번역은 key를 그대로 반환).
+      expect(screen.getByRole('button', { name: 'collapse' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'expand' })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'collapse' }));
+
+      // 접힌 rail → 펼치기 버튼으로 전환되고 접기 버튼은 사라진다.
+      expect(screen.getByRole('button', { name: 'expand' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'collapse' })).not.toBeInTheDocument();
+    });
+
+    it('persists the collapsed state to localStorage', async () => {
+      const user = userEvent.setup();
+      render(<GardenSidebar categories={categories} />);
+
+      await user.click(screen.getByRole('button', { name: 'collapse' }));
+      expect(localStorage.getItem('garden-sidebar-collapsed')).toBe('1');
+
+      await user.click(screen.getByRole('button', { name: 'expand' }));
+      expect(localStorage.getItem('garden-sidebar-collapsed')).toBe('0');
+    });
+
+    it('restores the collapsed state from localStorage on mount', async () => {
+      localStorage.setItem('garden-sidebar-collapsed', '1');
+      render(<GardenSidebar categories={categories} />);
+
+      // hydration 후 effect가 localStorage를 읽어 접힌 상태(펼치기 버튼)로 복원한다.
+      expect(await screen.findByRole('button', { name: 'expand' })).toBeInTheDocument();
+    });
   });
 });

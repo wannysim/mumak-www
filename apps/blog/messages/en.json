@@ -146,6 +146,8 @@
     "sidebar": {
       "title": "PARA Garden",
       "openTree": "Browse",
+      "collapse": "Collapse sidebar",
+      "expand": "Expand sidebar",
       "searchPlaceholder": "Search notes…",
       "searchAria": "Search notes",
       "searchTitle": "Search notes",

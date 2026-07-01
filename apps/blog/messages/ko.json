@@ -146,6 +146,8 @@
     "sidebar": {
       "title": "PARA 가든",
       "openTree": "둘러보기",
+      "collapse": "사이드바 접기",
+      "expand": "사이드바 펼치기",
       "searchPlaceholder": "노트 검색…",
       "searchAria": "노트 검색",
       "searchTitle": "노트 검색",
