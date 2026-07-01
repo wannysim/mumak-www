@@ -31,7 +31,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@mumak/shared": "workspace:*",
-    "expo": "~56.0.5",
+    "expo": "~57.0.1",
     "expo-constants": "~56.0.16",
     "expo-font": "~56.0.5",
     "expo-haptics": "~56.0.3",
