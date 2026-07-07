@@ -19,8 +19,9 @@ import { usePathname } from '@/src/shared/config/i18n';
 import { useSearchPaletteShortcut } from '@/src/shared/hooks';
 import { SearchPalette, SearchTrigger, type SearchPaletteGroup } from '@/src/shared/ui';
 
+import { type Category, flattenTree } from '../model/note-tree';
 import { useCollapsedState } from '../model/use-collapsed-state';
-import { type Category, flattenTree, TreeContent } from './note-tree';
+import { TreeContent } from './note-tree';
 
 interface GardenSidebarProps {
   categories: Category[];

@@ -9,22 +9,7 @@ import { cn } from '@mumak/ui/lib/utils';
 
 import { Link } from '@/src/shared/config/i18n';
 
-export interface SidebarTreeNode {
-  slug: string;
-  title: string;
-  children: SidebarTreeNode[];
-}
-
-export interface Category {
-  key: string;
-  label: string;
-  noteCount: number;
-  tree: SidebarTreeNode[];
-}
-
-export function flattenTree(nodes: SidebarTreeNode[]): { slug: string; title: string }[] {
-  return nodes.flatMap(node => [{ slug: node.slug, title: node.title }, ...flattenTree(node.children)]);
-}
+import type { Category, SidebarTreeNode } from '../model/note-tree';
 
 function hasActiveDescendant(node: SidebarTreeNode, pathname: string): boolean {
   return node.children.some(child => pathname === `/garden/${child.slug}` || hasActiveDescendant(child, pathname));
