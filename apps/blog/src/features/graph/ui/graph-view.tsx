@@ -78,13 +78,17 @@ function resolveLinkEndpoint(endpoint: string | GraphNode): string {
   return typeof endpoint === 'string' ? endpoint : (endpoint as unknown as GraphNode).id;
 }
 
+// 필터 키 접두사 → 매칭 predicate. 새 필터 축은 이 맵에 한 줄만 더하면 되고
+// GraphControls가 만드는 필터 키(`{axis}:{value}`)와 여기서 대응된다.
+const FILTER_MATCHERS: Record<string, (node: GraphNode, value: string) => boolean> = {
+  status: (node, value) => node.status === value,
+  category: (node, value) => node.category === value,
+  tag: (node, value) => node.type === 'tag' && node.name === value,
+};
+
 function nodeMatchesFilter(node: GraphNode, filter: string): boolean {
   const [type, value] = filter.split(':');
-  return (
-    (type === 'status' && node.status === value) ||
-    (type === 'category' && node.category === value) ||
-    (type === 'tag' && node.type === 'tag' && node.name === value)
-  );
+  return type ? (FILTER_MATCHERS[type]?.(node, value ?? '') ?? false) : false;
 }
 
 function collectNeighborIds(data: GraphData, seedIds: Set<string>): Set<string> {

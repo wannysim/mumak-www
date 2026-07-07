@@ -1,6 +1,6 @@
 import type { NoteStatus } from '@/src/entities/note';
 
-import type { GraphNodeType } from '../model/types';
+import type { GraphNode, GraphNodeType } from '../model/types';
 
 export const NODE_BASE_SIZE = 4;
 export const NODE_SIZE_SCALE = 1.5;
@@ -43,6 +43,19 @@ export function getTagColor(isDark: boolean): string {
 
 export function getCategoryColor(isDark: boolean): string {
   return isDark ? '#e8a317' : '#f59f00';
+}
+
+// 노드 타입 → 색상 매핑. 새 타입이 추가되면 이 맵에 한 줄만 더하면 되고
+// 색을 소비하는 쪽(graph-canvas)은 수정하지 않는다.
+const NODE_COLOR: Record<GraphNodeType, (node: GraphNode, isDark: boolean) => string> = {
+  note: (node, isDark) => getNoteColor(node.status ?? 'seedling', isDark),
+  post: (node, isDark) => getPostColor(node.category ?? 'notes', isDark),
+  tag: (_node, isDark) => getTagColor(isDark),
+  category: (_node, isDark) => getCategoryColor(isDark),
+};
+
+export function resolveNodeColor(node: GraphNode, isDark: boolean): string {
+  return (NODE_COLOR[node.type] ?? NODE_COLOR.tag)(node, isDark);
 }
 
 export function getLinkColor(isDark: boolean): string {
