@@ -102,9 +102,11 @@ export default async function NotePage({ params }: NotePageProps) {
     notFound();
   }
 
-  const tCommon = await getTranslations({ locale, namespace: 'common' });
-  const tGarden = await getTranslations({ locale, namespace: 'garden' });
-  const tPost = await getTranslations({ locale, namespace: 'post' });
+  const [tCommon, tGarden, tPost] = await Promise.all([
+    getTranslations({ locale, namespace: 'common' }),
+    getTranslations({ locale, namespace: 'garden' }),
+    getTranslations({ locale, namespace: 'post' }),
+  ]);
   const backlinks = getBacklinks(locale as Locale, slug);
   const outgoingNotes = getOutgoingNotes(locale as Locale, note.meta.outgoingLinks);
   const linkedNotes = getMergedLinkedNotes(outgoingNotes, backlinks);
