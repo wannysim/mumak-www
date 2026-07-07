@@ -1,6 +1,6 @@
 import { BookOpen } from 'lucide-react';
 import type { Metadata } from 'next';
-import { setRequestLocale } from 'next-intl/server';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
@@ -31,33 +31,6 @@ import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
-
-const staticTranslations = {
-  ko: {
-    home: '홈',
-    garden: '가든',
-    updated: '수정됨',
-    readingTimeUnit: '분',
-    linkedNotes: '연결된 노트',
-    backToGarden: '가든으로 돌아가기',
-    status: { seedling: '씨앗', budding: '새싹', evergreen: '상록수' },
-    linkDirection: { outgoing: '이 노트가 참조', incoming: '이 노트를 참조', bidirectional: '서로 참조' },
-  },
-  en: {
-    home: 'Home',
-    garden: 'Garden',
-    updated: 'Updated',
-    readingTimeUnit: ' min',
-    linkedNotes: 'Linked Notes',
-    backToGarden: 'Back to Garden',
-    status: { seedling: 'Seedling', budding: 'Budding', evergreen: 'Evergreen' },
-    linkDirection: {
-      outgoing: 'This note references',
-      incoming: 'References this note',
-      bidirectional: 'Mutual reference',
-    },
-  },
-} as const;
 
 interface NotePageProps {
   params: Promise<{ locale: string; slug: string }>;
@@ -129,8 +102,9 @@ export default async function NotePage({ params }: NotePageProps) {
     notFound();
   }
 
-  const localeKey = (locale === 'ko' ? 'ko' : 'en') as keyof typeof staticTranslations;
-  const t = staticTranslations[localeKey];
+  const tCommon = await getTranslations({ locale, namespace: 'common' });
+  const tGarden = await getTranslations({ locale, namespace: 'garden' });
+  const tPost = await getTranslations({ locale, namespace: 'post' });
   const backlinks = getBacklinks(locale as Locale, slug);
   const outgoingNotes = getOutgoingNotes(locale as Locale, note.meta.outgoingLinks);
   const linkedNotes = getMergedLinkedNotes(outgoingNotes, backlinks);
@@ -149,8 +123,8 @@ export default async function NotePage({ params }: NotePageProps) {
 
   const breadcrumbJsonLd = generateBreadcrumbJsonLd({
     items: [
-      { name: t.home, url: `${BASE_URL}/${locale}` },
-      { name: t.garden, url: `${BASE_URL}/${locale}/garden` },
+      { name: tCommon('home'), url: `${BASE_URL}/${locale}` },
+      { name: tCommon('garden'), url: `${BASE_URL}/${locale}/garden` },
       { name: note.meta.title, url: `${BASE_URL}/${locale}/garden/${slug}` },
     ],
   });
@@ -169,12 +143,16 @@ export default async function NotePage({ params }: NotePageProps) {
       <JsonLdScript data={noteJsonLd} />
       <JsonLdScript data={breadcrumbJsonLd} />
       <Breadcrumbs
-        items={[{ label: t.home, href: '/' }, { label: t.garden, href: '/garden' }, { label: note.meta.title }]}
+        items={[
+          { label: tCommon('home'), href: '/' },
+          { label: tCommon('garden'), href: '/garden' },
+          { label: note.meta.title },
+        ]}
       />
       <article>
         <header className="mb-8">
           <div className="flex flex-wrap items-center gap-2 mb-2">
-            <Badge variant={statusVariants[note.meta.status]}>{t.status[note.meta.status]}</Badge>
+            <Badge variant={statusVariants[note.meta.status]}>{tGarden(`status.${note.meta.status}`)}</Badge>
             <time className="text-sm text-muted-foreground" dateTime={note.meta.created}>
               {formatDateForLocale(note.meta.created, locale).text}
             </time>
@@ -182,13 +160,13 @@ export default async function NotePage({ params }: NotePageProps) {
             <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
               <BookOpen className="size-3.5" aria-hidden />
               {note.meta.readingTime}
-              {t.readingTimeUnit}
+              {tPost('readingTimeUnit')}
             </span>
             {note.meta.updated && (
               <>
                 <span className="text-muted-foreground">·</span>
                 <span className="text-sm text-muted-foreground">
-                  {t.updated}: {formatDateForLocale(note.meta.updated, locale).text}
+                  {tGarden('updated')}: {formatDateForLocale(note.meta.updated, locale).text}
                 </span>
               </>
             )}
@@ -210,13 +188,17 @@ export default async function NotePage({ params }: NotePageProps) {
 
       <LinkedNotesSection
         linkedNotes={linkedNotes}
-        linkedNotesLabel={t.linkedNotes}
-        linkDirectionLabels={t.linkDirection}
+        linkedNotesLabel={tGarden('linkedNotes')}
+        linkDirectionLabels={{
+          outgoing: tGarden('linkDirection.outgoing'),
+          incoming: tGarden('linkDirection.incoming'),
+          bidirectional: tGarden('linkDirection.bidirectional'),
+        }}
       />
 
       <nav className="mt-8 pt-8 border-t border-border">
         <Link href="/garden" className="text-sm font-medium hover:underline">
-          ← {t.backToGarden}
+          ← {tGarden('backToGarden')}
         </Link>
       </nav>
     </div>
