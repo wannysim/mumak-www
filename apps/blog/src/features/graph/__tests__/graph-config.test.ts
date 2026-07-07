@@ -9,8 +9,18 @@ import {
   getTagColor,
   NODE_BASE_SIZE,
   NODE_SIZE_SCALE,
+  resolveNodeColor,
   TAG_NODE_SIZE,
 } from '../lib/graph-config';
+import type { GraphNode } from '../model/types';
+
+const node = (partial: Partial<GraphNode> & Pick<GraphNode, 'type'>): GraphNode => ({
+  id: 'x',
+  name: 'x',
+  linkCount: 0,
+  url: '',
+  ...partial,
+});
 
 describe('getNodeSize', () => {
   it('tag 노드는 고정 크기를 반환한다', () => {
@@ -79,6 +89,25 @@ describe('getCategoryColor', () => {
 describe('getLinkColor', () => {
   it('라이트/다크 모드에서 다른 색상을 반환한다', () => {
     expect(getLinkColor(false)).not.toBe(getLinkColor(true));
+  });
+});
+
+describe('resolveNodeColor', () => {
+  it('타입별로 대응하는 색상 함수에 위임한다', () => {
+    expect(resolveNodeColor(node({ type: 'note', status: 'seedling' }), false)).toBe(getNoteColor('seedling', false));
+    expect(resolveNodeColor(node({ type: 'post', category: 'essay' }), false)).toBe(getPostColor('essay', false));
+    expect(resolveNodeColor(node({ type: 'tag' }), false)).toBe(getTagColor(false));
+    expect(resolveNodeColor(node({ type: 'category' }), false)).toBe(getCategoryColor(false));
+  });
+
+  it('status/category가 없으면 기본값으로 색상을 결정한다', () => {
+    expect(resolveNodeColor(node({ type: 'note' }), true)).toBe(getNoteColor('seedling', true));
+    expect(resolveNodeColor(node({ type: 'post' }), true)).toBe(getPostColor('notes', true));
+  });
+
+  it('알 수 없는 타입은 tag 색상으로 폴백한다', () => {
+    const unknown = { id: 'x', name: 'x', type: 'unknown', linkCount: 0, url: '' } as unknown as GraphNode;
+    expect(resolveNodeColor(unknown, false)).toBe(getTagColor(false));
   });
 });
 

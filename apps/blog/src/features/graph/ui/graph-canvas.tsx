@@ -6,16 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Skeleton } from '@mumak/ui/components/skeleton';
 
-import {
-  FORCE_CONFIG,
-  getBackgroundColor,
-  getCategoryColor,
-  getLinkColor,
-  getNodeSize,
-  getNoteColor,
-  getPostColor,
-  getTagColor,
-} from '../lib/graph-config';
+import { FORCE_CONFIG, getBackgroundColor, getLinkColor, getNodeSize, resolveNodeColor } from '../lib/graph-config';
 import type { GraphData, GraphNode } from '../model/types';
 
 interface UnsupportedLabels {
@@ -165,18 +156,7 @@ function GraphCanvas({ data, onNodeClick, selectedNodeId, highlightNodeIds, unsu
         return isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
       }
 
-      switch (graphNode.type) {
-        case 'note':
-          return getNoteColor(graphNode.status ?? 'seedling', isDark);
-        case 'post':
-          return getPostColor(graphNode.category ?? 'notes', isDark);
-        case 'tag':
-          return getTagColor(isDark);
-        case 'category':
-          return getCategoryColor(isDark);
-        default:
-          return getTagColor(isDark);
-      }
+      return resolveNodeColor(graphNode, isDark);
     },
     [isDark, highlightNodeIds, selectedNodeId]
   );
