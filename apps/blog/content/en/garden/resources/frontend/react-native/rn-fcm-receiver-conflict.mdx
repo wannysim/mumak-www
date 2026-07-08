@@ -1,0 +1,59 @@
+---
+title: 'FCM Receiver Service Conflict — How Merely Installing a Library Breaks Android Push'
+created: '2026-07-08'
+status: 'seedling'
+parent: 'frontend-react-native'
+tags: ['react-native', 'android', 'fcm', 'push-notification', 'manifest']
+---
+
+"We just installed a package, and push tap routing that used to work broke — on Android only." Not a single line of code changed, so why?
+
+> One-line summary: **Through manifest merging, an Android library can change your app's runtime behavior by installation alone.**
+
+## An FCM message is delivered to exactly one service
+
+On Android, FCM pushes are received by a **service** (an Android component that runs in the background with no UI) declaring the `com.google.firebase.MESSAGING_EVENT` intent filter. But even when multiple services declare this filter, FCM delivers each message to **only one** of them. Which one wins is decided by declaration order and priority in the merged manifest — and the app developer cannot control it from code.
+
+## Libraries register receivers by installation alone
+
+The Android build's **manifest merger** merges the app manifest with the manifests of every library (AAR). So any library that ships an FCM receiver service — whether expo-notifications or `@react-native-firebase/messaging` — **registers its own receiver service into your app just by being installed (and built).**
+
+Install both and:
+
+1. You now have two receiver services
+2. FCM delivers to only one of them (which one is out of your control)
+3. If your app's notification-handling logic is wired to the other one — it breaks silently, and only on Android
+
+iOS structurally doesn't have this problem: the APNs delegate is the single AppDelegate. When you see the combination "works on iOS, broken only on Android + a native module was recently added," suspect this scenario.
+
+## Diagnosis: inspect the merged result directly
+
+You can check the registered receivers on two surfaces:
+
+```bash
+# Build artifact (the merged manifest)
+cat android/app/build/intermediates/merged_manifest/**/AndroidManifest.xml
+
+# The installed app (device/emulator)
+adb shell dumpsys package <package-name> | grep -i messaging
+```
+
+If two or more services carry the `MESSAGING_EVENT` filter, you're in a contention state.
+
+## The fix: remove it at the merge step
+
+No need to patch library code — put a `tools:node="remove"` stub in your app manifest and the merger drops that library's declaration from the merged result.
+
+```xml
+<service
+  android:name="io.invertase.firebase.messaging.ReactNativeFirebaseMessagingService"
+  tools:node="remove" />
+```
+
+(To use the `tools:` prefix, the `<manifest>` root must declare the namespace `xmlns:tools="http://schemas.android.com/tools"`.)
+
+This keeps the library's other features alive (e.g. its token-issuing API, which works without the receiver service) while removing only the receiver contention. In an Expo project, this manifest change must go in via a [[expo-cng-config-plugins|config plugin]] to survive prebuild.
+
+## Why do the two libraries coexist in the first place?
+
+Usually because of token-issuing constraints — see [[push-token-apns-vs-fcm|APNs tokens and FCM tokens are different]]. Only the Firebase SDK can issue iOS FCM tokens, so the combination of "receive with expo, but install RNFB for tokens" is common.

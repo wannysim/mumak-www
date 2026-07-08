@@ -1,0 +1,55 @@
+---
+title: 'What a Push Token Really Is — APNs Tokens and FCM Tokens Are Different Things'
+created: '2026-07-08'
+status: 'seedling'
+parent: 'frontend-network'
+tags: ['push-notification', 'fcm', 'apns', 'mobile', 'architecture']
+---
+
+We casually say "push token" as if it were one thing, but a single iOS device can carry two different kinds of tokens. Without this distinction, you can't answer the question "why can't we just remove this package?"
+
+> One-line summary: **The last wireless hop is monopolized by the platform gateway (APNs/FCM), and a token is that gateway's addressing scheme. Which gateway your server sends through determines which token the client must register.**
+
+## Gateways and tokens
+
+An app can't keep a persistent connection to your server in the background. Instead, the OS maintains one persistent connection per device to its own vendor's gateway, and every app's pushes share that connection. That's why the last wireless hop of a push can only go through the OS vendor's gateway:
+
+- **iOS → APNs** (Apple Push Notification service) → APNs device token
+- **Android → FCM** (Firebase Cloud Messaging) → FCM token
+
+So far so simple — until FCM also offers an **abstraction layer on top of APNs**, which is where the confusion starts. A server can "send to both iOS and Android through FCM alone" (FCM relays the iOS portion to APNs), and in that setup, iOS devices are also identified by an **FCM token**.
+
+## Where does an iOS FCM token come from?
+
+An iOS FCM token is a raw APNs token that Firebase has mapped into its own addressing scheme. That mapping only happens on the client **if the Firebase SDK is embedded in the device**. expo-notifications' `getDevicePushTokenAsync` gives you only the raw APNs token on iOS — it cannot be used for FCM delivery.
+
+(Note that the `ExponentPushToken[...]` returned by `getExpoPushTokenAsync` is yet a third kind of token. It's the address for a separate gateway — the Expo Push Service — and only means something when your server sends through Expo Push Service. Don't confuse it with the APNs/FCM tokens in this note.)
+
+This creates a dependency chain:
+
+```
+Server decides "we send through FCM only"
+  → iOS devices also need FCM tokens
+  → only the Firebase SDK can issue FCM tokens
+  → the Firebase SDK cannot be removed from the client
+```
+
+Your client package composition is not a client-only decision — it's **joined at the hip with the server's delivery architecture**. This is a case where the answer to "can't we just delete this library?" lives in the server contract.
+
+## Breaking the chain (server side)
+
+To remove the Firebase SDK dependency from the client, the server has to move:
+
+1. **Server-side APNs token conversion** — use FCM's batchImport API to convert APNs tokens into FCM tokens on the server and store those
+2. **Direct APNs delivery for iOS** — split the delivery path per platform
+
+Once either is in place, the client can consolidate on expo-notifications alone, and coexistence problems like the [[rn-fcm-receiver-conflict|FCM receiver service conflict]] disappear at the root.
+
+## Summary
+
+|                                    | iOS                                   | Android   |
+| ---------------------------------- | ------------------------------------- | --------- |
+| Gateway                            | APNs                                  | FCM       |
+| Native token                       | APNs device token                     | FCM token |
+| Token required for FCM-relay sends | **FCM token (Firebase SDK required)** | FCM token |
+| Token Expo gives you               | raw APNs token                        | FCM token |
