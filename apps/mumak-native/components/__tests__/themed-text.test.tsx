@@ -15,6 +15,16 @@ describe('ThemedText', () => {
     expect(flat).toEqual(expect.objectContaining({ fontSize: 32, fontWeight: 'bold' }));
   });
 
+  it.each([
+    ['defaultSemiBold', { fontWeight: '600' }],
+    ['subtitle', { fontSize: 20 }],
+    ['link', { color: '#0a7ea4' }],
+  ] as const)('applies the %s style variant', (type, expected) => {
+    render(<ThemedText type={type}>{type}</ThemedText>);
+    const flat = StyleSheet.flatten(screen.getByText(type).props.style);
+    expect(flat).toEqual(expect.objectContaining(expected));
+  });
+
   it('exposes a heading role when requested', () => {
     render(
       <ThemedText type="title" accessibilityRole="header">

@@ -1,4 +1,6 @@
 import { renderHook } from '@testing-library/react-native';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import * as ReactNative from 'react-native';
 
 import { useColorScheme } from '../use-color-scheme';
@@ -53,5 +55,11 @@ describe('useColorScheme.web', () => {
     const { result } = renderHook(() => useWebColorScheme());
 
     expect(result.current).toBe('light');
+  });
+
+  it('pins the server snapshot to light during static rendering', () => {
+    const html = renderToStaticMarkup(createElement(() => createElement('span', null, useWebColorScheme())));
+
+    expect(html).toBe('<span>light</span>');
   });
 });
