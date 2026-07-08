@@ -1,0 +1,63 @@
+---
+title: 'The Lifecycle of an FCM Token — When It Changes, and Who Tells You'
+created: '2026-07-09'
+status: 'seedling'
+parent: 'frontend-network'
+tags: ['push-notification', 'fcm', 'mobile', 'architecture']
+---
+
+Once you understand which gateway a push token addresses ([[push-token-apns-vs-fcm|APNs tokens and FCM tokens are different]]), the natural next question is: **when does that address change, and how do we find out when it does?** Miss this, and you'll confuse "token rotation" with auth-token refresh, or try to check expiry yourself and hit a wall.
+
+> One-line summary: **An FCM token is an opaque address whose expiry you can't read. You don't predict or poll for changes — you subscribe to the event the platform fires when the token changes, and update the server's address book only then.**
+
+## First: it is a completely different thing from an auth token
+
+Both are called "tokens" and both use the word "rotate," so they're easy to conflate. But their purpose, lifetime, and owner all differ.
+
+|              | Auth token (access/refresh)      | Push token (FCM)                           |
+| ------------ | -------------------------------- | ------------------------------------------ |
+| What         | Proves "who this user is"        | Address for "where to send to this device" |
+| Expiry       | Time-based from issuance (short) | Not time-based (event-based)               |
+| Verify/renew | Your server issues & verifies    | The platform (FCM/OS) issues & manages     |
+
+The rotate in [[access-refresh-token-pattern|access/refresh tokens]] is your server's policy: "when access expires, get a new pair with the refresh token." There's no reason to hang FCM token rotation off of that — they're unrelated systems.
+
+## FCM tokens do not change "periodically"
+
+A common misconception is that the token is renewed every N days. It isn't. The token is normally **stable** and changes only on specific _events_:
+
+- App reinstall / app data cleared
+- Device restore (backup → new device)
+- The platform invalidating a stale token after a long period of inactivity
+- The app explicitly deleting the token
+
+So it's **event-driven**, not a timer — and for an active user it effectively almost never changes.
+
+## What "inactivity expiry" really means
+
+The platform treats a token as stale if "the app instance hasn't connected to the push gateway for a long time" (~270 days on Google's FCM). Two things matter:
+
+- **The clock is about _inactivity_, not time-since-issuance.** And it resets whenever the app communicates with the gateway.
+- **That communication is done by the OS, not your app code.** On Android, Google Play services; on iOS, APNs — each keeps a persistent background connection to the gateway. Even without the user opening the app, background check-ins and push delivery count as "active." So the 270-day expiry realistically only fires on a **fully abandoned** install (present on the device but disconnected).
+
+## So how do we learn about a change?
+
+We don't decode an expiry date (impossible — it's opaque) or poll periodically. **The platform SDK tells us via a callback when it generates a new token.** The app has exactly two touchpoints:
+
+- `getToken` — asks "what's the token right now?" (used for the initial registration on app entry)
+- `onTokenRefresh` — the event the SDK **pushes** when the token has changed. Subscribe to it, and the callback fires exactly at the moment the token actually changes.
+
+At that moment you re-register the new token with the server. Because **a write happens only when there's an actual change**, there are no wasted server transactions — far cheaper than "re-register on every request" or "poll periodically." And this API is shared across iOS/Android, so no platform branching is needed (the native SDK absorbs the APNs↔FCM difference).
+
+## The other side: the server prunes dead tokens too
+
+If the client's re-registration is half of freshness, the server is the other half. When the server sends to an already-dead token, the gateway returns a `NOT_REGISTERED`-style error. The server uses that signal to prune the token. Client (re-register on change) and server (prune on failure) keep the address book current from both ends.
+
+## Summary
+
+- FCM tokens are **opaque** → the client can't read expiry → **subscribe to events, don't predict or poll**.
+- They change only on _events_ (reinstall, restore, long inactivity), never periodically.
+- "Staying active/connected" is done by the **OS**; our only touchpoints are `getToken` and `onTokenRefresh`.
+- It's a **different system** from the auth refresh token — don't couple them.
+
+Related: [[push-token-apns-vs-fcm|APNs tokens and FCM tokens are different]] · [[access-refresh-token-pattern|The access/refresh token pattern]]
