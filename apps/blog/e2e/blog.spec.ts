@@ -124,6 +124,18 @@ test.describe('Blog - Category and Post Pages', () => {
       // catch-all은 (main) 그룹이라 사이트 chrome(헤더 nav)이 함께 렌더된다
       await expect(page.getByRole('navigation').first()).toBeVisible();
     });
+
+    // prefix 없는 경로는 proxy가 locale을 붙여 리다이렉트한 뒤 catch-all로 잡혀야 한다.
+    // matcher가 이미-prefix된 경로만 매칭하면 여기서 Next 기본 404로 떨어진다.
+    // (붙는 locale은 Accept-Language 협상 결과라 ko/en 어느 쪽이든 허용한다.)
+    test('should redirect an unprefixed unmatched path to the localized 404', async ({ page }) => {
+      const response = await page.goto('/no-such-unprefixed-path');
+
+      expect(response?.status()).toBe(404);
+      expect(new URL(page.url()).pathname).toMatch(/^\/(ko|en)\/no-such-unprefixed-path$/);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(page.getByRole('navigation').first()).toBeVisible();
+    });
   });
 
   test.describe('Blog Search Palette', () => {
