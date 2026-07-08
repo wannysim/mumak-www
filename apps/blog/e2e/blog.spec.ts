@@ -100,16 +100,29 @@ test.describe('Blog - Category and Post Pages', () => {
       await expect(page.getByRole('heading', { level: 1, name: 'I like writing' })).toBeVisible();
     });
 
+    // status 404 단언은 soft-404 회귀 방지: 레이아웃에서 children을 Suspense로 감싸면
+    // 동적 렌더에서 셸이 먼저 flush돼 notFound()가 200 + noindex로 굳는다.
     test('should show 404 for non-existent post', async ({ page }) => {
-      await page.goto('/ko/blog/essay/non-existent-essay');
+      const response = await page.goto('/ko/blog/essay/non-existent-essay');
 
+      expect(response?.status()).toBe(404);
       await expect(page.getByText('페이지를 찾을 수 없습니다')).toBeVisible();
     });
 
     test('should show 404 for non-existent post in English', async ({ page }) => {
-      await page.goto('/en/blog/essay/non-existent-essay');
+      const response = await page.goto('/en/blog/essay/non-existent-essay');
 
+      expect(response?.status()).toBe(404);
       await expect(page.getByText('Page not found')).toBeVisible();
+    });
+
+    test('should show localized 404 for unmatched path under a locale', async ({ page }) => {
+      const response = await page.goto('/ko/no-such-route-anywhere');
+
+      expect(response?.status()).toBe(404);
+      await expect(page.getByText('페이지를 찾을 수 없습니다')).toBeVisible();
+      // catch-all은 (main) 그룹이라 사이트 chrome(헤더 nav)이 함께 렌더된다
+      await expect(page.getByRole('navigation').first()).toBeVisible();
     });
   });
 
