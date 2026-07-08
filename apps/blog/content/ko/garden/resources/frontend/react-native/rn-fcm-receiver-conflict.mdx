@@ -12,7 +12,7 @@ tags: ['react-native', 'android', 'fcm', 'push-notification', 'manifest']
 
 ## FCM 메시지는 한 서비스에만 배달된다
 
-Android에서 FCM 푸시는 `com.google.firebase.MESSAGING_EVENT` 인텐트 필터를 선언한 **서비스**가 받는다. 그런데 이 필터를 선언한 서비스가 여러 개여도, FCM은 **하나에게만** 메시지를 배달한다. 어느 쪽이 이길지는 병합된 매니페스트에서의 선언 순서·우선순위로 결정되고, 앱 개발자가 코드로 통제할 수 없다.
+Android에서 FCM 푸시는 `com.google.firebase.MESSAGING_EVENT` 인텐트 필터를 선언한 **서비스**(화면 없이 백그라운드에서 도는 Android 컴포넌트)가 받는다. 그런데 이 필터를 선언한 서비스가 여러 개여도, FCM은 **하나에게만** 메시지를 배달한다. 어느 쪽이 이길지는 병합된 매니페스트에서의 선언 순서·우선순위로 결정되고, 앱 개발자가 코드로 통제할 수 없다.
 
 ## 라이브러리는 설치만으로 수신자를 등록한다
 
@@ -49,6 +49,8 @@ adb shell dumpsys package <패키지명> | grep -i messaging
   android:name="io.invertase.firebase.messaging.ReactNativeFirebaseMessagingService"
   tools:node="remove" />
 ```
+
+(`tools:` 접두사를 쓰려면 `<manifest>` 루트에 `xmlns:tools="http://schemas.android.com/tools"` 네임스페이스 선언이 있어야 한다.)
 
 이렇게 하면 그 라이브러리의 다른 기능(예: 토큰 발급 API — 수신 서비스 없이 동작)은 살리면서 수신 경합만 제거할 수 있다. Expo 프로젝트라면 이 매니페스트 수정을 [[expo-cng-config-plugins|config plugin]]으로 넣어야 prebuild에도 살아남는다.
 

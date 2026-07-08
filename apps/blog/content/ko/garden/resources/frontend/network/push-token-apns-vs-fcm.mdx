@@ -12,7 +12,7 @@ tags: ['push-notification', 'fcm', 'apns', 'mobile', 'architecture']
 
 ## 게이트웨이와 토큰
 
-푸시의 마지막 무선 구간은 OS 벤더의 게이트웨이만 쓸 수 있다:
+앱은 백그라운드에서 서버와 상시 연결을 유지할 수 없다. 대신 OS가 기기당 하나의 상시 연결을 자기 벤더의 게이트웨이와 유지하고, 모든 앱의 푸시가 그 연결을 공유한다. 그래서 푸시의 마지막 무선 구간은 OS 벤더의 게이트웨이만 쓸 수 있다:
 
 - **iOS → APNs** (Apple Push Notification service) → APNs 디바이스 토큰
 - **Android → FCM** (Firebase Cloud Messaging) → FCM 토큰
@@ -22,6 +22,8 @@ tags: ['push-notification', 'fcm', 'apns', 'mobile', 'architecture']
 ## iOS의 FCM 토큰은 어디서 나오나
 
 iOS의 FCM 토큰은 raw APNs 토큰을 Firebase가 자기 주소 체계로 매핑한 것이다. 이 매핑은 **기기에 Firebase SDK를 심어야만** 클라이언트에서 일어난다. expo-notifications의 `getDevicePushTokenAsync`는 iOS에서 raw APNs 토큰만 준다 — FCM 발송용으로는 쓸 수 없다.
+
+(참고로 `getExpoPushTokenAsync`가 주는 `ExponentPushToken[...]`은 또 다른 제3의 토큰이다. Expo Push Service라는 별도 게이트웨이의 주소라서, 서버가 Expo Push Service로 발송할 때만 의미가 있다. 이 글의 APNs/FCM 토큰과 혼동하지 말 것.)
 
 그래서 이런 의존성 사슬이 생긴다:
 
