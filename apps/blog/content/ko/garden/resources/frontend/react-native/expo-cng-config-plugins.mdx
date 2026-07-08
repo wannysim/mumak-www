@@ -1,0 +1,50 @@
+---
+title: 'Expo CNG — android/ 디렉터리는 소스가 아니라 빌드 산출물이다'
+created: '2026-07-08'
+status: 'seedling'
+parent: 'frontend-react-native'
+tags: ['react-native', 'expo', 'config-plugin', 'prebuild', 'native']
+---
+
+Expo 프로젝트에서 네이티브 설정(AndroidManifest, Info.plist, gradle)을 고쳐야 할 때, `android/` 폴더의 파일을 직접 수정하면 안 된다. 왜?
+
+> 한 줄 요약: **CNG에서 `android/`·`ios/`는 `dist/` 같은 생성물이다. 고치려면 생성 과정에 개입해야 한다.**
+
+## CNG(Continuous Native Generation)
+
+Expo의 기본 모델에서 네이티브 프로젝트는 저장소에 없다(gitignore). `npx expo prebuild`가 실행될 때마다 `app.config.ts` + 플러그인 목록으로부터 **매번 새로 생성**된다. 웹 개발자가 `dist/`를 직접 수정하지 않는 것과 정확히 같은 이유로, `android/`를 직접 고친 변경은 다음 prebuild에서 소리 없이 사라진다.
+
+이걸 모르면 전형적인 유령 회귀가 생긴다: 네이티브 파일을 고쳐서 해결 → 몇 주 뒤 누군가 prebuild → 조용히 원복 → "고쳤던 게 또 깨졌다."
+
+## Config plugin — 생성 과정에 개입하는 정규 통로
+
+Config plugin은 prebuild 파이프라인에 끼어들어 생성 결과를 변형하는 JS 함수다. 매니페스트에 요소를 추가/제거하거나, Info.plist 키를 넣거나, gradle 설정을 바꾸는 일을 선언적으로 기술한다.
+
+```js
+const { withAndroidManifest } = require('@expo/config-plugins');
+
+module.exports = function withMyManifestFix(config) {
+  return withAndroidManifest(config, config => {
+    // config.modResults가 파싱된 매니페스트 — 여기서 변형
+    return config;
+  });
+};
+```
+
+`app.config.ts`의 `plugins` 배열에 등록하면 끝이다.
+
+## "파일 하나 추가"가 과해 보일 때
+
+30줄짜리 플러그인 파일이 오버엔지니어링처럼 보일 수 있다. 대안과 비교해 보면 그렇지 않다:
+
+| 방법                    | 수명                      | 부작용                       |
+| ----------------------- | ------------------------- | ---------------------------- |
+| 네이티브 파일 직접 수정 | 다음 prebuild까지         | 유령 회귀                    |
+| patch-package           | 라이브러리 업그레이드까지 | 의존성 + postinstall 훅 추가 |
+| **config plugin**       | **영구 (선언적 재생성)**  | **없음 (새 의존성 0)**       |
+
+복잡도는 "코드 줄 수"가 아니라 **메커니즘의 수명과 부작용**으로 재야 한다. CNG 환경에서 config plugin은 가장 무거워 보이지만 실제로는 가장 가벼운 선택지다.
+
+## 실전 예
+
+FCM 수신 서비스 경합([[rn-fcm-receiver-conflict|FCM 수신 서비스 충돌]]) 같은 매니페스트 레벨 문제는 config plugin으로 `tools:node="remove"` 스텁을 주입해서 해결한다 — prebuild를 몇 번을 다시 돌려도 수정이 유지된다.

@@ -1,0 +1,53 @@
+---
+title: '푸시 토큰의 정체 — APNs 토큰과 FCM 토큰은 다른 것이다'
+created: '2026-07-08'
+status: 'seedling'
+parent: 'frontend-network'
+tags: ['push-notification', 'fcm', 'apns', 'mobile', 'architecture']
+---
+
+"푸시 토큰"이라고 뭉뚱그려 부르지만, iOS 기기 하나에도 서로 다른 두 종류의 토큰이 있을 수 있다. 이 구분을 모르면 "이 패키지 왜 못 지워?"라는 질문에 답할 수 없다.
+
+> 한 줄 요약: **무선 구간은 플랫폼 게이트웨이(APNs/FCM)가 독점하고, 토큰은 그 게이트웨이의 주소 체계다. 어느 게이트웨이로 발송하느냐가 클라이언트가 등록해야 할 토큰을 결정한다.**
+
+## 게이트웨이와 토큰
+
+푸시의 마지막 무선 구간은 OS 벤더의 게이트웨이만 쓸 수 있다:
+
+- **iOS → APNs** (Apple Push Notification service) → APNs 디바이스 토큰
+- **Android → FCM** (Firebase Cloud Messaging) → FCM 토큰
+
+여기까지면 단순한데, FCM이 **APNs 위에 얹는 추상화 계층**도 제공하면서 헷갈리기 시작한다. 서버가 "FCM 하나로 iOS·Android 모두 발송"할 수 있는데(FCM이 iOS 분은 APNs로 릴레이), 이때 iOS 기기도 **FCM 토큰**으로 식별된다.
+
+## iOS의 FCM 토큰은 어디서 나오나
+
+iOS의 FCM 토큰은 raw APNs 토큰을 Firebase가 자기 주소 체계로 매핑한 것이다. 이 매핑은 **기기에 Firebase SDK를 심어야만** 클라이언트에서 일어난다. expo-notifications의 `getDevicePushTokenAsync`는 iOS에서 raw APNs 토큰만 준다 — FCM 발송용으로는 쓸 수 없다.
+
+그래서 이런 의존성 사슬이 생긴다:
+
+```
+서버가 "FCM으로만 발송" 결정
+  → iOS 기기도 FCM 토큰 필요
+  → FCM 토큰은 Firebase SDK만 발급
+  → 클라이언트에서 Firebase SDK 제거 불가
+```
+
+클라이언트 패키지 구성이 클라이언트만의 결정이 아니라 **서버 발송 아키텍처와 한 몸**이라는 것. "이 라이브러리 지우면 안 되나?"의 답이 서버 계약에 달려 있는 경우다.
+
+## 사슬을 끊는 법 (서버 측)
+
+Firebase SDK 의존을 클라이언트에서 걷어내려면 서버가 움직여야 한다:
+
+1. **APNs 토큰 서버측 변환** — FCM의 batchImport API로 APNs 토큰을 서버에서 FCM 토큰으로 변환해 저장
+2. **iOS만 APNs 직발송** — 발송 경로를 플랫폼별로 분리
+
+둘 중 하나가 되면 클라이언트는 expo-notifications 하나로 단일화할 수 있고, [[rn-fcm-receiver-conflict|FCM 수신 서비스 충돌]] 같은 공존 문제도 원천적으로 사라진다.
+
+## 정리
+
+|                              | iOS                              | Android  |
+| ---------------------------- | -------------------------------- | -------- |
+| 게이트웨이                   | APNs                             | FCM      |
+| 네이티브 토큰                | APNs 디바이스 토큰               | FCM 토큰 |
+| FCM 경유 발송 시 필요한 토큰 | **FCM 토큰 (Firebase SDK 필수)** | FCM 토큰 |
+| expo가 주는 토큰             | raw APNs 토큰                    | FCM 토큰 |
