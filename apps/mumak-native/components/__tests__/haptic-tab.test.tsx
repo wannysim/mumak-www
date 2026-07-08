@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import * as Haptics from 'expo-haptics';
+import { Platform } from 'react-native';
 
 import { HapticTab } from '../haptic-tab';
 
-const originalExpoOS = process.env.EXPO_OS;
+const originalOS = Platform.OS;
 
 function renderHapticTab(props: Partial<React.ComponentProps<typeof HapticTab>> = {}) {
   return render(<HapticTab accessibilityRole="button" {...(props as React.ComponentProps<typeof HapticTab>)} />);
@@ -11,18 +12,29 @@ function renderHapticTab(props: Partial<React.ComponentProps<typeof HapticTab>> 
 
 describe('HapticTab', () => {
   afterEach(() => {
-    process.env.EXPO_OS = originalExpoOS;
+    Platform.OS = originalOS;
     jest.clearAllMocks();
   });
 
   it('runs light haptic feedback on iOS press in', () => {
     const onPressIn = jest.fn();
-    process.env.EXPO_OS = 'ios';
+    Platform.OS = 'ios';
 
     renderHapticTab({ onPressIn });
     fireEvent(screen.getByRole('button'), 'pressIn', { nativeEvent: {} });
 
     expect(Haptics.impactAsync).toHaveBeenCalledWith(Haptics.ImpactFeedbackStyle.Light);
+    expect(onPressIn).toHaveBeenCalled();
+  });
+
+  it('skips haptic feedback off iOS but still forwards the press', () => {
+    const onPressIn = jest.fn();
+    Platform.OS = 'android';
+
+    renderHapticTab({ onPressIn });
+    fireEvent(screen.getByRole('button'), 'pressIn', { nativeEvent: {} });
+
+    expect(Haptics.impactAsync).not.toHaveBeenCalled();
     expect(onPressIn).toHaveBeenCalled();
   });
 });
