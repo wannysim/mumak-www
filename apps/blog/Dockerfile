@@ -75,7 +75,9 @@ USER nextjs
 WORKDIR /app/apps/blog
 # Fail the build loudly if the traced sharp binary is the wrong arch (build FOR the
 # target platform so this validates the binary the home server will actually run).
-RUN node -e "require('sharp')"
+# pnpm keeps sharp under .pnpm (no top-level node_modules/sharp symlink), so resolve
+# it from next's own require context — the same path the running server uses.
+RUN node -e "const{createRequire}=require('module');const r=createRequire(require.resolve('next/package.json'));console.log('sharp',r('sharp/package.json').version,'loaded:',!!r('sharp'))"
 EXPOSE 3000
 # cwd MUST be the standalone app dir — content loaders and OG fonts read from cwd.
 CMD ["node", "server.js"]

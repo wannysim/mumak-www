@@ -8,7 +8,7 @@ services:
     container_name: mumak-blog
     restart: unless-stopped
     ports:
-      - '3000:3000' # host:container — NPM proxies to the host's :3000
+      - '3100:3000' # host:container — NPM proxies to the host's :3100 (host 3000 is taken by adguard's host-network web UI)
     environment:
       NODE_ENV: production
       # PORT / HOSTNAME are already baked into the image (3000 / 0.0.0.0).
