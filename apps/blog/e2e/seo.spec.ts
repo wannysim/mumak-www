@@ -118,13 +118,15 @@ test.describe('SEO - BreadcrumbList JSON-LD', () => {
     expect(jsonLd['@type']).toBe('BreadcrumbList');
     expect(jsonLd.itemListElement).toBeDefined();
 
-    // Garden note should have 3 breadcrumb items: Home > Garden > Note
-    expect(jsonLd.itemListElement.length).toBe(3);
+    // Garden note under a PARA category has 4 breadcrumb items: Home > Garden > Category > Note
+    // (what-is-digital-garden lives under resources/, so the category step is present)
+    expect(jsonLd.itemListElement.length).toBe(4);
 
     // Check specific breadcrumb names
     expect(jsonLd.itemListElement[0].name).toBe('홈');
     expect(jsonLd.itemListElement[1].name).toBe('가든');
-    expect(jsonLd.itemListElement[2].name).toBeTruthy();
+    expect(jsonLd.itemListElement[2].name).toBe('Resources');
+    expect(jsonLd.itemListElement[3].name).toBeTruthy();
   });
 
   test('should have correct breadcrumb URLs', async ({ page }) => {
