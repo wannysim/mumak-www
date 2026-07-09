@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 
 import { Button } from '@mumak/ui/components/button';
+import { ScrollArea } from '@mumak/ui/components/scroll-area';
 import {
   Sheet,
   SheetContent,
@@ -99,9 +100,12 @@ export function GardenSidebar({ categories }: GardenSidebarProps) {
               </Button>
             </div>
             <SearchTrigger onClick={() => setSearchOpen(true)} placeholder={t('searchPlaceholder')} />
-            <div id="garden-note-tree" className="-mr-2 flex-1 overflow-y-auto overscroll-contain pr-2">
+            <ScrollArea
+              id="garden-note-tree"
+              className="-mr-2 min-h-0 flex-1 pr-2 [&_[data-slot=scroll-area-viewport]]:overscroll-contain"
+            >
               <TreeContent visibleCategories={visibleCategories} pathname={pathname} />
-            </div>
+            </ScrollArea>
           </div>
         )}
 
@@ -131,13 +135,13 @@ export function GardenSidebar({ categories }: GardenSidebarProps) {
                 </SheetTitle>
                 <SheetDescription className="sr-only">{t('title')}</SheetDescription>
               </SheetHeader>
-              <div className="-mr-2 flex-1 overflow-y-auto overscroll-contain pr-2">
+              <ScrollArea className="-mr-2 min-h-0 flex-1 pr-2 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
                 <TreeContent
                   visibleCategories={visibleCategories}
                   pathname={pathname}
                   onNavigate={() => setSheetOpen(false)}
                 />
-              </div>
+              </ScrollArea>
             </SheetContent>
           </Sheet>
         </div>
