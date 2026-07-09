@@ -100,9 +100,11 @@ export function GardenSidebar({ categories }: GardenSidebarProps) {
               </Button>
             </div>
             <SearchTrigger onClick={() => setSearchOpen(true)} placeholder={t('searchPlaceholder')} />
+            {/* viewport>div:!block — Radix가 끼우는 display:table 래퍼가 긴 제목의
+                줄바꿈/truncate를 막고 사이드바 폭을 뚫는 것을 되돌린다 */}
             <ScrollArea
               id="garden-note-tree"
-              className="-mr-2 min-h-0 flex-1 pr-2 [&_[data-slot=scroll-area-viewport]]:overscroll-contain"
+              className="-mr-2 min-h-0 flex-1 pr-2 [&_[data-slot=scroll-area-viewport]]:overscroll-contain [&_[data-slot=scroll-area-viewport]>div]:!block"
             >
               <TreeContent visibleCategories={visibleCategories} pathname={pathname} />
             </ScrollArea>
@@ -135,7 +137,7 @@ export function GardenSidebar({ categories }: GardenSidebarProps) {
                 </SheetTitle>
                 <SheetDescription className="sr-only">{t('title')}</SheetDescription>
               </SheetHeader>
-              <ScrollArea className="-mr-2 min-h-0 flex-1 pr-2 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
+              <ScrollArea className="-mr-2 min-h-0 flex-1 pr-2 [&_[data-slot=scroll-area-viewport]]:overscroll-contain [&_[data-slot=scroll-area-viewport]>div]:!block">
                 <TreeContent
                   visibleCategories={visibleCategories}
                   pathname={pathname}
