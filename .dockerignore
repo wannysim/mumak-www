@@ -30,3 +30,6 @@
 **/npm-debug.log*
 **/pnpm-debug.log*
 
+# Obsidian vault config lives inside content/ — dead weight, not read by app code
+apps/blog/content/**/.obsidian
+
