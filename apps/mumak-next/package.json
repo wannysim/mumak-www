@@ -1,6 +1,6 @@
 {
   "name": "mumak-next",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -27,10 +27,10 @@
   "dependencies": {
     "@mumak/ui": "workspace:*",
     "lucide-react": "^1.17.0",
-    "next": "^16.2.6",
+    "next": "^16.2.9",
     "next-themes": "^0.4.6",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@mumak/playwright-config": "workspace:*",
@@ -41,7 +41,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.9.1",
-    "@types/react": "^19.2.10",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "jest": "^30.4.1",
     "jest-environment-jsdom": "^30.4.1",

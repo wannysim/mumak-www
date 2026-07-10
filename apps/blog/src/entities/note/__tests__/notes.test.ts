@@ -10,6 +10,7 @@ import {
   getNoteAnchorIndex,
   getNoteEmbedPreview,
   getNotes,
+  getNotesByCategory,
   getNotesByStatus,
   getNotesByTag,
   getOutgoingNotes,
@@ -236,6 +237,19 @@ describe('getNotesByStatus', () => {
       const evergreens = getNotesByStatus('ko', 'evergreen');
       expect(evergreens).toEqual([]);
     }
+  });
+});
+
+describe('getNotesByCategory', () => {
+  it('특정 PARA 카테고리(subdir)의 노트들을 반환한다', () => {
+    const notes = getNotesByCategory('ko', 'resources');
+
+    expect(notes.length).toBeGreaterThanOrEqual(1);
+    expect(notes.every(n => (n.category || 'garden') === 'resources')).toBe(true);
+  });
+
+  it('존재하지 않는 카테고리는 빈 배열 반환', () => {
+    expect(getNotesByCategory('ko', 'non-existent-category')).toEqual([]);
   });
 });
 
@@ -552,6 +566,14 @@ describe('advanced anchor utilities', () => {
 
   it('존재하지 않는 blockId는 embed preview가 null', () => {
     expect(getNoteEmbedPreview('ko', 'what-is-digital-garden', { blockId: 'missing-block' })).toBeNull();
+  });
+
+  it('존재하는 blockId는 해당 블록 라인 발췌를 반환하고 ^marker를 제거한다', () => {
+    const preview = getNoteEmbedPreview('ko', 'pkm', { blockId: 'pkm-habit-loop' });
+
+    expect(preview).not.toBeNull();
+    expect(preview?.excerpt).toContain('Notion');
+    expect(preview?.excerpt).not.toContain('^pkm-habit-loop');
   });
 
   it('존재하지 않는 블록 앵커는 false다', () => {

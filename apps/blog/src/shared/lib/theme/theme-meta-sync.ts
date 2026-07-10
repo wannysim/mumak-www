@@ -4,6 +4,12 @@ import { themeColors } from './theme-config';
 // Safari iOS에서는 메타 태그를 삭제/생성하면 인식하지 못하고,
 // 기존 메타 태그의 content 속성만 변경해야 동적으로 업데이트됨
 //
+// macOS(데스크톱) Safari는 media 속성이 붙은 theme-color 태그를 OS의
+// prefers-color-scheme 기준으로 선택하므로, 사이트의 수동 토글(.dark 클래스)과
+// 충돌해 툴바/탭 틴트가 따라오지 않는다. 동기화 시 media 속성을 제거해
+// 수동 토글이 OS 설정을 이기도록 만든다 (viewport가 심은 media 태그는
+// JS 비활성 환경의 초기 페인트 fallback 역할만 한다).
+//
 // export는 단위 테스트에서 직접 호출 가능하도록 하기 위함이며,
 // 함수는 여전히 .toString()으로 직렬화돼 script 태그 안에서 실행된다.
 export function themeMetaSync(colors: { light: string; dark: string }) {
@@ -15,6 +21,10 @@ export function themeMetaSync(colors: { light: string; dark: string }) {
     if (!metaTags.length) return;
 
     metaTags.forEach(metaTag => {
+      // media 속성이 남아 있으면 OS 설정이 수동 토글을 덮어쓰므로 제거한다.
+      if (metaTag.hasAttribute('media')) {
+        metaTag.removeAttribute('media');
+      }
       // content가 다를 때만 업데이트 (불필요한 변경 방지)
       if (metaTag.getAttribute('content') !== expectedColor) {
         metaTag.setAttribute('content', expectedColor);

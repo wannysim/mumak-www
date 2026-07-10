@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme } from 'expo-router';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-import RootLayout, { unstable_settings } from '../_layout';
+import RootLayout, { ErrorBoundary, unstable_settings } from '../_layout';
 
 jest.mock('@/hooks/use-color-scheme', () => ({
   useColorScheme: jest.fn(),
@@ -20,13 +20,22 @@ describe('RootLayout', () => {
     expect(unstable_settings).toEqual({ anchor: '(tabs)' });
   });
 
-  it('renders the tab stack inside the light theme', () => {
+  it('re-exports the route error boundary', () => {
+    expect(ErrorBoundary).toBeInstanceOf(Function);
+  });
+
+  it('renders the stack inside the safe area + light theme providers', () => {
     render(<RootLayout />);
 
+    expect(screen.getByTestId('safe-area-provider')).toBeTruthy();
     expect(screen.getByTestId('theme-provider').props.value).toBe(DefaultTheme);
-    expect(screen.getByTestId('stack-screen').props.accessibilityLabel).toBe('(tabs)');
-    expect(screen.getByTestId('stack-screen').props.options).toEqual({ headerShown: false });
     expect(screen.getByTestId('status-bar').props.style).toBe('auto');
+
+    const [tabs, notFound] = screen.getAllByTestId('stack-screen');
+    expect(tabs.props.accessibilityLabel).toBe('(tabs)');
+    expect(tabs.props.options).toEqual({ headerShown: false });
+    expect(notFound.props.accessibilityLabel).toBe('+not-found');
+    expect(notFound.props.options).toEqual({ title: 'Oops!' });
   });
 
   it('switches to the dark theme when the device is dark', () => {

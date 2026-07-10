@@ -9,7 +9,8 @@
     "notes": "Notes",
     "language": "Language",
     "tags": "Tags",
-    "graph": "Graph"
+    "graph": "Graph",
+    "viewGraph": "Explore the graph"
   },
   "footer": {
     "about": "About",
@@ -69,6 +70,12 @@
   "notFound": {
     "title": "Page Not Found",
     "description": "The page you requested does not exist.",
+    "backHome": "Back to Home"
+  },
+  "error": {
+    "title": "Something went wrong",
+    "description": "An unexpected error prevented this page from loading. Please try again in a moment.",
+    "retry": "Try again",
     "backHome": "Back to Home"
   },
   "about": {
@@ -140,6 +147,8 @@
     "sidebar": {
       "title": "PARA Garden",
       "openTree": "Browse",
+      "collapse": "Collapse sidebar",
+      "expand": "Expand sidebar",
       "searchPlaceholder": "Search notes…",
       "searchAria": "Search notes",
       "searchTitle": "Search notes",

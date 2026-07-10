@@ -87,6 +87,20 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     await expect(page.getByRole('dialog', { name: '노트 검색' })).toBeVisible();
   });
 
+  test('desktop: collapses the sidebar to reclaim width and expands it again', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/ko/garden');
+
+    const tree = page.getByRole('navigation', { name: 'Garden notes' });
+    await expect(tree).toBeVisible();
+
+    await page.getByRole('button', { name: '사이드바 접기' }).click();
+    await expect(tree).toBeHidden();
+
+    await page.getByRole('button', { name: '사이드바 펼치기' }).click();
+    await expect(tree).toBeVisible();
+  });
+
   test('mobile: should open tree drawer via Browse button and navigate', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/ko/garden');

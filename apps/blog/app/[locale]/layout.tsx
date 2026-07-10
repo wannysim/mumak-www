@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import localFont from 'next/font/local';
 import { notFound } from 'next/navigation';
-import { Suspense } from 'react';
 
 import {
   IntlProvider,
@@ -88,8 +87,11 @@ interface LocaleLayoutProps {
   params: Promise<{ locale: string }>;
 }
 
-// <html>/<body>를 Suspense 밖, async 레이아웃 최상단에서 렌더한다. Suspense 안에
-// 두면 정적 스트리밍 시 문서 셸(html lang 포함)이 지연돼 SSR 출력에서 누락된다.
+// <html>/<body>는 async 레이아웃 최상단에서 렌더한다. children을 Suspense로 감싸지
+// 않는다 — 감싸면 동적 렌더(404 catch-all, SSG miss)에서 셸이 먼저 flush돼
+// notFound()가 status code를 404로 바꾸지 못하고 200 + noindex(soft-404)로 굳는다.
+// useSearchParams CSR bailout 경계는 사용처(ProgressProvider 내부, graph 페이지)가
+// 각자 로컬 Suspense로 제공한다.
 export default async function LocaleLayout({ children, params }: LocaleLayoutProps) {
   const { locale } = await params;
 
@@ -114,9 +116,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
             <ProgressProvider>
               <JsonLdScript data={websiteJsonLd} />
               <JsonLdScript data={siteNavigationJsonLd} />
-              {/* children을 Suspense로 감싼다: <html>은 셸에 유지하면서, 정적
-                  페이지의 useSearchParams() CSR bailout 경계를 제공한다. */}
-              <Suspense>{children}</Suspense>
+              {children}
               {ENABLE_VERCEL_ANALYTICS ? <VercelAnalytics /> : null}
             </ProgressProvider>
           </IntlProvider>

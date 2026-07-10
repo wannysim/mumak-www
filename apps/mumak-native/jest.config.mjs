@@ -14,7 +14,7 @@ export default {
     '!**/*.d.ts',
     '!**/__tests__/**',
   ],
-  // 현재 placeholder 앱의 측정 baseline. 화면/네이티브 모듈이 늘어나면 실측 기준으로 조정한다.
+  // 현재 앱 전체 실측 100%지만 화면/네이티브 모듈 증가 여유를 두고 baseline을 보수적으로 유지한다.
   coverageThreshold: {
     global: { statements: 90, branches: 70, functions: 90, lines: 90 },
   },

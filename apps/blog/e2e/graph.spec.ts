@@ -69,22 +69,30 @@ test.describe('Graph Page', () => {
     await expect(page.getByRole('button', { name: 'Back' })).toBeVisible();
   });
 
-  test('should navigate back to previous page', async ({ page }) => {
-    await page.goto('/en');
-    await page.getByRole('link', { name: 'Graph' }).click();
-    await expect(page).toHaveURL(/\/en\/graph/);
-
+  test('back button leaves the immersive graph for the locale home when there is no in-site history', async ({
+    page,
+  }) => {
+    // 그래프 Back은 in-site referrer가 있으면 router.back(), 없으면 locale 홈으로 폴백한다.
+    // 직접 진입(referrer 없음)에서는 폴백 경로가 결정적으로 동작한다.
+    await page.goto('/en/graph');
     await page.getByRole('button', { name: 'Back' }).click();
     await expect(page).toHaveURL(/\/en$/);
   });
 
-  test('should be accessible from navigation', async ({ page }) => {
-    await page.goto('/en');
+  test('is reachable from the blog and garden section headers, deep-linked to the matching tab', async ({ page }) => {
+    // 전역 nav의 형제 항목이 아니라 각 섹션 인덱스의 PageHeader 아래 진입점에서 연다.
+    await page.goto('/en/garden');
+    const gardenGraphLink = page.getByRole('link', { name: /Explore the graph/i });
+    await expect(gardenGraphLink).toBeVisible();
+    await gardenGraphLink.click();
+    await expect(page).toHaveURL(/\/en\/graph\?tab=garden/);
+    await expect(page.getByRole('tab', { name: 'Garden' })).toHaveAttribute('aria-selected', 'true');
 
-    const graphLink = page.getByRole('link', { name: 'Graph' });
-    await expect(graphLink).toBeVisible();
-
-    await graphLink.click();
-    await expect(page).toHaveURL(/\/en\/graph/);
+    await page.goto('/en/blog');
+    const blogGraphLink = page.getByRole('link', { name: /Explore the graph/i });
+    await expect(blogGraphLink).toBeVisible();
+    await blogGraphLink.click();
+    await expect(page).toHaveURL(/\/en\/graph\?tab=blog/);
+    await expect(page.getByRole('tab', { name: 'Blog' })).toHaveAttribute('aria-selected', 'true');
   });
 });

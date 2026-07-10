@@ -100,16 +100,41 @@ test.describe('Blog - Category and Post Pages', () => {
       await expect(page.getByRole('heading', { level: 1, name: 'I like writing' })).toBeVisible();
     });
 
+    // status 404 단언은 soft-404 회귀 방지: 레이아웃에서 children을 Suspense로 감싸면
+    // 동적 렌더에서 셸이 먼저 flush돼 notFound()가 200 + noindex로 굳는다.
     test('should show 404 for non-existent post', async ({ page }) => {
-      await page.goto('/ko/blog/essay/non-existent-essay');
+      const response = await page.goto('/ko/blog/essay/non-existent-essay');
 
+      expect(response?.status()).toBe(404);
       await expect(page.getByText('페이지를 찾을 수 없습니다')).toBeVisible();
     });
 
     test('should show 404 for non-existent post in English', async ({ page }) => {
-      await page.goto('/en/blog/essay/non-existent-essay');
+      const response = await page.goto('/en/blog/essay/non-existent-essay');
 
+      expect(response?.status()).toBe(404);
       await expect(page.getByText('Page not found')).toBeVisible();
+    });
+
+    test('should show localized 404 for unmatched path under a locale', async ({ page }) => {
+      const response = await page.goto('/ko/no-such-route-anywhere');
+
+      expect(response?.status()).toBe(404);
+      await expect(page.getByText('페이지를 찾을 수 없습니다')).toBeVisible();
+      // catch-all은 (main) 그룹이라 사이트 chrome(헤더 nav)이 함께 렌더된다
+      await expect(page.getByRole('navigation').first()).toBeVisible();
+    });
+
+    // prefix 없는 경로는 proxy가 locale을 붙여 리다이렉트한 뒤 catch-all로 잡혀야 한다.
+    // matcher가 이미-prefix된 경로만 매칭하면 여기서 Next 기본 404로 떨어진다.
+    // (붙는 locale은 Accept-Language 협상 결과라 ko/en 어느 쪽이든 허용한다.)
+    test('should redirect an unprefixed unmatched path to the localized 404', async ({ page }) => {
+      const response = await page.goto('/no-such-unprefixed-path');
+
+      expect(response?.status()).toBe(404);
+      expect(new URL(page.url()).pathname).toMatch(/^\/(ko|en)\/no-such-unprefixed-path$/);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(page.getByRole('navigation').first()).toBeVisible();
     });
   });
 

@@ -1,6 +1,7 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
+  "cacheMaxSize": "4GB",
   "globalDependencies": ["package.json", "pnpm-lock.yaml", "turbo.json"],
   "globalEnv": ["NODE_ENV", "CI", "VERCEL", "VERCEL_ENV", "EXPO_OS"],
   "tasks": {

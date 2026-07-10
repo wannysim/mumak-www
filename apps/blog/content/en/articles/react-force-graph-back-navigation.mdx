@@ -1,0 +1,280 @@
+---
+title: 'The 3D Graph That Died After Pressing Back -- Tracing a react-kapsule Cleanup Bug'
+date: '2026-06-20'
+description: "Navigate back and the canvas is there, but nothing responds. A trace from the symptom down to react-kapsule's useEffectOnce."
+tags: ['react', 'nextjs', 'debugging']
+draft: false
+---
+
+This blog has a [3D graph page](/en/graph) that connects posts as nodes.
+It is built with `react-force-graph-3d`, and one day I got a strange report.
+
+> I open the graph, go to a post, and then **press the browser back button to return to the graph** -- the graph is still there, but drag, zoom, and node clicks all stop working.
+
+A full reload fixes it. It only dies when you come back via the back button.
+This "visible but untouchable" symptom ended up leading all the way down to a single lifecycle line inside a React wrapper for an external library.
+
+## 1. Pin Down the Symptom First
+
+I started by narrowing the repro.
+
+1. Enter `/en/graph`. The graph renders and drag/zoom/click all work.
+2. Client-side navigate to a post.
+3. Press the browser **back** button to return to the graph.
+4. The canvas is visible again, but no interaction registers.
+
+Two facts mattered.
+
+- **Entering via a full reload works fine.** So the SSR / initial mount path has no problem.
+- **It only dies on the path where you leave client-side and come back through history.**
+
+Our graph page's back button calls `router.back()` when there is history.
+
+```tsx
+const hasHistory = window.history.length > 1 && document.referrer !== '';
+if (hasHistory) {
+  router.back();
+} else {
+  router.push(`/${locale}`);
+}
+```
+
+So users routinely walk the "leave and return through history" path.
+This wasn't a rare edge case -- it was the normal flow.
+
+## 2. Peel the Layers One at a Time
+
+The canvas DOM is sitting right there, yet only the interaction is dead. That fixes the order of suspicion.
+The hypothesis: the DOM was re-rendered, but **the controller / renderer / event listeners that are supposed to live on top of it never came back to life.**
+
+Written top to bottom, the stacked layers are:
+
+1. `react-force-graph-3d` -- the React component wrapper
+2. `react-kapsule` -- the adapter that ties a kapsule instance's lifecycle to React's lifecycle
+3. `3d-force-graph` / `three-render-objects` -- the actual Three.js scene, controls, and renderer
+
+Since a full reload works, the initialization code on the from-scratch mount path is fine.
+So the problem isn't "normal initialization" -- it's the path where **initialization should run again on a re-mount after unmount, but doesn't.**
+
+This is where you have to keep React Strict Mode in mind.
+In development, Strict Mode intentionally invokes effects twice (setup → cleanup → setup). Libraries commonly add a "only truly initialize once" guard to survive this double invoke.
+The trouble starts when that guard also **blocks the genuine re-mount after a real unmount.**
+
+## 3. The Culprit: react-kapsule's useEffectOnce
+
+`react-force-graph-3d` doesn't touch Three.js directly.
+It uses `react-kapsule` internally to bind a kapsule component to React.
+And `react-kapsule` has a hook called `useEffectOnce`.
+
+The problem this hook solves is legitimate. **When Strict Mode calls effects twice in development, you don't want heavy kapsule init/destroy to run twice.**
+So it records "already done" with ref flags like `effectCalled` and `renderAfterCalled`, and skips the second call.
+
+The problem is on the cleanup side. Simplified, it looked like this.
+
+```js
+// Conceptually simplified
+const effectCalled = useRef(false);
+const renderAfterCalled = useRef(false);
+
+if (!effectCalled.current) {
+  comp(domEl.current); // the real initialization
+  effectCalled.current = true;
+}
+
+return () => {
+  // Skip the real teardown if this is Strict Mode's dummy cleanup
+  if (!renderAfterCalled.current) return;
+  destroyFunc.current?.();
+};
+```
+
+Follow what happens in order.
+
+1. First mount: marks `effectCalled = true` and initializes.
+2. Real unmount: the destructor runs. **But `effectCalled` stays `true`.**
+3. Re-entry via back: on a path where React reuses the same hook state/ref, `effectCalled` is already `true`, so **initialization is skipped.**
+4. Result: `comp(domEl.current)` is never called again. The canvas DOM may reappear, but the internal controls, renderer, and listeners are never restored.
+
+That's the identity of "visible but untouchable."
+**After the real cleanup, the lifecycle flags were never reset, so the next mount mistakes itself for an "already-initialized instance."**
+
+> A guard meant for "run only once" leaked into "never run again." I wrote up the generalized lesson separately in the garden note [Strict Mode cleanup and useEffectOnce](/en/garden/react-strict-mode-cleanup-and-effect-once).
+
+## 4. A Stopgap Workaround
+
+We have to protect the user experience until upstream is fixed.
+The safest stopgap is to **force a full remount of the problematic component.**
+In React, changing the `key` rebuilds a component as a brand-new instance even in the same slot -- which throws away the hook state/ref that was being reused.
+
+```tsx
+const hasMountedRef = useRef(false);
+const [graphKey, setGraphKey] = useState(0);
+
+useEffect(() => {
+  // If the same instance receives an effect again, bump the key to force a remount
+  if (FORCE_GRAPH_REMOUNT_WORKAROUND && hasMountedRef.current) {
+    setGraphKey(prev => prev + 1);
+  }
+  hasMountedRef.current = true;
+}, []);
+
+<ForceGraph key={FORCE_GRAPH_REMOUNT_WORKAROUND ? graphKey : undefined} />;
+```
+
+When the `key` changes, `react-kapsule`'s refs become fresh too, so `effectCalled` starts from `false` again and initialization runs normally.
+The reason it's wrapped in a flag (`FORCE_GRAPH_REMOUNT_WORKAROUND`) is to leave **a marker for cleanly removing this detour** once upstream is fixed.
+
+The workaround is just that -- temporary. The root cause is in the library, so that's where it should be fixed.
+
+## 5. The Real Fix: An Upstream PR
+
+The PR target is not `react-force-graph` but **`react-kapsule`**, because that's where the lifecycle guard lives.
+In issue #596 the maintainer essentially agreed: "remounting after unmount is unfamiliar territory, but the described approach is unlikely to cause side effects for existing apps. You can open a PR against `react-kapsule`."
+
+So I opened [react-kapsule#15](https://github.com/vasturiano/react-kapsule/pull/15). The change is small. **After the real destructor runs, reset the internal refs** so a reused fiber re-initializes on remount -- that's all. The actual diff adds five lines to `useEffectOnce`'s cleanup in `src/index.js`.
+
+```diff
+       // if the comp didn't render since the useEffect was called,
+       // we know it's the dummy React cycle
+       if (!renderAfterCalled.current) return;
++
++      // reset refs after teardown so a reused fiber re-initializes on remount
+       if (destroyFunc.current) destroyFunc.current();
++      destroyFunc.current = undefined;
++      effectCalled.current = false;
++      renderAfterCalled.current = false;
+```
+
+The `if (!renderAfterCalled.current) return;` guard stays -- that's the existing protection that skips the destructor during Strict Mode's development-only dummy cleanup. The change only touches what happens "after a real cleanup," so dev behavior is unchanged.
+
+The invariants to hold:
+
+- During Strict Mode's development-only dummy cleanup, the destructor **must not run** (existing guard preserved).
+- During a real cleanup, the destructor **runs exactly once.**
+- After a real cleanup, the refs are **reset** so setup runs again on the next mount.
+
+### Making the Repro Deterministic: React `<Activity>`
+
+The hardest part of this bug is reliably reproducing, in a test, that "browser back" equals "a path where React reuses the fiber/refs." Fortunately, React has **a public API that creates exactly that state on purpose** -- `<Activity>`.
+
+`<Activity mode="hidden">` unmounts its children while **preserving the fiber and hook state.** That lets you hand-craft the precise situation where "the destructor ran but the refs are still alive."
+
+```tsx
+// visible → hidden: the destructor runs (fiber/refs preserved)
+// hidden → visible: setup runs again with the same refs = the very path we want to reproduce
+<Activity mode={visible ? 'visible' : 'hidden'}>
+  <KapsuleWrappedComponent />
+</Activity>
+```
+
+Before the change, `hidden → visible` doesn't re-run kapsule init; after it, it does. That's a far simpler and more deterministic regression repro than mimicking browser history via E2E. The existing `example/strict-mode-example.html` confirms the original protection still holds: `destroy` is never called on the dummy cleanup and exactly once on a real unmount.
+
+The PR body includes `Refs vasturiano/react-force-graph#596` to link the issue explicitly.
+
+## 6. After the PR Merged: Cleaning Up Our Code
+
+The PR was merged, and `react-kapsule@2.6.0` was published.
+The last step was making this blog actually resolve to that fixed version.
+
+The important detail: I did **not** add `react-kapsule` as a direct dependency in `apps/blog/package.json`.
+The blog doesn't import `react-kapsule` directly. It is a transitive dependency used internally by `react-force-graph-3d`.
+Adding it directly would make the dependency surface look broader than it really is.
+
+Fortunately, `react-force-graph-3d@1.29.1` declares `react-kapsule: ^2.5`.
+`2.6.0` is still inside that semver range.
+The only problem was that the existing lockfile kept resolving `2.5.7`.
+
+I first tried updating just the transitive package.
+
+```bash
+pnpm update react-kapsule@2.6.0 --filter blog --lockfile-only
+```
+
+In this repo, that did not move the transitive resolution I wanted.
+So I pinned exactly that package through a workspace override.
+
+```yaml
+# pnpm-workspace.yaml
+overrides:
+  react-kapsule: 2.6.0
+```
+
+`pnpm@11.5.1` also recorded a release-age exception while accepting the freshly published package.
+That entry is the explicit "yes, this new version is intentional" marker; the actual resolution mechanism is the override above.
+
+```yaml
+minimumReleaseAgeExclude:
+  - react-kapsule@2.6.0
+```
+
+Then regenerate the lockfile.
+
+```bash
+pnpm install --lockfile-only
+```
+
+The important lockfile change is that the `react-force-graph-3d@1.29.1` snapshot now points at `react-kapsule@2.6.0`.
+
+```diff
+ react-force-graph-3d@1.29.1(react@19.2.6):
+   dependencies:
+     3d-force-graph: 1.79.1
+     prop-types: 15.8.1
+     react: 19.2.6
+-    react-kapsule: 2.5.7(react@19.2.6)
++    react-kapsule: 2.6.0(react@19.2.6)
+```
+
+After syncing the actual install, confirm the resolved graph.
+
+```bash
+pnpm install
+pnpm why react-kapsule --filter blog
+```
+
+The target state is a single `react-kapsule@2.6.0` under `react-force-graph-3d@1.29.1`.
+
+With that in place, the local workaround can be removed.
+In `apps/blog/src/features/graph/ui/graph-canvas.tsx`, I deleted the state and branch that forced a new `key`.
+
+```diff
+-const hasMountedRef = useRef(false);
+-const [graphKey, setGraphKey] = useState(0);
+-
+-useEffect(() => {
+-  if (FORCE_GRAPH_REMOUNT_WORKAROUND && hasMountedRef.current) {
+-    setGraphKey(prev => prev + 1);
+-  }
+-  hasMountedRef.current = true;
+-}, []);
+-
+ <ForceGraph
+-  key={FORCE_GRAPH_REMOUNT_WORKAROUND ? graphKey : undefined}
+   ref={fgRef}
+   ...
+ />
+```
+
+The verification cannot stop at "the canvas is visible."
+This bug was specifically "visible but untouchable."
+The real check is: enter the graph → navigate to a post → return via browser back → confirm drag/zoom/click still work.
+If this is automated in `apps/blog/e2e/graph.spec.ts`, it should assert **the result of an interaction**, such as a detail panel opening after a node click.
+
+I kept the `3d-force-graph` update separate.
+Resource cleanup is a different problem; #596 was about skipped re-initialization in `react-kapsule`.
+
+At this point, the graph runs without the local workaround and relies on the upstream fix.
+
+## Closing
+
+Starting from a one-line symptom ("it's untouchable after going back"), I went down the layers from React wrapper → adapter → Three.js and finally landed on a single spot in `useEffectOnce`'s cleanup.
+If I compress the lesson into one line:
+
+**A guard meant to ensure "run only once" easily leaks into "can never run again."** Don't just look at setup -- check whether the state needed for the next lifecycle is restored after a real cleanup.
+
+## References
+
+- [react-force-graph #596](https://github.com/vasturiano/react-force-graph/issues/596) -- the original issue
+- [react-kapsule #15](https://github.com/vasturiano/react-kapsule/pull/15) -- the upstream fix PR
+- [3d-force-graph #732](https://github.com/vasturiano/3d-force-graph/issues/732) -- the related resource-cleanup issue
+- [Synchronizing with Effects -- react.dev](https://react.dev/learn/synchronizing-with-effects) -- Strict Mode and effect double-invoke

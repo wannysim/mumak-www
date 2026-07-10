@@ -7,7 +7,7 @@ import { Copyright } from './copyright';
 import { SocialLinks } from './social-links';
 
 export async function Footer() {
-  const t = await getTranslations('footer');
+  const [t, tCommon] = await Promise.all([getTranslations('footer'), getTranslations('common')]);
 
   return (
     <footer className="border-t border-border py-6">
@@ -19,6 +19,9 @@ export async function Footer() {
             </Link>
             <Link href="/now" className="hover:text-foreground transition-colors">
               {t('now')}
+            </Link>
+            <Link href="/graph" className="hover:text-foreground transition-colors">
+              {tCommon('graph')}
             </Link>
             <Link
               href="/feed.xml"

@@ -1,10 +1,11 @@
+import { Waypoints } from 'lucide-react';
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { buildAlternates } from '@/src/app/seo';
 import { getCategories, getPosts, type Category } from '@/src/entities/post';
 import { type Locale } from '@/src/shared/config/i18n';
-import { PageHeader } from '@/src/shared/ui';
+import { ArrowLink, PageHeader } from '@/src/shared/ui';
 import { BlogNav, getBlogNavCounts } from '@/src/widgets/blog-nav';
 import { BlogSearch } from '@/src/widgets/blog-search';
 import { PostCard } from '@/src/widgets/post-card';
@@ -43,7 +44,13 @@ export default async function BlogPage({ params }: BlogPageProps) {
 
   return (
     <div className="space-y-8">
-      <PageHeader title={t('title')} description={t('description')} />
+      <div className="space-y-3">
+        <PageHeader title={t('title')} description={t('description')} />
+        <ArrowLink href={{ pathname: '/graph', query: { tab: 'blog' } }}>
+          <Waypoints className="size-4" aria-hidden />
+          {tCommon('viewGraph')}
+        </ArrowLink>
+      </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <BlogNav

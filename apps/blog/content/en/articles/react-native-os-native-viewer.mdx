@@ -1,0 +1,248 @@
+---
+title: "When 'Open' Split in Two -- Files to a Viewer, URLs to a Browser in React Native"
+date: '2026-06-24'
+description: 'Files (images and PDFs) go to the OS file viewer, contract URLs go to the OS in-app browser. iOS Quick Look had no off-the-shelf API, so I wrote a Swift module by hand and split the per-OS experience behind a single open(doc).'
+tags: ['react-native', 'expo', 'ios', 'android', 'mobile']
+draft: false
+---
+
+"Tap a file in the document drawer and it should open full screen."
+
+That was the whole request. It looked easy.
+
+But when I opened the "document drawer," two completely different kinds of things were mixed in. One was renovation documents -- actual image and PDF files on the server. The other was contracts -- e-sign web page URLs. In the list they both look like a single row, but what "open" means was completely different.
+
+This one sentence ended up leading all the way to writing a piece of iOS native code by hand. If you're new to React Native, "why go that far?" might not land -- this post is a record of chasing that "why."
+
+> The conclusion first. Files (images and PDFs) open in the **OS file viewer**; contracts (web URLs) open in the **OS in-app browser**. Their nature differs, so I split the paths -- and because iOS has no off-the-shelf API to present a file viewer, I **wrote a Swift module by hand.**
+
+## 1. When One Sentence Split in Two
+
+Even though they look the same in the list, "open" pointed at two different things.
+
+| Kind                | What it really is                | Experience we wanted                         |
+| ------------------- | -------------------------------- | -------------------------------------------- |
+| Renovation document | An actual **file** (jpg/png/pdf) | Full-screen preview in the OS default viewer |
+| Contract            | An e-sign **web URL**            | A screen with share and "open in browser"    |
+
+At first I tried to open both with a WebView -- the small in-app browser component. One component for everything looked clean. But both went wrong somewhere.
+
+- Opening a file in a WebView didn't feel like an OS viewer. Our custom header sat on top, and basics like pinch-zoom and share felt clumsy.
+- Opening a contract in our WebView had no share button and no "open in default browser." From the user's side it was a frustrating half-browser.
+
+The conclusion was one thing. **Use the real viewer and the real browser the OS already has.** To do that, I had to split the file and URL paths from the start.
+
+```text
+Renovation document = file → needs a file viewer   (download locally, then show)
+Contract            = URL  → needs a browser        (just hand over the address)
+```
+
+To understand this split, you first have to know how React Native calls OS features.
+
+## 2. What It Means to "Call an OS Feature" in React Native
+
+A React Native app splits into two worlds.
+
+- **The JS world**: the React code we write. Screens, state, logic. It runs on a JavaScript engine (Hermes).
+- **The native world**: actual iOS (Swift) and Android (Kotlin) code. OS features like the camera, keychain, and file viewer all live here.
+
+The two are connected by a **bridge**. When JS calls a native function, the call crosses the bridge, the native code runs, and the result comes back to JS. That round trip is asynchronous -- which is why almost all code that calls native is `async/await`.
+
+Here is the one sentence that runs through this entire post.
+
+> **JS can't touch OS features directly. There has to be a "bridge" laid down on the native side to call them.** If the bridge already exists (a library), just use it; if it doesn't, lay it yourself.
+
+On Android, the bridges were all there. The iOS file viewer? Not there. Section 4 is that story.
+
+## 3. The File Has to Be Downloaded First
+
+The OS file viewer takes a "local file." It can't open a remote URL directly, so on both platforms we **first download to the cache.**
+
+```ts
+const target = `${FileSystem.cacheDirectory}${toSafeFileName(doc.fileName)}`;
+const { uri } = await FileSystem.downloadAsync(doc.url, target);
+```
+
+One small detail. If you save the file under its **original name**, that name shows up as-is in the OS viewer's header. The name the user saw in the list appears identically at the top of the viewer. We only replaced characters dangerous to the filesystem (`/ \ ? % * : | " < >`) with `_` -- that's `toSafeFileName`.
+
+Once it's downloaded, it's time to present it. This is where the OSes diverge.
+
+## 4. iOS -- Quick Look, a Bridge I Had to Build Myself
+
+iOS has an OS-native full-screen preview called `QLPreviewController`. It's the screen you see when you tap an attachment in Mail -- a native viewer with the filename header, a "Done" button, and a share button all built in. Exactly the experience we wanted.
+
+The problem: **there was no JS API to present it, in React Native or Expo.** This is the "no bridge" case from section 2. So I laid one myself.
+
+A local Expo module is made of four pieces.
+
+```swift
+// modules/quick-look/ios/NativeQuickLookModule.swift (core only)
+AsyncFunction("presentAsync") { (uri: String, promise: Promise) in
+  let previewController = QLPreviewController()
+  previewController.dataSource = self.dataSource   // the one file to show
+  presentingVC.present(previewController, animated: true) { promise.resolve(nil) }
+}
+```
+
+- `NativeQuickLookModule.swift` -- the code that actually presents Apple's `QLPreviewController`
+- `NativeQuickLook.podspec` -- the config that tells Xcode to compile this Swift into the app
+- `expo-module.config.json` -- the declaration that lets Expo auto-detect (autolink) "there's a native module here"
+- `src/native/quickLook.ts` -- the JS-side wrapper
+
+The JS wrapper is the entrance to this bridge.
+
+```ts
+// Grab the native module "if it's there, otherwise null"
+const QuickLook = requireOptionalNativeModule<{
+  presentAsync: (uri: string) => Promise<void>;
+}>('NativeQuickLook');
+
+export const isQuickLookAvailable = () => QuickLook != null; // true only on iOS native builds
+export const presentQuickLook = (uri: string) => QuickLook!.presentAsync(uri);
+```
+
+The point is `requireOptionalNativeModule`. It returns the module **if it's there, and null if it isn't.** Android has no such module, so it's `null` -- and the caller naturally flows into the Android path. This pattern is the secret to one codebase running crash-free on iOS, Android, and Expo Go.
+
+By the way, the `ios/` and `android/` native projects are auto-generated by Expo from config (`expo prebuild`), so they usually aren't committed to git. But a **module source written by hand** like this (`modules/quick-look/...`) is not generated, so it has to be tracked in git -- I added a "don't ignore this" exception in `.gitignore`.
+
+## 5. Android -- Intent and the content:// Trap
+
+Android has no in-app full-screen viewer like Quick Look. Instead it has a standard way to ask the system, "please bring up an app to view this file" -- `Intent.ACTION_VIEW`. For an image the photos app comes up; for a PDF, a PDF viewer.
+
+There's a trap here. Modern Android, for security, blocks handing a `file://` path directly to another app with `FileUriExposedException`. So you have to convert `file://` into a **`content://` URI** and pass it along with a flag that says "I grant permission to read this URI."
+
+```ts
+const contentUri = await FileSystem.getContentUriAsync(uri); // file:// → content://
+await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+  data: contentUri,
+  flags: 1, // FLAG_GRANT_READ_URI_PERMISSION (grant read permission)
+  type: doc.mimeType, // image/* · application/pdf -- a hint for which app to launch
+});
+```
+
+Unlike iOS, here I didn't need to write any Swift. `expo-intent-launcher` (firing the Intent) and `expo-file-system` (the content URI conversion) had **already laid the bridge.** Use what's there, build only what isn't -- the same principle from section 2.
+
+## 6. Folding It All Into One open(doc)
+
+Even when the platform diverges, there's no reason for the screen code to diverge too. On the JS side I hid all of this behind a single hook (`useDocumentViewer`). The screen just calls `open(doc)`.
+
+```ts
+const { uri } = await FileSystem.downloadAsync(doc.url, target);
+
+if (isQuickLookAvailable()) {
+  // iOS -- the native module is there
+  await presentQuickLook(uri);
+  return;
+}
+if (Platform.OS === 'android') {
+  // Android
+  const contentUri = await FileSystem.getContentUriAsync(uri);
+  await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+    data: contentUri,
+    flags: 1,
+    type: doc.mimeType,
+  });
+}
+```
+
+One `open(doc)` call splits into Quick Look on iOS and the system viewer on Android. **One JS call, a different native experience per OS** -- the archetype of cross-platform code.
+
+## 7. A Contract Isn't a File
+
+Now the other half: the contract. This isn't a file but an e-sign web page URL. A file viewer can't open it. And opening it in our WebView means -- as we saw in section 1 -- no share, no address bar, no "open in default browser."
+
+The answer is the **in-app browser** the OS provides. One line does it.
+
+```ts
+await WebBrowser.openBrowserAsync(url);
+// iOS → SFSafariViewController, Android → Chrome Custom Tabs
+```
+
+What this one line brings:
+
+- A share button, "open in default browser (Safari/Chrome)," address display, reader mode
+- System-level cookies and sessions -- the "white screen" we used to get in a bare WebView mostly disappeared with this
+
+> There are two layers to "showing the web inside an app."
+> ① `react-native-webview` -- where we draw the UI ourselves, for simple display like terms of service
+> ② The OS in-app browser (`expo-web-browser`) -- when you need share and browser integration
+> For contracts, ② was the right one.
+
+## 8. Principles That Cut Across It All
+
+Once all the features were wired up, a few React Native principles remained -- ones that cut across the file-vs-URL split.
+
+### Use It If It's There, Fall Through If It's Not
+
+Split the branches with `Platform.OS`, but design it so that "if this feature isn't there, go to the next path" -- graceful degradation. If `isQuickLookAvailable()` is false (Android, Expo Go), it naturally goes to the Android path. The optional native module pattern is what makes this possible -- JS and native stay loosely coupled.
+
+### JS ↔ Native Is Always an Async Boundary
+
+`presentAsync`, `downloadAsync`, `startActivityAsync` -- native calls are all `await`. They cross the bridge, so they can't be treated synchronously.
+
+### Guard Concurrency With a ref, Not state
+
+I first blocked "ignore if already in progress" (preventing double taps) with `useState`. But on two quick taps, sometimes both got through. **`setState` is async**, so the second tap saw the "not yet updated" state and slipped past.
+
+```ts
+const isOpeningRef = useRef(false); // sync guard: lock immediately
+const [openingId, setOpeningId] = useState<string | null>(null); // for render: show a spinner
+
+async function open(doc) {
+  if (isOpeningRef.current) return; // ref reflects immediately → no race
+  isOpeningRef.current = true;
+  setOpeningId(doc.id);
+  try {
+    /* download → viewer */
+  } finally {
+    isOpeningRef.current = false;
+    setOpeningId(null);
+  }
+}
+```
+
+**Values that affect render go in state; a flag you must read right now goes in a ref.** Don't mix their roles.
+
+### The Name You Show ≠ the Name You Pass
+
+The name shown in the list uses `displayName` with the extension stripped; the OS viewer header uses the original filename including the extension. Even for the same document, "the data to show" and "the data to pass to a feature" can differ -- a small but often-missed modeling point.
+
+## 9. Writing Code ≠ Running an App
+
+On the web, saving is the end. A native app has to pass through one more reality: OS, signing, and devices.
+
+The first rule I ran into was this.
+
+```text
+Native change (module, capability, config plugin) → must rebuild to take effect
+JS change → hot reload (Fast Refresh) is enough
+```
+
+This time I added a Swift module and native packages, so unlike the usual JS-only edits, I had to run a build again once.
+
+The rest of what came with being a native app:
+
+- **Code signing**: an iOS app needs a signature to run on a device. The simulator is fine with an ad-hoc signature, but with no signature at all the keychain is blocked and you can't even hold a login session.
+- **Static framework builds**: some native dependencies only compile when the static linking config is right. If that config isn't reflected in the native project, sync it by regenerating with `prebuild`.
+- **Emulator ↔ Metro connection**: the Android emulator can't attach to the host PC's Metro directly, so you bridge the port with `adb reverse tcp:8081 tcp:8081`.
+- **Verifying screens with deep links**: jump straight into a specific screen to test with a URL like `myapp://document-category/renovation`.
+
+In other words, between "I wrote the code" and "the app runs" sits a bundle of build, signing, and device environment. Coming from the web, this gap is the most unfamiliar part.
+
+## Wrapping Up
+
+It started from a one-sentence request ("tap a file and it opens"), went through splitting the path by the nature of the data, and ended at laying a missing bridge by hand. Boiled down, it's four things.
+
+- **Split the problem by nature.** Even a single word, "open," forks completely in implementation depending on whether it's a file or a URL.
+- **Use what's there, build only what isn't.** iOS Quick Look had no off-the-shelf API, so I laid a Swift module of about a hundred lines by hand; Android Intent, downloading, and the in-app browser were fully covered by existing libraries.
+- **One JS call, a native experience per OS.** Branch with `Platform.OS` and an optional module, and fall through to the next path when it's absent.
+- **React principles don't get skipped either.** Guard concurrency synchronously with a ref, keep render values in state -- split the roles.
+
+The tools I used, at a glance:
+
+| Purpose                                     | Tool                                                             |
+| ------------------------------------------- | ---------------------------------------------------------------- |
+| Download remote files · convert content URI | `expo-file-system`                                               |
+| iOS full-screen file viewer                 | **a local module I built** (`QLPreviewController`, Swift)        |
+| Invoke the Android system viewer            | `expo-intent-launcher` (`Intent.ACTION_VIEW`)                    |
+| OS in-app browser (contracts)               | `expo-web-browser` (SFSafariViewController · Chrome Custom Tabs) |

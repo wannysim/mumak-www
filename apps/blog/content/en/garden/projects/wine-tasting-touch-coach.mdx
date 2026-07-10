@@ -1,9 +1,9 @@
 ---
 title: 'Wine Tasting Touch Coach'
 created: '2026-06-04'
-updated: '2026-06-05'
+updated: '2026-06-26'
 status: 'budding'
-tags: ['product-idea', 'wine', 'ux', 'mobile', 'webapp', 'ai', 'map']
+tags: ['product-idea', 'wine', 'ux', 'mobile', 'webapp', 'ai', 'map', 'gamification']
 ---
 
 A note to keep in the [[digital-garden-expansion-plan|digital garden]].
@@ -11,7 +11,7 @@ This is less of a plain wine logging app and more of an _interactive coach that 
 
 ## One-line definition
 
-An app that records wine tasting through _touch only_ with minimal effort, while making the user's world map and taste profile gradually fill in and become clearer over time.
+An app that records wine tasting through _touch only_ with minimal effort, where the more you drink, the more your world map and taste profile light up and the more titles you collect.
 
 ## Core concept
 
@@ -19,23 +19,30 @@ An app that records wine tasting through _touch only_ with minimal effort, while
 - The user mostly taps buttons, chips, sliders, and swipes.
 - The app gradually opens up more precise choices and nudges the user into deeper tasting.
 - At the same time, it accumulates the **winery / region / country** of each wine on maps.
-- Every new wine should make the maps feel a little more filled in.
+- Every new wine should make the maps feel a little brighter, widening the geographic range of your taste.
+- Each entry is rewarded along two axes of achievement: **titles** and a **map that lights up**.
 
 ## Map-based experience
 
-The fun is not just in logging _what_ was drunk, but in seeing _where_ the wines came from.
+The fun is not just in logging _what_ was drunk, but in seeing _how far_ you have explored.
+The goal is the feeling of _uncovering regions one by one_, like revealing the map in Zelda: Breath of the Wild / Tears of the Kingdom.
 
-### 1) World map
+### 1) A globe you uncover (exploration metaphor)
 
-- Shows the country and continent of each winery.
-- Coverage expands country by country.
-- New regions should feel visually rewarding.
+- At first the whole globe is dark (unexplored).
+- Every time you drink a wine, the region its winery belongs to _lights up and brightens_.
+- Like uncovering the map in BotW/TotK, anywhere you have drunk even once has its fog lifted, and the more you drink, the brighter / denser the color builds.
+- Uncovering a region for the first time gets a stronger effect (a light bloom, a brief highlight) for the thrill of "a new discovery".
+- Just as the garden's react-force-graph view lets you interactively explore relationships between nodes, the globe can be rotated and zoomed by touch/drag to browse the areas you have uncovered.
+- Empty areas (regions you have not drunk yet) naturally read as the next exploration target.
 
-### 2) Country / region map
+### 2) Country / region map (zoom in)
 
-- France can zoom into Bordeaux, Burgundy, Rhône, and so on.
-- Italy can show Piedmont, Tuscany, etc.
-- The color density makes it easy to see which regions the user drinks most often.
+- Zooming into a country from the globe drills into its detailed regions.
+- France can split into Bordeaux, Burgundy, Rhône, and so on.
+- Italy can fill in by zone, like Piedmont and Tuscany.
+- As brightness / color builds per region, it is easy to see which regions you drink most often.
+- The same uncovering rule applies inside countries too, so the exploration feel stays consistent across zoom levels.
 
 ### 3) Personal taste map
 
@@ -43,11 +50,39 @@ The fun is not just in logging _what_ was drunk, but in seeing _where_ the wines
 - It can be a coverage view of countries, grape varieties, and styles the user tends to drink.
 - Example dimensions: Old World vs New World, acidity-led vs body-led, red vs white.
 
+## Title / achievement system
+
+If the uncovered map is the visual reward for "how far you've been," titles are that achievement turned into a _badge with words_.
+Once you experience a region / variety / style enough, the app grants a title to feed the urge to achieve and collect.
+
+### Kinds of titles (draft)
+
+- **Regional mastery**: granted for drinking a lot from a specific region. E.g. drinking enough Burgundy earns "King of Burgundy"; Bordeaux earns "Lord of Bordeaux".
+- **Country / continent coverage**: uncovering all the major regions of a country earns a title like "Tour de France".
+- **Variety collector**: granted for drinking widely across a variety like Pinot Noir or Nebbiolo.
+- **Style explorer**: granted for filling the style axes evenly — Old World/New World, natural, sparkling, etc.
+- **Rare find**: a one-off title for uncovering a minor region/variety for the first time.
+
+### Granting-rule direction
+
+- Titles are judged on a mix of two axes: **number of pours** and **breadth uncovered (diversity)**.
+- Design it so that uncovering diversely is more rewarding than farming a title by repeating the same wine.
+- Give titles **tiers** (e.g. bronze → silver → gold) for long-term motivation.
+- Surface one representative title on the profile and collect the rest on a dedicated collection screen.
+- Tie it to the map: the moment a title is earned, the relevant region gets a highlight effect on the map, giving an unlock feeling.
+
+### Open questions (titles)
+
+- Should title thresholds be absolute counts or relative (top %)?
+- Title copy tone: a serious sommelier tone vs a light game-y tone — which way?
+- If titles become too common they lose value — how do we balance rarity?
+
 ## What we have so far
 
 - This app is meant to make the wine-drinking experience feel more premium and delightful.
 - Tasting notes should be captured through _touch_ rather than long natural-language input.
-- As entries accumulate, the world map, region map, and taste map become more complete.
+- As entries accumulate, the world map, region map, and taste map keep lighting up.
+- The uncovering map and the title system provide the achievement feeling of exploration and collection.
 - Mobile and web should feel like the same product, delivered through one webapp / webview-style experience.
 - Because UI/UX matters a lot here, the project needs help from product and design-oriented workflows.
 
@@ -85,7 +120,8 @@ At the end, the app can turn the taps into:
 - A tasting note summary
 - Similar wine recommendations
 - An updated taste profile
-- A colored winery / region map
+- Uncovering this wine's winery / region on the map
+- Updated title progress (with a celebration effect when earned)
 
 ## Product spec draft
 
@@ -96,7 +132,7 @@ At the end, the app can turn the taps into:
 3. It asks one tasting question at a time.
 4. The user answers with taps.
 5. The tasting note is saved.
-6. The three map views update together.
+6. The three map views light up together and title progress updates.
 
 ### Required data fields
 
@@ -114,16 +150,18 @@ At the end, the app can turn the taps into:
 
 - Add wine entry
 - Auto-map winery location
-- Show three map views: world / region / taste coverage
+- Show three map views: world / region / taste coverage (including the uncovering effect)
 - Touch-based tasting question flow
 - Entry list
 - Personal stats
+- One or two basic titles (regional mastery) to validate the system
 
 ### Later additions
 
+- Expand the title pool + tiers / collection screen
 - Blind tasting mode
 - Label photo OCR
-- Compare with friends
+- Compare maps with friends / title rankings
 - Link wine history to travel history
 - Taste-profile recommendations
 
@@ -134,6 +172,7 @@ At the end, the app can turn the taps into:
 - The selected trail stays visible at the top
 - The next question becomes more precise over time
 - The map should stay visible in a separate tab or a persistent lower area
+- Earning a title is announced with a light toast/modal right after the entry is saved, then collected on the collection screen
 
 ## Webapp / mobile implementation direction
 
@@ -144,16 +183,18 @@ At the end, the app can turn the taps into:
   - Mobile: prioritize the question flow, keep maps collapsed or tabbed
   - Web: show map and form side by side when possible
 - It would be best to use the same state machine and the same data model everywhere.
+- The uncovering effect is likely WebGL/Canvas-based (a globe library for the globe, an interactive canvas like the garden graph).
 
 ## Open questions
 
 - How should the three maps be divided — country / region / taste, or something else?
 - Should winery coordinates come from an automatic dataset or manual correction?
-- Should map coloring be based on drinking count or on discovering new regions?
+- Should map uncovering be based on drinking count or on discovering new regions? (Including how to split this axis with titles.)
 - Where should we split beginner-friendly language from expert language?
 - Should there be a blind tasting mode?
 - When should the app start showing taste-profile insights?
 - Should label/photo input be a secondary feature or an early core feature?
+- How do we set title thresholds / rarity / copy tone? (See the open questions in the title section above.)
 
 ## Next action items
 
@@ -161,6 +202,8 @@ At the end, the app can turn the taps into:
 - [ ] Break the MVP into about five screens
 - [ ] Lock the Product / UX / Spec / Visual / Builder agent roles into a written workflow
 - [ ] Decide the data axes for the world map / region map / taste map
+- [ ] Define the data model and state transitions for the uncovering (fog-of-war) effect
+- [ ] Lay out the initial title list and granting rules (count × diversity) as a table
 - [ ] Document the shared state model and responsive rules for mobile/web
 - [ ] Draft the first wireframe and bottom-sheet structure
 

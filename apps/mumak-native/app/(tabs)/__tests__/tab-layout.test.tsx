@@ -36,12 +36,14 @@ describe('TabLayout', () => {
     const [home, explore] = screen.getAllByTestId('tabs-screen');
     expect(home.props.accessibilityLabel).toBe('index');
     expect(home.props.options.title).toBe('Home');
+    expect(home.props.options.tabBarButtonTestID).toBe('tab-home');
     expect(home.props.options.tabBarIcon({ color: '#123456' }).props).toEqual(
       expect.objectContaining({ color: '#123456', name: 'house.fill', size: 28 })
     );
 
     expect(explore.props.accessibilityLabel).toBe('explore');
     expect(explore.props.options.title).toBe('Explore');
+    expect(explore.props.options.tabBarButtonTestID).toBe('tab-explore');
     expect(explore.props.options.tabBarIcon({ color: '#654321' }).props).toEqual(
       expect.objectContaining({ color: '#654321', name: 'paperplane.fill', size: 28 })
     );

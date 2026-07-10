@@ -1,4 +1,5 @@
 export { ArrowLink } from './arrow-link';
+export { Breadcrumbs, type BreadcrumbEntry } from './breadcrumbs';
 export { cardSurfaceClass } from './card-surface';
 export { ClientErrorBoundary } from './client-error-boundary';
 export { ContentCard } from './content-card';
