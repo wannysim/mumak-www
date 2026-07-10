@@ -1,0 +1,194 @@
+---
+title: 'Benchmarking TypeScript 7 - Type Checks Got 5x Faster, So Why Not Next.js Yet?'
+date: '2026-07-10'
+description: 'Measured the TS7 native compiler on my monorepo: 4-6x faster type checks. Then I tried to put it into next build and ended up reading Next.js internals'
+tags: ['typescript', 'tsgo', 'nextjs', 'benchmark', 'monorepo']
+draft: false
+---
+
+TypeScript 7 is out. After reading the
+[official announcement](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)
+claiming the Go-based native compiler is "10x faster", I benchmarked it on the
+monorepo this blog lives in.
+
+**TL;DR** - Type checking (`tsc --noEmit`) got a measured 4-6x faster, and I
+adopted it immediately. But fully replacing the `typescript` package with v7 is
+not possible yet. Next.js **imports typescript as a library**, not a CLI, and
+TS7 no longer ships that library. And once I broke down `next build`, it turned
+out type checking was never the bottleneck anyway.
+
+## What actually changed in TypeScript 7
+
+The language didn't change. The **compiler implementation** did.
+
+The old TypeScript compiler was written in TypeScript itself, compiled to JS.
+Microsoft ported it to Go ([microsoft/typescript-go](https://github.com/microsoft/typescript-go),
+codename Corsa), keeping the syntax and type system aligned with the existing
+line. It's fast for three reasons:
+
+- Native binary, so no JIT warmup
+- File-level type checking parallelized with goroutines
+- Compact memory layout instead of JS objects
+
+The naming is confusing: during the preview phase it was a binary called `tsgo`
+in the `@typescript/native-preview` package. Since 7.0 stable, **the `tsc` in
+the `typescript` package is that Go binary**. "tsgo" survives mostly as a
+project nickname.
+
+So far it sounds like a simple upgrade. But there's one decisive difference.
+
+> The old typescript package was a compiler and, at the same time, a **library**.
+
+`require('typescript')` gave you the entire compiler API - `ts.createProgram`
+and friends - and a large part of the ecosystem is built on top of it. TS7 is a
+Go binary running as a separate process; there's no JS code to `require()`. The
+replacement API lives under `typescript/unstable/*` exports, an IPC-based,
+completely different design - unstable by name. This difference keeps coming
+back to bite for the rest of this post. If "a compiler that is also a library"
+sounds unfamiliar, I broke that structure down separately in
+[The Two Faces of the typescript Package](/en/garden/resources/frontend/javascript/typescript-compiler-as-a-library.mdx).
+
+## Benchmark - are type checks really faster?
+
+This monorepo has five workspaces that type-check with `tsc --noEmit`. I ran
+the same codebase through the old compiler (5.9/6.0) and TS 7.0.2. M-series
+Mac, warm runs, median of 5.
+
+| Workspace          | TS 5.9/6 | TS 7.0.2 | Speedup  |
+| ------------------ | -------- | -------- | -------- |
+| blog (largest)     | 2.36s    | 0.42s    | **5.6x** |
+| mumak-next         | 0.81s    | 0.14s    | 5.8x     |
+| mumak-react        | 0.88s    | 0.17s    | 5.1x     |
+| mumak-native       | 0.72s    | 0.14s    | 5.1x     |
+| playwright-config  | 0.36s    | 0.10s    | 3.7x     |
+| **Total (serial)** | **5.1s** | **1.0s** | **5.2x** |
+
+Not quite 10x, but consistently 4-6x. The codebase is small, so absolute
+savings are in seconds - yet even in small projects where process startup
+dominates, the direction is clear. Larger codebases should converge toward the
+official ~10x benchmarks.
+
+It didn't run out of the box, though. Things I had to clean up first:
+
+- **`baseUrl` was removed** (TS5102). `paths` must be relative to the tsconfig. This repo already prefixed everything with `./` and `../`, so deleting the `baseUrl` lines was enough - identical behavior on 5.9.
+- **lib.dom got refreshed**. `IntersectionObserver` gained `scrollMargin`, which broke a test mock's cast (TS2352). One added property fixed it.
+- **Automatic `@types` discovery differs subtly**. One package couldn't find `process` (TS2591), fixed by an explicit `"types": ["node"]`.
+
+Every one of these works on both 5.9 and 7, so doing the cleanup early means
+the eventual migration is just a version bump.
+
+## So how much faster does next build get?
+
+This was the question I actually cared about. Shaving seconds off type checks
+is nice, but `next build` runs on every deploy.
+
+So I broke down the blog app's build - a Next.js 16 app statically generating
+961 pages.
+
+| Phase                          | Time      | Share   |
+| ------------------------------ | --------- | ------- |
+| Turbopack compile              | ~3.1s     | 15%     |
+| **TypeScript type check**      | **~3.0s** | **14%** |
+| Static generation (961 pages)  | ~10.4s    | 55%     |
+| Page data collection, finalize | ~4s       | 19%     |
+| **Total**                      | **~21s**  |         |
+
+TS7 finishes the same type check in 0.42s, so even with full TS7 integration
+in Next, the saving is about 2.6 seconds. **That's 12-13% of the build.**
+
+This was the most valuable lesson of the experiment. The blog build's
+bottleneck isn't type checking - it's **generating 961 static pages**. A
+"compiler is 10x faster" headline doesn't make your build 10x faster. **You
+only get the share that stage occupies in your pipeline.** Amdahl's law.
+
+## Why can't Next.js use it yet?
+
+Still, 12% is 12%, so I installed `typescript@7` for real. Instant death:
+
+```
+It looks like you're trying to use TypeScript but do not have
+the required package(s) installed.
+Installing dependencies...
+```
+
+TypeScript 7.0.2 is sitting right there, but Next decides it's "not installed"
+and tries to auto-install it with the package manager mid-build. I opened
+Next's internals to see why.
+
+Next does not run `tsc` as a subprocess. **It imports the typescript package as
+a library inside the build process and calls it directly.** Verified against
+`next@16.2.9`:
+
+- `ts.readConfigFile` / `ts.parseJsonConfigFileContent` - tsconfig validation and forced defaults (`dist/lib/typescript/getTypeScriptConfiguration.js`)
+- `ts.createIncrementalProgram` / `ts.getPreEmitDiagnostics` - the in-build type check itself (`dist/lib/typescript/runTypeCheck.js`)
+- a `semver.lt(version, '5.1.0')` version gate (`dist/lib/verify-typescript-setup.js`)
+
+TS7 has none of these APIs. So Next's dependency detection concludes
+"typescript is missing" and falls into the auto-install loop.
+
+The interesting part: Next 16.2 already contains transitional code. In
+`verify-typescript-setup.js` there's a branch that detects
+`@typescript/native-preview`, warns that "features like type checking during
+build require the standard typescript package", and **skips type checking**.
+In other words, Next's tsgo story has reached "detect and give up" - "run the
+type check with tsgo" is not implemented. That's what
+[vercel/next.js#81472](https://github.com/vercel/next.js/discussions/81472) is
+about. The stable `typescript@7` package name doesn't even hit that branch; it
+only checks for the preview package.
+
+I also measured the workaround. With `typescript.ignoreBuildErrors: true`, the
+build **does succeed** with TS7 installed - and since this repo's CI runs
+`check-types` before every build, the type-safety net holds. But the
+auto-install attempt repeats on every single build. On CI with a frozen
+lockfile that's a non-starter, so I rejected it.
+
+The same structural problem exists outside Next. This repo's knip declares a
+peer dependency of `typescript >=5.0.4 <7`. typescript-eslint, ts-jest - every
+tool that imports TS as a library is blocked for the same reason. **The gate
+for TS7 migration isn't your code. It's your toolchain.**
+
+## What I shipped instead - the sidecar pattern
+
+Full replacement is blocked, but the real gains are still available. The trick
+is separating the paths that consume typescript as a CLI from the ones that
+consume it as a library.
+
+- Keep the `typescript` package at 5.9/6 - for library consumers like Next and knip
+- Add TS7 under an alias - `pnpm add -Dw typescript-go@npm:typescript@7.0.2`
+- Switch only the `check-types` scripts to the TS7 binary
+
+```json
+{
+  "scripts": {
+    "check-types": "node ../../node_modules/typescript-go/bin/tsc --noEmit"
+  }
+}
+```
+
+The alias exists because of a bin conflict: both typescript and typescript-go
+expose a bin named `tsc`, and there's no guarantee which one `.bin/tsc` links
+to. Calling the binary by path in the script sidesteps that.
+
+The nice property of this approach is that it's **Next-version-agnostic**. It
+never touches `next build`, so it works the same on Next 14, 15, or 16.
+Conversely, swapping the typescript dependency itself to 7 should be considered
+permanently closed on Next 14/15 - tsgo integration is not getting backported
+to maintenance-mode majors.
+
+## Takeaways
+
+- Type checks: measured 4-6x. Immediate wins in `check-types` and editor responsiveness, adoptable today
+- `next build` only speeds up by the type-check share (14% in this repo). Measure where your bottleneck actually is first
+- Fully swapping the `typescript` package is blocked by the toolchain. Until Next ships tsgo integration and tools like knip support TS7, the sidecar pattern is the practical answer
+- tsconfig cleanup like removing `baseUrl` works on 5.9 too - do it early and the eventual migration is just a version bump
+
+The "10x faster compiler" is real. But where that 10x lands in your pipeline is
+something only measurement can tell you. Once again, measuring beat the
+headline.
+
+## References
+
+- [Announcing TypeScript 7.0](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/) -- TypeScript Blog
+- [microsoft/typescript-go](https://github.com/microsoft/typescript-go) -- GitHub
+- [Support typescript-go for builds (Discussion #81472)](https://github.com/vercel/next.js/discussions/81472) -- vercel/next.js
+- [Announcing TypeScript Native Previews](https://devblogs.microsoft.com/typescript/announcing-typescript-native-previews/) -- TypeScript Blog
