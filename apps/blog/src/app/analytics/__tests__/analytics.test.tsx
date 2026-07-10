@@ -14,7 +14,7 @@ jest.mock('@vercel/speed-insights/next', () => ({
   SpeedInsights: () => null,
 }));
 
-import { GoogleAnalytics } from '../analytics';
+import { GoogleAnalytics, VercelAnalytics } from '../analytics';
 
 describe('GoogleAnalytics', () => {
   const originalEnv = process.env.NEXT_PUBLIC_GA_ID;
@@ -51,5 +51,27 @@ describe('GoogleAnalytics', () => {
     const html = container.innerHTML;
     expect(html).toContain('https://www.googletagmanager.com/gtag/js?id=G-TESTID123');
     expect(html).toContain("gtag('config', 'G-TESTID123')");
+  });
+});
+
+describe('VercelAnalytics', () => {
+  const originalEnv = process.env.NEXT_PUBLIC_GA_ID;
+
+  afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env.NEXT_PUBLIC_GA_ID;
+    } else {
+      process.env.NEXT_PUBLIC_GA_ID = originalEnv;
+    }
+  });
+
+  // GA는 레이아웃에서 VERCEL_ENV 게이트 밖에 별도 렌더된다. VercelAnalytics에 다시
+  // 포함되면 Vercel 프로덕션에서 이중 마운트되고, 셀프호스트에서 GA가 게이트에 갇힌다.
+  it('should not include GoogleAnalytics even when NEXT_PUBLIC_GA_ID is set', () => {
+    process.env.NEXT_PUBLIC_GA_ID = 'G-TESTID123';
+
+    const { container } = render(<VercelAnalytics />);
+
+    expect(container.innerHTML).not.toContain('googletagmanager');
   });
 });
