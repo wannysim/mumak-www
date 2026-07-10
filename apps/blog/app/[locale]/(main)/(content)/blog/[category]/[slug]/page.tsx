@@ -1,6 +1,6 @@
 import { BookOpen } from 'lucide-react';
 import type { Metadata } from 'next';
-import { setRequestLocale } from 'next-intl/server';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
@@ -17,21 +17,6 @@ import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
 
 // 카테고리 라벨은 getCategoryLabel(entities/post) 단일 소스를 쓴다.
-const staticTranslations = {
-  ko: {
-    home: '홈',
-    blog: '블로그',
-    backToList: '목록으로 돌아가기',
-    readingTimeUnit: '분',
-  },
-  en: {
-    home: 'Home',
-    blog: 'Blog',
-    backToList: 'Back to list',
-    readingTimeUnit: ' min',
-  },
-} as const;
-
 interface PostPageProps {
   params: Promise<{ locale: string; category: string; slug: string }>;
 }
@@ -100,8 +85,8 @@ export default async function PostPage({ params }: PostPageProps) {
     notFound();
   }
 
-  const localeKey = (locale === 'ko' ? 'ko' : 'en') as keyof typeof staticTranslations;
-  const translations = staticTranslations[localeKey];
+  const tCommon = await getTranslations({ locale, namespace: 'common' });
+  const tPost = await getTranslations({ locale, namespace: 'post' });
   const categoryTitle = getCategoryLabel(category, locale as Locale);
 
   const blogPostingJsonLd = generateBlogPostingJsonLd({
@@ -113,8 +98,8 @@ export default async function PostPage({ params }: PostPageProps) {
 
   const breadcrumbJsonLd = generateBreadcrumbJsonLd({
     items: [
-      { name: translations.home, url: `${BASE_URL}/${locale}` },
-      { name: translations.blog, url: `${BASE_URL}/${locale}/blog` },
+      { name: tCommon('home'), url: `${BASE_URL}/${locale}` },
+      { name: tCommon('blog'), url: `${BASE_URL}/${locale}/blog` },
       { name: categoryTitle, url: `${BASE_URL}/${locale}/blog/${category}` },
       { name: post.meta.title, url: `${BASE_URL}/${locale}/blog/${category}/${slug}` },
     ],
@@ -126,8 +111,8 @@ export default async function PostPage({ params }: PostPageProps) {
       <JsonLdScript data={breadcrumbJsonLd} />
       <Breadcrumbs
         items={[
-          { label: translations.home, href: '/' },
-          { label: translations.blog, href: '/blog' },
+          { label: tCommon('home'), href: '/' },
+          { label: tCommon('blog'), href: '/blog' },
           { label: categoryTitle, href: `/blog/${category}` },
           { label: post.meta.title },
         ]}
@@ -142,7 +127,7 @@ export default async function PostPage({ params }: PostPageProps) {
             <span className="inline-flex items-center gap-1">
               <BookOpen className="size-3.5" aria-hidden />
               {post.meta.readingTime}
-              {translations.readingTimeUnit}
+              {tPost('readingTimeUnit')}
             </span>
           </div>
           <h1 className="text-4xl font-bold mb-4">{post.meta.title}</h1>
@@ -163,7 +148,7 @@ export default async function PostPage({ params }: PostPageProps) {
 
       <nav className="mt-12 pt-8 border-t border-border">
         <Link href={`/blog/${category}`} className="text-sm font-medium hover:underline">
-          ← {translations.backToList}
+          ← {tPost('backToList')}
         </Link>
       </nav>
     </div>

@@ -2,20 +2,13 @@
 
 import { MonitorIcon } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { Skeleton } from '@mumak/ui/components/skeleton';
 
-import {
-  FORCE_CONFIG,
-  getBackgroundColor,
-  getCategoryColor,
-  getLinkColor,
-  getNodeSize,
-  getNoteColor,
-  getPostColor,
-  getTagColor,
-} from '../lib/graph-config';
+import { FORCE_CONFIG, getBackgroundColor, getLinkColor, getNodeSize, resolveNodeColor } from '../lib/graph-config';
+import { useElementSize } from '../lib/use-element-size';
+import { useForceGraphLibs } from '../lib/use-force-graph-libs';
 import type { GraphData, GraphNode } from '../model/types';
 
 interface UnsupportedLabels {
@@ -57,64 +50,12 @@ type ForceGraphInstance = {
 
 type ForceGraphNode = GraphNode & { x?: number; y?: number; z?: number };
 
-function detectWebGL(): boolean {
-  try {
-    const canvas = document.createElement('canvas');
-    return !!(canvas.getContext('webgl2') || canvas.getContext('webgl'));
-  } catch {
-    return false;
-  }
-}
-
 function GraphCanvas({ data, onNodeClick, selectedNodeId, highlightNodeIds, unsupportedLabels }: GraphCanvasProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const fgRef = useRef<ForceGraphInstance | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  // 두 라이브러리는 Promise.all로 함께 도착하므로 하나의 상태로 묶는다.
-  const [libs, setLibs] = useState<{
-    ForceGraph: React.ComponentType<Record<string, unknown>>;
-    SpriteText: { new (): unknown };
-  } | null>(null);
-  // 이 컴포넌트는 dynamic(ssr: false)로만 로드되므로 첫 render에서 바로 감지한다.
-  // mount effect 경유보다 한 render 빠르고, 미지원 기기에서 skeleton 깜빡임이 없다.
-  const [isSupported, setIsSupported] = useState(detectWebGL);
-
-  useEffect(() => {
-    if (!isSupported) return;
-
-    let cancelled = false;
-    Promise.all([import('react-force-graph-3d'), import('three-spritetext')])
-      .then(([fg, st]) => {
-        if (cancelled) return;
-        setLibs({
-          ForceGraph: fg.default as unknown as React.ComponentType<Record<string, unknown>>,
-          SpriteText: st.default as unknown as { new (): unknown },
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setIsSupported(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isSupported]);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const observer = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        setDimensions({ width: Math.floor(width), height: Math.floor(height) });
-      }
-    });
-
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
+  const [containerRef, dimensions] = useElementSize({ width: 800, height: 600 });
+  const { isSupported, libs } = useForceGraphLibs();
 
   useEffect(() => {
     const fg = fgRef.current;
@@ -165,18 +106,7 @@ function GraphCanvas({ data, onNodeClick, selectedNodeId, highlightNodeIds, unsu
         return isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
       }
 
-      switch (graphNode.type) {
-        case 'note':
-          return getNoteColor(graphNode.status ?? 'seedling', isDark);
-        case 'post':
-          return getPostColor(graphNode.category ?? 'notes', isDark);
-        case 'tag':
-          return getTagColor(isDark);
-        case 'category':
-          return getCategoryColor(isDark);
-        default:
-          return getTagColor(isDark);
-      }
+      return resolveNodeColor(graphNode, isDark);
     },
     [isDark, highlightNodeIds, selectedNodeId]
   );

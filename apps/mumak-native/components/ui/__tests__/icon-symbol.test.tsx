@@ -21,4 +21,10 @@ describe('IconSymbol', () => {
     expect(icon.props.size).toBe(32);
     expect(icon.props.style).toEqual({ opacity: 0.5 });
   });
+
+  it('defaults the icon size to 24 when none is given', () => {
+    render(<IconSymbol name="house.fill" color="#123456" />);
+
+    expect(screen.getByTestId('material-icon').props.size).toBe(24);
+  });
 });

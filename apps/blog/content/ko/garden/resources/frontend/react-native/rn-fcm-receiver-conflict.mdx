@@ -1,0 +1,59 @@
+---
+title: 'FCM 수신 서비스 충돌 — 라이브러리 설치만으로 Android 푸시가 깨지는 이유'
+created: '2026-07-08'
+status: 'seedling'
+parent: 'frontend-react-native'
+tags: ['react-native', 'android', 'fcm', 'push-notification', 'manifest']
+---
+
+"패키지를 설치했을 뿐인데 잘 되던 푸시 탭 라우팅이 Android에서만 깨졌다." 코드 한 줄 안 바꿨는데 왜?
+
+> 한 줄 요약: **Android 라이브러리는 매니페스트 병합을 통해, 설치만으로 앱의 런타임 동작을 바꿀 수 있다.**
+
+## FCM 메시지는 한 서비스에만 배달된다
+
+Android에서 FCM 푸시는 `com.google.firebase.MESSAGING_EVENT` 인텐트 필터를 선언한 **서비스**(화면 없이 백그라운드에서 도는 Android 컴포넌트)가 받는다. 그런데 이 필터를 선언한 서비스가 여러 개여도, FCM은 **하나에게만** 메시지를 배달한다. 어느 쪽이 이길지는 병합된 매니페스트에서의 선언 순서·우선순위로 결정되고, 앱 개발자가 코드로 통제할 수 없다.
+
+## 라이브러리는 설치만으로 수신자를 등록한다
+
+Android 빌드의 **manifest merger**는 앱 매니페스트와 모든 라이브러리(AAR)의 매니페스트를 병합한다. 그래서 FCM 수신 서비스를 가진 라이브러리는 — expo-notifications든 `@react-native-firebase/messaging`이든 — **설치(빌드 포함)만으로 자기 수신 서비스를 앱에 등록한다.**
+
+두 개를 함께 설치하면:
+
+1. 수신 서비스가 2개가 된다
+2. FCM은 그중 하나(통제 불가)에게만 배달한다
+3. 앱의 알림 처리 로직이 다른 쪽에 묶여 있으면 — 조용히, Android에서만 깨진다
+
+iOS는 이 문제가 구조적으로 없다. APNs 델리게이트는 AppDelegate 하나이기 때문이다. "iOS는 되는데 Android만 안 된다 + 최근 네이티브 모듈 추가"라는 조합이 보이면 이 시나리오를 의심하자.
+
+## 진단: 병합 결과를 직접 본다
+
+두 가지 표면에서 등록된 수신자를 확인할 수 있다.
+
+```bash
+# 빌드 산출물 (병합된 매니페스트)
+cat android/app/build/intermediates/merged_manifest/**/AndroidManifest.xml
+
+# 설치된 앱 기준 (기기/에뮬레이터)
+adb shell dumpsys package <패키지명> | grep -i messaging
+```
+
+`MESSAGING_EVENT` 필터를 가진 서비스가 2개 이상이면 경합 상태다.
+
+## 해결: 병합 단계에서 제거한다
+
+라이브러리 코드를 고칠 필요 없이, 앱 매니페스트에 `tools:node="remove"` 스텁을 넣으면 merger가 해당 라이브러리 선언을 병합 결과에서 제거한다.
+
+```xml
+<service
+  android:name="io.invertase.firebase.messaging.ReactNativeFirebaseMessagingService"
+  tools:node="remove" />
+```
+
+(`tools:` 접두사를 쓰려면 `<manifest>` 루트에 `xmlns:tools="http://schemas.android.com/tools"` 네임스페이스 선언이 있어야 한다.)
+
+이렇게 하면 그 라이브러리의 다른 기능(예: 토큰 발급 API — 수신 서비스 없이 동작)은 살리면서 수신 경합만 제거할 수 있다. Expo 프로젝트라면 이 매니페스트 수정을 [[expo-cng-config-plugins|config plugin]]으로 넣어야 prebuild에도 살아남는다.
+
+## 애초에 왜 두 라이브러리가 공존하나
+
+보통 토큰 발급 제약 때문이다 — [[push-token-apns-vs-fcm|APNs 토큰과 FCM 토큰은 다르다]] 참고. iOS FCM 토큰은 Firebase SDK만 발급할 수 있어서, 수신은 expo로 하면서도 토큰용으로 RNFB를 설치하게 되는 조합이 흔하다.

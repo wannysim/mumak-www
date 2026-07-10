@@ -1,0 +1,50 @@
+---
+title: 'Expo CNG — the android/ Directory Is a Build Artifact, Not Source'
+created: '2026-07-08'
+status: 'seedling'
+parent: 'frontend-react-native'
+tags: ['react-native', 'expo', 'config-plugin', 'prebuild', 'native']
+---
+
+When you need to change native configuration in an Expo project (AndroidManifest, Info.plist, gradle), you must not edit the files under `android/` directly. Why?
+
+> One-line summary: **Under CNG, `android/` and `ios/` are generated output, like `dist/`. To change them, you intervene in the generation process.**
+
+## CNG (Continuous Native Generation)
+
+In Expo's default model, the native projects don't live in the repository (they're gitignored). Every time `npx expo prebuild` runs, they are **regenerated from scratch** from `app.config.ts` plus the plugin list. And prebuild doesn't only run when you type it — **EAS Build runs it automatically in the cloud on every build.** For exactly the same reason a web developer never hand-edits `dist/`, any direct edit to `android/` silently vanishes on the next prebuild.
+
+Not knowing this produces the classic ghost regression: fix a native file directly → someone runs prebuild a few weeks later → the fix silently reverts → "the thing we fixed broke again."
+
+## Config plugins — the sanctioned way into the generation process
+
+A config plugin is a JS function that hooks into the prebuild pipeline and transforms the generated output. It declaratively describes things like adding/removing manifest elements, inserting Info.plist keys, or changing gradle settings.
+
+```js
+const { withAndroidManifest } = require('@expo/config-plugins');
+
+module.exports = function withMyManifestFix(config) {
+  return withAndroidManifest(config, config => {
+    // config.modResults is the parsed manifest — transform it here
+    return config;
+  });
+};
+```
+
+Register it in the `plugins` array of `app.config.ts` and you're done.
+
+## When "adding a whole file" feels like too much
+
+A 30-line plugin file can look like over-engineering. Compare it to the alternatives and it isn't:
+
+| Approach                   | Lifespan                    | Side effects                      |
+| -------------------------- | --------------------------- | --------------------------------- |
+| Edit native files directly | Until the next prebuild     | Ghost regressions                 |
+| patch-package              | Until the library upgrades  | New dependency + postinstall hook |
+| **config plugin**          | **Permanent (declarative)** | **None (zero new dependencies)**  |
+
+Complexity should be measured by **the mechanism's lifespan and side effects**, not by line count. In a CNG environment, the config plugin looks the heaviest but is actually the lightest option.
+
+## A real-world example
+
+Manifest-level problems like the FCM receiver service contention ([[rn-fcm-receiver-conflict|FCM receiver service conflict]]) are solved by injecting a `tools:node="remove"` stub via a config plugin — the fix survives no matter how many times prebuild reruns.
