@@ -1,5 +1,5 @@
 export { IntlProvider, ProgressProvider } from './providers';
-export { VercelAnalytics } from './analytics';
+export { GoogleAnalytics, VercelAnalytics } from './analytics';
 export {
   buildAlternates,
   generateBlogPostingJsonLd,
