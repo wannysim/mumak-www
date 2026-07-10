@@ -2,7 +2,10 @@ name: Promote to Production
 
 # develop 브랜치에서 CI / E2E 워크플로가 끝날 때마다 깨어나,
 # 같은 commit 기준으로 두 워크플로가 모두 success인지 재확인한 뒤
-# develop HEAD를 Vercel production(wannysim.com)으로 배포한다.
+# develop HEAD를 프로덕션으로 배포한다. 전환기 동안 배포 대상은 두 곳:
+#  1) Vercel production(wannysim.com) promote
+#  2) blog Docker 이미지 빌드 → GHCR push(:latest + :<sha>)
+#     — 홈서버의 Watchtower가 :latest 를 폴링해 자동 반영, :<sha> 는 롤백용.
 #
 # 두 워크플로는 독립적이라 끝나는 순서가 매번 다르다. 먼저 끝난 쪽이
 # 트리거하면 gate가 "아직 나머지 대기 중(pending)"으로 판단해 즉시 종료하고
@@ -41,6 +44,9 @@ permissions:
   contents: read
   actions: read
   statuses: write
+  # GHCR push용. 기존 패키지(ghcr.io/wannysim/mumak-blog)가 PAT push로 만들어졌으므로
+  # 패키지 설정 > Manage Actions access 에 이 repo를 Write 로 연결해야 첫 push가 통과한다.
+  packages: write
 
 jobs:
   promote:
@@ -186,12 +192,41 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
+      # ---- 홈서버 프로덕션 (Vercel promote와 같은 gate 뒤에서 병행) ----
+      # 러너가 사설 IP의 Portainer에 닿을 수 없어 push형 배포는 불가 — GHCR에 올려두면
+      # 홈서버 Watchtower가 :latest 새 digest를 폴링해 mumak-blog를 자동 재시작한다.
+      - name: Log in to GHCR
+        if: steps.gate.outputs.proceed == 'true'
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # NEXT_PUBLIC_* 는 next build 시 인라인되므로 build-arg로 주입한다(GitHub vars).
+      # BASE_URL 미설정 시 프로덕션 도메인 폴백 — 빈 문자열로 인라인되는 사고를 막는다.
+      # ponytail: 캐시 없는 plain docker build. 빌드 시간이 아프면 buildx + gha cache로.
+      - name: Build blog image (linux/amd64)
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          docker build -f apps/blog/Dockerfile --platform linux/amd64 \
+            --build-arg NEXT_PUBLIC_BASE_URL="${{ vars.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com' }}" \
+            --build-arg NEXT_PUBLIC_GA_ID="${{ vars.NEXT_PUBLIC_GA_ID }}" \
+            --build-arg NEXT_PUBLIC_GSC_TOKEN="${{ vars.NEXT_PUBLIC_GSC_TOKEN }}" \
+            --build-arg NEXT_PUBLIC_NAVER_TOKEN="${{ vars.NEXT_PUBLIC_NAVER_TOKEN }}" \
+            -t "ghcr.io/wannysim/mumak-blog:latest" \
+            -t "ghcr.io/wannysim/mumak-blog:${{ steps.target.outputs.sha }}" \
+            .
+
+      - name: Push blog image to GHCR
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          docker push "ghcr.io/wannysim/mumak-blog:latest"
+          docker push "ghcr.io/wannysim/mumak-blog:${{ steps.target.outputs.sha }}"
+
       # 배포가 끝까지 성공한 경우에만 success status를 남긴다. 이 status가 위
       # idempotency guard의 기준이 되어, 같은 SHA의 두 번째 자동 promote를 차단한다.
+      # (Vercel + GHCR 중 하나라도 실패하면 status가 없으므로 다음 트리거가 전체 재시도한다.)
       - name: Report successful promote (commit status)
         if: steps.gate.outputs.proceed == 'true' && success()
         run: |
           gh api "repos/${{ github.repository }}/statuses/${{ steps.target.outputs.sha }}" \
             -f state=success \
             -f context=promote/gate \
-            -f description="Promoted to production"
+            -f description="Promoted to production (Vercel + GHCR)"
