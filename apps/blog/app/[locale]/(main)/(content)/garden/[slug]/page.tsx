@@ -18,6 +18,8 @@ import {
   getMergedLinkedNotes,
   getNote,
   getOutgoingNotes,
+  isValidParaCategory,
+  PARA_LABELS,
   type NoteStatus,
 } from '@/src/entities/note';
 import { calculateWordCount } from '@/src/entities/post';
@@ -123,10 +125,17 @@ export default async function NotePage({ params }: NotePageProps) {
   });
   const transformedContent = transformWikilinks(note.content, { resolver, currentSlug: slug });
 
+  // PARA 카테고리 단계를 breadcrumb에 포함해 블로그 상세(홈 > 블로그 > 카테고리 > 제목)와
+  // 같은 깊이를 유지한다. Uncategorized('garden')는 카테고리 페이지가 없으므로 생략.
+  const paraCategory = isValidParaCategory(note.meta.category) ? note.meta.category : null;
+
   const breadcrumbJsonLd = generateBreadcrumbJsonLd({
     items: [
       { name: tCommon('home'), url: `${BASE_URL}/${locale}` },
       { name: tCommon('garden'), url: `${BASE_URL}/${locale}/garden` },
+      ...(paraCategory
+        ? [{ name: PARA_LABELS[paraCategory], url: `${BASE_URL}/${locale}/garden/category/${paraCategory}` }]
+        : []),
       { name: note.meta.title, url: `${BASE_URL}/${locale}/garden/${slug}` },
     ],
   });
@@ -148,6 +157,7 @@ export default async function NotePage({ params }: NotePageProps) {
         items={[
           { label: tCommon('home'), href: '/' },
           { label: tCommon('garden'), href: '/garden' },
+          ...(paraCategory ? [{ label: PARA_LABELS[paraCategory], href: `/garden/category/${paraCategory}` }] : []),
           { label: note.meta.title },
         ]}
       />

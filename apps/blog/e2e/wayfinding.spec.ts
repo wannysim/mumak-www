@@ -28,6 +28,11 @@ test.describe('Wayfinding - visible breadcrumbs on detail pages', () => {
     await expect(crumbs).toBeVisible();
     await expect(crumbs.getByRole('link', { name: '홈', exact: true })).toHaveAttribute('href', '/ko');
     await expect(crumbs.getByRole('link', { name: '가든', exact: true })).toHaveAttribute('href', '/ko/garden');
+    // PARA 카테고리 단계 (이 노트는 resources 하위)
+    await expect(crumbs.getByRole('link', { name: 'Resources', exact: true })).toHaveAttribute(
+      'href',
+      '/ko/garden/category/resources'
+    );
   });
 });
 
