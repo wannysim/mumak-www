@@ -7,6 +7,7 @@ import {
   nextPinch,
   pinchDistance,
   remapToScreen,
+  saturateChannel,
 } from '../components/lattice';
 
 describe('pinchDistance', () => {
@@ -35,6 +36,14 @@ describe('luminanceToChar', () => {
 
   it('should map mid luminance to a mid-ramp character', () => {
     expect(luminanceToChar(128)).toBe('+');
+  });
+});
+
+describe('saturateChannel', () => {
+  it('should push channels away from the average and clamp to 0..255', () => {
+    expect(saturateChannel(200, 100)).toBe(255);
+    expect(saturateChannel(20, 100)).toBe(0);
+    expect(saturateChannel(100, 100)).toBe(100);
   });
 });
 

@@ -5,7 +5,8 @@
 `mumak-react` 템플릿을 복제해 만들었습니다.
 
 - 레이어드 비디오 4개 + 이동/리사이즈 가능한 필터 존(pane) — 존과 겹친 영상 부분에만 필터가 보인다
-- CSS `backdrop-filter` 존 5종 + canvas 합성 기반 ascii 존 1종
+- CSS `backdrop-filter` 존 5종 + canvas 합성 기반 ascii 존 2종 (mono / 채도 부스트 컬러 ascii-rgb)
+- 웹캠 프리뷰(CAM_00)도 존 아래로 들어오면 동일하게 필터링된다
 - 영상 소스는 전부 CORS 허용 CDN — ascii 존이 canvas `getImageData`로 픽셀을 읽어야 하므로 교체 시에도 ACAO 헤더 확인 필요
 - MediaPipe HandLandmarker(웹캠)로 손 추적: 칩을 핀치해 놓으면 존 생성, 존 몸통 핀치로 이동, 우하단 핸들 핀치로 리사이즈
 - 카메라가 없거나 거부되면 칩 클릭으로 존 생성, 마우스 드래그로 이동/리사이즈

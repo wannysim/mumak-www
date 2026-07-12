@@ -47,13 +47,16 @@ const FILTERS: Record<string, string> = {
   vhs: 'sepia(0.7) contrast(1.3) saturate(1.6)',
   // css backdrop-filter가 아니라 canvas 합성(AsciiPane)으로 렌더링되는 특수 필터
   ascii: 'none',
+  'ascii-rgb': 'none',
 };
+
+const isAsciiFilter = (key: string) => key.startsWith('ascii');
 
 type Pane = { id: number; filter: string; x: number; y: number; w: number; h: number };
 
 const INITIAL_PANES: Pane[] = [
   { id: 1, filter: 'mono', x: 140, y: 150, w: 340, h: 240 },
-  { id: 2, filter: 'ascii', x: 540, y: 380, w: 400, h: 270 },
+  { id: 2, filter: 'ascii-rgb', x: 540, y: 380, w: 400, h: 270 },
 ];
 
 const PANE_MIN_W = 140;
@@ -117,14 +120,22 @@ export function coverSourceRect(videoW: number, videoH: number, dispW: number, d
   return { sx: (videoW - sw) / 2, sy: (videoH - sh) / 2, sw, sh };
 }
 
-// ascii 존 — 존 아래에 겹친 비디오들의 해당 영역만 잘라 저해상도로 합성한 뒤
-// 밝기를 문자로 치환해 그린다. 비디오가 없는 영역은 검정(공백)으로 남는다.
+// 채도를 끌어올려 컬러 ascii가 원본보다 쨍하게 보이도록 한다
+export function saturateChannel(value: number, average: number, factor = 1.8) {
+  return Math.max(0, Math.min(255, average + (value - average) * factor));
+}
+
+// ascii 존 — 존 아래에 겹친 비디오·웹캠의 해당 영역만 잘라 저해상도로 합성한 뒤
+// 밝기를 문자로 치환해 그린다. 영상이 없는 영역은 검정(공백)으로 남는다.
+// colored면 셀마다 원본 픽셀 색(채도 부스트)을 문자에 입힌다.
 function AsciiPane({
   pane,
   videoEls,
+  colored,
 }: {
   pane: Pane;
   videoEls: React.RefObject<Record<string, HTMLVideoElement | null>>;
+  colored: boolean;
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const paneRef = React.useRef(pane);
@@ -159,9 +170,13 @@ function AsciiPane({
       sampleCtx.fillStyle = '#000';
       sampleCtx.fillRect(0, 0, cols, rows);
 
-      // 낮은 z부터 그려 실제 화면과 같은 겹침 순서를 유지한다
-      for (const meta of VIDEOS.toSorted((a, b) => a.z - b.z)) {
-        const el = videoEls.current[meta.id];
+      // 낮은 z부터 그려 실제 화면과 같은 겹침 순서를 유지한다. 웹캠 PIP는 최상단.
+      const targets = [
+        ...VIDEOS.toSorted((a, b) => a.z - b.z).map(v => ({ id: v.id, mirror: false })),
+        { id: 'cam', mirror: true },
+      ];
+      for (const target of targets) {
+        const el = videoEls.current[target.id];
         if (!el || el.readyState < 2 || !el.videoWidth) continue;
         const r = el.getBoundingClientRect();
         const ix = Math.max(px, r.left);
@@ -170,20 +185,26 @@ function AsciiPane({
         const ih = Math.min(py + ph, r.bottom) - iy;
         if (iw <= 0 || ih <= 0) continue;
         const src = coverSourceRect(el.videoWidth, el.videoHeight, r.width, r.height);
+        const sx = src.sx + ((ix - r.left) / r.width) * src.sw;
+        const sw = (iw / r.width) * src.sw;
+        const sh = (ih / r.height) * src.sh;
+        const sy = src.sy + ((iy - r.top) / r.height) * src.sh;
+        const dx = ((ix - px) / pw) * cols;
+        const dy = ((iy - py) / ph) * rows;
+        const dw = (iw / pw) * cols;
+        const dh = (ih / ph) * rows;
         try {
-          sampleCtx.drawImage(
-            el,
-            src.sx + ((ix - r.left) / r.width) * src.sw,
-            src.sy + ((iy - r.top) / r.height) * src.sh,
-            (iw / r.width) * src.sw,
-            (ih / r.height) * src.sh,
-            ((ix - px) / pw) * cols,
-            ((iy - py) / ph) * rows,
-            (iw / pw) * cols,
-            (ih / ph) * rows
-          );
+          if (target.mirror) {
+            // 셀피 프리뷰는 -scale-x로 미러링돼 있으므로 소스/대상 x를 함께 뒤집는다
+            sampleCtx.save();
+            sampleCtx.scale(-1, 1);
+            sampleCtx.drawImage(el, el.videoWidth - sx - sw, sy, sw, sh, -dx - dw, dy, dw, dh);
+            sampleCtx.restore();
+          } else {
+            sampleCtx.drawImage(el, sx, sy, sw, sh, dx, dy, dw, dh);
+          }
         } catch {
-          // CORS taint 등 — 해당 비디오만 건너뛴다
+          // CORS taint 등 — 해당 영상만 건너뛴다
         }
       }
 
@@ -195,20 +216,37 @@ function AsciiPane({
       }
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, pw, ph);
+      const charW = ctx.measureText('@').width;
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
       for (let r = 0; r < rows; r++) {
-        let line = '';
-        for (let c = 0; c < cols; c++) {
-          const i = (r * cols + c) * 4;
-          line += luminanceToChar(0.2126 * (data[i] ?? 0) + 0.7152 * (data[i + 1] ?? 0) + 0.0722 * (data[i + 2] ?? 0));
+        if (colored) {
+          for (let c = 0; c < cols; c++) {
+            const i = (r * cols + c) * 4;
+            const red = data[i] ?? 0;
+            const green = data[i + 1] ?? 0;
+            const blue = data[i + 2] ?? 0;
+            const char = luminanceToChar(0.2126 * red + 0.7152 * green + 0.0722 * blue);
+            if (char === ' ') continue;
+            const avg = (red + green + blue) / 3;
+            ctx.fillStyle = `rgb(${saturateChannel(red, avg)},${saturateChannel(green, avg)},${saturateChannel(blue, avg)})`;
+            ctx.fillText(char, c * charW, r * FONT_SIZE);
+          }
+        } else {
+          let line = '';
+          for (let c = 0; c < cols; c++) {
+            const i = (r * cols + c) * 4;
+            line += luminanceToChar(
+              0.2126 * (data[i] ?? 0) + 0.7152 * (data[i + 1] ?? 0) + 0.0722 * (data[i + 2] ?? 0)
+            );
+          }
+          ctx.fillText(line, 0, r * FONT_SIZE);
         }
-        ctx.fillText(line, 0, r * FONT_SIZE);
       }
     };
 
     rafId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafId);
-  }, [videoEls]);
+  }, [videoEls, colored]);
 
   return <canvas ref={canvasRef} aria-hidden className="pointer-events-none absolute inset-0 size-full" />;
 }
@@ -411,7 +449,11 @@ export function Lattice() {
       rafId = requestAnimationFrame(track);
     };
 
-    init().catch(() => setStatus('error'));
+    init().catch(() => {
+      // 카메라 확보 후 모델 초기화가 실패한 경우 스트림을 잡아둔 채 방치하지 않는다
+      stream?.getTracks().forEach(t => t.stop());
+      setStatus('error');
+    });
 
     return () => {
       disposed = true;
@@ -469,7 +511,9 @@ export function Lattice() {
             WebkitBackdropFilter: FILTERS[pane.filter],
           }}
         >
-          {pane.filter === 'ascii' && <AsciiPane pane={pane} videoEls={videoEls} />}
+          {isAsciiFilter(pane.filter) && (
+            <AsciiPane pane={pane} videoEls={videoEls} colored={pane.filter === 'ascii-rgb'} />
+          )}
           <button
             type="button"
             aria-label={`move ${pane.filter} pane`}
@@ -518,8 +562,14 @@ export function Lattice() {
             }`}
           >
             <span className="text-xs text-white/40">F{i + 1}</span>
-            {key === 'ascii' ? (
-              <span className="flex size-5 items-center justify-center border border-white/50 text-[11px] normal-case">
+            {isAsciiFilter(key) ? (
+              <span
+                className={`flex size-5 items-center justify-center border border-white/50 text-[11px] normal-case ${
+                  key === 'ascii-rgb'
+                    ? 'bg-[linear-gradient(135deg,#f59e0b,#ec4899,#3b82f6)] bg-clip-text text-transparent'
+                    : ''
+                }`}
+              >
                 @
               </span>
             ) : (
@@ -530,9 +580,13 @@ export function Lattice() {
         ))}
       </nav>
 
-      <div className="absolute bottom-6 left-6 z-40">
+      {/* 필터 존(z 35)보다 아래에 둬서 웹캠 프리뷰에도 backdrop-filter/ascii가 적용된다 */}
+      <div className="absolute bottom-6 left-6 z-30">
         <video
-          ref={camRef}
+          ref={el => {
+            camRef.current = el;
+            videoEls.current.cam = el;
+          }}
           aria-label="webcam preview"
           muted
           playsInline
