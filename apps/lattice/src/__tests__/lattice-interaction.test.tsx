@@ -257,6 +257,23 @@ describe('hand gestures', () => {
     expect(panes()).toHaveLength(2);
   });
 
+  it('should move the webcam PIP while pinching its body', async () => {
+    await renderReady();
+    const cam = document.querySelector<HTMLElement>('[data-video-id="cam"]')!;
+    const before = cam.style.left;
+
+    // cam 초기 rect: x24 y645 w176 h99 — 중앙(112, 694)을 집으면 이동
+    hitElement = cam;
+    currentHand = handAt(112, 694, false);
+    stepFrames();
+    currentHand = handAt(112, 694, true);
+    stepFrames(3);
+    currentHand = handAt(400, 400, true);
+    stepFrames(5);
+
+    expect(cam.style.left).not.toBe(before);
+  });
+
   it('should stop the acquired camera stream when unmounted before init settles', async () => {
     const view = render(<Lattice />);
     view.unmount();
@@ -331,6 +348,29 @@ describe('mouse fallback', () => {
     expect(Number.parseFloat(style.width)).toBeGreaterThan(340);
     // 오른쪽 변은 고정
     expect(Number.parseFloat(style.left) + Number.parseFloat(style.width)).toBeCloseTo(480);
+  });
+
+  it('should spawn a pane where a chip is dropped after a pointer drag', async () => {
+    await renderReady();
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'filter heat' }), {
+      clientX: 900,
+      clientY: 300,
+    });
+    fireEvent(window, new MouseEvent('pointermove', { clientX: 400, clientY: 300 }));
+    fireEvent(window, new MouseEvent('pointerup', { clientX: 400, clientY: 300 }));
+
+    expect(panes()).toHaveLength(3);
+    // 놓은 지점(400,300)을 중심으로 기본 크기(340x240) 존이 생성된다
+    const spawned = document.querySelector<HTMLElement>('[data-pane-id="3"]')!;
+    expect(spawned.style.left).toBe('230px');
+    expect(spawned.style.top).toBe('180px');
+
+    // 드래그 직후 따라오는 click은 무시되고, 그다음 일반 클릭은 다시 생성한다
+    fireEvent.click(screen.getByRole('button', { name: 'filter heat' }));
+    expect(panes()).toHaveLength(3);
+    fireEvent.click(screen.getByRole('button', { name: 'filter heat' }));
+    expect(panes()).toHaveLength(4);
   });
 
   it('should move a video layer by dragging its cover button', async () => {

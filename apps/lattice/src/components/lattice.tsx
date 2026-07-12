@@ -316,14 +316,22 @@ type DragState = {
   offY: number;
 };
 
-// 초기 % 배치를 현재 viewport 기준 px 박스로 변환 (이후에는 자유 배치)
+const CAM_W = 176;
+const CAM_H = 99;
+
+// 초기 % 배치를 현재 viewport 기준 px 박스로 변환 (이후에는 자유 배치).
+// 웹캠 PIP('cam')도 같은 박스로 관리해 동일하게 이동/리사이즈된다.
 const initialVideoRects = (): Record<string, Box> =>
-  Object.fromEntries(
-    VIDEOS.map(v => {
+  Object.fromEntries([
+    ...VIDEOS.map(v => {
       const w = (v.w / 100) * window.innerWidth;
-      return [v.id, { x: (v.x / 100) * window.innerWidth, y: (v.y / 100) * window.innerHeight, w, h: (w * 9) / 16 }];
-    })
-  );
+      return [
+        v.id,
+        { x: (v.x / 100) * window.innerWidth, y: (v.y / 100) * window.innerHeight, w, h: (w * 9) / 16 },
+      ] as const;
+    }),
+    ['cam', { x: 24, y: window.innerHeight - 24 - CAM_H, w: CAM_W, h: CAM_H }] as const,
+  ]);
 
 export function Lattice() {
   const [panes, setPanes] = React.useState<Pane[]>(INITIAL_PANES);
@@ -357,6 +365,43 @@ export function Lattice() {
   };
 
   const closePane = (id: number) => setPanes(prev => prev.filter(p => p.id !== id));
+
+  // 마우스로 칩을 끌어다 놓으면 그 자리에 존 생성 (8px 미만 이동은 클릭으로 간주)
+  const chipDraggedRef = React.useRef(false);
+
+  const onChipPointerDown = (key: string) => (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    chipDraggedRef.current = false;
+    setGrabbed(key);
+    const cursor = cursorRef.current;
+    const move = (ev: PointerEvent) => {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8) chipDraggedRef.current = true;
+      if (cursor && chipDraggedRef.current) {
+        cursor.style.opacity = '1';
+        cursor.style.transform = `translate3d(${ev.clientX}px, ${ev.clientY}px, 0)`;
+      }
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setGrabbed(null);
+      if (cursor) cursor.style.opacity = '0';
+      if (chipDraggedRef.current) spawnPane(key, ev.clientX, ev.clientY);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  const onChipClick = (key: string) => () => {
+    // 드래그로 이미 생성한 경우 뒤따라오는 click은 무시한다
+    if (chipDraggedRef.current) {
+      chipDraggedRef.current = false;
+      return;
+    }
+    spawnPane(key, window.innerWidth / 2 + panesRef.current.length * 24, window.innerHeight / 2);
+  };
 
   const boxOf = (kind: DragState['kind'], id: DragState['id']): Box | undefined =>
     kind === 'pane' ? panesRef.current.find(p => p.id === id) : videoRectsRef.current[String(id)];
@@ -617,7 +662,7 @@ export function Lattice() {
         <h1 className="text-lg tracking-[0.4em]">Lattice</h1>
         <p className="mt-1 text-[11px] tracking-[0.2em] text-white/50">
           {status === 'loading' && 'initializing hand tracker'}
-          {status === 'error' && 'camera offline — click chips, drag panes with mouse'}
+          {status === 'error' && 'camera offline — drag chips & boxes with mouse'}
           {status === 'ready' && 'pinch chip → drop zone · pinch body → move · pinch edge → resize'}
         </p>
       </header>
@@ -629,7 +674,8 @@ export function Lattice() {
             type="button"
             aria-label={`filter ${key}`}
             data-filter-chip={key}
-            onClick={() => spawnPane(key, window.innerWidth / 2 + panesRef.current.length * 24, window.innerHeight / 2)}
+            onPointerDown={onChipPointerDown(key)}
+            onClick={onChipClick(key)}
             className={`flex w-52 items-center gap-4 border px-5 py-4 text-base tracking-[0.25em] backdrop-blur transition-colors ${
               grabbed === key ? 'border-white bg-white/25' : 'border-white/30 bg-black/50 hover:border-white/70'
             }`}
@@ -653,8 +699,17 @@ export function Lattice() {
         ))}
       </nav>
 
-      {/* 필터 존(z 35)보다 아래에 둬서 웹캠 프리뷰에도 backdrop-filter/ascii가 적용된다 */}
-      <div className="absolute bottom-6 left-6 z-30">
+      {/* 필터 존(z 35)보다 아래(z 32)에 둬서 웹캠 프리뷰에도 backdrop-filter/ascii가 적용된다 */}
+      <div
+        data-video-id="cam"
+        className="absolute z-[32]"
+        style={{
+          left: videoRects.cam!.x,
+          top: videoRects.cam!.y,
+          width: videoRects.cam!.w,
+          height: videoRects.cam!.h,
+        }}
+      >
         <video
           ref={el => {
             camRef.current = el;
@@ -663,10 +718,18 @@ export function Lattice() {
           aria-label="webcam preview"
           muted
           playsInline
-          className="w-44 -scale-x-100 bg-white/5 opacity-80"
+          className="size-full -scale-x-100 bg-white/5 object-cover opacity-80"
+        />
+        <button
+          type="button"
+          aria-label="adjust cam layer"
+          onPointerDown={onBoxPointerDown('video', 'cam')}
+          className="absolute inset-0 size-full cursor-move"
         />
         <CornerBrackets />
-        <span className="absolute left-2 top-1.5 text-[10px] tracking-[0.2em] text-white/70">CAM_00</span>
+        <span className="pointer-events-none absolute left-2 top-1.5 text-[10px] tracking-[0.2em] text-white/70">
+          CAM_00
+        </span>
       </div>
 
       {/* 밝은 영상 위에서도 보이도록 굵은 선 + 검은 외곽선(drop-shadow) */}

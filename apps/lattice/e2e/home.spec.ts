@@ -6,7 +6,8 @@ test.describe('Lattice Page', () => {
 
     await expect(page.getByRole('heading', { name: 'Lattice' })).toBeVisible();
     await expect(page.locator('[data-filter-chip]')).toHaveCount(7);
-    await expect(page.locator('[data-video-id]')).toHaveCount(4);
+    // 비디오 레이어 4개 + 웹캠 PIP(cam)
+    await expect(page.locator('[data-video-id]')).toHaveCount(5);
     await expect(page.locator('[data-pane-id]')).toHaveCount(2);
   });
 
@@ -99,6 +100,43 @@ test.describe('Lattice Page', () => {
 
     const after = await bunny.boundingBox();
     expect(after!.x).toBeGreaterThan(before.x + 80);
+  });
+
+  test('should move the webcam PIP by dragging its body', async ({ page }) => {
+    await page.goto('/');
+
+    const cam = page.locator('[data-video-id="cam"]');
+    const before = await cam.boundingBox();
+    if (!before) throw new Error('cam not found');
+
+    await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(before.x + before.width / 2 + 200, before.y + before.height / 2 - 150, {
+      steps: 5,
+    });
+    await page.mouse.up();
+
+    const after = await cam.boundingBox();
+    expect(after!.x).toBeGreaterThan(before.x + 150);
+    expect(after!.y).toBeLessThan(before.y - 100);
+  });
+
+  test('should spawn a pane where a chip is dropped after a drag', async ({ page }) => {
+    await page.goto('/');
+
+    const chip = await page.getByRole('button', { name: 'filter vhs' }).boundingBox();
+    if (!chip) throw new Error('chip not found');
+
+    await page.mouse.move(chip.x + chip.width / 2, chip.y + chip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(500, 200, { steps: 5 });
+    await page.mouse.up();
+
+    await expect(page.locator('[data-pane-id]')).toHaveCount(3);
+    const spawned = await page.locator('[data-pane-id]').last().boundingBox();
+    // 놓은 지점(500,200)이 새 존의 중심이 된다
+    expect(spawned!.x + spawned!.width / 2).toBeCloseTo(500, 0);
+    expect(spawned!.y + spawned!.height / 2).toBeCloseTo(200, 0);
   });
 
   test('should have responsive design', async ({ page }) => {
