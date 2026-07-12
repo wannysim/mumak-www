@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   coverSourceRect,
   createOneEuro,
+  edgesAt,
   luminanceToChar,
   nextPinch,
   pinchDistance,
   remapToScreen,
+  resizeBox,
   saturateChannel,
 } from '../components/lattice';
 
@@ -36,6 +38,66 @@ describe('luminanceToChar', () => {
 
   it('should map mid luminance to a mid-ramp character', () => {
     expect(luminanceToChar(128)).toBe('+');
+  });
+});
+
+describe('edgesAt', () => {
+  const box = { x: 100, y: 100, w: 200, h: 100 };
+
+  it('should return null for a grab well inside the box', () => {
+    expect(edgesAt(box, 200, 150)).toBeNull();
+  });
+
+  it('should detect single edges', () => {
+    expect(edgesAt(box, 105, 150)).toEqual({ l: true, r: false, t: false, b: false });
+    expect(edgesAt(box, 295, 150)).toEqual({ l: false, r: true, t: false, b: false });
+    expect(edgesAt(box, 200, 104)).toEqual({ l: false, r: false, t: true, b: false });
+    expect(edgesAt(box, 200, 196)).toEqual({ l: false, r: false, t: false, b: true });
+  });
+
+  it('should detect corners as two edges', () => {
+    expect(edgesAt(box, 102, 102)).toEqual({ l: true, r: false, t: true, b: false });
+    expect(edgesAt(box, 298, 198)).toEqual({ l: false, r: true, t: false, b: true });
+  });
+});
+
+describe('resizeBox', () => {
+  const box = { x: 100, y: 100, w: 200, h: 100 };
+  const edges = (partial: Partial<{ l: boolean; r: boolean; t: boolean; b: boolean }>) => ({
+    l: false,
+    r: false,
+    t: false,
+    b: false,
+    ...partial,
+  });
+
+  it('should drag the right/bottom edges keeping the origin fixed', () => {
+    expect(resizeBox(box, edges({ r: true, b: true }), 400, 320)).toEqual({
+      x: 100,
+      y: 100,
+      w: 300,
+      h: 220,
+    });
+  });
+
+  it('should drag the left/top edges keeping the opposite side fixed', () => {
+    expect(resizeBox(box, edges({ l: true, t: true }), 60, 80)).toEqual({
+      x: 60,
+      y: 80,
+      w: 240,
+      h: 120,
+    });
+  });
+
+  it('should clamp to the minimum size even when dragging past the opposite edge', () => {
+    const clamped = resizeBox(box, edges({ l: true, t: true }), 500, 500, 140, 100);
+    expect(clamped).toEqual({ x: 160, y: 100, w: 140, h: 100 });
+    expect(resizeBox(box, edges({ r: true, b: true }), 0, 0, 140, 100)).toEqual({
+      x: 100,
+      y: 100,
+      w: 140,
+      h: 100,
+    });
   });
 });
 

@@ -31,6 +31,13 @@ function hand(mid: { x: number; y: number }, pinching: boolean) {
   return landmarks;
 }
 
+// 화면 px 좌표를 랜드마크 mid 좌표로 역변환 (미러링·EDGE_MARGIN 리매핑의 역함수)
+function handAt(px: number, py: number, pinching: boolean) {
+  const fx = px / window.innerWidth;
+  const fy = py / window.innerHeight;
+  return hand({ x: 1 - (0.18 + fx * 0.64), y: 0.18 + fy * 0.64 }, pinching);
+}
+
 let currentHand: Array<{ x: number; y: number }> | null = null;
 let hitElement: Element | null = null;
 
@@ -175,41 +182,59 @@ describe('hand gestures', () => {
     stepFrames(3);
 
     expect(panes()).toHaveLength(3);
-    expect(screen.getByRole('button', { name: 'move heat pane' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'adjust heat pane' })).toBeInTheDocument();
   });
 
   it('should move a pane while pinching its body', async () => {
     await renderReady();
     const before = paneEl(1).style.left;
 
+    // pane 1: x140 y150 w340 h240 — 몸통 중앙을 집으면 이동
     hitElement = paneEl(1);
-    currentHand = hand({ x: 0.6, y: 0.5 }, false);
+    currentHand = handAt(310, 270, false);
     stepFrames();
-    currentHand = hand({ x: 0.6, y: 0.5 }, true);
+    currentHand = handAt(310, 270, true);
     stepFrames(3);
-    currentHand = hand({ x: 0.4, y: 0.6 }, true);
-    stepFrames(3);
-    currentHand = hand({ x: 0.4, y: 0.6 }, false);
+    currentHand = handAt(500, 400, true);
+    stepFrames(5);
+    currentHand = handAt(500, 400, false);
     stepFrames(3);
 
     expect(paneEl(1).style.left).not.toBe(before);
   });
 
-  it('should resize a pane while pinching its corner handle', async () => {
+  it('should resize a pane while pinching near its bottom-right corner', async () => {
     await renderReady();
 
-    hitElement = screen.getByRole('button', { name: 'resize mono pane' });
-    currentHand = hand({ x: 0.6, y: 0.5 }, false);
+    hitElement = paneEl(1);
+    // pane 1의 우하단 꼭짓점(480, 390) 근처를 집으면 r+b 리사이즈
+    currentHand = handAt(477, 387, false);
     stepFrames();
-    currentHand = hand({ x: 0.6, y: 0.5 }, true);
+    currentHand = handAt(477, 387, true);
     stepFrames(3);
-    // 화면 좌하단 방향으로 크게 벌리면 초기 크기(340x240)보다 커져야 한다
-    currentHand = hand({ x: 0.2, y: 0.9 }, true);
+    currentHand = handAt(700, 560, true);
     stepFrames(10);
 
     const { width, height } = paneEl(1).style;
     expect(Number.parseFloat(width)).toBeGreaterThan(340);
     expect(Number.parseFloat(height)).toBeGreaterThan(240);
+  });
+
+  it('should move a video layer while pinching its body', async () => {
+    await renderReady();
+    const bunny = document.querySelector<HTMLElement>('[data-video-id="bunny"]')!;
+    const before = bunny.style.left;
+
+    // bunny 초기 rect: x≈61 y≈77 w≈430 — 중앙(276, 198)을 집으면 이동
+    hitElement = bunny;
+    currentHand = handAt(276, 198, false);
+    stepFrames();
+    currentHand = handAt(276, 198, true);
+    stepFrames(3);
+    currentHand = handAt(500, 350, true);
+    stepFrames(5);
+
+    expect(bunny.style.left).not.toBe(before);
   });
 
   it('should hide the cursor and drop any grab when the hand disappears', async () => {
@@ -246,7 +271,7 @@ describe('mouse fallback', () => {
     fireEvent.click(screen.getByRole('button', { name: 'filter dream' }));
 
     expect(panes()).toHaveLength(3);
-    expect(screen.getByRole('button', { name: 'move dream pane' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'adjust dream pane' })).toBeInTheDocument();
   });
 
   it('should remove a pane when its close button is clicked', async () => {
@@ -254,18 +279,19 @@ describe('mouse fallback', () => {
     fireEvent.click(within(paneEl(1)).getByRole('button', { name: 'close pane' }));
 
     expect(panes()).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: 'move mono pane' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'adjust mono pane' })).not.toBeInTheDocument();
   });
 
-  it('should move a pane by dragging its grip with the pointer', async () => {
+  it('should move a pane by dragging its body with the pointer', async () => {
     await renderReady();
     const before = paneEl(1).style.left;
 
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'move mono pane' }), {
-      clientX: 200,
-      clientY: 200,
+    // 몸통 중앙(가장자리에서 16px 이상 안쪽)에서 시작하면 이동
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'adjust mono pane' }), {
+      clientX: 310,
+      clientY: 270,
     });
-    fireEvent(window, new MouseEvent('pointermove', { clientX: 320, clientY: 280 }));
+    fireEvent(window, new MouseEvent('pointermove', { clientX: 430, clientY: 350 }));
     fireEvent(window, new MouseEvent('pointerup', {}));
 
     expect(paneEl(1).style.left).not.toBe(before);
@@ -275,18 +301,51 @@ describe('mouse fallback', () => {
     expect(paneEl(1).style.left).toBe(settled);
   });
 
-  it('should resize a pane by dragging its corner handle with the pointer', async () => {
+  it('should resize a pane from its bottom-right corner with the pointer', async () => {
     await renderReady();
 
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'resize mono pane' }), {
-      clientX: 480,
-      clientY: 390,
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'adjust mono pane' }), {
+      clientX: 478,
+      clientY: 388,
     });
     fireEvent(window, new MouseEvent('pointermove', { clientX: 700, clientY: 560 }));
     fireEvent(window, new MouseEvent('pointerup', {}));
 
     expect(Number.parseFloat(paneEl(1).style.width)).toBeGreaterThan(340);
     expect(Number.parseFloat(paneEl(1).style.height)).toBeGreaterThan(240);
+  });
+
+  it('should resize a pane from its left edge keeping the right side fixed', async () => {
+    await renderReady();
+
+    // pane 1 왼쪽 변(x=140) 근처에서 시작해 왼쪽으로 끌면 넓어진다
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'adjust mono pane' }), {
+      clientX: 142,
+      clientY: 270,
+    });
+    fireEvent(window, new MouseEvent('pointermove', { clientX: 40, clientY: 270 }));
+    fireEvent(window, new MouseEvent('pointerup', {}));
+
+    const style = paneEl(1).style;
+    expect(Number.parseFloat(style.left)).toBeLessThan(140);
+    expect(Number.parseFloat(style.width)).toBeGreaterThan(340);
+    // 오른쪽 변은 고정
+    expect(Number.parseFloat(style.left) + Number.parseFloat(style.width)).toBeCloseTo(480);
+  });
+
+  it('should move a video layer by dragging its cover button', async () => {
+    await renderReady();
+    const bunny = document.querySelector<HTMLElement>('[data-video-id="bunny"]')!;
+    const before = bunny.style.left;
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'adjust bunny layer' }), {
+      clientX: 276,
+      clientY: 198,
+    });
+    fireEvent(window, new MouseEvent('pointermove', { clientX: 420, clientY: 300 }));
+    fireEvent(window, new MouseEvent('pointerup', {}));
+
+    expect(bunny.style.left).not.toBe(before);
   });
 });
 

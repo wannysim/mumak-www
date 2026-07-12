@@ -15,7 +15,8 @@ describe('App', () => {
     render(<App />);
     expect(screen.getAllByRole('button', { name: /^filter / })).toHaveLength(7);
     expect(screen.getByLabelText('bunny layer')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /^move / })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /^adjust .* pane$/ })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /^adjust .* layer$/ })).toHaveLength(4);
     await screen.findByText(/camera offline/);
   });
 });

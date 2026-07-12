@@ -63,6 +63,48 @@ const PANE_MIN_W = 140;
 const PANE_MIN_H = 100;
 const PANE_DEFAULT_W = 340;
 const PANE_DEFAULT_H = 240;
+// 박스 가장자리에서 이 거리(px) 안을 잡으면 이동 대신 해당 변 리사이즈로 판정한다
+const EDGE_GRAB = 16;
+
+type Box = { x: number; y: number; w: number; h: number };
+export type ResizeEdges = { l: boolean; r: boolean; t: boolean; b: boolean };
+
+// 잡은 지점이 어느 변에 가까운지 판정. 어느 변도 아니면 null(= 이동).
+export function edgesAt(box: Box, cx: number, cy: number, grab = EDGE_GRAB): ResizeEdges | null {
+  const near = (value: number, target: number) => Math.abs(value - target) <= grab;
+  const edges = {
+    l: near(cx, box.x),
+    r: near(cx, box.x + box.w),
+    t: near(cy, box.y),
+    b: near(cy, box.y + box.h),
+  };
+  return edges.l || edges.r || edges.t || edges.b ? edges : null;
+}
+
+// 선택된 변들을 커서 위치로 끌어 리사이즈. 반대편 변은 고정되고 최소 크기를 지킨다.
+export function resizeBox<T extends Box>(
+  box: T,
+  edges: ResizeEdges,
+  cx: number,
+  cy: number,
+  minW = PANE_MIN_W,
+  minH = PANE_MIN_H
+): T {
+  let { x, y, w, h } = box;
+  const right = x + w;
+  const bottom = y + h;
+  if (edges.r) w = Math.max(minW, cx - x);
+  if (edges.b) h = Math.max(minH, cy - y);
+  if (edges.l) {
+    x = Math.min(cx, right - minW);
+    w = right - x;
+  }
+  if (edges.t) {
+    y = Math.min(cy, bottom - minH);
+    h = bottom - y;
+  }
+  return { ...box, x, y, w, h };
+}
 
 // 핀치 임계값 — 엄지-검지 거리를 손바닥 길이(손목~중지 뿌리)로 나눈 비율.
 // 절대 거리가 아니라서 손이 카메라에서 멀어져도 판정이 일정하다.
@@ -258,18 +300,34 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 function CornerBrackets() {
   return (
     <>
-      <span className="absolute -left-px -top-px size-4 border-l border-t border-white/80" />
-      <span className="absolute -right-px -top-px size-4 border-r border-t border-white/80" />
-      <span className="absolute -bottom-px -left-px size-4 border-b border-l border-white/80" />
-      <span className="absolute -bottom-px -right-px size-4 border-b border-r border-white/80" />
+      <span className="pointer-events-none absolute -left-px -top-px size-4 border-l border-t border-white/80" />
+      <span className="pointer-events-none absolute -right-px -top-px size-4 border-r border-t border-white/80" />
+      <span className="pointer-events-none absolute -bottom-px -left-px size-4 border-b border-l border-white/80" />
+      <span className="pointer-events-none absolute -bottom-px -right-px size-4 border-b border-r border-white/80" />
     </>
   );
 }
 
-type DragState = { mode: 'move' | 'resize'; id: number; offX: number; offY: number };
+type DragState = {
+  kind: 'pane' | 'video';
+  id: number | string;
+  edges: ResizeEdges | null; // null이면 이동
+  offX: number;
+  offY: number;
+};
+
+// 초기 % 배치를 현재 viewport 기준 px 박스로 변환 (이후에는 자유 배치)
+const initialVideoRects = (): Record<string, Box> =>
+  Object.fromEntries(
+    VIDEOS.map(v => {
+      const w = (v.w / 100) * window.innerWidth;
+      return [v.id, { x: (v.x / 100) * window.innerWidth, y: (v.y / 100) * window.innerHeight, w, h: (w * 9) / 16 }];
+    })
+  );
 
 export function Lattice() {
   const [panes, setPanes] = React.useState<Pane[]>(INITIAL_PANES);
+  const [videoRects, setVideoRects] = React.useState<Record<string, Box>>(initialVideoRects);
   const [grabbed, setGrabbed] = React.useState<string | null>(null);
   const [status, setStatus] = React.useState<TrackingStatus>('loading');
   const camRef = React.useRef<HTMLVideoElement>(null);
@@ -279,6 +337,8 @@ export function Lattice() {
   const videoEls = React.useRef<Record<string, HTMLVideoElement | null>>({});
   const panesRef = React.useRef(panes);
   panesRef.current = panes;
+  const videoRectsRef = React.useRef(videoRects);
+  videoRectsRef.current = videoRects;
   const dragRef = React.useRef<DragState | null>(null);
   const nextPaneId = React.useRef(INITIAL_PANES.length + 1);
 
@@ -298,27 +358,31 @@ export function Lattice() {
 
   const closePane = (id: number) => setPanes(prev => prev.filter(p => p.id !== id));
 
-  const beginDrag = (mode: DragState['mode'], id: number, cx: number, cy: number) => {
-    const pane = panesRef.current.find(p => p.id === id);
-    if (!pane) return;
-    dragRef.current = { mode, id, offX: cx - pane.x, offY: cy - pane.y };
+  const boxOf = (kind: DragState['kind'], id: DragState['id']): Box | undefined =>
+    kind === 'pane' ? panesRef.current.find(p => p.id === id) : videoRectsRef.current[String(id)];
+
+  // 잡은 위치가 가장자리면 해당 변 리사이즈, 아니면 이동
+  const beginDrag = (kind: DragState['kind'], id: DragState['id'], cx: number, cy: number) => {
+    const box = boxOf(kind, id);
+    if (!box) return;
+    dragRef.current = { kind, id, edges: edgesAt(box, cx, cy), offX: cx - box.x, offY: cy - box.y };
   };
 
   const updateDrag = (cx: number, cy: number) => {
     const drag = dragRef.current;
     if (!drag) return;
-    setPanes(prev =>
-      prev.map(p => {
-        if (p.id !== drag.id) return p;
-        if (drag.mode === 'move') return { ...p, x: cx - drag.offX, y: cy - drag.offY };
-        return { ...p, w: Math.max(PANE_MIN_W, cx - p.x), h: Math.max(PANE_MIN_H, cy - p.y) };
-      })
-    );
+    const apply = <T extends Box>(box: T): T =>
+      drag.edges ? resizeBox(box, drag.edges, cx, cy) : { ...box, x: cx - drag.offX, y: cy - drag.offY };
+    if (drag.kind === 'pane') {
+      setPanes(prev => prev.map(p => (p.id === drag.id ? apply(p) : p)));
+    } else {
+      setVideoRects(prev => ({ ...prev, [drag.id]: apply(prev[String(drag.id)]!) }));
+    }
   };
 
-  const onGripPointerDown = (mode: DragState['mode'], id: number) => (e: React.PointerEvent) => {
+  const onBoxPointerDown = (kind: DragState['kind'], id: DragState['id']) => (e: React.PointerEvent) => {
     e.preventDefault();
-    beginDrag(mode, id, e.clientX, e.clientY);
+    beginDrag(kind, id, e.clientX, e.clientY);
     const move = (ev: PointerEvent) => updateDrag(ev.clientX, ev.clientY);
     const up = () => {
       dragRef.current = null;
@@ -353,13 +417,13 @@ export function Lattice() {
         grab(chip);
         return;
       }
-      const handleId = hitTest(x, y, 'data-pane-handle');
-      if (handleId) {
-        beginDrag('resize', Number(handleId), x, y);
+      const paneId = hitTest(x, y, 'data-pane-id');
+      if (paneId) {
+        beginDrag('pane', Number(paneId), x, y);
         return;
       }
-      const paneId = hitTest(x, y, 'data-pane-id');
-      if (paneId) beginDrag('move', Number(paneId), x, y);
+      const videoId = hitTest(x, y, 'data-video-id');
+      if (videoId) beginDrag('video', videoId, x, y);
     };
 
     const onPinchEnd = (x: number, y: number) => {
@@ -470,35 +534,46 @@ export function Lattice() {
 
   return (
     <div className="fixed inset-0 select-none overflow-hidden bg-black bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:72px_72px] font-mono uppercase text-white">
-      {VIDEOS.map((video, i) => (
-        <div
-          key={video.id}
-          data-video-id={video.id}
-          className="absolute"
-          style={{ left: `${video.x}%`, top: `${video.y}%`, width: `${video.w}%`, zIndex: video.z }}
-        >
-          <video
-            ref={el => {
-              videoEls.current[video.id] = el;
-            }}
-            aria-label={`${video.id} layer`}
-            src={video.src}
-            crossOrigin="anonymous"
-            autoPlay
-            muted
-            loop
-            playsInline
-            className="aspect-video w-full bg-white/5 object-cover"
-          />
-          <CornerBrackets />
-          <span className="absolute left-0 top-0 bg-black/70 px-2 py-1 text-[10px] tracking-[0.2em] text-white/90">
-            CH_{pad2(i + 1)} {video.id}
-          </span>
-          <span className="absolute bottom-0 right-0 bg-black/70 px-2 py-1 text-[10px] tracking-[0.2em] text-white/70">
-            X:{pad2(video.x)} Y:{pad2(video.y)} W:{video.w}
-          </span>
-        </div>
-      ))}
+      {VIDEOS.map((video, i) => {
+        const rect = videoRects[video.id]!;
+        return (
+          <div
+            key={video.id}
+            data-video-id={video.id}
+            className="absolute"
+            style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, zIndex: video.z }}
+          >
+            <video
+              ref={el => {
+                videoEls.current[video.id] = el;
+              }}
+              aria-label={`${video.id} layer`}
+              src={video.src}
+              crossOrigin="anonymous"
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="size-full bg-white/5 object-cover"
+            />
+            <button
+              type="button"
+              aria-label={`adjust ${video.id} layer`}
+              onPointerDown={onBoxPointerDown('video', video.id)}
+              className="absolute inset-0 size-full cursor-move"
+            />
+            <CornerBrackets />
+            <span className="pointer-events-none absolute left-0 top-0 bg-black/70 px-2 py-1 text-[10px] tracking-[0.2em] text-white/90">
+              CH_{pad2(i + 1)} {video.id}
+            </span>
+            <span className="pointer-events-none absolute bottom-0 right-0 bg-black/70 px-2 py-1 text-[10px] tracking-[0.2em] text-white/70">
+              X:{pad2(Math.round((rect.x / window.innerWidth) * 100))} Y:
+              {pad2(Math.round((rect.y / window.innerHeight) * 100))} W:
+              {pad2(Math.round((rect.w / window.innerWidth) * 100))}
+            </span>
+          </div>
+        );
+      })}
 
       {panes.map(pane => (
         <div
@@ -520,27 +595,21 @@ export function Lattice() {
           )}
           <button
             type="button"
-            aria-label={`move ${pane.filter} pane`}
-            onPointerDown={onGripPointerDown('move', pane.id)}
-            className="absolute left-0 top-0 cursor-move bg-white px-2 py-1 text-[10px] tracking-[0.2em] text-black"
-          >
+            aria-label={`adjust ${pane.filter} pane`}
+            onPointerDown={onBoxPointerDown('pane', pane.id)}
+            className="absolute inset-0 size-full cursor-move"
+          />
+          <span className="pointer-events-none absolute left-0 top-0 bg-white px-2 py-1 text-[10px] tracking-[0.2em] text-black">
             FLT:{pane.filter}
-          </button>
+          </span>
           <button
             type="button"
             aria-label="close pane"
             onClick={() => closePane(pane.id)}
-            className="absolute right-0 top-0 bg-black/70 px-2 py-1 text-[10px] text-white/80 hover:text-white"
+            className="absolute right-0 top-0 flex size-10 items-center justify-center bg-black/70 text-base text-white/80 transition-colors hover:bg-white hover:text-black"
           >
             ✕
           </button>
-          <button
-            type="button"
-            aria-label={`resize ${pane.filter} pane`}
-            data-pane-handle={pane.id}
-            onPointerDown={onGripPointerDown('resize', pane.id)}
-            className="absolute -bottom-1 -right-1 size-6 cursor-se-resize border-b-2 border-r-2 border-white"
-          />
         </div>
       ))}
 
@@ -549,7 +618,7 @@ export function Lattice() {
         <p className="mt-1 text-[11px] tracking-[0.2em] text-white/50">
           {status === 'loading' && 'initializing hand tracker'}
           {status === 'error' && 'camera offline — click chips, drag panes with mouse'}
-          {status === 'ready' && 'pinch chip → drop zone · pinch zone → move · corner → resize'}
+          {status === 'ready' && 'pinch chip → drop zone · pinch body → move · pinch edge → resize'}
         </p>
       </header>
 
@@ -600,14 +669,15 @@ export function Lattice() {
         <span className="absolute left-2 top-1.5 text-[10px] tracking-[0.2em] text-white/70">CAM_00</span>
       </div>
 
+      {/* 밝은 영상 위에서도 보이도록 굵은 선 + 검은 외곽선(drop-shadow) */}
       <div
         ref={cursorRef}
         data-testid="hand-cursor"
-        className="pointer-events-none absolute left-0 top-0 z-[60] opacity-0"
+        className="pointer-events-none absolute left-0 top-0 z-[60] opacity-0 [filter:drop-shadow(0_0_2px_rgba(0,0,0,0.9))]"
       >
-        <span className="absolute h-px w-10 -translate-x-1/2 -translate-y-1/2 bg-white/90" />
-        <span className="absolute h-10 w-px -translate-x-1/2 -translate-y-1/2 bg-white/90" />
-        <span className="absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white transition-colors [[data-pinching=true]>&]:bg-white" />
+        <span className="absolute h-0.5 w-14 -translate-x-1/2 -translate-y-1/2 bg-white" />
+        <span className="absolute h-14 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-white" />
+        <span className="absolute size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-black/40 transition-colors [[data-pinching=true]>&]:bg-white" />
         <span
           ref={coordRef}
           className="absolute left-4 top-3.5 whitespace-nowrap text-[10px] tracking-[0.2em] text-white/80"
