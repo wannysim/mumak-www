@@ -2,7 +2,7 @@ import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 import * as React from 'react';
 
 // CC0/공개 샘플 영상. 전부 CORS(ACAO) 허용 소스만 사용 —
-// ascii 오버레이가 canvas getImageData로 픽셀을 읽어야 해서 필수 조건이다.
+// ascii 존이 canvas getImageData로 픽셀을 읽어야 해서 필수 조건이다.
 // x/y/w는 viewport %, z로 레이어를 서로 겹친다
 const VIDEOS = [
   {
@@ -40,15 +40,26 @@ const VIDEOS = [
 ];
 
 const FILTERS: Record<string, string> = {
-  none: 'none',
   mono: 'grayscale(1) contrast(1.15)',
   heat: 'hue-rotate(310deg) saturate(2.4)',
   acid: 'invert(1) hue-rotate(180deg)',
   dream: 'blur(3px) brightness(1.15) saturate(1.4)',
   vhs: 'sepia(0.7) contrast(1.3) saturate(1.6)',
-  // css filter가 아니라 canvas 오버레이(AsciiOverlay)로 렌더링되는 특수 필터
+  // css backdrop-filter가 아니라 canvas 합성(AsciiPane)으로 렌더링되는 특수 필터
   ascii: 'none',
 };
+
+type Pane = { id: number; filter: string; x: number; y: number; w: number; h: number };
+
+const INITIAL_PANES: Pane[] = [
+  { id: 1, filter: 'mono', x: 140, y: 150, w: 340, h: 240 },
+  { id: 2, filter: 'ascii', x: 540, y: 380, w: 400, h: 270 },
+];
+
+const PANE_MIN_W = 140;
+const PANE_MIN_H = 100;
+const PANE_DEFAULT_W = 340;
+const PANE_DEFAULT_H = 240;
 
 // 핀치 임계값 — 엄지-검지 거리를 손바닥 길이(손목~중지 뿌리)로 나눈 비율.
 // 절대 거리가 아니라서 손이 카메라에서 멀어져도 판정이 일정하다.
@@ -98,14 +109,30 @@ export function luminanceToChar(luminance: number) {
   return ASCII_CHARS.charAt(index);
 }
 
-// 영상 프레임을 저해상도로 샘플링해 밝기를 문자로 치환하는 캔버스 오버레이.
-// 원본 <video>는 그대로 재생시키고 그 위를 덮는다.
-function AsciiOverlay({ video }: { video: HTMLVideoElement | null }) {
+// object-fit: cover로 표시된 요소에서 실제로 보이는 원본 픽셀 영역(중앙 크롭)을 구한다
+export function coverSourceRect(videoW: number, videoH: number, dispW: number, dispH: number) {
+  const scale = Math.max(dispW / videoW, dispH / videoH);
+  const sw = dispW / scale;
+  const sh = dispH / scale;
+  return { sx: (videoW - sw) / 2, sy: (videoH - sh) / 2, sw, sh };
+}
+
+// ascii 존 — 존 아래에 겹친 비디오들의 해당 영역만 잘라 저해상도로 합성한 뒤
+// 밝기를 문자로 치환해 그린다. 비디오가 없는 영역은 검정(공백)으로 남는다.
+function AsciiPane({
+  pane,
+  videoEls,
+}: {
+  pane: Pane;
+  videoEls: React.RefObject<Record<string, HTMLVideoElement | null>>;
+}) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const paneRef = React.useRef(pane);
+  paneRef.current = pane;
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
-    if (!video || !canvas) return;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const sample = document.createElement('canvas');
     const sampleCtx = sample.getContext('2d', { willReadFrequently: true });
@@ -116,31 +143,58 @@ function AsciiOverlay({ video }: { video: HTMLVideoElement | null }) {
 
     const draw = () => {
       rafId = requestAnimationFrame(draw);
-      if (video.readyState < 2) return;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      if (!w || !h) return;
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
+      const { x: px, y: py, w: pw, h: ph } = paneRef.current;
+      if (canvas.width !== pw || canvas.height !== ph) {
+        canvas.width = pw;
+        canvas.height = ph;
       }
       ctx.font = `${FONT_SIZE}px monospace`;
       ctx.textBaseline = 'top';
-      const cols = Math.max(1, Math.floor(w / ctx.measureText('@').width));
-      const rows = Math.max(1, Math.floor(h / FONT_SIZE));
+      const cols = Math.max(1, Math.floor(pw / ctx.measureText('@').width));
+      const rows = Math.max(1, Math.floor(ph / FONT_SIZE));
       if (sample.width !== cols || sample.height !== rows) {
         sample.width = cols;
         sample.height = rows;
       }
-      sampleCtx.drawImage(video, 0, 0, cols, rows);
+      sampleCtx.fillStyle = '#000';
+      sampleCtx.fillRect(0, 0, cols, rows);
+
+      // 낮은 z부터 그려 실제 화면과 같은 겹침 순서를 유지한다
+      for (const meta of VIDEOS.toSorted((a, b) => a.z - b.z)) {
+        const el = videoEls.current[meta.id];
+        if (!el || el.readyState < 2 || !el.videoWidth) continue;
+        const r = el.getBoundingClientRect();
+        const ix = Math.max(px, r.left);
+        const iy = Math.max(py, r.top);
+        const iw = Math.min(px + pw, r.right) - ix;
+        const ih = Math.min(py + ph, r.bottom) - iy;
+        if (iw <= 0 || ih <= 0) continue;
+        const src = coverSourceRect(el.videoWidth, el.videoHeight, r.width, r.height);
+        try {
+          sampleCtx.drawImage(
+            el,
+            src.sx + ((ix - r.left) / r.width) * src.sw,
+            src.sy + ((iy - r.top) / r.height) * src.sh,
+            (iw / r.width) * src.sw,
+            (ih / r.height) * src.sh,
+            ((ix - px) / pw) * cols,
+            ((iy - py) / ph) * rows,
+            (iw / pw) * cols,
+            (ih / ph) * rows
+          );
+        } catch {
+          // CORS taint 등 — 해당 비디오만 건너뛴다
+        }
+      }
+
       let data: Uint8ClampedArray;
       try {
         data = sampleCtx.getImageData(0, 0, cols, rows).data;
       } catch {
-        return; // CORS taint — 오버레이만 포기하고 원본 영상은 그대로 보이게 둔다
+        return;
       }
       ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, w, h);
+      ctx.fillRect(0, 0, pw, ph);
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
       for (let r = 0; r < rows; r++) {
         let line = '';
@@ -154,7 +208,7 @@ function AsciiOverlay({ video }: { video: HTMLVideoElement | null }) {
 
     rafId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafId);
-  }, [video]);
+  }, [videoEls]);
 
   return <canvas ref={canvasRef} aria-hidden className="pointer-events-none absolute inset-0 size-full" />;
 }
@@ -174,19 +228,67 @@ function CornerBrackets() {
   );
 }
 
+type DragState = { mode: 'move' | 'resize'; id: number; offX: number; offY: number };
+
 export function Lattice() {
-  const [applied, setApplied] = React.useState<Record<string, string>>({});
+  const [panes, setPanes] = React.useState<Pane[]>(INITIAL_PANES);
   const [grabbed, setGrabbed] = React.useState<string | null>(null);
-  const [selected, setSelected] = React.useState<string | null>(null);
   const [status, setStatus] = React.useState<TrackingStatus>('loading');
   const camRef = React.useRef<HTMLVideoElement>(null);
   const cursorRef = React.useRef<HTMLDivElement>(null);
   const coordRef = React.useRef<HTMLSpanElement>(null);
   const grabbedRef = React.useRef<string | null>(null);
   const videoEls = React.useRef<Record<string, HTMLVideoElement | null>>({});
+  const panesRef = React.useRef(panes);
+  panesRef.current = panes;
+  const dragRef = React.useRef<DragState | null>(null);
+  const nextPaneId = React.useRef(INITIAL_PANES.length + 1);
 
-  const applyFilter = (videoId: string, filterKey: string) => {
-    setApplied(prev => ({ ...prev, [videoId]: filterKey }));
+  const spawnPane = (filter: string, cx: number, cy: number) => {
+    setPanes(prev => [
+      ...prev,
+      {
+        id: nextPaneId.current++,
+        filter,
+        x: cx - PANE_DEFAULT_W / 2,
+        y: cy - PANE_DEFAULT_H / 2,
+        w: PANE_DEFAULT_W,
+        h: PANE_DEFAULT_H,
+      },
+    ]);
+  };
+
+  const closePane = (id: number) => setPanes(prev => prev.filter(p => p.id !== id));
+
+  const beginDrag = (mode: DragState['mode'], id: number, cx: number, cy: number) => {
+    const pane = panesRef.current.find(p => p.id === id);
+    if (!pane) return;
+    dragRef.current = { mode, id, offX: cx - pane.x, offY: cy - pane.y };
+  };
+
+  const updateDrag = (cx: number, cy: number) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    setPanes(prev =>
+      prev.map(p => {
+        if (p.id !== drag.id) return p;
+        if (drag.mode === 'move') return { ...p, x: cx - drag.offX, y: cy - drag.offY };
+        return { ...p, w: Math.max(PANE_MIN_W, cx - p.x), h: Math.max(PANE_MIN_H, cy - p.y) };
+      })
+    );
+  };
+
+  const onGripPointerDown = (mode: DragState['mode'], id: number) => (e: React.PointerEvent) => {
+    e.preventDefault();
+    beginDrag(mode, id, e.clientX, e.clientY);
+    const move = (ev: PointerEvent) => updateDrag(ev.clientX, ev.clientY);
+    const up = () => {
+      dragRef.current = null;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
   };
 
   React.useEffect(() => {
@@ -206,6 +308,29 @@ export function Lattice() {
 
     const hitTest = (x: number, y: number, attr: string) =>
       document.elementFromPoint(x, y)?.closest<HTMLElement>(`[${attr}]`)?.getAttribute(attr) ?? null;
+
+    const onPinchStart = (x: number, y: number) => {
+      const chip = hitTest(x, y, 'data-filter-chip');
+      if (chip) {
+        grab(chip);
+        return;
+      }
+      const handleId = hitTest(x, y, 'data-pane-handle');
+      if (handleId) {
+        beginDrag('resize', Number(handleId), x, y);
+        return;
+      }
+      const paneId = hitTest(x, y, 'data-pane-id');
+      if (paneId) beginDrag('move', Number(paneId), x, y);
+    };
+
+    const onPinchEnd = (x: number, y: number) => {
+      if (grabbedRef.current) {
+        spawnPane(grabbedRef.current, x, y);
+        grab(null);
+      }
+      dragRef.current = null;
+    };
 
     const track = () => {
       const cam = camRef.current;
@@ -243,11 +368,11 @@ export function Lattice() {
           cursor.dataset.pinching = String(pinching);
 
           if (!wasPinching && pinching) {
-            grab(hitTest(x, y, 'data-filter-chip'));
-          } else if (wasPinching && !pinching && grabbedRef.current) {
-            const videoId = hitTest(x, y, 'data-video-id');
-            if (videoId) applyFilter(videoId, grabbedRef.current);
-            grab(null);
+            onPinchStart(x, y);
+          } else if (wasPinching && pinching) {
+            updateDrag(x, y);
+          } else if (wasPinching && !pinching) {
+            onPinchEnd(x, y);
           }
         } else {
           cursor.style.opacity = '0';
@@ -256,6 +381,7 @@ export function Lattice() {
           filterX = null;
           filterY = null;
           grab(null);
+          dragRef.current = null;
         }
       }
       rafId = requestAnimationFrame(track);
@@ -293,10 +419,11 @@ export function Lattice() {
       stream?.getTracks().forEach(t => t.stop());
       landmarker?.close();
     };
+    // eslint 대응이 아니라 실제로 마운트 1회만 실행되어야 하는 카메라/모델 초기화
   }, []);
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:72px_72px] font-mono uppercase text-white">
+    <div className="fixed inset-0 select-none overflow-hidden bg-black bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:72px_72px] font-mono uppercase text-white">
       {VIDEOS.map((video, i) => (
         <div
           key={video.id}
@@ -315,11 +442,8 @@ export function Lattice() {
             muted
             loop
             playsInline
-            onClick={() => selected && applyFilter(video.id, selected)}
-            className="aspect-video w-full bg-white/5 object-cover transition-[filter] duration-300"
-            style={{ filter: FILTERS[applied[video.id] ?? 'none'] }}
+            className="aspect-video w-full bg-white/5 object-cover"
           />
-          {applied[video.id] === 'ascii' && <AsciiOverlay video={videoEls.current[video.id] ?? null} />}
           <CornerBrackets />
           <span className="absolute left-0 top-0 bg-black/70 px-2 py-1 text-[10px] tracking-[0.2em] text-white/90">
             CH_{pad2(i + 1)} {video.id}
@@ -327,11 +451,48 @@ export function Lattice() {
           <span className="absolute bottom-0 right-0 bg-black/70 px-2 py-1 text-[10px] tracking-[0.2em] text-white/70">
             X:{pad2(video.x)} Y:{pad2(video.y)} W:{video.w}
           </span>
-          {applied[video.id] && applied[video.id] !== 'none' && (
-            <span className="absolute bottom-1.5 left-2 bg-white px-1.5 py-0.5 text-[10px] tracking-widest text-black">
-              FLT:{applied[video.id]}
-            </span>
-          )}
+        </div>
+      ))}
+
+      {panes.map(pane => (
+        <div
+          key={pane.id}
+          data-pane-id={pane.id}
+          className="absolute border border-dashed border-white/70"
+          style={{
+            left: pane.x,
+            top: pane.y,
+            width: pane.w,
+            height: pane.h,
+            zIndex: 35,
+            backdropFilter: FILTERS[pane.filter],
+            WebkitBackdropFilter: FILTERS[pane.filter],
+          }}
+        >
+          {pane.filter === 'ascii' && <AsciiPane pane={pane} videoEls={videoEls} />}
+          <button
+            type="button"
+            aria-label={`move ${pane.filter} pane`}
+            onPointerDown={onGripPointerDown('move', pane.id)}
+            className="absolute left-0 top-0 cursor-move bg-white px-2 py-1 text-[10px] tracking-[0.2em] text-black"
+          >
+            FLT:{pane.filter}
+          </button>
+          <button
+            type="button"
+            aria-label="close pane"
+            onClick={() => closePane(pane.id)}
+            className="absolute right-0 top-0 bg-black/70 px-2 py-1 text-[10px] text-white/80 hover:text-white"
+          >
+            ✕
+          </button>
+          <button
+            type="button"
+            aria-label={`resize ${pane.filter} pane`}
+            data-pane-handle={pane.id}
+            onPointerDown={onGripPointerDown('resize', pane.id)}
+            className="absolute -bottom-1 -right-1 size-6 cursor-se-resize border-b-2 border-r-2 border-white"
+          />
         </div>
       ))}
 
@@ -339,22 +500,21 @@ export function Lattice() {
         <h1 className="text-lg tracking-[0.4em]">Lattice</h1>
         <p className="mt-1 text-[11px] tracking-[0.2em] text-white/50">
           {status === 'loading' && 'initializing hand tracker'}
-          {status === 'error' && 'camera offline — tap chip, then video'}
-          {status === 'ready' && 'pinch chip → drop on video'}
+          {status === 'error' && 'camera offline — click chips, drag panes with mouse'}
+          {status === 'ready' && 'pinch chip → drop zone · pinch zone → move · corner → resize'}
         </p>
       </header>
 
-      <nav className="absolute right-6 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-3">
+      <nav className="absolute right-6 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
         {Object.entries(FILTERS).map(([key, value], i) => (
           <button
             key={key}
             type="button"
+            aria-label={`filter ${key}`}
             data-filter-chip={key}
-            onClick={() => setSelected(key)}
+            onClick={() => spawnPane(key, window.innerWidth / 2 + panesRef.current.length * 24, window.innerHeight / 2)}
             className={`flex w-52 items-center gap-4 border px-5 py-4 text-base tracking-[0.25em] backdrop-blur transition-colors ${
-              grabbed === key || selected === key
-                ? 'border-white bg-white/25'
-                : 'border-white/30 bg-black/50 hover:border-white/70'
+              grabbed === key ? 'border-white bg-white/25' : 'border-white/30 bg-black/50 hover:border-white/70'
             }`}
           >
             <span className="text-xs text-white/40">F{i + 1}</span>
@@ -382,7 +542,7 @@ export function Lattice() {
         <span className="absolute left-2 top-1.5 text-[10px] tracking-[0.2em] text-white/70">CAM_00</span>
       </div>
 
-      <div ref={cursorRef} className="pointer-events-none absolute left-0 top-0 z-50 opacity-0">
+      <div ref={cursorRef} className="pointer-events-none absolute left-0 top-0 z-[60] opacity-0">
         <span className="absolute h-px w-10 -translate-x-1/2 -translate-y-1/2 bg-white/90" />
         <span className="absolute h-10 w-px -translate-x-1/2 -translate-y-1/2 bg-white/90" />
         <span className="absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white transition-colors [[data-pinching=true]>&]:bg-white" />

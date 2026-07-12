@@ -4,10 +4,11 @@
 [anainsomnia.com/lattice](https://www.anainsomnia.com/lattice)에서 영감을 받았습니다.
 `mumak-react` 템플릿을 복제해 만들었습니다.
 
-- 레이어드 비디오 4개 + 필터 칩 7개 (CSS `filter` 6종 + canvas 기반 ascii 오버레이 1종)
-- 영상 소스는 전부 CORS 허용 CDN — ascii 필터가 canvas `getImageData`로 픽셀을 읽어야 하므로 교체 시에도 ACAO 헤더 확인 필요
-- MediaPipe HandLandmarker(웹캠)로 손 추적, 엄지-검지 핀치로 칩을 집어 비디오에 드롭
-- 카메라가 없거나 거부되면 칩 클릭 → 비디오 클릭 폴백으로 동작
+- 레이어드 비디오 4개 + 이동/리사이즈 가능한 필터 존(pane) — 존과 겹친 영상 부분에만 필터가 보인다
+- CSS `backdrop-filter` 존 5종 + canvas 합성 기반 ascii 존 1종
+- 영상 소스는 전부 CORS 허용 CDN — ascii 존이 canvas `getImageData`로 픽셀을 읽어야 하므로 교체 시에도 ACAO 헤더 확인 필요
+- MediaPipe HandLandmarker(웹캠)로 손 추적: 칩을 핀치해 놓으면 존 생성, 존 몸통 핀치로 이동, 우하단 핸들 핀치로 리사이즈
+- 카메라가 없거나 거부되면 칩 클릭으로 존 생성, 마우스 드래그로 이동/리사이즈
 
 ## 개발 환경
 

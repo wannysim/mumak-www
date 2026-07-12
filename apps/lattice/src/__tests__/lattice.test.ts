@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { createOneEuro, luminanceToChar, nextPinch, pinchDistance, remapToScreen } from '../components/lattice';
+import {
+  coverSourceRect,
+  createOneEuro,
+  luminanceToChar,
+  nextPinch,
+  pinchDistance,
+  remapToScreen,
+} from '../components/lattice';
 
 describe('pinchDistance', () => {
   it('should return euclidean distance between two landmarks', () => {
@@ -28,6 +35,17 @@ describe('luminanceToChar', () => {
 
   it('should map mid luminance to a mid-ramp character', () => {
     expect(luminanceToChar(128)).toBe('+');
+  });
+});
+
+describe('coverSourceRect', () => {
+  it('should crop top and bottom when the video is taller than the display box', () => {
+    // 4:3 원본을 16:9 박스에 cover — 가로가 기준 스케일이 되고 세로가 잘린다
+    expect(coverSourceRect(320, 240, 160, 90)).toEqual({ sx: 0, sy: 30, sw: 320, sh: 180 });
+  });
+
+  it('should return the full frame when aspect ratios match', () => {
+    expect(coverSourceRect(1920, 1080, 960, 540)).toEqual({ sx: 0, sy: 0, sw: 1920, sh: 1080 });
   });
 });
 

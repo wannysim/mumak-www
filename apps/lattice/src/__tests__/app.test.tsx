@@ -11,10 +11,11 @@ describe('App', () => {
     expect(await screen.findByText(/camera offline/)).toBeInTheDocument();
   });
 
-  it('renders a chip for every filter and all video layers', async () => {
+  it('renders filter chips, video layers, and initial filter panes', async () => {
     render(<App />);
-    expect(screen.getAllByRole('button')).toHaveLength(7);
+    expect(screen.getAllByRole('button', { name: /^filter / })).toHaveLength(6);
     expect(screen.getByLabelText('bunny layer')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^move / })).toHaveLength(2);
     await screen.findByText(/camera offline/);
   });
 });
