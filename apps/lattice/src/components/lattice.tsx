@@ -1,0 +1,401 @@
+import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+import * as React from 'react';
+
+// CC0/공개 샘플 영상. 전부 CORS(ACAO) 허용 소스만 사용 —
+// ascii 오버레이가 canvas getImageData로 픽셀을 읽어야 해서 필수 조건이다.
+// x/y/w는 viewport %, z로 레이어를 서로 겹친다
+const VIDEOS = [
+  {
+    id: 'bunny',
+    src: 'https://mdn.github.io/learning-area/html/multimedia-and-embedding/video-and-audio-content/rabbit320.mp4',
+    x: 6,
+    y: 10,
+    w: 42,
+    z: 10,
+  },
+  {
+    id: 'sintel',
+    src: 'https://mdn.github.io/shared-assets/videos/sintel-short.mp4',
+    x: 38,
+    y: 6,
+    w: 34,
+    z: 20,
+  },
+  {
+    id: 'flower',
+    src: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+    x: 14,
+    y: 48,
+    w: 30,
+    z: 30,
+  },
+  {
+    id: 'friday',
+    src: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4',
+    x: 40,
+    y: 44,
+    w: 36,
+    z: 10,
+  },
+];
+
+const FILTERS: Record<string, string> = {
+  none: 'none',
+  mono: 'grayscale(1) contrast(1.15)',
+  heat: 'hue-rotate(310deg) saturate(2.4)',
+  acid: 'invert(1) hue-rotate(180deg)',
+  dream: 'blur(3px) brightness(1.15) saturate(1.4)',
+  vhs: 'sepia(0.7) contrast(1.3) saturate(1.6)',
+  // css filter가 아니라 canvas 오버레이(AsciiOverlay)로 렌더링되는 특수 필터
+  ascii: 'none',
+};
+
+// 핀치 임계값 — 엄지-검지 거리를 손바닥 길이(손목~중지 뿌리)로 나눈 비율.
+// 절대 거리가 아니라서 손이 카메라에서 멀어져도 판정이 일정하다.
+const PINCH_ON = 0.35;
+const PINCH_OFF = 0.5;
+// 핀치 비율 자체의 프레임 간 노이즈를 누르는 EMA 계수
+const PINCH_RATIO_SMOOTHING = 0.5;
+// 카메라 프레임 가장자리는 손이 잘리므로 중앙 영역만 화면 전체로 사상
+const EDGE_MARGIN = 0.18;
+
+export function pinchDistance(a: { x: number; y: number }, b: { x: number; y: number }) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+export function nextPinch(wasPinching: boolean, ratio: number) {
+  return wasPinching ? ratio < PINCH_OFF : ratio < PINCH_ON;
+}
+
+export function remapToScreen(v: number) {
+  return Math.min(1, Math.max(0, (v - EDGE_MARGIN) / (1 - 2 * EDGE_MARGIN)));
+}
+
+// One Euro Filter — 천천히 움직일 땐 저역 통과로 떨림을 누르고,
+// 빨리 움직일 땐 컷오프를 올려 지연 없이 따라온다. (Casiez et al. 2012)
+export function createOneEuro(minCutoff = 1.2, beta = 0.02, dCutoff = 1) {
+  let prev: { t: number; x: number; dx: number } | null = null;
+  const alpha = (cutoff: number, dt: number) => 1 / (1 + 1 / (2 * Math.PI * cutoff * dt));
+  return (x: number, tMs: number) => {
+    if (!prev) {
+      prev = { t: tMs, x, dx: 0 };
+      return x;
+    }
+    const dt = Math.max((tMs - prev.t) / 1000, 1e-3);
+    const dxRaw = (x - prev.x) / dt;
+    const dx = prev.dx + alpha(dCutoff, dt) * (dxRaw - prev.dx);
+    const cutoff = minCutoff + beta * Math.abs(dx);
+    const filtered = prev.x + alpha(cutoff, dt) * (x - prev.x);
+    prev = { t: tMs, x: filtered, dx };
+    return filtered;
+  };
+}
+
+const ASCII_CHARS = ' .:-=+*#%@';
+
+export function luminanceToChar(luminance: number) {
+  const index = Math.min(ASCII_CHARS.length - 1, Math.floor((luminance / 256) * ASCII_CHARS.length));
+  return ASCII_CHARS.charAt(index);
+}
+
+// 영상 프레임을 저해상도로 샘플링해 밝기를 문자로 치환하는 캔버스 오버레이.
+// 원본 <video>는 그대로 재생시키고 그 위를 덮는다.
+function AsciiOverlay({ video }: { video: HTMLVideoElement | null }) {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    const ctx = canvas.getContext('2d');
+    const sample = document.createElement('canvas');
+    const sampleCtx = sample.getContext('2d', { willReadFrequently: true });
+    if (!ctx || !sampleCtx) return;
+
+    const FONT_SIZE = 10;
+    let rafId = 0;
+
+    const draw = () => {
+      rafId = requestAnimationFrame(draw);
+      if (video.readyState < 2) return;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (!w || !h) return;
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      ctx.font = `${FONT_SIZE}px monospace`;
+      ctx.textBaseline = 'top';
+      const cols = Math.max(1, Math.floor(w / ctx.measureText('@').width));
+      const rows = Math.max(1, Math.floor(h / FONT_SIZE));
+      if (sample.width !== cols || sample.height !== rows) {
+        sample.width = cols;
+        sample.height = rows;
+      }
+      sampleCtx.drawImage(video, 0, 0, cols, rows);
+      let data: Uint8ClampedArray;
+      try {
+        data = sampleCtx.getImageData(0, 0, cols, rows).data;
+      } catch {
+        return; // CORS taint — 오버레이만 포기하고 원본 영상은 그대로 보이게 둔다
+      }
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      for (let r = 0; r < rows; r++) {
+        let line = '';
+        for (let c = 0; c < cols; c++) {
+          const i = (r * cols + c) * 4;
+          line += luminanceToChar(0.2126 * (data[i] ?? 0) + 0.7152 * (data[i + 1] ?? 0) + 0.0722 * (data[i + 2] ?? 0));
+        }
+        ctx.fillText(line, 0, r * FONT_SIZE);
+      }
+    };
+
+    rafId = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(rafId);
+  }, [video]);
+
+  return <canvas ref={canvasRef} aria-hidden className="pointer-events-none absolute inset-0 size-full" />;
+}
+
+type TrackingStatus = 'loading' | 'ready' | 'error';
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+function CornerBrackets() {
+  return (
+    <>
+      <span className="absolute -left-px -top-px size-4 border-l border-t border-white/80" />
+      <span className="absolute -right-px -top-px size-4 border-r border-t border-white/80" />
+      <span className="absolute -bottom-px -left-px size-4 border-b border-l border-white/80" />
+      <span className="absolute -bottom-px -right-px size-4 border-b border-r border-white/80" />
+    </>
+  );
+}
+
+export function Lattice() {
+  const [applied, setApplied] = React.useState<Record<string, string>>({});
+  const [grabbed, setGrabbed] = React.useState<string | null>(null);
+  const [selected, setSelected] = React.useState<string | null>(null);
+  const [status, setStatus] = React.useState<TrackingStatus>('loading');
+  const camRef = React.useRef<HTMLVideoElement>(null);
+  const cursorRef = React.useRef<HTMLDivElement>(null);
+  const coordRef = React.useRef<HTMLSpanElement>(null);
+  const grabbedRef = React.useRef<string | null>(null);
+  const videoEls = React.useRef<Record<string, HTMLVideoElement | null>>({});
+
+  const applyFilter = (videoId: string, filterKey: string) => {
+    setApplied(prev => ({ ...prev, [videoId]: filterKey }));
+  };
+
+  React.useEffect(() => {
+    let disposed = false;
+    let rafId = 0;
+    let stream: MediaStream | null = null;
+    let landmarker: HandLandmarker | null = null;
+    let pinching = false;
+    let pinchRatio: number | null = null;
+    let filterX: ReturnType<typeof createOneEuro> | null = null;
+    let filterY: ReturnType<typeof createOneEuro> | null = null;
+
+    const grab = (filterKey: string | null) => {
+      grabbedRef.current = filterKey;
+      setGrabbed(filterKey);
+    };
+
+    const hitTest = (x: number, y: number, attr: string) =>
+      document.elementFromPoint(x, y)?.closest<HTMLElement>(`[${attr}]`)?.getAttribute(attr) ?? null;
+
+    const track = () => {
+      const cam = camRef.current;
+      const cursor = cursorRef.current;
+      if (!cam || !cursor || !landmarker) return;
+
+      if (cam.readyState >= 2) {
+        const now = performance.now();
+        const result = landmarker.detectForVideo(cam, now);
+        const hand = result.landmarks[0];
+        const wrist = hand?.[0];
+        const thumbTip = hand?.[4];
+        const indexTip = hand?.[8];
+        const middleMcp = hand?.[9];
+        if (wrist && thumbTip && indexTip && middleMcp) {
+          // 커서 앵커는 엄지-검지 중간점 — 핀치 동작으로 검지가 움직여도 커서가 밀리지 않는다.
+          // 셀피 뷰라 x를 미러링하고, 랜드마크 노이즈는 One Euro Filter로 누른다.
+          const mid = { x: (thumbTip.x + indexTip.x) / 2, y: (thumbTip.y + indexTip.y) / 2 };
+          filterX ??= createOneEuro();
+          filterY ??= createOneEuro();
+          const x = filterX(remapToScreen(1 - mid.x), now) * window.innerWidth;
+          const y = filterY(remapToScreen(mid.y), now) * window.innerHeight;
+          cursor.style.opacity = '1';
+          cursor.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+          if (coordRef.current) {
+            coordRef.current.textContent = `X:${pad2(Math.round((x / window.innerWidth) * 100))} Y:${pad2(Math.round((y / window.innerHeight) * 100))}`;
+          }
+
+          const palmLength = Math.max(pinchDistance(wrist, middleMcp), 1e-6);
+          const rawRatio = pinchDistance(thumbTip, indexTip) / palmLength;
+          pinchRatio = pinchRatio === null ? rawRatio : pinchRatio + PINCH_RATIO_SMOOTHING * (rawRatio - pinchRatio);
+
+          const wasPinching = pinching;
+          pinching = nextPinch(pinching, pinchRatio);
+          cursor.dataset.pinching = String(pinching);
+
+          if (!wasPinching && pinching) {
+            grab(hitTest(x, y, 'data-filter-chip'));
+          } else if (wasPinching && !pinching && grabbedRef.current) {
+            const videoId = hitTest(x, y, 'data-video-id');
+            if (videoId) applyFilter(videoId, grabbedRef.current);
+            grab(null);
+          }
+        } else {
+          cursor.style.opacity = '0';
+          pinching = false;
+          pinchRatio = null;
+          filterX = null;
+          filterY = null;
+          grab(null);
+        }
+      }
+      rafId = requestAnimationFrame(track);
+    };
+
+    const init = async () => {
+      // 카메라 권한을 먼저 확보해서 거부/미지원이면 모델 다운로드 없이 바로 폴백으로 빠진다
+      const [media, vision] = await Promise.all([
+        navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } }),
+        FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'),
+      ]);
+      stream = media;
+      landmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath:
+            'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+          delegate: 'GPU',
+        },
+        runningMode: 'VIDEO',
+        numHands: 1,
+      });
+      if (disposed) return;
+      const cam = camRef.current!;
+      cam.srcObject = stream;
+      await cam.play();
+      setStatus('ready');
+      rafId = requestAnimationFrame(track);
+    };
+
+    init().catch(() => setStatus('error'));
+
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(rafId);
+      stream?.getTracks().forEach(t => t.stop());
+      landmarker?.close();
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 overflow-hidden bg-black bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:72px_72px] font-mono uppercase text-white">
+      {VIDEOS.map((video, i) => (
+        <div
+          key={video.id}
+          data-video-id={video.id}
+          className="absolute"
+          style={{ left: `${video.x}%`, top: `${video.y}%`, width: `${video.w}%`, zIndex: video.z }}
+        >
+          <video
+            ref={el => {
+              videoEls.current[video.id] = el;
+            }}
+            aria-label={`${video.id} layer`}
+            src={video.src}
+            crossOrigin="anonymous"
+            autoPlay
+            muted
+            loop
+            playsInline
+            onClick={() => selected && applyFilter(video.id, selected)}
+            className="aspect-video w-full bg-white/5 object-cover transition-[filter] duration-300"
+            style={{ filter: FILTERS[applied[video.id] ?? 'none'] }}
+          />
+          {applied[video.id] === 'ascii' && <AsciiOverlay video={videoEls.current[video.id] ?? null} />}
+          <CornerBrackets />
+          <span className="absolute left-0 top-0 bg-black/70 px-2 py-1 text-[10px] tracking-[0.2em] text-white/90">
+            CH_{pad2(i + 1)} {video.id}
+          </span>
+          <span className="absolute bottom-0 right-0 bg-black/70 px-2 py-1 text-[10px] tracking-[0.2em] text-white/70">
+            X:{pad2(video.x)} Y:{pad2(video.y)} W:{video.w}
+          </span>
+          {applied[video.id] && applied[video.id] !== 'none' && (
+            <span className="absolute bottom-1.5 left-2 bg-white px-1.5 py-0.5 text-[10px] tracking-widest text-black">
+              FLT:{applied[video.id]}
+            </span>
+          )}
+        </div>
+      ))}
+
+      <header className="absolute left-6 top-6 z-40">
+        <h1 className="text-lg tracking-[0.4em]">Lattice</h1>
+        <p className="mt-1 text-[11px] tracking-[0.2em] text-white/50">
+          {status === 'loading' && 'initializing hand tracker'}
+          {status === 'error' && 'camera offline — tap chip, then video'}
+          {status === 'ready' && 'pinch chip → drop on video'}
+        </p>
+      </header>
+
+      <nav className="absolute right-6 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-3">
+        {Object.entries(FILTERS).map(([key, value], i) => (
+          <button
+            key={key}
+            type="button"
+            data-filter-chip={key}
+            onClick={() => setSelected(key)}
+            className={`flex w-52 items-center gap-4 border px-5 py-4 text-base tracking-[0.25em] backdrop-blur transition-colors ${
+              grabbed === key || selected === key
+                ? 'border-white bg-white/25'
+                : 'border-white/30 bg-black/50 hover:border-white/70'
+            }`}
+          >
+            <span className="text-xs text-white/40">F{i + 1}</span>
+            {key === 'ascii' ? (
+              <span className="flex size-5 items-center justify-center border border-white/50 text-[11px] normal-case">
+                @
+              </span>
+            ) : (
+              <span className="size-5 bg-[linear-gradient(135deg,#f59e0b,#ec4899,#3b82f6)]" style={{ filter: value }} />
+            )}
+            {key}
+          </button>
+        ))}
+      </nav>
+
+      <div className="absolute bottom-6 left-6 z-40">
+        <video
+          ref={camRef}
+          aria-label="webcam preview"
+          muted
+          playsInline
+          className="w-44 -scale-x-100 bg-white/5 opacity-80"
+        />
+        <CornerBrackets />
+        <span className="absolute left-2 top-1.5 text-[10px] tracking-[0.2em] text-white/70">CAM_00</span>
+      </div>
+
+      <div ref={cursorRef} className="pointer-events-none absolute left-0 top-0 z-50 opacity-0">
+        <span className="absolute h-px w-10 -translate-x-1/2 -translate-y-1/2 bg-white/90" />
+        <span className="absolute h-10 w-px -translate-x-1/2 -translate-y-1/2 bg-white/90" />
+        <span className="absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white transition-colors [[data-pinching=true]>&]:bg-white" />
+        <span
+          ref={coordRef}
+          className="absolute left-4 top-3.5 whitespace-nowrap text-[10px] tracking-[0.2em] text-white/80"
+        />
+        {grabbed && (
+          <span className="absolute left-4 top-8 bg-white px-1.5 py-0.5 text-[10px] tracking-widest text-black">
+            {grabbed}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
