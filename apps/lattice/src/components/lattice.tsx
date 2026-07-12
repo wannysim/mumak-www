@@ -441,7 +441,11 @@ export function Lattice() {
         runningMode: 'VIDEO',
         numHands: 1,
       });
-      if (disposed) return;
+      if (disposed) {
+        // cleanup이 이미 지나간 뒤라 여기서 직접 스트림을 정리해야 한다
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
       const cam = camRef.current!;
       cam.srcObject = stream;
       await cam.play();
@@ -596,7 +600,11 @@ export function Lattice() {
         <span className="absolute left-2 top-1.5 text-[10px] tracking-[0.2em] text-white/70">CAM_00</span>
       </div>
 
-      <div ref={cursorRef} className="pointer-events-none absolute left-0 top-0 z-[60] opacity-0">
+      <div
+        ref={cursorRef}
+        data-testid="hand-cursor"
+        className="pointer-events-none absolute left-0 top-0 z-[60] opacity-0"
+      >
         <span className="absolute h-px w-10 -translate-x-1/2 -translate-y-1/2 bg-white/90" />
         <span className="absolute h-10 w-px -translate-x-1/2 -translate-y-1/2 bg-white/90" />
         <span className="absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white transition-colors [[data-pinching=true]>&]:bg-white" />
