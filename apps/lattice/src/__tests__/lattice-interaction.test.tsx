@@ -373,6 +373,43 @@ describe('mouse fallback', () => {
     expect(panes()).toHaveLength(4);
   });
 
+  it('should keep a mouse drag alive while the tracker sees no hand', async () => {
+    await renderReady();
+
+    // 마우스 사용 중에는 보통 손이 카메라 프레임에 없다 — 그 상태의 트래커
+    // 프레임이 진행 중인 마우스 드래그를 지우면 안 된다 (회귀 방지)
+    currentHand = null;
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'adjust mono pane' }), {
+      clientX: 310,
+      clientY: 270,
+    });
+    stepFrames(5);
+    fireEvent(window, new MouseEvent('pointermove', { clientX: 430, clientY: 350 }));
+    fireEvent(window, new MouseEvent('pointerup', {}));
+
+    // offX 170 유지 → 430 - 170 = 260
+    expect(paneEl(1).style.left).toBe('260px');
+  });
+
+  it('should keep the chip carry ghost visible while the tracker sees no hand', async () => {
+    await renderReady();
+    const cursor = screen.getByTestId('hand-cursor');
+
+    currentHand = null;
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'filter heat' }), {
+      clientX: 900,
+      clientY: 300,
+    });
+    fireEvent(window, new MouseEvent('pointermove', { clientX: 500, clientY: 300 }));
+    stepFrames(5);
+
+    expect(cursor.style.opacity).toBe('1');
+    expect(within(cursor).getByText('heat')).toBeInTheDocument();
+
+    fireEvent(window, new MouseEvent('pointerup', { clientX: 500, clientY: 300 }));
+    expect(panes()).toHaveLength(3);
+  });
+
   it('should move a video layer by dragging its cover button', async () => {
     await renderReady();
     const bunny = document.querySelector<HTMLElement>('[data-video-id="bunny"]')!;

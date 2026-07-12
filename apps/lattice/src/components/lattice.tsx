@@ -309,6 +309,9 @@ function CornerBrackets() {
 }
 
 type DragState = {
+  // 손 추적 루프는 'hand' 드래그만 소유한다 — 손이 프레임에 없다고
+  // 마우스가 진행 중인 드래그를 지우면 안 된다
+  source: 'hand' | 'mouse';
   kind: 'pane' | 'video';
   id: number | string;
   edges: ResizeEdges | null; // null이면 이동
@@ -368,12 +371,15 @@ export function Lattice() {
 
   // 마우스로 칩을 끌어다 놓으면 그 자리에 존 생성 (8px 미만 이동은 클릭으로 간주)
   const chipDraggedRef = React.useRef(false);
+  // 마우스 칩 캐리가 진행 중이면 손 추적 루프가 커서/하이라이트를 끄지 못하게 막는다
+  const mouseChipRef = React.useRef(false);
 
   const onChipPointerDown = (key: string) => (e: React.PointerEvent) => {
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
     chipDraggedRef.current = false;
+    mouseChipRef.current = true;
     setGrabbed(key);
     const cursor = cursorRef.current;
     const move = (ev: PointerEvent) => {
@@ -386,6 +392,7 @@ export function Lattice() {
     const up = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      mouseChipRef.current = false;
       setGrabbed(null);
       if (cursor) cursor.style.opacity = '0';
       if (chipDraggedRef.current) spawnPane(key, ev.clientX, ev.clientY);
@@ -407,10 +414,23 @@ export function Lattice() {
     kind === 'pane' ? panesRef.current.find(p => p.id === id) : videoRectsRef.current[String(id)];
 
   // 잡은 위치가 가장자리면 해당 변 리사이즈, 아니면 이동
-  const beginDrag = (kind: DragState['kind'], id: DragState['id'], cx: number, cy: number) => {
+  const beginDrag = (
+    source: DragState['source'],
+    kind: DragState['kind'],
+    id: DragState['id'],
+    cx: number,
+    cy: number
+  ) => {
     const box = boxOf(kind, id);
     if (!box) return;
-    dragRef.current = { kind, id, edges: edgesAt(box, cx, cy), offX: cx - box.x, offY: cy - box.y };
+    dragRef.current = {
+      source,
+      kind,
+      id,
+      edges: edgesAt(box, cx, cy),
+      offX: cx - box.x,
+      offY: cy - box.y,
+    };
   };
 
   const updateDrag = (cx: number, cy: number) => {
@@ -427,7 +447,7 @@ export function Lattice() {
 
   const onBoxPointerDown = (kind: DragState['kind'], id: DragState['id']) => (e: React.PointerEvent) => {
     e.preventDefault();
-    beginDrag(kind, id, e.clientX, e.clientY);
+    beginDrag('mouse', kind, id, e.clientX, e.clientY);
     const move = (ev: PointerEvent) => updateDrag(ev.clientX, ev.clientY);
     const up = () => {
       dragRef.current = null;
@@ -457,6 +477,8 @@ export function Lattice() {
       document.elementFromPoint(x, y)?.closest<HTMLElement>(`[${attr}]`)?.getAttribute(attr) ?? null;
 
     const onPinchStart = (x: number, y: number) => {
+      // 마우스가 드래그 중이면 손이 그 드래그를 가로채지 않는다
+      if (dragRef.current?.source === 'mouse') return;
       const chip = hitTest(x, y, 'data-filter-chip');
       if (chip) {
         grab(chip);
@@ -464,11 +486,11 @@ export function Lattice() {
       }
       const paneId = hitTest(x, y, 'data-pane-id');
       if (paneId) {
-        beginDrag('pane', Number(paneId), x, y);
+        beginDrag('hand', 'pane', Number(paneId), x, y);
         return;
       }
       const videoId = hitTest(x, y, 'data-video-id');
-      if (videoId) beginDrag('video', videoId, x, y);
+      if (videoId) beginDrag('hand', 'video', videoId, x, y);
     };
 
     const onPinchEnd = (x: number, y: number) => {
@@ -476,7 +498,7 @@ export function Lattice() {
         spawnPane(grabbedRef.current, x, y);
         grab(null);
       }
-      dragRef.current = null;
+      if (dragRef.current?.source === 'hand') dragRef.current = null;
     };
 
     const track = () => {
@@ -517,18 +539,20 @@ export function Lattice() {
           if (!wasPinching && pinching) {
             onPinchStart(x, y);
           } else if (wasPinching && pinching) {
-            updateDrag(x, y);
+            if (dragRef.current?.source === 'hand') updateDrag(x, y);
           } else if (wasPinching && !pinching) {
             onPinchEnd(x, y);
           }
         } else {
-          cursor.style.opacity = '0';
+          // 손이 프레임에 없을 때는 손이 소유한 상태만 정리한다 —
+          // 마우스 드래그/칩 캐리는 건드리지 않는다 (마우스 사용 중엔 보통 손이 없다)
           pinching = false;
           pinchRatio = null;
           filterX = null;
           filterY = null;
-          grab(null);
-          dragRef.current = null;
+          if (!mouseChipRef.current) cursor.style.opacity = '0';
+          if (grabbedRef.current) grab(null);
+          if (dragRef.current?.source === 'hand') dragRef.current = null;
         }
       }
       rafId = requestAnimationFrame(track);
