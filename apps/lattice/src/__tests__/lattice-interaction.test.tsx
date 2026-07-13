@@ -439,6 +439,26 @@ describe('mouse fallback', () => {
   });
 });
 
+describe('shuffle', () => {
+  it('should place every layer within the viewport', async () => {
+    await renderReady();
+    fireEvent.click(screen.getByRole('button', { name: 'shuffle layout' }));
+
+    const boxes = [...document.querySelectorAll<HTMLElement>('[data-video-id], [data-pane-id]')];
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const el of boxes) {
+      const left = Number.parseFloat(el.style.left);
+      const top = Number.parseFloat(el.style.top);
+      const width = Number.parseFloat(el.style.width);
+      const height = Number.parseFloat(el.style.height);
+      expect(left).toBeGreaterThanOrEqual(0);
+      expect(top).toBeGreaterThanOrEqual(0);
+      expect(left + width).toBeLessThanOrEqual(window.innerWidth + 0.001);
+      expect(top + height).toBeLessThanOrEqual(window.innerHeight + 0.001);
+    }
+  });
+});
+
 describe('ascii panes', () => {
   it('should composite overlapping videos (and mirrored webcam) into character cells', async () => {
     await renderReady();

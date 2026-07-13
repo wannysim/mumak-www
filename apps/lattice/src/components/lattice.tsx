@@ -1,4 +1,5 @@
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+import { Dices } from 'lucide-react';
 import * as React from 'react';
 
 // CC0/공개 샘플 영상. 전부 CORS(ACAO) 허용 소스만 사용 —
@@ -378,6 +379,24 @@ export function Lattice() {
 
   const closePane = (id: number) => setPanes(prev => prev.filter(p => p.id !== id));
 
+  // 모든 영상·웹캠·필터 존을 뷰포트 안에서 랜덤 위치·크기로 재배치
+  const shuffle = () => {
+    const { innerWidth: vw, innerHeight: vh } = window;
+    const rand = (min: number, max: number) => min + Math.random() * Math.max(0, max - min);
+    const place = (w: number, h: number): Box => ({ x: rand(0, vw - w), y: rand(0, vh - h), w, h });
+    // 영상은 16:9로 뽑아 자연스럽게, 필터 존은 자유 비율
+    const videoBox = () => {
+      const w = rand(220, vw * 0.45);
+      return place(w, Math.min((w * 9) / 16, vh * 0.9));
+    };
+    const paneBox = () => place(rand(PANE_MIN_W, vw * 0.5), rand(PANE_MIN_H, vh * 0.6));
+    const filterKeys = Object.keys(FILTERS);
+    const randomFilter = () => filterKeys[Math.floor(Math.random() * filterKeys.length)]!;
+
+    setVideoRects(prev => Object.fromEntries(Object.keys(prev).map(id => [id, videoBox()])));
+    setPanes(prev => prev.map(p => ({ ...p, filter: randomFilter(), ...paneBox() })));
+  };
+
   // 마우스로 칩을 끌어다 놓으면 그 자리에 존 생성 (8px 미만 이동은 클릭으로 간주)
   const chipDraggedRef = React.useRef(false);
   // 마우스 칩 캐리가 진행 중이면 손 추적 루프가 커서/하이라이트를 끄지 못하게 막는다
@@ -746,6 +765,15 @@ export function Lattice() {
           {status === 'ready' && 'pinch chip → drop zone · pinch body → move · pinch edge → resize'}
         </p>
       </header>
+
+      <button
+        type="button"
+        aria-label="shuffle layout"
+        onClick={shuffle}
+        className="absolute right-6 top-6 z-50 flex size-12 items-center justify-center border border-white/30 bg-black/50 text-white/80 backdrop-blur transition-colors hover:border-white/70 hover:bg-white/10 hover:text-white"
+      >
+        <Dices className="size-5" />
+      </button>
 
       <nav className="absolute right-6 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
         {Object.entries(FILTERS).map(([key, value], i) => (
