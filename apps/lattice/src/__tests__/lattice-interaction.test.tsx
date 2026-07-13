@@ -274,6 +274,19 @@ describe('hand gestures', () => {
     expect(cam.style.left).not.toBe(before);
   });
 
+  it('should close a pane when its close button is pinched', async () => {
+    await renderReady();
+    expect(panes()).toHaveLength(2);
+
+    hitElement = screen.getAllByRole('button', { name: 'close pane' })[0]!;
+    currentHand = hand({ x: 0.5, y: 0.5 }, false);
+    stepFrames();
+    currentHand = hand({ x: 0.5, y: 0.5 }, true);
+    stepFrames(3);
+
+    expect(panes()).toHaveLength(1);
+  });
+
   it('should stop the acquired camera stream when unmounted before init settles', async () => {
     const view = render(<Lattice />);
     view.unmount();

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   coverSourceRect,
   createOneEuro,
+  cursorForEdges,
   edgesAt,
   luminanceToChar,
   nextPinch,
@@ -58,6 +59,22 @@ describe('edgesAt', () => {
   it('should detect corners as two edges', () => {
     expect(edgesAt(box, 102, 102)).toEqual({ l: true, r: false, t: true, b: false });
     expect(edgesAt(box, 298, 198)).toEqual({ l: false, r: true, t: false, b: true });
+  });
+});
+
+describe('cursorForEdges', () => {
+  it('should return move when no edge is grabbed', () => {
+    expect(cursorForEdges(null)).toBe('move');
+  });
+
+  it('should map single edges to axis resize cursors', () => {
+    expect(cursorForEdges({ l: true, r: false, t: false, b: false })).toBe('ew-resize');
+    expect(cursorForEdges({ l: false, r: false, t: true, b: false })).toBe('ns-resize');
+  });
+
+  it('should map corners to diagonal resize cursors', () => {
+    expect(cursorForEdges({ l: true, r: false, t: true, b: false })).toBe('nwse-resize');
+    expect(cursorForEdges({ l: false, r: true, t: true, b: false })).toBe('nesw-resize');
   });
 });
 

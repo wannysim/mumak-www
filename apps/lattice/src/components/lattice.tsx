@@ -106,6 +106,15 @@ export function resizeBox<T extends Box>(
   return { ...box, x, y, w, h };
 }
 
+// 잡은 변 조합 → 네이티브 커서. 가장자리가 아니면 이동, 꼭짓점은 대각 리사이즈.
+export function cursorForEdges(edges: ResizeEdges | null) {
+  if (!edges) return 'move';
+  if ((edges.l && edges.t) || (edges.r && edges.b)) return 'nwse-resize';
+  if ((edges.r && edges.t) || (edges.l && edges.b)) return 'nesw-resize';
+  if (edges.l || edges.r) return 'ew-resize';
+  return 'ns-resize';
+}
+
 // 핀치 임계값 — 엄지-검지 거리를 손바닥 길이(손목~중지 뿌리)로 나눈 비율.
 // 절대 거리가 아니라서 손이 카메라에서 멀어져도 판정이 일정하다.
 const PINCH_ON = 0.35;
@@ -386,6 +395,7 @@ export function Lattice() {
       if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8) chipDraggedRef.current = true;
       if (cursor && chipDraggedRef.current) {
         cursor.style.opacity = '1';
+        cursor.dataset.state = 'carry';
         cursor.style.transform = `translate3d(${ev.clientX}px, ${ev.clientY}px, 0)`;
       }
     };
@@ -394,7 +404,10 @@ export function Lattice() {
       window.removeEventListener('pointerup', up);
       mouseChipRef.current = false;
       setGrabbed(null);
-      if (cursor) cursor.style.opacity = '0';
+      if (cursor) {
+        cursor.style.opacity = '0';
+        cursor.dataset.state = 'idle';
+      }
       if (chipDraggedRef.current) spawnPane(key, ev.clientX, ev.clientY);
     };
     window.addEventListener('pointermove', move);
@@ -445,11 +458,21 @@ export function Lattice() {
     }
   };
 
+  // 가장자리에 가까우면 방향 리사이즈 커서, 아니면 이동 커서 (드래그 중엔 body 커서가 고정)
+  const onBoxHover = (kind: DragState['kind'], id: DragState['id']) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (dragRef.current) return;
+    const box = boxOf(kind, id);
+    if (box) e.currentTarget.style.cursor = cursorForEdges(edgesAt(box, e.clientX, e.clientY));
+  };
+
   const onBoxPointerDown = (kind: DragState['kind'], id: DragState['id']) => (e: React.PointerEvent) => {
     e.preventDefault();
     beginDrag('mouse', kind, id, e.clientX, e.clientY);
+    // 드래그 동안 커서가 박스를 벗어나도 유지되도록 body에 고정
+    document.body.style.cursor = cursorForEdges(dragRef.current?.edges ?? null);
     const move = (ev: PointerEvent) => updateDrag(ev.clientX, ev.clientY);
     const up = () => {
+      document.body.style.cursor = '';
       dragRef.current = null;
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
@@ -476,9 +499,31 @@ export function Lattice() {
     const hitTest = (x: number, y: number, attr: string) =>
       document.elementFromPoint(x, y)?.closest<HTMLElement>(`[${attr}]`)?.getAttribute(attr) ?? null;
 
+    const dirOf = (e: ResizeEdges) =>
+      (e.l || e.r) && (e.t || e.b) ? 'resize-xy' : e.l || e.r ? 'resize-x' : 'resize-y';
+
+    // 커서 아래에 무엇이 있는지 → 핀치했을 때 일어날 동작을 미리 알려주는 hover 상태
+    const hoverStateAt = (x: number, y: number) => {
+      if (grabbedRef.current) return 'carry';
+      if (hitTest(x, y, 'data-pane-close')) return 'close';
+      if (hitTest(x, y, 'data-filter-chip')) return 'chip';
+      const paneId = hitTest(x, y, 'data-pane-id');
+      const videoId = paneId ? null : hitTest(x, y, 'data-video-id');
+      if (!paneId && !videoId) return 'idle';
+      const box = paneId ? boxOf('pane', Number(paneId)) : boxOf('video', videoId!);
+      if (!box) return 'idle';
+      const edges = edgesAt(box, x, y);
+      return edges ? dirOf(edges) : 'move';
+    };
+
     const onPinchStart = (x: number, y: number) => {
       // 마우스가 드래그 중이면 손이 그 드래그를 가로채지 않는다
       if (dragRef.current?.source === 'mouse') return;
+      const close = hitTest(x, y, 'data-pane-close');
+      if (close) {
+        closePane(Number(close));
+        return;
+      }
       const chip = hitTest(x, y, 'data-filter-chip');
       if (chip) {
         grab(chip);
@@ -543,6 +588,11 @@ export function Lattice() {
           } else if (wasPinching && !pinching) {
             onPinchEnd(x, y);
           }
+
+          // 드래그 중이면 그 동작을, 아니면 커서 아래 hover 의도를 커서 디자인에 반영
+          const drag = dragRef.current;
+          cursor.dataset.state =
+            drag?.source === 'hand' ? (drag.edges ? dirOf(drag.edges) : 'move') : hoverStateAt(x, y);
         } else {
           // 손이 프레임에 없을 때는 손이 소유한 상태만 정리한다 —
           // 마우스 드래그/칩 캐리는 건드리지 않는다 (마우스 사용 중엔 보통 손이 없다)
@@ -550,7 +600,10 @@ export function Lattice() {
           pinchRatio = null;
           filterX = null;
           filterY = null;
-          if (!mouseChipRef.current) cursor.style.opacity = '0';
+          if (!mouseChipRef.current) {
+            cursor.style.opacity = '0';
+            cursor.dataset.state = 'idle';
+          }
           if (grabbedRef.current) grab(null);
           if (dragRef.current?.source === 'hand') dragRef.current = null;
         }
@@ -629,6 +682,7 @@ export function Lattice() {
               type="button"
               aria-label={`adjust ${video.id} layer`}
               onPointerDown={onBoxPointerDown('video', video.id)}
+              onPointerMove={onBoxHover('video', video.id)}
               className="absolute inset-0 size-full cursor-move"
             />
             <CornerBrackets />
@@ -666,6 +720,7 @@ export function Lattice() {
             type="button"
             aria-label={`adjust ${pane.filter} pane`}
             onPointerDown={onBoxPointerDown('pane', pane.id)}
+            onPointerMove={onBoxHover('pane', pane.id)}
             className="absolute inset-0 size-full cursor-move"
           />
           <span className="pointer-events-none absolute left-0 top-0 bg-white px-2 py-1 text-[10px] tracking-[0.2em] text-black">
@@ -674,8 +729,9 @@ export function Lattice() {
           <button
             type="button"
             aria-label="close pane"
+            data-pane-close={pane.id}
             onClick={() => closePane(pane.id)}
-            className="absolute right-0 top-0 flex size-10 items-center justify-center bg-black/70 text-base text-white/80 transition-colors hover:bg-white hover:text-black"
+            className="absolute right-0 top-0 flex size-10 cursor-pointer items-center justify-center bg-black/70 text-base text-white/80 transition-colors hover:bg-white hover:text-black"
           >
             ✕
           </button>
@@ -748,6 +804,7 @@ export function Lattice() {
           type="button"
           aria-label="adjust cam layer"
           onPointerDown={onBoxPointerDown('video', 'cam')}
+          onPointerMove={onBoxHover('video', 'cam')}
           className="absolute inset-0 size-full cursor-move"
         />
         <CornerBrackets />
@@ -760,10 +817,11 @@ export function Lattice() {
       <div
         ref={cursorRef}
         data-testid="hand-cursor"
+        data-state="idle"
         className="pointer-events-none absolute left-0 top-0 z-[60] opacity-0 [filter:drop-shadow(0_0_2px_rgba(0,0,0,0.9))]"
       >
-        <span className="absolute size-5 -translate-x-1/2 -translate-y-1/2 border border-white/80" />
-        <span className="absolute size-1 -translate-x-1/2 -translate-y-1/2 bg-white transition-transform [[data-pinching=true]>&]:scale-[5]" />
+        <span className="absolute size-5 -translate-x-1/2 -translate-y-1/2 border border-white/80 transition-all [[data-state=move]>&]:bg-white/10 [[data-state=chip]>&]:scale-110 [[data-state=chip]>&]:border-white [[data-state=carry]>&]:border-white [[data-state=carry]>&]:bg-white/20 [[data-state=resize-x]>&]:scale-x-150 [[data-state=resize-y]>&]:scale-y-150 [[data-state=resize-xy]>&]:scale-150 [[data-state=close]>&]:border-red-500" />
+        <span className="absolute size-1 -translate-x-1/2 -translate-y-1/2 bg-white transition-all [[data-pinching=true]>&]:scale-[5] [[data-state=close]>&]:bg-red-500" />
         <span
           ref={coordRef}
           className="absolute left-4 top-3.5 whitespace-nowrap text-[10px] tracking-[0.2em] text-white/80"
