@@ -756,15 +756,14 @@ export function Lattice() {
         </span>
       </div>
 
-      {/* 밝은 영상 위에서도 보이도록 굵은 선 + 검은 외곽선(drop-shadow) */}
+      {/* 코너 브래킷·pane 테두리와 같은 각진 라인 언어. 밝은 영상 위 가시성은 검은 외곽선(drop-shadow)으로 확보 */}
       <div
         ref={cursorRef}
         data-testid="hand-cursor"
         className="pointer-events-none absolute left-0 top-0 z-[60] opacity-0 [filter:drop-shadow(0_0_2px_rgba(0,0,0,0.9))]"
       >
-        <span className="absolute h-0.5 w-14 -translate-x-1/2 -translate-y-1/2 bg-white" />
-        <span className="absolute h-14 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-white" />
-        <span className="absolute size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-black/40 transition-colors [[data-pinching=true]>&]:bg-white" />
+        <span className="absolute size-5 -translate-x-1/2 -translate-y-1/2 border border-white/80" />
+        <span className="absolute size-1 -translate-x-1/2 -translate-y-1/2 bg-white transition-transform [[data-pinching=true]>&]:scale-[5]" />
         <span
           ref={coordRef}
           className="absolute left-4 top-3.5 whitespace-nowrap text-[10px] tracking-[0.2em] text-white/80"
