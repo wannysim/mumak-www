@@ -7,7 +7,7 @@
     "./create-playwright-config": "./src/create-playwright-config.ts"
   },
   "scripts": {
-    "check-types": "tsc --noEmit",
+    "check-types": "node ../../node_modules/typescript-go/bin/tsc --noEmit",
     "lint": "oxlint --no-error-on-unmatched-pattern .",
     "lint:fix": "oxlint --fix --no-error-on-unmatched-pattern .",
     "format": "oxfmt --check --no-error-on-unmatched-pattern .",
