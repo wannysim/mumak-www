@@ -1,0 +1,180 @@
+---
+title: 'TypeScript 7 직접 벤치마크 - 타입체크는 5배, 그런데 Next.js는 왜 아직인가'
+date: '2026-07-10'
+description: '모노레포에서 TS7 네이티브 컴파일러를 실측하니 타입체크 4~6배. 그런데 next build에 넣으려다 Next.js 내부 코드까지 열어보게 된 이야기'
+tags: ['typescript', 'tsgo', 'nextjs', 'benchmark', 'monorepo']
+draft: false
+---
+
+TypeScript 7이 나왔다. Go로 다시 쓴 네이티브 컴파일러가 "10배 빠르다"는
+[공식 발표](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)를 보고,
+이 블로그가 사는 모노레포에서 직접 재봤다.
+
+**TL;DR** - 타입체크(`tsc --noEmit`)는 실측 4~6배 빨라졌고 바로 적용했다.
+하지만 `typescript` 패키지를 7로 전면 교체하는 건 아직 불가능하다.
+Next.js가 typescript를 CLI가 아니라 **라이브러리로 import해서 쓰기 때문**이고,
+TS7에는 그 라이브러리가 없다. 그리고 `next build`를 뜯어보니,
+애초에 빌드의 병목은 타입체크가 아니었다.
+
+## TypeScript 7은 뭐가 달라졌나
+
+언어가 바뀐 게 아니다. **컴파일러 구현체**가 바뀌었다.
+
+기존 TypeScript 컴파일러는 자기 자신을 TypeScript로 작성해 JS로 컴파일한 물건이었다.
+Microsoft는 이걸 Go로 포팅했고([microsoft/typescript-go](https://github.com/microsoft/typescript-go), 코드네임 Corsa),
+문법과 타입 시스템은 기존 라인과 동일하게 정렬했다. 빠른 이유는 세 가지다.
+
+- 네이티브 바이너리라 JIT 워밍업이 없다
+- goroutine으로 파일 단위 타입체크를 병렬화한다
+- JS 객체 대신 컴팩트한 메모리 구조를 쓴다
+
+이름이 좀 헷갈리는데, preview 시절에는 `@typescript/native-preview` 패키지의
+`tsgo`라는 바이너리였다. 7.0 stable부터는 **`typescript` 패키지의 `tsc`가 곧 그 Go 바이너리**다.
+"tsgo"는 사실상 프로젝트 별명으로 남았다.
+
+여기까지만 보면 그냥 업그레이드하면 끝일 것 같다. 그런데 한 가지 결정적인 차이가 있다.
+
+> 예전 typescript 패키지는 컴파일러이면서 동시에 **라이브러리**였다.
+
+`require('typescript')`를 하면 `ts.createProgram` 같은 컴파일러 API가 통째로 나왔고,
+생태계의 수많은 도구가 이 위에 서 있다. TS7은 별도 프로세스로 도는 Go 바이너리라
+`require()`로 들어갈 JS 코드가 없다. 대체 API는 `typescript/unstable/*` exports로 제공되는
+IPC 기반의 완전히 다른 설계고, 이름부터 unstable이다. 이 차이가 뒤에서 계속 발목을 잡는다.
+"컴파일러가 어떻게 라이브러리이기도 한가"가 낯설다면, 이 구조만 따로
+[typescript 패키지의 두 얼굴](/ko/garden/resources/frontend/javascript/typescript-compiler-as-a-library.mdx)에
+정리해두었다.
+
+## 벤치마크 - 타입체크는 진짜 빨라지나
+
+이 모노레포에는 `tsc --noEmit`으로 타입체크하는 워크스페이스가 5개 있다.
+같은 코드베이스를 기존 컴파일러(5.9/6.0)와 TS 7.0.2로 각각 돌렸다.
+M 시리즈 맥, warm 상태, 5회 측정 중앙값이다.
+
+| 워크스페이스      | TS 5.9/6 | TS 7.0.2 | 배율     |
+| ----------------- | -------- | -------- | -------- |
+| blog (가장 큼)    | 2.36s    | 0.42s    | **5.6x** |
+| mumak-next        | 0.81s    | 0.14s    | 5.8x     |
+| mumak-react       | 0.88s    | 0.17s    | 5.1x     |
+| mumak-native      | 0.72s    | 0.14s    | 5.1x     |
+| playwright-config | 0.36s    | 0.10s    | 3.7x     |
+| **합계 (직렬)**   | **5.1s** | **1.0s** | **5.2x** |
+
+10배까지는 아니었지만 일관되게 4~6배. 코드베이스가 작아서 절대값 이득은 초 단위지만,
+프로세스 시작 비용이 지배하는 작은 프로젝트에서도 이 정도면 방향은 명확하다.
+대형 코드베이스일수록 배율은 공식 벤치마크(~10x)에 수렴할 것이다.
+
+다만 그냥 돌아가지는 않았다. TS7 이전에 정리해야 했던 것들:
+
+- **`baseUrl`이 제거됐다** (TS5102). `paths`를 tsconfig 기준 상대 경로로 바꿔야 한다. 이 레포는 이미 전부 `./`, `../` prefix라 `baseUrl` 줄만 지우면 됐고, 5.9에서도 동작이 같다.
+- **lib.dom이 최신화됐다**. `IntersectionObserver`에 `scrollMargin`이 생겨서 테스트 mock의 캐스팅이 깨졌다(TS2352). mock에 프로퍼티 한 줄 추가.
+- **자동 `@types` 탐색이 미묘하게 다르다**. 한 패키지에서 `process`를 못 찾아서(TS2591) `"types": ["node"]`를 명시했다.
+
+전부 5.9와 7 양쪽에서 동작하는 변경이라, 미리 정리해두면 나중에 버전만 올리면 된다.
+
+## 그럼 next build는 얼마나 빨라지나
+
+여기가 원래 궁금했던 부분이다. 타입체크 몇 초 줄이는 것보다
+매 배포마다 도는 `next build`가 빨라지는 게 실익이 크니까.
+
+그래서 blog 앱의 빌드를 분해해봤다. 961페이지를 정적 생성하는 Next.js 16 앱이다.
+
+| 단계                        | 시간      | 비중    |
+| --------------------------- | --------- | ------- |
+| Turbopack 컴파일            | ~3.1s     | 15%     |
+| **TypeScript 타입체크**     | **~3.0s** | **14%** |
+| 정적 생성 (961 페이지)      | ~10.4s    | 55%     |
+| 페이지 데이터 수집·finalize | ~4s       | 19%     |
+| **전체**                    | **~21s**  |         |
+
+TS7은 같은 타입체크를 0.42초에 끝내니까, Next가 TS7을 완전히 통합해도
+절약분은 약 2.6초. **빌드 전체의 12~13%다.**
+
+이게 이 실험에서 얻은 가장 값진 교훈이었다.
+blog 빌드의 병목은 타입체크가 아니라 **961페이지 정적 생성**이다.
+"컴파일러가 10배 빨라진다"는 헤드라인을 보고 빌드가 10배 빨라질 거라 기대하면 안 된다.
+**전체 파이프라인에서 그 단계가 차지하는 비중만큼만 빨라진다.** 암달의 법칙이다.
+
+## 왜 Next.js에서는 아직 못 쓰나
+
+그래도 12%가 어디냐 싶어서 `typescript@7`을 직접 넣어봤다. 결과는 즉사.
+
+```
+It looks like you're trying to use TypeScript but do not have
+the required package(s) installed.
+Installing dependencies...
+```
+
+typescript 7.0.2가 멀쩡히 설치돼 있는데 Next는 "미설치"라고 판단하고
+빌드 도중에 패키지 매니저로 자동 설치를 시도한다. 왜 이러는지 Next 내부 코드를 열어봤다.
+
+Next는 `tsc`를 subprocess로 실행하지 않는다.
+**typescript 패키지를 빌드 프로세스 안에서 라이브러리로 import해서 직접 호출한다.**
+`next@16.2.9` 기준으로 실제 확인한 호출들:
+
+- `ts.readConfigFile` / `ts.parseJsonConfigFileContent` - tsconfig 검증과 기본값 강제 주입 (`dist/lib/typescript/getTypeScriptConfiguration.js`)
+- `ts.createIncrementalProgram` / `ts.getPreEmitDiagnostics` - 빌드 중 타입체크 그 자체 (`dist/lib/typescript/runTypeCheck.js`)
+- `semver.lt(version, '5.1.0')` 버전 게이트 (`dist/lib/verify-typescript-setup.js`)
+
+TS7에는 이 API가 없다. 그래서 Next의 의존성 감지가 "typescript 없음"으로 판정하고
+자동 설치 루프에 빠지는 것이다.
+
+재미있는 건 Next 16.2에 이미 과도기 코드가 있다는 점이다.
+`verify-typescript-setup.js`에는 `@typescript/native-preview`를 감지하면
+"빌드 중 타입체크 같은 기능은 standard typescript 패키지가 필요하다"고 안내하고
+**타입체크를 건너뛰는** 분기가 있다. 즉 Next의 tsgo 대응은 "감지하고 포기"까지 왔고,
+"타입체크를 tsgo로 실행"은 미구현이다. 그게
+[vercel/next.js#81472](https://github.com/vercel/next.js/discussions/81472)에서 논의 중인 부분이다.
+심지어 stable `typescript@7` 패키지명은 이 분기조차 못 탄다. preview 패키지명만 체크한다.
+
+우회로도 실측해봤다. `typescript.ignoreBuildErrors: true`를 켜면
+TS7이 설치된 상태로도 빌드가 **성공은 한다**. 이 레포는 CI에서 `check-types`를
+빌드 전에 따로 돌리니 타입 안전망도 유지된다. 그런데 매 빌드마다
+위의 자동 설치 시도가 반복된다. frozen lockfile을 쓰는 CI에서는 쓸 수 없는 구성이라 기각했다.
+
+Next 밖에도 같은 구조의 문제가 있다. 이 레포의 knip은 peer dependency가
+`typescript >=5.0.4 <7`이다. typescript-eslint, ts-jest처럼 TS를 라이브러리로
+import하는 도구들이 전부 같은 이유로 막혀 있다.
+**TS7 마이그레이션의 관문은 내 코드가 아니라 툴체인이다.**
+
+## 그래서 어떻게 적용했나 - 사이드카 패턴
+
+전면 교체는 막혔지만, 이득의 실체는 가져올 수 있다.
+typescript를 CLI로만 소비하는 경로와 라이브러리로 소비하는 경로를 분리하면 된다.
+
+- `typescript` 패키지는 5.9/6에 그대로 둔다 - Next, knip 같은 라이브러리 소비자용
+- TS7을 alias로 추가한다 - `pnpm add -Dw typescript-go@npm:typescript@7.0.2`
+- `check-types` 스크립트만 TS7 바이너리로 바꾼다
+
+```json
+{
+  "scripts": {
+    "check-types": "node ../../node_modules/typescript-go/bin/tsc --noEmit"
+  }
+}
+```
+
+alias를 쓰는 이유는 bin 충돌 때문이다. typescript와 typescript-go 둘 다
+`tsc`라는 bin을 노출해서, `.bin/tsc`가 어느 쪽에 링크될지 보장이 없다.
+스크립트에서 바이너리 경로를 직접 부르면 이 문제를 피한다.
+
+이 방식의 좋은 점은 **Next 버전과 무관하다**는 것이다. `next build`를 전혀
+건드리지 않으므로 Next 14든 15든 16이든 그대로 동작한다. 반대로 typescript
+의존성 자체를 7로 교체하는 경로는 Next 14/15에서는 영영 막혀 있다고 봐야 한다.
+tsgo 통합이 유지보수 모드인 구버전에 백포트될 가능성은 사실상 없다.
+
+## 정리
+
+- 타입체크는 실측 4~6배. `check-types`, 에디터 반응성에서 즉시 이득이고 오늘 적용 가능하다
+- `next build`는 타입체크 비중(이 레포 기준 14%)만큼만 빨라진다. 병목이 어디인지 먼저 재보자
+- `typescript` 패키지 전면 교체는 툴체인이 막고 있다. Next의 tsgo 통합과 knip 등의 TS7 지원이 풀리는 시점까지는 사이드카 패턴이 현실적인 답이다
+- `baseUrl` 제거 같은 tsconfig 정리는 5.9에서도 동작하니 미리 해두면, 나중에 버전 숫자만 올리면 된다
+
+"10배 빠른 컴파일러"는 사실이다. 다만 그 10배가 내 파이프라인의 어디에
+꽂히는지는 직접 재봐야 안다. 이번에도 측정이 헤드라인을 이겼다.
+
+## 참고
+
+- [Announcing TypeScript 7.0](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/) -- TypeScript Blog
+- [microsoft/typescript-go](https://github.com/microsoft/typescript-go) -- GitHub
+- [Support typescript-go for builds (Discussion #81472)](https://github.com/vercel/next.js/discussions/81472) -- vercel/next.js
+- [Announcing TypeScript Native Previews](https://devblogs.microsoft.com/typescript/announcing-typescript-native-previews/) -- TypeScript Blog
