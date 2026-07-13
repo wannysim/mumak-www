@@ -191,7 +191,9 @@ function AsciiPane({
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const paneRef = React.useRef(pane);
-  paneRef.current = pane;
+  React.useEffect(() => {
+    paneRef.current = pane;
+  });
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
@@ -357,17 +359,20 @@ export function Lattice() {
   const grabbedRef = React.useRef<string | null>(null);
   const videoEls = React.useRef<Record<string, HTMLVideoElement | null>>({});
   const panesRef = React.useRef(panes);
-  panesRef.current = panes;
   const videoRectsRef = React.useRef(videoRects);
-  videoRectsRef.current = videoRects;
+  React.useEffect(() => {
+    panesRef.current = panes;
+    videoRectsRef.current = videoRects;
+  });
   const dragRef = React.useRef<DragState | null>(null);
   const nextPaneId = React.useRef(INITIAL_PANES.length + 1);
 
   const spawnPane = (filter: string, cx: number, cy: number) => {
+    const id = nextPaneId.current++;
     setPanes(prev => [
       ...prev,
       {
-        id: nextPaneId.current++,
+        id,
         filter,
         x: cx - PANE_DEFAULT_W / 2,
         y: cy - PANE_DEFAULT_H / 2,

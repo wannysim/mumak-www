@@ -10,7 +10,18 @@
       "inputs": ["$TURBO_DEFAULT$"],
       // `.next/dev`는 next dev/Turbopack의 로컬 dev 캐시(빌드 산출물 아님)이며 .next/**에 걸려
       // 캐시 아티팩트를 부풀린다(로컬에서 dev 후 build 시). 빌드 출력이 아니므로 제외한다.
-      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "dist/**", "out/**", "*.tsbuildinfo"],
+      // `next-env.d.ts`는 next build가 앱 루트에 생성하는 산출물이다. .next/** 밖이라 캐시하지 않으면
+      // build cache-hit 시 복원되지 않아, dependsOn된 check-types에서 next의 `declare module '*.css'`가
+      // 사라지고 `@mumak/ui/globals.css` 사이드이펙트 import가 TS2882로 깨진다. 반드시 캐시한다.
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "!.next/dev/**",
+        "next-env.d.ts",
+        "dist/**",
+        "out/**",
+        "*.tsbuildinfo"
+      ],
       "env": ["NEXT_PUBLIC_*", "ANALYZE"],
       "passThroughEnv": [
         "NODE_ENV",
@@ -35,7 +46,7 @@
       // 여기 다시 명시한다(로컬 dev 캐시가 standalone 아티팩트에 섞이지 않게).
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$"],
-      "outputs": [".next/**", "!.next/cache/**", "!.next/server/**", "!.next/dev/**"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/server/**", "!.next/dev/**", "next-env.d.ts"],
       "env": ["NEXT_PUBLIC_*", "ANALYZE"],
       "passThroughEnv": [
         "NODE_ENV",
