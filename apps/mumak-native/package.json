@@ -14,7 +14,7 @@
     "format": "oxfmt --check .",
     "format:check": "oxfmt --check .",
     "format:fix": "oxfmt .",
-    "check-types": "tsc --noEmit",
+    "check-types": "node ../../node_modules/typescript-go/bin/tsc --noEmit",
     "test:ci": "jest --ci --coverage",
     "export:web": "expo export --platform web --output-dir dist",
     "serve:web": "serve dist --listen 3003 --no-port-switching",

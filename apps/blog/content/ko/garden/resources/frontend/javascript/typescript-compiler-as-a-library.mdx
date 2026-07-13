@@ -1,0 +1,89 @@
+---
+title: 'typescript 패키지의 두 얼굴: 컴파일러이자 라이브러리'
+created: '2026-07-10'
+status: 'budding'
+parent: 'frontend-javascript'
+tags: ['typescript', 'compiler', 'tooling', 'frontend']
+---
+
+`tsc`는 명령어인데 왜 Next.js는 typescript를 `require()`로 불러 쓸까. TS 5.x까지의 typescript 패키지는 컴파일러이면서 동시에 라이브러리였고, TS 7이 그중 라이브러리 쪽 문을 닫으면서 생태계 도구들이 줄줄이 멈췄다. 그 구조를 정리한다.
+
+## 컴파일러인데 라이브러리라는 게 무슨 말인가
+
+TS 5.x까지의 컴파일러는 JavaScript로 작성된 거대한 함수 덩어리다.
+그래서 들어가는 문이 두 개였다.
+
+**문 1 - CLI.** 터미널에서 `tsc --noEmit`을 치는 것. 우리가 아는 일반적인 사용법이다.
+사실 `tsc` 명령어 자체는 얇은 껍데기고, 내부적으로는 아래의 라이브러리를 호출할 뿐이다.
+
+**문 2 - 라이브러리.** 컴파일러 본체가 JS 코드니까, 다른 JS 프로그램이
+자기 프로세스 안으로 불러와서 함수처럼 호출할 수 있었다.
+
+```js
+const ts = require('typescript'); // 컴파일러가 통째로 객체로 들어온다
+
+const program = ts.createProgram(['app.ts'], compilerOptions);
+const errors = ts.getPreEmitDiagnostics(program);
+// errors = 타입 에러들이 JS 객체 배열로.
+// 파일, 줄번호, 메시지가 전부 구조화된 데이터다.
+```
+
+## 왜 도구들은 문 2를 선택했나
+
+CLI는 텍스트를 뱉지만, 라이브러리는 데이터를 준다. 이 차이가 크다.
+
+문 2로 들어가면 에러를 "있음/없음"이 아니라 구조화된 데이터로 받아서
+자기 스타일로 예쁘게 출력하고, tsconfig를 파싱해 기본값을 주입하고,
+incremental 캐시를 자기 빌드 파이프라인에 엮을 수 있다.
+텍스트 출력을 파싱하는 것보다 훨씬 정교한 통합이 가능하다.
+
+그래서 생태계의 핵심 도구들이 전부 문 2 위에 서 있다.
+
+- **Next.js** - `next build` 안에서 `ts.createIncrementalProgram`으로 타입체크를 직접 실행
+- **typescript-eslint** - 린트 규칙이 타입 정보를 조회
+- **ts-jest** - 테스트 실행 시 TS 변환
+- **knip** - 미사용 코드 탐지에 타입 그래프 사용
+
+## TS 7은 무엇을 바꿨나
+
+TS 7(tsgo)은 같은 컴파일러 로직을 Go로 다시 써서 기계어 실행파일로 배포한다.
+하는 일은 완전히 같다. .ts 파일을 읽고, tsconfig를 해석하고, 타입을 검사하고, 에러를 뱉는다.
+그런데 실행파일은 문 1(CLI)밖에 없다.
+
+Node 프로세스가 Go 바이너리를 `require()`로 삼킬 방법은 없다.
+JS 함수가 아니라 기계어 덩어리라서 호출할 `ts.createProgram` 같은 것이 존재하지 않는다.
+할 수 있는 건 별도 프로세스로 실행하고 결과를 밖에서 받는 것뿐이다.
+
+```js
+spawn('tsc', ['--noEmit']); // 실행하고, 텍스트 출력을 읽는 게 전부
+```
+
+|                     | 기존 (TS 5.x)           | TS 7 (tsgo)        |
+| ------------------- | ----------------------- | ------------------ |
+| 정체                | 컴파일러 (JS로 작성)    | 같은 컴파일러 (Go) |
+| CLI로 실행          | 가능                    | 가능 (4~10배 빠름) |
+| `require()`로 embed | 가능 - 도구들이 쓰던 문 | 불가 - 사라진 문   |
+
+비유하면 기존 typescript는 엔진을 통째로 주는 부품이었다.
+Next 같은 도구는 그 엔진을 자기 차체(빌드 프로세스)에 직접 얹어 쓰고 있었다.
+TS 7은 같은 엔진을 더 강하게 만들었지만 완성차로만 판다.
+옆에서 나란히 달리게 할 수는 있어도, 내 차체에 얹을 수는 없다.
+
+## 그럼 도구들은 앞으로 어떻게 통합하나
+
+Microsoft도 이 문제를 알고 있어서 `typescript/unstable/*` exports로 새 API를 만들고 있다.
+다만 이건 embed(같은 프로세스에 얹기)가 아니라 옆 프로세스와 통신하는 IPC 방식이라
+기존 API와 호환되지 않고, 이름 그대로 아직 unstable이다.
+
+그래서 지금은 과도기다. 문 2 위에 서 있던 도구들(Next, knip, ts-jest, typescript-eslint)이
+하나씩 "spawn 방식" 또는 "새 IPC API"로 갈아타야 하고, 그 전까지는
+typescript 의존성을 7로 올리는 순간 해당 도구가 깨진다.
+TS 7 마이그레이션의 관문이 내 코드가 아니라 툴체인인 이유다.
+
+이 구조가 실제로 어떻게 터지는지는
+[TypeScript 7 벤치마크와 Next.js 마이그레이션 시도](/ko/articles/typescript-7-nextjs-migration.mdx)에서
+Next.js 내부 코드를 열어 확인했다. 당장 이득을 가져오는 사이드카 패턴도 거기에 있다.
+
+## 관련 노트
+
+- [[js-v8-under-the-hood|V8 엔진의 속사정]] - "JS로 짠 프로그램"과 "네이티브 바이너리"의 성능 차이가 어디서 오는지

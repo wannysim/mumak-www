@@ -1,7 +1,6 @@
 {
   "extends": "@mumak/typescript-config/nextjs.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "allowImportingTsExtensions": true,
     "paths": {
       "@/*": ["./*"],

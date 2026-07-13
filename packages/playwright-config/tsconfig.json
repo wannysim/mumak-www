@@ -1,9 +1,9 @@
 {
   "extends": "@mumak/typescript-config/base.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "noEmit": true,
-    "lib": ["es2023"]
+    "lib": ["es2023"],
+    "types": ["node"]
   },
   "include": ["src"],
   "exclude": ["node_modules"]
