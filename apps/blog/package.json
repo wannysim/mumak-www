@@ -1,6 +1,6 @@
 {
   "name": "blog",
-  "version": "1.8.0",
+  "version": "1.9.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,7 +14,7 @@
     "format": "oxfmt --check .",
     "format:fix": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "check-types": "tsc --noEmit",
+    "check-types": "node ../../node_modules/typescript-go/bin/tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

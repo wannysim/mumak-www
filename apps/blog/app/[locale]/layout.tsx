@@ -4,6 +4,7 @@ import localFont from 'next/font/local';
 import { notFound } from 'next/navigation';
 
 import {
+  GoogleAnalytics,
   IntlProvider,
   JsonLdScript,
   ProgressProvider,
@@ -118,6 +119,9 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
               <JsonLdScript data={siteNavigationJsonLd} />
               {children}
               {ENABLE_VERCEL_ANALYTICS ? <VercelAnalytics /> : null}
+              {/* GA는 Vercel 게이트 밖 — 홈서버 프로덕션(VERCEL_ENV 없음)에서도 켜져야 한다.
+                  NEXT_PUBLIC_GA_ID 미설정(dev/프리뷰)이면 스스로 null. */}
+              <GoogleAnalytics />
             </ProgressProvider>
           </IntlProvider>
         </ThemeProvider>
