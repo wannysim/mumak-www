@@ -287,6 +287,21 @@ describe('hand gestures', () => {
     expect(panes()).toHaveLength(1);
   });
 
+  it('should shuffle the layout when the dice button is pinched', async () => {
+    await renderReady();
+    const spy = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const before = paneEl(1).style.left;
+
+    hitElement = screen.getByRole('button', { name: 'shuffle layout' });
+    currentHand = hand({ x: 0.5, y: 0.5 }, false);
+    stepFrames();
+    currentHand = hand({ x: 0.5, y: 0.5 }, true);
+    stepFrames(3);
+
+    expect(paneEl(1).style.left).not.toBe(before);
+    spy.mockRestore();
+  });
+
   it('should stop the acquired camera stream when unmounted before init settles', async () => {
     const view = render(<Lattice />);
     view.unmount();
