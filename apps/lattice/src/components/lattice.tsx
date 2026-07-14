@@ -530,6 +530,7 @@ export function Lattice() {
     const hoverStateAt = (x: number, y: number) => {
       if (grabbedRef.current) return 'carry';
       if (hitTest(x, y, 'data-pane-close')) return 'close';
+      if (hitTest(x, y, 'data-shuffle')) return 'chip';
       if (hitTest(x, y, 'data-filter-chip')) return 'chip';
       const paneId = hitTest(x, y, 'data-pane-id');
       const videoId = paneId ? null : hitTest(x, y, 'data-video-id');
@@ -543,6 +544,10 @@ export function Lattice() {
     const onPinchStart = (x: number, y: number) => {
       // 마우스가 드래그 중이면 손이 그 드래그를 가로채지 않는다
       if (dragRef.current?.source === 'mouse') return;
+      if (hitTest(x, y, 'data-shuffle')) {
+        shuffle();
+        return;
+      }
       const close = hitTest(x, y, 'data-pane-close');
       if (close) {
         closePane(Number(close));
@@ -774,8 +779,9 @@ export function Lattice() {
       <button
         type="button"
         aria-label="shuffle layout"
+        data-shuffle="1"
         onClick={shuffle}
-        className="absolute right-6 top-6 z-50 flex size-12 items-center justify-center border border-white/30 bg-black/50 text-white/80 backdrop-blur transition-colors hover:border-white/70 hover:bg-white/10 hover:text-white"
+        className="absolute right-6 top-6 z-50 flex size-16 items-center justify-center border border-white/30 bg-black/50 text-white/80 backdrop-blur transition-colors hover:border-white/70 hover:bg-white/10 hover:text-white"
       >
         <Dices className="size-5" />
       </button>
