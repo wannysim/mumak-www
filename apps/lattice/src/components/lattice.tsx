@@ -491,14 +491,22 @@ export function Lattice() {
       if (dragRef.current?.source === 'hand') dragRef.current = null;
     };
 
-    const track = () => {
+    // 손 추적(MediaPipe 추론)은 프레임당 가장 비싼 작업이다. 커서 갱신은 30fps면
+    // 충분하므로 detectForVideo 호출을 30fps로 제한해 상시 GPU/CPU 부하를 절반으로 낮춘다.
+    const TRACK_INTERVAL = 1000 / 30;
+    let lastTrack = -Infinity;
+
+    const track = (t: number) => {
+      rafId = requestAnimationFrame(track);
+      if (t - lastTrack < TRACK_INTERVAL) return;
+      lastTrack = t;
+
       const cam = camRef.current;
       const cursor = cursorRef.current;
       if (!cam || !cursor || !landmarker) return;
 
       if (cam.readyState >= 2) {
-        const now = performance.now();
-        const result = landmarker.detectForVideo(cam, now);
+        const result = landmarker.detectForVideo(cam, t);
         const hand = result.landmarks[0];
         const wrist = hand?.[0];
         const thumbTip = hand?.[4];
@@ -510,8 +518,8 @@ export function Lattice() {
           const mid = { x: (thumbTip.x + indexTip.x) / 2, y: (thumbTip.y + indexTip.y) / 2 };
           filterX ??= createOneEuro();
           filterY ??= createOneEuro();
-          const x = filterX(remapToScreen(1 - mid.x), now) * window.innerWidth;
-          const y = filterY(remapToScreen(mid.y), now) * window.innerHeight;
+          const x = filterX(remapToScreen(1 - mid.x), t) * window.innerWidth;
+          const y = filterY(remapToScreen(mid.y), t) * window.innerHeight;
           cursor.style.opacity = '1';
           cursor.style.transform = `translate3d(${x}px, ${y}px, 0)`;
           if (coordRef.current) {
@@ -553,7 +561,6 @@ export function Lattice() {
           if (dragRef.current?.source === 'hand') dragRef.current = null;
         }
       }
-      rafId = requestAnimationFrame(track);
     };
 
     const init = async () => {

@@ -45,11 +45,14 @@ let hitElement: Element | null = null;
 let rafQueue: FrameRequestCallback[] = [];
 let now = 0;
 
-function stepFrames(count = 1) {
+// track/ascii 렌더 모두 30fps(≈33.3ms)로 스로틀되므로, 기본 dt는 한 프레임을 확실히
+// 통과시키는 40ms로 둔다(스텝 1회 = 처리 프레임 1회). 스로틀 자체를 관측하는 테스트만
+// 33.3ms보다 작은 dt를 넘겨 스킵을 재현한다.
+function stepFrames(count = 1, dt = 40) {
   for (let i = 0; i < count; i++) {
     const callbacks = rafQueue;
     rafQueue = [];
-    now += 16;
+    now += dt;
     act(() => {
       callbacks.forEach(cb => cb(now));
     });
@@ -302,6 +305,20 @@ describe('hand gestures', () => {
     spy.mockRestore();
   });
 
+  // 손 추적(detectForVideo)은 프레임당 가장 비싼 GPU 추론이라 30fps로 스로틀한다.
+  it('should throttle hand detection below the frame rate', async () => {
+    await renderReady();
+    mocks.detectForVideo.mockClear();
+
+    const FRAMES = 30;
+    stepFrames(FRAMES, 16); // 16ms 촘촘 스텝 → 스로틀이 프레임을 스킵
+
+    const calls = mocks.detectForVideo.mock.calls.length;
+    // 스로틀 없으면 프레임당 1회(=30). 30fps 게이트라 확연히 적어야 하고 0은 아니어야 한다.
+    expect(calls).toBeGreaterThan(5);
+    expect(calls).toBeLessThan(FRAMES * 0.75);
+  });
+
   it('should stop the acquired camera stream when unmounted before init settles', async () => {
     const view = render(<Lattice />);
     view.unmount();
@@ -543,7 +560,8 @@ describe('ascii panes', () => {
     createdCtxs.forEach(ctx => ctx.getImageData.mockClear());
 
     const FRAMES = 30;
-    stepFrames(FRAMES);
+    // 33.3ms보다 촘촘한 16ms 스텝으로 스로틀이 프레임을 스킵하는지 관측한다
+    stepFrames(FRAMES, 16);
 
     const renders = createdCtxs.reduce((n, ctx) => n + ctx.getImageData.mock.calls.length, 0);
     // 스로틀 없으면 프레임당 1렌더(=30). 30fps 게이트라 확연히 적어야 하고, 0은 아니어야 한다.
