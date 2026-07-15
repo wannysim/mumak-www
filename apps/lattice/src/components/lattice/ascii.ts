@@ -1,6 +1,6 @@
 // ascii 존 렌더 코어 — 존 아래 겹친 영상/웹캠 영역만 저해상도로 합성한 뒤
-// 밝기를 문자로 치환해 그린다. lattice.tsx의 AsciiPane rAF 루프와
-// bench 하니스가 공유하는 단일 소스.
+// 밝기를 문자로 치환해 그린다. AsciiPane의 rAF 루프에서 프레임마다 호출한다.
+// DOM/컴포넌트에 의존하지 않는 순수 함수라 오프스크린으로도 그대로 돌릴 수 있다.
 
 export const ASCII_CHARS = ' .:-=+*#%@';
 
@@ -23,8 +23,8 @@ export function saturateChannel(value: number, average: number, factor = 1.8) {
 }
 
 // drawImage 가능한 영상 소스 + 겹침 순서상의 미러 여부.
-// 프로덕션은 HTMLVideoElement, bench는 videoWidth/videoHeight/readyState를
-// 흉내낸 canvas를 넘긴다 (실제 grBCR·drawImage 비용을 그대로 측정하기 위함).
+// HTMLVideoElement에 직접 묶지 않고 필요한 최소 형태(고유 크기·rect·readyState)만
+// 요구해, 렌더 코어를 특정 DOM 요소 타입과 분리한다.
 export type AsciiTarget = {
   el: {
     readyState: number;
