@@ -517,11 +517,13 @@ describe('ascii panes', () => {
   it('should survive a tainted canvas without crashing', async () => {
     await renderReady();
     setRect(screen.getByLabelText('bunny layer'), { left: 600, top: 400, width: 200, height: 120 });
+    // 1) drawImage 자체가 taint로 throw → 아무것도 못 그림
     throwOnDrawImage = true;
+    stepFrames(4);
+    // 2) drawImage는 되지만 픽셀 읽기(getImageData)가 SecurityError → catch로 조용히 종료
+    throwOnDrawImage = false;
     throwOnGetImageData = true;
-    stepFrames(2);
-    throwOnGetImageData = false;
-    stepFrames(1);
+    stepFrames(4);
 
     expect(paneEl(2)).toBeInTheDocument();
   });
