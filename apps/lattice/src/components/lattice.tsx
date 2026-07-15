@@ -758,23 +758,26 @@ export function Lattice() {
             data-filter-chip={key}
             onPointerDown={onChipPointerDown(key)}
             onClick={onChipClick(key)}
-            className={`flex w-52 items-center gap-4 border px-5 py-4 text-base tracking-[0.25em] backdrop-blur transition-colors ${
+            className={`flex w-60 items-center gap-4 whitespace-nowrap border px-5 py-4 text-base tracking-[0.25em] backdrop-blur transition-colors ${
               grabbed === key ? 'border-white bg-white/25' : 'border-white/30 bg-black/50 hover:border-white/70'
             }`}
           >
-            <span className="text-xs text-white/40">F{i + 1}</span>
+            <span className="shrink-0 text-xs text-white/40">F{i + 1}</span>
             {canvasFilterMode(key) ? (
               <span
-                className={`flex size-5 items-center justify-center border border-white/50 text-[11px] normal-case ${
+                className={`flex size-5 shrink-0 items-center justify-center border border-white/50 text-[11px] leading-none normal-case ${
                   key === 'ascii-rgb'
                     ? 'bg-[linear-gradient(135deg,#f59e0b,#ec4899,#3b82f6)] bg-clip-text text-transparent'
                     : ''
                 }`}
               >
-                {key === 'dots' ? '●' : '@'}
+                {key === 'dots' ? <span className="size-1.5 rounded-full bg-white/90" /> : '@'}
               </span>
             ) : (
-              <span className="size-5 bg-[linear-gradient(135deg,#f59e0b,#ec4899,#3b82f6)]" style={{ filter: value }} />
+              <span
+                className="size-5 shrink-0 bg-[linear-gradient(135deg,#f59e0b,#ec4899,#3b82f6)]"
+                style={{ filter: value }}
+              />
             )}
             {key}
           </button>
