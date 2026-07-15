@@ -73,6 +73,10 @@ function createFakeCtx() {
     measureText: () => ({ width: 6 }),
     fillRect: vi.fn(),
     fillText: vi.fn(),
+    beginPath: vi.fn(),
+    arc: vi.fn(),
+    moveTo: vi.fn(),
+    fill: vi.fn(),
     save: vi.fn(),
     restore: vi.fn(),
     scale: vi.fn(),
@@ -529,6 +533,24 @@ describe('ascii panes', () => {
       ctx.fillText.mock.calls.some(call => typeof call[0] === 'string' && call[0].length > 1)
     );
     expect(monoRow).toBe(true);
+  });
+
+  it('should render circles (not text) for the dots pane', async () => {
+    await renderReady();
+    setRect(screen.getByLabelText('bunny layer'), {
+      left: 0,
+      top: 0,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'filter dots' }));
+    stepFrames(2);
+
+    // dots 존은 셀마다 arc로 원을 쌓고 한 번에 fill한다 (문자 렌더 아님)
+    const dotsCtx = createdCtxs.find(ctx => ctx.arc.mock.calls.length > 0);
+    expect(dotsCtx).toBeDefined();
+    expect(dotsCtx!.fill.mock.calls.length).toBeGreaterThan(0);
+    expect(dotsCtx!.fillText.mock.calls.length).toBe(0);
   });
 
   it('should survive a tainted canvas without crashing', async () => {

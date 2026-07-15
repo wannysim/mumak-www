@@ -2,7 +2,14 @@ import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 import { Dices } from 'lucide-react';
 import * as React from 'react';
 
-import { type AsciiTarget, coverSourceRect, luminanceToChar, renderAsciiFrame, saturateChannel } from './lattice/ascii';
+import {
+  type AsciiMode,
+  type AsciiTarget,
+  coverSourceRect,
+  luminanceToChar,
+  renderAsciiFrame,
+  saturateChannel,
+} from './lattice/ascii';
 
 // 순수 헬퍼는 lattice/ascii.ts로 이동했다. 기존 테스트 import 경로 유지를 위해 re-export.
 export { coverSourceRect, luminanceToChar, saturateChannel };
@@ -54,9 +61,16 @@ const FILTERS: Record<string, string> = {
   // css backdrop-filter가 아니라 canvas 합성(AsciiPane)으로 렌더링되는 특수 필터
   ascii: 'none',
   'ascii-rgb': 'none',
+  dots: 'none',
 };
 
-const isAsciiFilter = (key: string) => key.startsWith('ascii');
+// canvas(AsciiPane)로 렌더되는 필터 → 렌더 모드. 나머지 키는 CSS backdrop-filter.
+const CANVAS_FILTER_MODE: Record<string, AsciiMode> = {
+  ascii: 'mono',
+  'ascii-rgb': 'rgb',
+  dots: 'dots',
+};
+const canvasFilterMode = (key: string): AsciiMode | undefined => CANVAS_FILTER_MODE[key];
 
 // z 오름차순 겹침 순서는 고정이다. 프레임마다 존마다 toSorted로 새 배열을
 // 뽑지 않도록 모듈 스코프에서 한 번만 정렬한다.
@@ -167,16 +181,15 @@ export function createOneEuro(minCutoff = 1.2, beta = 0.02, dCutoff = 1) {
 }
 
 // ascii 존 — 존 아래에 겹친 비디오·웹캠의 해당 영역만 잘라 저해상도로 합성한 뒤
-// 밝기를 문자로 치환해 그린다. 영상이 없는 영역은 검정(공백)으로 남는다.
-// colored면 셀마다 원본 픽셀 색(채도 부스트)을 문자에 입힌다.
+// 밝기를 문자(mono/rgb) 또는 원(dots)으로 치환해 그린다. 영상이 없는 영역은 검정으로 남는다.
 function AsciiPane({
   pane,
   videoEls,
-  colored,
+  mode,
 }: {
   pane: Pane;
   videoEls: React.RefObject<Record<string, HTMLVideoElement | null>>;
-  colored: boolean;
+  mode: AsciiMode;
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const paneRef = React.useRef(pane);
@@ -211,12 +224,12 @@ function AsciiPane({
         if (el) targets.push({ el, mirror: false });
       }
       if (els.cam) targets.push({ el: els.cam, mirror: true });
-      renderAsciiFrame(ctx, canvas, sample, sampleCtx, paneRef.current, targets, colored, FONT_SIZE);
+      renderAsciiFrame(ctx, canvas, sample, sampleCtx, paneRef.current, targets, mode, FONT_SIZE);
     };
 
     rafId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafId);
-  }, [videoEls, colored]);
+  }, [videoEls, mode]);
 
   return <canvas ref={canvasRef} aria-hidden className="pointer-events-none absolute inset-0 size-full" />;
 }
@@ -650,45 +663,46 @@ export function Lattice() {
         );
       })}
 
-      {panes.map(pane => (
-        <div
-          key={pane.id}
-          data-pane-id={pane.id}
-          className="absolute border border-dashed border-white/70"
-          style={{
-            left: pane.x,
-            top: pane.y,
-            width: pane.w,
-            height: pane.h,
-            zIndex: 35,
-            backdropFilter: FILTERS[pane.filter],
-            WebkitBackdropFilter: FILTERS[pane.filter],
-          }}
-        >
-          {isAsciiFilter(pane.filter) && (
-            <AsciiPane pane={pane} videoEls={videoEls} colored={pane.filter === 'ascii-rgb'} />
-          )}
-          <button
-            type="button"
-            aria-label={`adjust ${pane.filter} pane`}
-            onPointerDown={onBoxPointerDown('pane', pane.id)}
-            onPointerMove={onBoxHover('pane', pane.id)}
-            className="absolute inset-0 size-full cursor-move"
-          />
-          <span className="pointer-events-none absolute left-0 top-0 bg-white px-2 py-1 text-[10px] tracking-[0.2em] text-black">
-            FLT:{pane.filter}
-          </span>
-          <button
-            type="button"
-            aria-label="close pane"
-            data-pane-close={pane.id}
-            onClick={() => closePane(pane.id)}
-            className="absolute right-0 top-0 flex size-10 cursor-pointer items-center justify-center bg-black/70 text-base text-white/80 transition-colors hover:bg-white hover:text-black"
+      {panes.map(pane => {
+        const mode = canvasFilterMode(pane.filter);
+        return (
+          <div
+            key={pane.id}
+            data-pane-id={pane.id}
+            className="absolute border border-dashed border-white/70"
+            style={{
+              left: pane.x,
+              top: pane.y,
+              width: pane.w,
+              height: pane.h,
+              zIndex: 35,
+              backdropFilter: FILTERS[pane.filter],
+              WebkitBackdropFilter: FILTERS[pane.filter],
+            }}
           >
-            ✕
-          </button>
-        </div>
-      ))}
+            {mode && <AsciiPane pane={pane} videoEls={videoEls} mode={mode} />}
+            <button
+              type="button"
+              aria-label={`adjust ${pane.filter} pane`}
+              onPointerDown={onBoxPointerDown('pane', pane.id)}
+              onPointerMove={onBoxHover('pane', pane.id)}
+              className="absolute inset-0 size-full cursor-move"
+            />
+            <span className="pointer-events-none absolute left-0 top-0 bg-white px-2 py-1 text-[10px] tracking-[0.2em] text-black">
+              FLT:{pane.filter}
+            </span>
+            <button
+              type="button"
+              aria-label="close pane"
+              data-pane-close={pane.id}
+              onClick={() => closePane(pane.id)}
+              className="absolute right-0 top-0 flex size-10 cursor-pointer items-center justify-center bg-black/70 text-base text-white/80 transition-colors hover:bg-white hover:text-black"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
 
       <header className="absolute left-6 top-6 z-40">
         <h1 className="text-lg tracking-[0.4em]">Lattice</h1>
@@ -723,7 +737,7 @@ export function Lattice() {
             }`}
           >
             <span className="text-xs text-white/40">F{i + 1}</span>
-            {isAsciiFilter(key) ? (
+            {canvasFilterMode(key) ? (
               <span
                 className={`flex size-5 items-center justify-center border border-white/50 text-[11px] normal-case ${
                   key === 'ascii-rgb'
@@ -731,7 +745,7 @@ export function Lattice() {
                     : ''
                 }`}
               >
-                @
+                {key === 'dots' ? '●' : '@'}
               </span>
             ) : (
               <span className="size-5 bg-[linear-gradient(135deg,#f59e0b,#ec4899,#3b82f6)]" style={{ filter: value }} />

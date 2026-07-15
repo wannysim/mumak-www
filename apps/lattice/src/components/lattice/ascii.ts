@@ -44,6 +44,13 @@ export type AsciiTarget = {
 
 export type AsciiPaneBox = { x: number; y: number; w: number; h: number };
 
+// 캔버스로 합성 렌더되는 필터 모드. mono/rgb는 문자로, dots는 밝기에 비례한 원으로 그린다.
+export type AsciiMode = 'mono' | 'rgb' | 'dots';
+
+// dots 모드 셀 한 변(px). 정사각 셀 중앙에 밝기 비례 반지름의 원을 찍는다.
+const DOT_CELL = 8;
+const TAU = Math.PI * 2;
+
 export function renderAsciiFrame(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
@@ -51,7 +58,7 @@ export function renderAsciiFrame(
   sampleCtx: CanvasRenderingContext2D,
   pane: AsciiPaneBox,
   targets: AsciiTarget[],
-  colored: boolean,
+  mode: AsciiMode,
   fontSize = 10
 ) {
   const { x: px, y: py, w: pw, h: ph } = pane;
@@ -59,10 +66,20 @@ export function renderAsciiFrame(
     canvas.width = pw;
     canvas.height = ph;
   }
-  ctx.font = `${fontSize}px monospace`;
-  ctx.textBaseline = 'top';
-  const cols = Math.max(1, Math.floor(pw / ctx.measureText('@').width));
-  const rows = Math.max(1, Math.floor(ph / fontSize));
+  // 셀 격자: 문자 모드는 monospace 글자폭 x fontSize, dots는 정사각 DOT_CELL.
+  let cellW: number;
+  let cellH: number;
+  if (mode === 'dots') {
+    cellW = DOT_CELL;
+    cellH = DOT_CELL;
+  } else {
+    ctx.font = `${fontSize}px monospace`;
+    ctx.textBaseline = 'top';
+    cellW = ctx.measureText('@').width;
+    cellH = fontSize;
+  }
+  const cols = Math.max(1, Math.floor(pw / cellW));
+  const rows = Math.max(1, Math.floor(ph / cellH));
   if (sample.width !== cols || sample.height !== rows) {
     sample.width = cols;
     sample.height = rows;
@@ -122,10 +139,32 @@ export function renderAsciiFrame(
   }
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, pw, ph);
-  const charW = ctx.measureText('@').width;
+
+  if (mode === 'dots') {
+    // 밝기 → 반지름의 흰 원. 전부 같은 색이라 서브패스를 한 path에 모아 한 번만 fill한다
+    // (셀마다 beginPath/fill 하는 것보다 훨씬 싸다).
+    const maxR = cellH / 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.beginPath();
+    for (let r = 0; r < rows; r++) {
+      const cy = r * cellH + maxR;
+      for (let c = 0; c < cols; c++) {
+        const i = (r * cols + c) * 4;
+        const lum = 0.2126 * (data[i] ?? 0) + 0.7152 * (data[i + 1] ?? 0) + 0.0722 * (data[i + 2] ?? 0);
+        const radius = (lum / 255) * maxR;
+        if (radius < 0.35) continue; // 너무 어두운 셀은 비워 검정 배경을 남긴다
+        const cx = c * cellW + maxR;
+        ctx.moveTo(cx + radius, cy); // arc 앞 moveTo로 서브패스 간 연결선 방지
+        ctx.arc(cx, cy, radius, 0, TAU);
+      }
+    }
+    ctx.fill();
+    return;
+  }
+
   ctx.fillStyle = 'rgba(255,255,255,0.92)';
   for (let r = 0; r < rows; r++) {
-    if (colored) {
+    if (mode === 'rgb') {
       for (let c = 0; c < cols; c++) {
         const i = (r * cols + c) * 4;
         const red = data[i] ?? 0;
@@ -137,7 +176,7 @@ export function renderAsciiFrame(
         // 정수 채널로 rgb() 문자열을 만든다 — 셀마다 실행되는 CSS 컬러 파서 비용을 줄인다.
         // 캔버스 백스토어가 8bit라 float은 어차피 반올림돼 그려지므로 Math.round는 픽셀 동일.
         ctx.fillStyle = `rgb(${Math.round(saturateChannel(red, avg))},${Math.round(saturateChannel(green, avg))},${Math.round(saturateChannel(blue, avg))})`;
-        ctx.fillText(char, c * charW, r * fontSize);
+        ctx.fillText(char, c * cellW, r * cellH);
       }
     } else {
       let line = '';
@@ -145,7 +184,7 @@ export function renderAsciiFrame(
         const i = (r * cols + c) * 4;
         line += luminanceToChar(0.2126 * (data[i] ?? 0) + 0.7152 * (data[i + 1] ?? 0) + 0.0722 * (data[i + 2] ?? 0));
       }
-      ctx.fillText(line, 0, r * fontSize);
+      ctx.fillText(line, 0, r * cellH);
     }
   }
 }
