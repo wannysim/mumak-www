@@ -134,7 +134,9 @@ export function renderAsciiFrame(
         const char = luminanceToChar(0.2126 * red + 0.7152 * green + 0.0722 * blue);
         if (char === ' ') continue;
         const avg = (red + green + blue) / 3;
-        ctx.fillStyle = `rgb(${saturateChannel(red, avg)},${saturateChannel(green, avg)},${saturateChannel(blue, avg)})`;
+        // 정수 채널로 rgb() 문자열을 만든다 — 셀마다 실행되는 CSS 컬러 파서 비용을 줄인다.
+        // 캔버스 백스토어가 8bit라 float은 어차피 반올림돼 그려지므로 Math.round는 픽셀 동일.
+        ctx.fillStyle = `rgb(${Math.round(saturateChannel(red, avg))},${Math.round(saturateChannel(green, avg))},${Math.round(saturateChannel(blue, avg))})`;
         ctx.fillText(char, c * charW, r * fontSize);
       }
     } else {
