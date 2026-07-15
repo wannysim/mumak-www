@@ -441,8 +441,15 @@ export function Lattice() {
     let landmarker: HandLandmarker | null = null;
     let pinching = false;
     let pinchRatio: number | null = null;
-    let filterX: ReturnType<typeof createOneEuro> | null = null;
-    let filterY: ReturnType<typeof createOneEuro> | null = null;
+    // 커서 앵커용 One Euro 필터. tip = 엄지-검지 중간점(포인팅용), palm = 중지 뿌리(핀치 중 기준용).
+    let filterTipX: ReturnType<typeof createOneEuro> | null = null;
+    let filterTipY: ReturnType<typeof createOneEuro> | null = null;
+    let filterPalmX: ReturnType<typeof createOneEuro> | null = null;
+    let filterPalmY: ReturnType<typeof createOneEuro> | null = null;
+    // 핀치 시작 순간의 (tip - palm) 화면 오프셋. 핀치 중에는 이 값을 고정해
+    // 손가락이 오므라들어도 커서가 밀리지 않게 한다.
+    let anchorOffX = 0;
+    let anchorOffY = 0;
 
     const grab = (filterKey: string | null) => {
       grabbedRef.current = filterKey;
@@ -530,25 +537,38 @@ export function Lattice() {
         const indexTip = hand?.[8];
         const middleMcp = hand?.[9];
         if (wrist && thumbTip && indexTip && middleMcp) {
-          // 커서 앵커는 엄지-검지 중간점 — 핀치 동작으로 검지가 움직여도 커서가 밀리지 않는다.
+          // 핀치 판정을 먼저 한다 — 커서 앵커 전략이 핀치 상태에 따라 달라지기 때문.
+          const palmLength = Math.max(pinchDistance(wrist, middleMcp), 1e-6);
+          const rawRatio = pinchDistance(thumbTip, indexTip) / palmLength;
+          pinchRatio = pinchRatio === null ? rawRatio : pinchRatio + PINCH_RATIO_SMOOTHING * (rawRatio - pinchRatio);
+          const wasPinching = pinching;
+          pinching = nextPinch(pinching, pinchRatio);
+
           // 셀피 뷰라 x를 미러링하고, 랜드마크 노이즈는 One Euro Filter로 누른다.
           const mid = { x: (thumbTip.x + indexTip.x) / 2, y: (thumbTip.y + indexTip.y) / 2 };
-          filterX ??= createOneEuro();
-          filterY ??= createOneEuro();
-          const x = filterX(remapToScreen(1 - mid.x), t) * window.innerWidth;
-          const y = filterY(remapToScreen(mid.y), t) * window.innerHeight;
+          filterTipX ??= createOneEuro();
+          filterTipY ??= createOneEuro();
+          filterPalmX ??= createOneEuro();
+          filterPalmY ??= createOneEuro();
+          const tipX = filterTipX(remapToScreen(1 - mid.x), t) * window.innerWidth;
+          const tipY = filterTipY(remapToScreen(mid.y), t) * window.innerHeight;
+          // 중지 뿌리(knuckle)는 핀치해도 거의 안 움직여 핀치 중 안정적 기준점이 된다.
+          const palmX = filterPalmX(remapToScreen(1 - middleMcp.x), t) * window.innerWidth;
+          const palmY = filterPalmY(remapToScreen(middleMcp.y), t) * window.innerHeight;
+          // 비핀치: 커서 = 엄지-검지 중간점(자연스러운 포인팅) + 손바닥 대비 오프셋 갱신.
+          // 핀치 중: 오프셋을 고정하고 손바닥 이동만 반영 → 손가락 오므림에 의한 드리프트 제거.
+          if (!pinching) {
+            anchorOffX = tipX - palmX;
+            anchorOffY = tipY - palmY;
+          }
+          const x = palmX + anchorOffX;
+          const y = palmY + anchorOffY;
+
           cursor.style.opacity = '1';
           cursor.style.transform = `translate3d(${x}px, ${y}px, 0)`;
           if (coordRef.current) {
             coordRef.current.textContent = `X:${pad2(Math.round((x / window.innerWidth) * 100))} Y:${pad2(Math.round((y / window.innerHeight) * 100))}`;
           }
-
-          const palmLength = Math.max(pinchDistance(wrist, middleMcp), 1e-6);
-          const rawRatio = pinchDistance(thumbTip, indexTip) / palmLength;
-          pinchRatio = pinchRatio === null ? rawRatio : pinchRatio + PINCH_RATIO_SMOOTHING * (rawRatio - pinchRatio);
-
-          const wasPinching = pinching;
-          pinching = nextPinch(pinching, pinchRatio);
           cursor.dataset.pinching = String(pinching);
 
           if (!wasPinching && pinching) {
@@ -568,8 +588,10 @@ export function Lattice() {
           // 마우스 드래그/칩 캐리는 건드리지 않는다 (마우스 사용 중엔 보통 손이 없다)
           pinching = false;
           pinchRatio = null;
-          filterX = null;
-          filterY = null;
+          filterTipX = null;
+          filterTipY = null;
+          filterPalmX = null;
+          filterPalmY = null;
           if (!mouseChipRef.current) {
             cursor.style.opacity = '0';
             cursor.dataset.state = 'idle';
