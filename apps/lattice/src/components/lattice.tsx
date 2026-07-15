@@ -2,6 +2,11 @@ import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 import { Dices } from 'lucide-react';
 import * as React from 'react';
 
+import { type AsciiTarget, coverSourceRect, luminanceToChar, renderAsciiFrame, saturateChannel } from './lattice/ascii';
+
+// 순수 헬퍼는 lattice/ascii.ts로 이동했다. 기존 테스트 import 경로 유지를 위해 re-export.
+export { coverSourceRect, luminanceToChar, saturateChannel };
+
 // CC0/공개 샘플 영상. 전부 CORS(ACAO) 허용 소스만 사용 —
 // ascii 존이 canvas getImageData로 픽셀을 읽어야 해서 필수 조건이다.
 // x/y/w는 viewport %, z로 레이어를 서로 겹친다
@@ -157,26 +162,6 @@ export function createOneEuro(minCutoff = 1.2, beta = 0.02, dCutoff = 1) {
   };
 }
 
-const ASCII_CHARS = ' .:-=+*#%@';
-
-export function luminanceToChar(luminance: number) {
-  const index = Math.min(ASCII_CHARS.length - 1, Math.floor((luminance / 256) * ASCII_CHARS.length));
-  return ASCII_CHARS.charAt(index);
-}
-
-// object-fit: cover로 표시된 요소에서 실제로 보이는 원본 픽셀 영역(중앙 크롭)을 구한다
-export function coverSourceRect(videoW: number, videoH: number, dispW: number, dispH: number) {
-  const scale = Math.max(dispW / videoW, dispH / videoH);
-  const sw = dispW / scale;
-  const sh = dispH / scale;
-  return { sx: (videoW - sw) / 2, sy: (videoH - sh) / 2, sw, sh };
-}
-
-// 채도를 끌어올려 컬러 ascii가 원본보다 쨍하게 보이도록 한다
-export function saturateChannel(value: number, average: number, factor = 1.8) {
-  return Math.max(0, Math.min(255, average + (value - average) * factor));
-}
-
 // ascii 존 — 존 아래에 겹친 비디오·웹캠의 해당 영역만 잘라 저해상도로 합성한 뒤
 // 밝기를 문자로 치환해 그린다. 영상이 없는 영역은 검정(공백)으로 남는다.
 // colored면 셀마다 원본 픽셀 색(채도 부스트)을 문자에 입힌다.
@@ -208,94 +193,15 @@ function AsciiPane({
 
     const draw = () => {
       rafId = requestAnimationFrame(draw);
-      const { x: px, y: py, w: pw, h: ph } = paneRef.current;
-      if (canvas.width !== pw || canvas.height !== ph) {
-        canvas.width = pw;
-        canvas.height = ph;
-      }
-      ctx.font = `${FONT_SIZE}px monospace`;
-      ctx.textBaseline = 'top';
-      const cols = Math.max(1, Math.floor(pw / ctx.measureText('@').width));
-      const rows = Math.max(1, Math.floor(ph / FONT_SIZE));
-      if (sample.width !== cols || sample.height !== rows) {
-        sample.width = cols;
-        sample.height = rows;
-      }
-      sampleCtx.fillStyle = '#000';
-      sampleCtx.fillRect(0, 0, cols, rows);
-
       // 낮은 z부터 그려 실제 화면과 같은 겹침 순서를 유지한다. 웹캠 PIP는 최상단.
-      const targets = [
-        ...VIDEOS.toSorted((a, b) => a.z - b.z).map(v => ({ id: v.id, mirror: false })),
-        { id: 'cam', mirror: true },
-      ];
-      for (const target of targets) {
-        const el = videoEls.current[target.id];
-        if (!el || el.readyState < 2 || !el.videoWidth) continue;
-        const r = el.getBoundingClientRect();
-        const ix = Math.max(px, r.left);
-        const iy = Math.max(py, r.top);
-        const iw = Math.min(px + pw, r.right) - ix;
-        const ih = Math.min(py + ph, r.bottom) - iy;
-        if (iw <= 0 || ih <= 0) continue;
-        const src = coverSourceRect(el.videoWidth, el.videoHeight, r.width, r.height);
-        const sx = src.sx + ((ix - r.left) / r.width) * src.sw;
-        const sw = (iw / r.width) * src.sw;
-        const sh = (ih / r.height) * src.sh;
-        const sy = src.sy + ((iy - r.top) / r.height) * src.sh;
-        const dx = ((ix - px) / pw) * cols;
-        const dy = ((iy - py) / ph) * rows;
-        const dw = (iw / pw) * cols;
-        const dh = (ih / ph) * rows;
-        try {
-          if (target.mirror) {
-            // 셀피 프리뷰는 -scale-x로 미러링돼 있으므로 소스/대상 x를 함께 뒤집는다
-            sampleCtx.save();
-            sampleCtx.scale(-1, 1);
-            sampleCtx.drawImage(el, el.videoWidth - sx - sw, sy, sw, sh, -dx - dw, dy, dw, dh);
-            sampleCtx.restore();
-          } else {
-            sampleCtx.drawImage(el, sx, sy, sw, sh, dx, dy, dw, dh);
-          }
-        } catch {
-          // CORS taint 등 — 해당 영상만 건너뛴다
-        }
+      const els = videoEls.current;
+      const targets: AsciiTarget[] = [];
+      for (const v of VIDEOS.toSorted((a, b) => a.z - b.z)) {
+        const el = els[v.id];
+        if (el) targets.push({ el, mirror: false });
       }
-
-      let data: Uint8ClampedArray;
-      try {
-        data = sampleCtx.getImageData(0, 0, cols, rows).data;
-      } catch {
-        return;
-      }
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, pw, ph);
-      const charW = ctx.measureText('@').width;
-      ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      for (let r = 0; r < rows; r++) {
-        if (colored) {
-          for (let c = 0; c < cols; c++) {
-            const i = (r * cols + c) * 4;
-            const red = data[i] ?? 0;
-            const green = data[i + 1] ?? 0;
-            const blue = data[i + 2] ?? 0;
-            const char = luminanceToChar(0.2126 * red + 0.7152 * green + 0.0722 * blue);
-            if (char === ' ') continue;
-            const avg = (red + green + blue) / 3;
-            ctx.fillStyle = `rgb(${saturateChannel(red, avg)},${saturateChannel(green, avg)},${saturateChannel(blue, avg)})`;
-            ctx.fillText(char, c * charW, r * FONT_SIZE);
-          }
-        } else {
-          let line = '';
-          for (let c = 0; c < cols; c++) {
-            const i = (r * cols + c) * 4;
-            line += luminanceToChar(
-              0.2126 * (data[i] ?? 0) + 0.7152 * (data[i + 1] ?? 0) + 0.0722 * (data[i + 2] ?? 0)
-            );
-          }
-          ctx.fillText(line, 0, r * FONT_SIZE);
-        }
-      }
+      if (els.cam) targets.push({ el: els.cam, mirror: true });
+      renderAsciiFrame(ctx, canvas, sample, sampleCtx, paneRef.current, targets, colored, FONT_SIZE);
     };
 
     rafId = requestAnimationFrame(draw);
