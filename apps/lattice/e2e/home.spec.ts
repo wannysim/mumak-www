@@ -5,7 +5,7 @@ test.describe('Lattice Page', () => {
     await page.goto('/');
 
     await expect(page.getByRole('heading', { name: 'Lattice' })).toBeVisible();
-    await expect(page.locator('[data-filter-chip]')).toHaveCount(7);
+    await expect(page.locator('[data-filter-chip]')).toHaveCount(8);
     // 비디오 레이어 4개 + 웹캠 PIP(cam)
     await expect(page.locator('[data-video-id]')).toHaveCount(5);
     await expect(page.locator('[data-pane-id]')).toHaveCount(2);
