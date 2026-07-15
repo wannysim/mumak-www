@@ -70,6 +70,7 @@ export function renderAsciiFrame(
   sampleCtx.fillStyle = '#000';
   sampleCtx.fillRect(0, 0, cols, rows);
 
+  let drew = false;
   for (const target of targets) {
     const el = target.el;
     if (!el || el.readyState < 2 || !el.videoWidth) continue;
@@ -98,9 +99,19 @@ export function renderAsciiFrame(
       } else {
         sampleCtx.drawImage(el, sx, sy, sw, sh, dx, dy, dw, dh);
       }
+      drew = true;
     } catch {
       // CORS taint 등 — 해당 영상만 건너뛴다
     }
+  }
+
+  // 존이 어떤 영상과도 겹치지 않으면 결과는 전부 검정(공백)이다. 비싼 getImageData
+  // 읽기와 cols*rows 셀 루프를 건너뛰고 캔버스만 검정으로 지운다. shuffle 등으로
+  // 빈 영역에 놓인 존이 많을수록 절약이 커진다.
+  if (!drew) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, pw, ph);
+    return;
   }
 
   let data: Uint8ClampedArray;

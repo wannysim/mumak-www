@@ -497,6 +497,13 @@ describe('ascii panes', () => {
 
   it('should render row-batched text for the mono ascii pane', async () => {
     await renderReady();
+    // 새 mono 존이 영상과 겹쳐야 렌더가 일어난다 (겹침 없으면 빈-존 조기 종료)
+    setRect(screen.getByLabelText('bunny layer'), {
+      left: 0,
+      top: 0,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
     fireEvent.click(screen.getByRole('button', { name: 'filter ascii' }));
     stepFrames(2);
 
@@ -524,6 +531,13 @@ describe('ascii panes', () => {
   // 렌더되는지로 스로틀 회귀를 막는다.
   it('should throttle ascii rendering below the frame rate', async () => {
     await renderReady();
+    // ascii-rgb 존과 겹치는 영상이 있어야 getImageData(=렌더)가 호출된다
+    setRect(screen.getByLabelText('bunny layer'), {
+      left: 0,
+      top: 0,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
     createdCtxs.forEach(ctx => ctx.getImageData.mockClear());
 
     const FRAMES = 30;
@@ -533,5 +547,16 @@ describe('ascii panes', () => {
     // 스로틀 없으면 프레임당 1렌더(=30). 30fps 게이트라 확연히 적어야 하고, 0은 아니어야 한다.
     expect(renders).toBeGreaterThan(5);
     expect(renders).toBeLessThan(FRAMES * 0.75);
+  });
+
+  // 겹치는 영상이 없으면 결과는 전부 검정이므로 비싼 getImageData/셀 루프를 건너뛴다.
+  it('should skip getImageData for a pane overlapping no video', async () => {
+    await renderReady();
+    // 어떤 영상 rect도 설정하지 않음 → 겹침 0 → 조기 종료
+    createdCtxs.forEach(ctx => ctx.getImageData.mockClear());
+    stepFrames(10);
+
+    const reads = createdCtxs.reduce((n, ctx) => n + ctx.getImageData.mock.calls.length, 0);
+    expect(reads).toBe(0);
   });
 });

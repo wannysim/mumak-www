@@ -58,6 +58,10 @@ const FILTERS: Record<string, string> = {
 
 const isAsciiFilter = (key: string) => key.startsWith('ascii');
 
+// z 오름차순 겹침 순서는 고정이다. 프레임마다 존마다 toSorted로 새 배열을
+// 뽑지 않도록 모듈 스코프에서 한 번만 정렬한다.
+const VIDEOS_BY_Z = [...VIDEOS].toSorted((a, b) => a.z - b.z);
+
 type Pane = { id: number; filter: string; x: number; y: number; w: number; h: number };
 
 const INITIAL_PANES: Pane[] = [
@@ -202,7 +206,7 @@ function AsciiPane({
       // 낮은 z부터 그려 실제 화면과 같은 겹침 순서를 유지한다. 웹캠 PIP는 최상단.
       const els = videoEls.current;
       const targets: AsciiTarget[] = [];
-      for (const v of VIDEOS.toSorted((a, b) => a.z - b.z)) {
+      for (const v of VIDEOS_BY_Z) {
         const el = els[v.id];
         if (el) targets.push({ el, mirror: false });
       }
