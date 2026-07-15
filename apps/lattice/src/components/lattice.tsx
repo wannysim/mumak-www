@@ -449,8 +449,10 @@ export function Lattice() {
       setGrabbed(filterKey);
     };
 
-    const hitTest = (x: number, y: number, attr: string) =>
-      document.elementFromPoint(x, y)?.closest<HTMLElement>(`[${attr}]`)?.getAttribute(attr) ?? null;
+    // elementFromPoint는 레이아웃을 강제하는 히트테스트다. 한 좌표에서 여러 data-* 속성을
+    // 볼 때 매번 다시 부르지 않고, 최상단 요소를 한 번만 구해 closest로 조회한다.
+    const attrAt = (el: Element | null, attr: string) =>
+      el?.closest<HTMLElement>(`[${attr}]`)?.getAttribute(attr) ?? null;
 
     const dirOf = (e: ResizeEdges) =>
       (e.l || e.r) && (e.t || e.b) ? 'resize-xy' : e.l || e.r ? 'resize-x' : 'resize-y';
@@ -458,11 +460,12 @@ export function Lattice() {
     // 커서 아래에 무엇이 있는지 → 핀치했을 때 일어날 동작을 미리 알려주는 hover 상태
     const hoverStateAt = (x: number, y: number) => {
       if (grabbedRef.current) return 'carry';
-      if (hitTest(x, y, 'data-pane-close')) return 'close';
-      if (hitTest(x, y, 'data-shuffle')) return 'chip';
-      if (hitTest(x, y, 'data-filter-chip')) return 'chip';
-      const paneId = hitTest(x, y, 'data-pane-id');
-      const videoId = paneId ? null : hitTest(x, y, 'data-video-id');
+      const el = document.elementFromPoint(x, y);
+      if (attrAt(el, 'data-pane-close')) return 'close';
+      if (attrAt(el, 'data-shuffle')) return 'chip';
+      if (attrAt(el, 'data-filter-chip')) return 'chip';
+      const paneId = attrAt(el, 'data-pane-id');
+      const videoId = paneId ? null : attrAt(el, 'data-video-id');
       if (!paneId && !videoId) return 'idle';
       const box = paneId ? boxOf('pane', Number(paneId)) : boxOf('video', videoId!);
       if (!box) return 'idle';
@@ -473,26 +476,27 @@ export function Lattice() {
     const onPinchStart = (x: number, y: number) => {
       // 마우스가 드래그 중이면 손이 그 드래그를 가로채지 않는다
       if (dragRef.current?.source === 'mouse') return;
-      if (hitTest(x, y, 'data-shuffle')) {
+      const el = document.elementFromPoint(x, y);
+      if (attrAt(el, 'data-shuffle')) {
         shuffle();
         return;
       }
-      const close = hitTest(x, y, 'data-pane-close');
+      const close = attrAt(el, 'data-pane-close');
       if (close) {
         closePane(Number(close));
         return;
       }
-      const chip = hitTest(x, y, 'data-filter-chip');
+      const chip = attrAt(el, 'data-filter-chip');
       if (chip) {
         grab(chip);
         return;
       }
-      const paneId = hitTest(x, y, 'data-pane-id');
+      const paneId = attrAt(el, 'data-pane-id');
       if (paneId) {
         beginDrag('hand', 'pane', Number(paneId), x, y);
         return;
       }
-      const videoId = hitTest(x, y, 'data-video-id');
+      const videoId = attrAt(el, 'data-video-id');
       if (videoId) beginDrag('hand', 'video', videoId, x, y);
     };
 
