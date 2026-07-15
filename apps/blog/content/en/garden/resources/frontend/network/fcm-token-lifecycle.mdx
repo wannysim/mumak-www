@@ -33,12 +33,14 @@ A common misconception is that the token is renewed every N days. It isn't. The 
 
 So it's **event-driven**, not a timer — and for an active user it effectively almost never changes.
 
+One more thing — **an FCM token is scoped to the device + app install, not to the login session.** Logout/re-login isn't in the event list above; on re-login, `getToken()` **reuses the same token** you had before logout (it is not reissued). So to stop a logged-out device from receiving the previous account's pushes, you need an explicit client-side `deleteToken()` or server-side deregistration — it does not auto-invalidate with the session the way an auth token does.
+
 ## What "inactivity expiry" really means
 
 The platform treats a token as stale if "the app instance hasn't connected to the push gateway for a long time" (~270 days on Google's FCM). Two things matter:
 
 - **The clock is about _inactivity_, not time-since-issuance.** And it resets whenever the app communicates with the gateway.
-- **That communication is done by the OS, not your app code.** On Android, Google Play services; on iOS, APNs — each keeps a persistent background connection to the gateway. Even without the user opening the app, background check-ins and push delivery count as "active." So the 270-day expiry realistically only fires on a **fully abandoned** install (present on the device but disconnected).
+- **Who keeps the connection alive differs by platform.** On Android, Google Play services keeps a persistent background connection to FCM, so the token stays "active" via check-ins even without the user opening the app. iOS is different — there is no persistent FCM connection of its own (the only persistent connection the device keeps is to APNs); an iOS FCM token's freshness is refreshed **when the app runs and the Firebase SDK checks in with Google.** Either way, the 270-day expiry realistically only fires on a **fully abandoned** install (one that hasn't even run in a long time).
 
 ## So how do we learn about a change?
 
@@ -47,11 +49,13 @@ We don't decode an expiry date (impossible — it's opaque) or poll periodically
 - `getToken` — asks "what's the token right now?" (used for the initial registration on app entry)
 - `onTokenRefresh` — the event the SDK **pushes** when the token has changed. Subscribe to it, and the callback fires exactly at the moment the token actually changes.
 
+iOS caveat: calling `getToken` before APNs registration completes fails with `No APNS token specified` — there's no APNs token to map yet. Call it only after notification permission is granted and APNs registration is done. Android has no such constraint.
+
 At that moment you re-register the new token with the server. Because **a write happens only when there's an actual change**, there are no wasted server transactions — far cheaper than "re-register on every request" or "poll periodically." And this API is shared across iOS/Android, so no platform branching is needed (the native SDK absorbs the APNs↔FCM difference).
 
 ## The other side: the server prunes dead tokens too
 
-If the client's re-registration is half of freshness, the server is the other half. When the server sends to an already-dead token, the gateway returns a `NOT_REGISTERED`-style error. The server uses that signal to prune the token. Client (re-register on change) and server (prune on failure) keep the address book current from both ends.
+If the client's re-registration is half of freshness, the server is the other half. When the server sends to an already-dead token, the gateway returns a dead-token error (`UNREGISTERED` in the FCM v1 API, `NotRegistered` in the legacy API). The server uses that signal to prune the token. Client (re-register on change) and server (prune on failure) keep the address book current from both ends.
 
 ## Summary
 

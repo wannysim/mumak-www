@@ -36,6 +36,18 @@ Server decides "we send through FCM only"
 
 Your client package composition is not a client-only decision — it's **joined at the hip with the server's delivery architecture**. This is a case where the answer to "can't we just delete this library?" lives in the server contract.
 
+## iOS delivery takes two hops
+
+Sending to an iOS device through FCM takes two stages:
+
+```
+Server → FCM (Google) → APNs (Apple) → device
+              ↑
+      FCM token → APNs token conversion
+```
+
+FCM uses its stored mapping to convert the FCM token into the APNs token and hands it to APNs on your behalf. For this relay to work, you must **upload an APNs auth key (.p8) to the Firebase console**. If it isn't set up, FCM can't hand off to APNs and **iOS pushes are silently dropped** — the send looks successful, nothing arrives on the device, and no error is raised, so without knowing this layered structure the cause is hard to find.
+
 ## Breaking the chain (server side)
 
 To remove the Firebase SDK dependency from the client, the server has to move:

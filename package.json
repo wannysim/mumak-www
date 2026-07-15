@@ -1,6 +1,6 @@
 {
   "name": "mumak-www",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "private": true,
   "scripts": {
     "build": "turbo run build",
@@ -43,7 +43,8 @@
     "oxlint": "^1.67.0",
     "portless": "^0.14.0",
     "turbo": "^2.10.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-go": "npm:typescript@7.0.2"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}": [

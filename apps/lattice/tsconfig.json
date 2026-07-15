@@ -1,6 +1,7 @@
 {
   "extends": "@mumak/typescript-config/react-vite.json",
   "compilerOptions": {
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@mumak/ui/*": ["../../packages/ui/src/*"]

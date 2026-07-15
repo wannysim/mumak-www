@@ -1,0 +1,90 @@
+---
+title: 'The Two Faces of the typescript Package: Compiler and Library'
+created: '2026-07-10'
+status: 'budding'
+parent: 'frontend-javascript'
+tags: ['typescript', 'compiler', 'tooling', 'frontend']
+---
+
+`tsc` is a command, so why does Next.js load typescript with `require()`? Up to TS 5.x the typescript package was a compiler and a library at the same time, and TS 7 closed the library door - which is why ecosystem tools broke in a row. This note lays out that structure.
+
+## What does "a compiler that is also a library" mean?
+
+The compiler up to TS 5.x was a huge pile of functions written in JavaScript.
+That meant there were two doors into it.
+
+**Door 1 - the CLI.** Typing `tsc --noEmit` in a terminal. The usage everyone knows.
+The `tsc` command itself is actually a thin shell that just calls the library below.
+
+**Door 2 - the library.** Since the compiler body is JS code, any other JS program
+could pull it into its own process and call it like a function.
+
+```js
+const ts = require('typescript'); // the whole compiler arrives as an object
+
+const program = ts.createProgram(['app.ts'], compilerOptions);
+const errors = ts.getPreEmitDiagnostics(program);
+// errors = type errors as an array of JS objects.
+// File, line number, message - all structured data.
+```
+
+## Why did tools choose door 2?
+
+The CLI emits text; the library hands you data. That difference matters.
+
+Through door 2 you receive errors not as "pass/fail" but as structured data -
+so you can print them in your own style, parse tsconfig and inject defaults,
+and wire the incremental cache into your own build pipeline.
+Far more precise integration than parsing text output.
+
+That's why the ecosystem's core tools all stand on door 2:
+
+- **Next.js** - runs type checking inside `next build` via `ts.createIncrementalProgram`
+- **typescript-eslint** - lint rules query type information
+- **ts-jest** - TS transforms at test time
+- **knip** - uses the type graph for dead-code detection
+
+## What did TS 7 change?
+
+TS 7 (tsgo) rewrites the same compiler logic in Go and ships it as a
+machine-code executable. It does exactly the same job: read .ts files,
+resolve tsconfig, check types, emit errors.
+But an executable only has door 1 (the CLI).
+
+There is no way for a Node process to swallow a Go binary via `require()`.
+It's machine code, not JS functions - there is no `ts.createProgram` to call.
+All you can do is run it as a separate process and read the results from outside.
+
+```js
+spawn('tsc', ['--noEmit']); // run it, read the text output - that's all
+```
+
+|                       | Before (TS 5.x)           | TS 7 (tsgo)           |
+| --------------------- | ------------------------- | --------------------- |
+| Identity              | Compiler (written in JS)  | Same compiler (Go)    |
+| Run as CLI            | Yes                       | Yes (4-10x faster)    |
+| Embed via `require()` | Yes - the door tools used | No - the door is gone |
+
+By analogy: the old typescript was an engine sold as a part.
+Tools like Next mounted that engine directly onto their own chassis (the build process).
+TS 7 made the same engine stronger but only sells it as a finished car.
+You can drive it alongside yours - but you can't mount it anymore.
+
+## So how will tools integrate going forward?
+
+Microsoft knows about this and is building a new API under the
+`typescript/unstable/*` exports. But it's not embedding - it's IPC with a
+neighboring process, incompatible with the old API, and unstable by name.
+
+So this is a transition period. The tools standing on door 2 (Next, knip,
+ts-jest, typescript-eslint) each have to migrate to "spawn mode" or the new
+IPC API, and until they do, bumping the typescript dependency to 7 breaks them.
+That's why the gate for TS 7 migration is your toolchain, not your code.
+
+How this structure actually blows up - verified by reading Next.js internals -
+is in [Benchmarking TypeScript 7 and the Next.js migration attempt](/en/articles/typescript-7-nextjs-migration.mdx),
+along with the sidecar pattern that captures the gains today.
+
+## Related notes
+
+- [[js-v8-under-the-hood|Inside the V8 Engine]] - where the performance gap between "a program written in JS" and "a native binary" comes from
