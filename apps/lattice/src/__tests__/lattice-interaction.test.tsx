@@ -518,4 +518,20 @@ describe('ascii panes', () => {
 
     expect(paneEl(2)).toBeInTheDocument();
   });
+
+  // ascii 렌더는 30fps로 스로틀된다 (getImageData 1회 = 1렌더). rAF 프레임마다
+  // 다시 그리면 존 수만큼 프레임당 비용이 선형 증가하므로, 프레임 수보다 적게
+  // 렌더되는지로 스로틀 회귀를 막는다.
+  it('should throttle ascii rendering below the frame rate', async () => {
+    await renderReady();
+    createdCtxs.forEach(ctx => ctx.getImageData.mockClear());
+
+    const FRAMES = 30;
+    stepFrames(FRAMES);
+
+    const renders = createdCtxs.reduce((n, ctx) => n + ctx.getImageData.mock.calls.length, 0);
+    // 스로틀 없으면 프레임당 1렌더(=30). 30fps 게이트라 확연히 적어야 하고, 0은 아니어야 한다.
+    expect(renders).toBeGreaterThan(5);
+    expect(renders).toBeLessThan(FRAMES * 0.75);
+  });
 });

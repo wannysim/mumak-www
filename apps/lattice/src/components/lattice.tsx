@@ -189,10 +189,16 @@ function AsciiPane({
     if (!ctx || !sampleCtx) return;
 
     const FONT_SIZE = 10;
+    // ascii는 저해상도 스타일 이펙트라 30fps면 충분하다. 60fps 대비 렌더 비용 절반 —
+    // 존이 늘수록 커지는 프레임당 getImageData/fillText 총량을 가장 크게 줄이는 지점.
+    const FRAME_INTERVAL = 1000 / 30;
     let rafId = 0;
+    let lastFrame = -Infinity;
 
-    const draw = () => {
+    const draw = (t: number) => {
       rafId = requestAnimationFrame(draw);
+      if (t - lastFrame < FRAME_INTERVAL) return;
+      lastFrame = t;
       // 낮은 z부터 그려 실제 화면과 같은 겹침 순서를 유지한다. 웹캠 PIP는 최상단.
       const els = videoEls.current;
       const targets: AsciiTarget[] = [];
