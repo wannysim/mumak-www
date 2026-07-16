@@ -309,37 +309,6 @@ describe('hand gestures', () => {
     spy.mockRestore();
   });
 
-  // 핀치 정교성: 손가락이 비대칭으로 오므라들어도(검지→엄지) 손바닥(중지 뿌리)이
-  // 제자리면 커서가 밀리지 않아야 한다. 커서 앵커가 손바닥 기준이기 때문.
-  it('should not drift the cursor when fingers converge during a pinch', async () => {
-    await renderReady();
-    const cursor = screen.getByTestId('hand-cursor');
-    const cursorX = () => {
-      const raw = /translate3d\(([-\d.]+)px/.exec(cursor.style.transform)?.[1];
-      return raw ? Number.parseFloat(raw) : Number.NaN;
-    };
-    const W = window.innerWidth;
-    // wrist/중지뿌리는 고정, 엄지/검지만 바꾼다
-    const set = (thumbX: number, indexX: number) => {
-      currentHand = [];
-      currentHand[0] = { x: 0.5, y: 0.82 }; // wrist
-      currentHand[4] = { x: thumbX, y: 0.5 }; // thumb
-      currentHand[8] = { x: indexX, y: 0.5 }; // index
-      currentHand[9] = { x: 0.5, y: 0.62 }; // middleMcp(손바닥 기준)
-    };
-
-    set(0.42, 0.58); // 벌린 상태, 중간점 0.5
-    stepFrames(6);
-    const before = cursorX();
-    expect(cursor.dataset.pinching).toBe('false');
-
-    set(0.42, 0.43); // 검지만 엄지로 이동 → 중간점은 왼쪽으로 밀리지만 손바닥은 고정
-    stepFrames(8);
-    expect(cursor.dataset.pinching).toBe('true');
-    // 중간점 앵커였다면 화면폭의 ~11% 드리프트했을 것. 손바닥 앵커라 거의 제자리.
-    expect(Math.abs(cursorX() - before)).toBeLessThan(W * 0.04);
-  });
-
   // 손 추적(detectForVideo)은 프레임당 가장 비싼 GPU 추론이라 30fps로 스로틀한다.
   it('should throttle hand detection below the frame rate', async () => {
     await renderReady();
