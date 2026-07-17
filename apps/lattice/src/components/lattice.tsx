@@ -2,6 +2,18 @@ import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 import { Dices } from 'lucide-react';
 import * as React from 'react';
 
+import {
+  type AsciiMode,
+  type AsciiTarget,
+  coverSourceRect,
+  luminanceToChar,
+  renderAsciiFrame,
+  saturateChannel,
+} from './lattice/ascii';
+
+// 순수 헬퍼는 lattice/ascii.ts로 이동했다. 기존 테스트 import 경로 유지를 위해 re-export.
+export { coverSourceRect, luminanceToChar, saturateChannel };
+
 // CC0/공개 샘플 영상. 전부 CORS(ACAO) 허용 소스만 사용 —
 // ascii 존이 canvas getImageData로 픽셀을 읽어야 해서 필수 조건이다.
 // x/y/w는 viewport %, z로 레이어를 서로 겹친다
@@ -49,9 +61,20 @@ const FILTERS: Record<string, string> = {
   // css backdrop-filter가 아니라 canvas 합성(AsciiPane)으로 렌더링되는 특수 필터
   ascii: 'none',
   'ascii-rgb': 'none',
+  dots: 'none',
 };
 
-const isAsciiFilter = (key: string) => key.startsWith('ascii');
+// canvas(AsciiPane)로 렌더되는 필터 → 렌더 모드. 나머지 키는 CSS backdrop-filter.
+const CANVAS_FILTER_MODE: Record<string, AsciiMode> = {
+  ascii: 'mono',
+  'ascii-rgb': 'rgb',
+  dots: 'dots',
+};
+const canvasFilterMode = (key: string): AsciiMode | undefined => CANVAS_FILTER_MODE[key];
+
+// z 오름차순 겹침 순서는 고정이다. 프레임마다 존마다 toSorted로 새 배열을
+// 뽑지 않도록 모듈 스코프에서 한 번만 정렬한다.
+const VIDEOS_BY_Z = [...VIDEOS].toSorted((a, b) => a.z - b.z);
 
 type Pane = { id: number; filter: string; x: number; y: number; w: number; h: number };
 
@@ -157,37 +180,16 @@ export function createOneEuro(minCutoff = 1.2, beta = 0.02, dCutoff = 1) {
   };
 }
 
-const ASCII_CHARS = ' .:-=+*#%@';
-
-export function luminanceToChar(luminance: number) {
-  const index = Math.min(ASCII_CHARS.length - 1, Math.floor((luminance / 256) * ASCII_CHARS.length));
-  return ASCII_CHARS.charAt(index);
-}
-
-// object-fit: cover로 표시된 요소에서 실제로 보이는 원본 픽셀 영역(중앙 크롭)을 구한다
-export function coverSourceRect(videoW: number, videoH: number, dispW: number, dispH: number) {
-  const scale = Math.max(dispW / videoW, dispH / videoH);
-  const sw = dispW / scale;
-  const sh = dispH / scale;
-  return { sx: (videoW - sw) / 2, sy: (videoH - sh) / 2, sw, sh };
-}
-
-// 채도를 끌어올려 컬러 ascii가 원본보다 쨍하게 보이도록 한다
-export function saturateChannel(value: number, average: number, factor = 1.8) {
-  return Math.max(0, Math.min(255, average + (value - average) * factor));
-}
-
 // ascii 존 — 존 아래에 겹친 비디오·웹캠의 해당 영역만 잘라 저해상도로 합성한 뒤
-// 밝기를 문자로 치환해 그린다. 영상이 없는 영역은 검정(공백)으로 남는다.
-// colored면 셀마다 원본 픽셀 색(채도 부스트)을 문자에 입힌다.
+// 밝기를 문자(mono/rgb) 또는 원(dots)으로 치환해 그린다. 영상이 없는 영역은 검정으로 남는다.
 function AsciiPane({
   pane,
   videoEls,
-  colored,
+  mode,
 }: {
   pane: Pane;
   videoEls: React.RefObject<Record<string, HTMLVideoElement | null>>;
-  colored: boolean;
+  mode: AsciiMode;
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const paneRef = React.useRef(pane);
@@ -204,103 +206,30 @@ function AsciiPane({
     if (!ctx || !sampleCtx) return;
 
     const FONT_SIZE = 10;
+    // ascii는 저해상도 스타일 이펙트라 30fps면 충분하다. 60fps 대비 렌더 비용 절반 —
+    // 존이 늘수록 커지는 프레임당 getImageData/fillText 총량을 가장 크게 줄이는 지점.
+    const FRAME_INTERVAL = 1000 / 30;
     let rafId = 0;
+    let lastFrame = -Infinity;
 
-    const draw = () => {
+    const draw = (t: number) => {
       rafId = requestAnimationFrame(draw);
-      const { x: px, y: py, w: pw, h: ph } = paneRef.current;
-      if (canvas.width !== pw || canvas.height !== ph) {
-        canvas.width = pw;
-        canvas.height = ph;
-      }
-      ctx.font = `${FONT_SIZE}px monospace`;
-      ctx.textBaseline = 'top';
-      const cols = Math.max(1, Math.floor(pw / ctx.measureText('@').width));
-      const rows = Math.max(1, Math.floor(ph / FONT_SIZE));
-      if (sample.width !== cols || sample.height !== rows) {
-        sample.width = cols;
-        sample.height = rows;
-      }
-      sampleCtx.fillStyle = '#000';
-      sampleCtx.fillRect(0, 0, cols, rows);
-
+      if (t - lastFrame < FRAME_INTERVAL) return;
+      lastFrame = t;
       // 낮은 z부터 그려 실제 화면과 같은 겹침 순서를 유지한다. 웹캠 PIP는 최상단.
-      const targets = [
-        ...VIDEOS.toSorted((a, b) => a.z - b.z).map(v => ({ id: v.id, mirror: false })),
-        { id: 'cam', mirror: true },
-      ];
-      for (const target of targets) {
-        const el = videoEls.current[target.id];
-        if (!el || el.readyState < 2 || !el.videoWidth) continue;
-        const r = el.getBoundingClientRect();
-        const ix = Math.max(px, r.left);
-        const iy = Math.max(py, r.top);
-        const iw = Math.min(px + pw, r.right) - ix;
-        const ih = Math.min(py + ph, r.bottom) - iy;
-        if (iw <= 0 || ih <= 0) continue;
-        const src = coverSourceRect(el.videoWidth, el.videoHeight, r.width, r.height);
-        const sx = src.sx + ((ix - r.left) / r.width) * src.sw;
-        const sw = (iw / r.width) * src.sw;
-        const sh = (ih / r.height) * src.sh;
-        const sy = src.sy + ((iy - r.top) / r.height) * src.sh;
-        const dx = ((ix - px) / pw) * cols;
-        const dy = ((iy - py) / ph) * rows;
-        const dw = (iw / pw) * cols;
-        const dh = (ih / ph) * rows;
-        try {
-          if (target.mirror) {
-            // 셀피 프리뷰는 -scale-x로 미러링돼 있으므로 소스/대상 x를 함께 뒤집는다
-            sampleCtx.save();
-            sampleCtx.scale(-1, 1);
-            sampleCtx.drawImage(el, el.videoWidth - sx - sw, sy, sw, sh, -dx - dw, dy, dw, dh);
-            sampleCtx.restore();
-          } else {
-            sampleCtx.drawImage(el, sx, sy, sw, sh, dx, dy, dw, dh);
-          }
-        } catch {
-          // CORS taint 등 — 해당 영상만 건너뛴다
-        }
+      const els = videoEls.current;
+      const targets: AsciiTarget[] = [];
+      for (const v of VIDEOS_BY_Z) {
+        const el = els[v.id];
+        if (el) targets.push({ el, mirror: false });
       }
-
-      let data: Uint8ClampedArray;
-      try {
-        data = sampleCtx.getImageData(0, 0, cols, rows).data;
-      } catch {
-        return;
-      }
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, pw, ph);
-      const charW = ctx.measureText('@').width;
-      ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      for (let r = 0; r < rows; r++) {
-        if (colored) {
-          for (let c = 0; c < cols; c++) {
-            const i = (r * cols + c) * 4;
-            const red = data[i] ?? 0;
-            const green = data[i + 1] ?? 0;
-            const blue = data[i + 2] ?? 0;
-            const char = luminanceToChar(0.2126 * red + 0.7152 * green + 0.0722 * blue);
-            if (char === ' ') continue;
-            const avg = (red + green + blue) / 3;
-            ctx.fillStyle = `rgb(${saturateChannel(red, avg)},${saturateChannel(green, avg)},${saturateChannel(blue, avg)})`;
-            ctx.fillText(char, c * charW, r * FONT_SIZE);
-          }
-        } else {
-          let line = '';
-          for (let c = 0; c < cols; c++) {
-            const i = (r * cols + c) * 4;
-            line += luminanceToChar(
-              0.2126 * (data[i] ?? 0) + 0.7152 * (data[i + 1] ?? 0) + 0.0722 * (data[i + 2] ?? 0)
-            );
-          }
-          ctx.fillText(line, 0, r * FONT_SIZE);
-        }
-      }
+      if (els.cam) targets.push({ el: els.cam, mirror: true });
+      renderAsciiFrame(ctx, canvas, sample, sampleCtx, paneRef.current, targets, mode, FONT_SIZE);
     };
 
     rafId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafId);
-  }, [videoEls, colored]);
+  }, [videoEls, mode]);
 
   return <canvas ref={canvasRef} aria-hidden className="pointer-events-none absolute inset-0 size-full" />;
 }
@@ -520,8 +449,10 @@ export function Lattice() {
       setGrabbed(filterKey);
     };
 
-    const hitTest = (x: number, y: number, attr: string) =>
-      document.elementFromPoint(x, y)?.closest<HTMLElement>(`[${attr}]`)?.getAttribute(attr) ?? null;
+    // elementFromPoint는 레이아웃을 강제하는 히트테스트다. 한 좌표에서 여러 data-* 속성을
+    // 볼 때 매번 다시 부르지 않고, 최상단 요소를 한 번만 구해 closest로 조회한다.
+    const attrAt = (el: Element | null, attr: string) =>
+      el?.closest<HTMLElement>(`[${attr}]`)?.getAttribute(attr) ?? null;
 
     const dirOf = (e: ResizeEdges) =>
       (e.l || e.r) && (e.t || e.b) ? 'resize-xy' : e.l || e.r ? 'resize-x' : 'resize-y';
@@ -529,11 +460,12 @@ export function Lattice() {
     // 커서 아래에 무엇이 있는지 → 핀치했을 때 일어날 동작을 미리 알려주는 hover 상태
     const hoverStateAt = (x: number, y: number) => {
       if (grabbedRef.current) return 'carry';
-      if (hitTest(x, y, 'data-pane-close')) return 'close';
-      if (hitTest(x, y, 'data-shuffle')) return 'chip';
-      if (hitTest(x, y, 'data-filter-chip')) return 'chip';
-      const paneId = hitTest(x, y, 'data-pane-id');
-      const videoId = paneId ? null : hitTest(x, y, 'data-video-id');
+      const el = document.elementFromPoint(x, y);
+      if (attrAt(el, 'data-pane-close')) return 'close';
+      if (attrAt(el, 'data-shuffle')) return 'chip';
+      if (attrAt(el, 'data-filter-chip')) return 'chip';
+      const paneId = attrAt(el, 'data-pane-id');
+      const videoId = paneId ? null : attrAt(el, 'data-video-id');
       if (!paneId && !videoId) return 'idle';
       const box = paneId ? boxOf('pane', Number(paneId)) : boxOf('video', videoId!);
       if (!box) return 'idle';
@@ -544,26 +476,27 @@ export function Lattice() {
     const onPinchStart = (x: number, y: number) => {
       // 마우스가 드래그 중이면 손이 그 드래그를 가로채지 않는다
       if (dragRef.current?.source === 'mouse') return;
-      if (hitTest(x, y, 'data-shuffle')) {
+      const el = document.elementFromPoint(x, y);
+      if (attrAt(el, 'data-shuffle')) {
         shuffle();
         return;
       }
-      const close = hitTest(x, y, 'data-pane-close');
+      const close = attrAt(el, 'data-pane-close');
       if (close) {
         closePane(Number(close));
         return;
       }
-      const chip = hitTest(x, y, 'data-filter-chip');
+      const chip = attrAt(el, 'data-filter-chip');
       if (chip) {
         grab(chip);
         return;
       }
-      const paneId = hitTest(x, y, 'data-pane-id');
+      const paneId = attrAt(el, 'data-pane-id');
       if (paneId) {
         beginDrag('hand', 'pane', Number(paneId), x, y);
         return;
       }
-      const videoId = hitTest(x, y, 'data-video-id');
+      const videoId = attrAt(el, 'data-video-id');
       if (videoId) beginDrag('hand', 'video', videoId, x, y);
     };
 
@@ -575,27 +508,35 @@ export function Lattice() {
       if (dragRef.current?.source === 'hand') dragRef.current = null;
     };
 
-    const track = () => {
+    // 손 추적(MediaPipe 추론)은 프레임당 가장 비싼 작업이다. 커서 갱신은 30fps면
+    // 충분하므로 detectForVideo 호출을 30fps로 제한해 상시 GPU/CPU 부하를 절반으로 낮춘다.
+    const TRACK_INTERVAL = 1000 / 30;
+    let lastTrack = -Infinity;
+
+    const track = (t: number) => {
+      rafId = requestAnimationFrame(track);
+      if (t - lastTrack < TRACK_INTERVAL) return;
+      lastTrack = t;
+
       const cam = camRef.current;
       const cursor = cursorRef.current;
       if (!cam || !cursor || !landmarker) return;
 
       if (cam.readyState >= 2) {
-        const now = performance.now();
-        const result = landmarker.detectForVideo(cam, now);
+        const result = landmarker.detectForVideo(cam, t);
         const hand = result.landmarks[0];
         const wrist = hand?.[0];
         const thumbTip = hand?.[4];
         const indexTip = hand?.[8];
         const middleMcp = hand?.[9];
         if (wrist && thumbTip && indexTip && middleMcp) {
-          // 커서 앵커는 엄지-검지 중간점 — 핀치 동작으로 검지가 움직여도 커서가 밀리지 않는다.
-          // 셀피 뷰라 x를 미러링하고, 랜드마크 노이즈는 One Euro Filter로 누른다.
+          // 커서 앵커는 엄지-검지 중간점. 셀피 뷰라 x를 미러링하고, 랜드마크 노이즈는
+          // One Euro Filter로 누른다.
           const mid = { x: (thumbTip.x + indexTip.x) / 2, y: (thumbTip.y + indexTip.y) / 2 };
           filterX ??= createOneEuro();
           filterY ??= createOneEuro();
-          const x = filterX(remapToScreen(1 - mid.x), now) * window.innerWidth;
-          const y = filterY(remapToScreen(mid.y), now) * window.innerHeight;
+          const x = filterX(remapToScreen(1 - mid.x), t) * window.innerWidth;
+          const y = filterY(remapToScreen(mid.y), t) * window.innerHeight;
           cursor.style.opacity = '1';
           cursor.style.transform = `translate3d(${x}px, ${y}px, 0)`;
           if (coordRef.current) {
@@ -637,7 +578,6 @@ export function Lattice() {
           if (dragRef.current?.source === 'hand') dragRef.current = null;
         }
       }
-      rafId = requestAnimationFrame(track);
     };
 
     const init = async () => {
@@ -727,45 +667,46 @@ export function Lattice() {
         );
       })}
 
-      {panes.map(pane => (
-        <div
-          key={pane.id}
-          data-pane-id={pane.id}
-          className="absolute border border-dashed border-white/70"
-          style={{
-            left: pane.x,
-            top: pane.y,
-            width: pane.w,
-            height: pane.h,
-            zIndex: 35,
-            backdropFilter: FILTERS[pane.filter],
-            WebkitBackdropFilter: FILTERS[pane.filter],
-          }}
-        >
-          {isAsciiFilter(pane.filter) && (
-            <AsciiPane pane={pane} videoEls={videoEls} colored={pane.filter === 'ascii-rgb'} />
-          )}
-          <button
-            type="button"
-            aria-label={`adjust ${pane.filter} pane`}
-            onPointerDown={onBoxPointerDown('pane', pane.id)}
-            onPointerMove={onBoxHover('pane', pane.id)}
-            className="absolute inset-0 size-full cursor-move"
-          />
-          <span className="pointer-events-none absolute left-0 top-0 bg-white px-2 py-1 text-[10px] tracking-[0.2em] text-black">
-            FLT:{pane.filter}
-          </span>
-          <button
-            type="button"
-            aria-label="close pane"
-            data-pane-close={pane.id}
-            onClick={() => closePane(pane.id)}
-            className="absolute right-0 top-0 flex size-10 cursor-pointer items-center justify-center bg-black/70 text-base text-white/80 transition-colors hover:bg-white hover:text-black"
+      {panes.map(pane => {
+        const mode = canvasFilterMode(pane.filter);
+        return (
+          <div
+            key={pane.id}
+            data-pane-id={pane.id}
+            className="absolute border border-dashed border-white/70"
+            style={{
+              left: pane.x,
+              top: pane.y,
+              width: pane.w,
+              height: pane.h,
+              zIndex: 35,
+              backdropFilter: FILTERS[pane.filter],
+              WebkitBackdropFilter: FILTERS[pane.filter],
+            }}
           >
-            ✕
-          </button>
-        </div>
-      ))}
+            {mode && <AsciiPane pane={pane} videoEls={videoEls} mode={mode} />}
+            <button
+              type="button"
+              aria-label={`adjust ${pane.filter} pane`}
+              onPointerDown={onBoxPointerDown('pane', pane.id)}
+              onPointerMove={onBoxHover('pane', pane.id)}
+              className="absolute inset-0 size-full cursor-move"
+            />
+            <span className="pointer-events-none absolute left-0 top-0 bg-white px-2 py-1 text-[10px] tracking-[0.2em] text-black">
+              FLT:{pane.filter}
+            </span>
+            <button
+              type="button"
+              aria-label="close pane"
+              data-pane-close={pane.id}
+              onClick={() => closePane(pane.id)}
+              className="absolute right-0 top-0 flex size-10 cursor-pointer items-center justify-center bg-black/70 text-base text-white/80 transition-colors hover:bg-white hover:text-black"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
 
       <header className="absolute left-6 top-6 z-40">
         <h1 className="text-lg tracking-[0.4em]">Lattice</h1>
@@ -795,23 +736,26 @@ export function Lattice() {
             data-filter-chip={key}
             onPointerDown={onChipPointerDown(key)}
             onClick={onChipClick(key)}
-            className={`flex w-52 items-center gap-4 border px-5 py-4 text-base tracking-[0.25em] backdrop-blur transition-colors ${
+            className={`flex w-60 items-center gap-4 whitespace-nowrap border px-5 py-4 text-base tracking-[0.25em] backdrop-blur transition-colors ${
               grabbed === key ? 'border-white bg-white/25' : 'border-white/30 bg-black/50 hover:border-white/70'
             }`}
           >
-            <span className="text-xs text-white/40">F{i + 1}</span>
-            {isAsciiFilter(key) ? (
+            <span className="shrink-0 text-xs text-white/40">F{i + 1}</span>
+            {canvasFilterMode(key) ? (
               <span
-                className={`flex size-5 items-center justify-center border border-white/50 text-[11px] normal-case ${
+                className={`flex size-5 shrink-0 items-center justify-center border border-white/50 text-[11px] leading-none normal-case ${
                   key === 'ascii-rgb'
                     ? 'bg-[linear-gradient(135deg,#f59e0b,#ec4899,#3b82f6)] bg-clip-text text-transparent'
                     : ''
                 }`}
               >
-                @
+                {key === 'dots' ? <span className="size-1.5 rounded-full bg-white/90" /> : '@'}
               </span>
             ) : (
-              <span className="size-5 bg-[linear-gradient(135deg,#f59e0b,#ec4899,#3b82f6)]" style={{ filter: value }} />
+              <span
+                className="size-5 shrink-0 bg-[linear-gradient(135deg,#f59e0b,#ec4899,#3b82f6)]"
+                style={{ filter: value }}
+              />
             )}
             {key}
           </button>

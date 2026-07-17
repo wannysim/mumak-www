@@ -45,11 +45,14 @@ let hitElement: Element | null = null;
 let rafQueue: FrameRequestCallback[] = [];
 let now = 0;
 
-function stepFrames(count = 1) {
+// track/ascii 렌더 모두 30fps(≈33.3ms)로 스로틀되므로, 기본 dt는 한 프레임을 확실히
+// 통과시키는 40ms로 둔다(스텝 1회 = 처리 프레임 1회). 스로틀 자체를 관측하는 테스트만
+// 33.3ms보다 작은 dt를 넘겨 스킵을 재현한다.
+function stepFrames(count = 1, dt = 40) {
   for (let i = 0; i < count; i++) {
     const callbacks = rafQueue;
     rafQueue = [];
-    now += 16;
+    now += dt;
     act(() => {
       callbacks.forEach(cb => cb(now));
     });
@@ -70,6 +73,10 @@ function createFakeCtx() {
     measureText: () => ({ width: 6 }),
     fillRect: vi.fn(),
     fillText: vi.fn(),
+    beginPath: vi.fn(),
+    arc: vi.fn(),
+    moveTo: vi.fn(),
+    fill: vi.fn(),
     save: vi.fn(),
     restore: vi.fn(),
     scale: vi.fn(),
@@ -302,6 +309,20 @@ describe('hand gestures', () => {
     spy.mockRestore();
   });
 
+  // 손 추적(detectForVideo)은 프레임당 가장 비싼 GPU 추론이라 30fps로 스로틀한다.
+  it('should throttle hand detection below the frame rate', async () => {
+    await renderReady();
+    mocks.detectForVideo.mockClear();
+
+    const FRAMES = 30;
+    stepFrames(FRAMES, 16); // 16ms 촘촘 스텝 → 스로틀이 프레임을 스킵
+
+    const calls = mocks.detectForVideo.mock.calls.length;
+    // 스로틀 없으면 프레임당 1회(=30). 30fps 게이트라 확연히 적어야 하고 0은 아니어야 한다.
+    expect(calls).toBeGreaterThan(5);
+    expect(calls).toBeLessThan(FRAMES * 0.75);
+  });
+
   it('should stop the acquired camera stream when unmounted before init settles', async () => {
     const view = render(<Lattice />);
     view.unmount();
@@ -497,6 +518,13 @@ describe('ascii panes', () => {
 
   it('should render row-batched text for the mono ascii pane', async () => {
     await renderReady();
+    // 새 mono 존이 영상과 겹쳐야 렌더가 일어난다 (겹침 없으면 빈-존 조기 종료)
+    setRect(screen.getByLabelText('bunny layer'), {
+      left: 0,
+      top: 0,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
     fireEvent.click(screen.getByRole('button', { name: 'filter ascii' }));
     stepFrames(2);
 
@@ -507,15 +535,70 @@ describe('ascii panes', () => {
     expect(monoRow).toBe(true);
   });
 
+  it('should render circles (not text) for the dots pane', async () => {
+    await renderReady();
+    setRect(screen.getByLabelText('bunny layer'), {
+      left: 0,
+      top: 0,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'filter dots' }));
+    stepFrames(2);
+
+    // dots 존은 셀마다 arc로 원을 쌓고 한 번에 fill한다 (문자 렌더 아님)
+    const dotsCtx = createdCtxs.find(ctx => ctx.arc.mock.calls.length > 0);
+    expect(dotsCtx).toBeDefined();
+    expect(dotsCtx!.fill.mock.calls.length).toBeGreaterThan(0);
+    expect(dotsCtx!.fillText.mock.calls.length).toBe(0);
+  });
+
   it('should survive a tainted canvas without crashing', async () => {
     await renderReady();
     setRect(screen.getByLabelText('bunny layer'), { left: 600, top: 400, width: 200, height: 120 });
+    // 1) drawImage 자체가 taint로 throw → 아무것도 못 그림
     throwOnDrawImage = true;
+    stepFrames(4);
+    // 2) drawImage는 되지만 픽셀 읽기(getImageData)가 SecurityError → catch로 조용히 종료
+    throwOnDrawImage = false;
     throwOnGetImageData = true;
-    stepFrames(2);
-    throwOnGetImageData = false;
-    stepFrames(1);
+    stepFrames(4);
 
     expect(paneEl(2)).toBeInTheDocument();
+  });
+
+  // ascii 렌더는 30fps로 스로틀된다 (getImageData 1회 = 1렌더). rAF 프레임마다
+  // 다시 그리면 존 수만큼 프레임당 비용이 선형 증가하므로, 프레임 수보다 적게
+  // 렌더되는지로 스로틀 회귀를 막는다.
+  it('should throttle ascii rendering below the frame rate', async () => {
+    await renderReady();
+    // ascii-rgb 존과 겹치는 영상이 있어야 getImageData(=렌더)가 호출된다
+    setRect(screen.getByLabelText('bunny layer'), {
+      left: 0,
+      top: 0,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+    createdCtxs.forEach(ctx => ctx.getImageData.mockClear());
+
+    const FRAMES = 30;
+    // 33.3ms보다 촘촘한 16ms 스텝으로 스로틀이 프레임을 스킵하는지 관측한다
+    stepFrames(FRAMES, 16);
+
+    const renders = createdCtxs.reduce((n, ctx) => n + ctx.getImageData.mock.calls.length, 0);
+    // 스로틀 없으면 프레임당 1렌더(=30). 30fps 게이트라 확연히 적어야 하고, 0은 아니어야 한다.
+    expect(renders).toBeGreaterThan(5);
+    expect(renders).toBeLessThan(FRAMES * 0.75);
+  });
+
+  // 겹치는 영상이 없으면 결과는 전부 검정이므로 비싼 getImageData/셀 루프를 건너뛴다.
+  it('should skip getImageData for a pane overlapping no video', async () => {
+    await renderReady();
+    // 어떤 영상 rect도 설정하지 않음 → 겹침 0 → 조기 종료
+    createdCtxs.forEach(ctx => ctx.getImageData.mockClear());
+    stepFrames(10);
+
+    const reads = createdCtxs.reduce((n, ctx) => n + ctx.getImageData.mock.calls.length, 0);
+    expect(reads).toBe(0);
   });
 });
