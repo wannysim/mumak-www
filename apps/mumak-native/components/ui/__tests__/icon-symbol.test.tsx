@@ -12,8 +12,8 @@ jest.mock('@expo/vector-icons/MaterialIcons', () => {
 });
 
 describe('IconSymbol', () => {
-  it('maps SF Symbol names to Material Icon names', () => {
-    render(<IconSymbol name="paperplane.fill" color="#123456" size={32} style={{ opacity: 0.5 }} />);
+  it('maps SF Symbol names to Material Icon names', async () => {
+    await render(<IconSymbol name="paperplane.fill" color="#123456" size={32} style={{ opacity: 0.5 }} />);
 
     const icon = screen.getByTestId('material-icon');
     expect(icon.props.name).toBe('send');
@@ -22,8 +22,8 @@ describe('IconSymbol', () => {
     expect(icon.props.style).toEqual({ opacity: 0.5 });
   });
 
-  it('defaults the icon size to 24 when none is given', () => {
-    render(<IconSymbol name="house.fill" color="#123456" />);
+  it('defaults the icon size to 24 when none is given', async () => {
+    await render(<IconSymbol name="house.fill" color="#123456" />);
 
     expect(screen.getByTestId('material-icon').props.size).toBe(24);
   });
