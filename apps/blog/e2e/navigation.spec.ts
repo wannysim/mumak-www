@@ -293,6 +293,26 @@ test.describe('Navigation', () => {
       await expect(page.getByRole('dialog')).not.toBeVisible();
     });
 
+    test('header content does not shift when a dropdown locks body scroll', async ({ page }) => {
+      // 스크롤 가능한 페이지 → 클래식 스크롤바 환경(CI Linux)에서 스크롤바가 존재한다.
+      // 드롭다운(테마)이 열리면 react-remove-scroll이 스크롤바를 제거하는데, fixed 헤더가
+      // 보정되지 않으면 로고가 옆으로 밀린다. (overlay 스크롤바 환경에서는 항상 통과)
+      await page.goto('/ko/blog/essay/retrospect-2025');
+
+      const logo = page.getByRole('link', { name: 'Wan Sim' });
+      await expect(logo).toBeVisible();
+      // 열린 드롭다운은 배경에 aria-hidden을 걸어 role 기반 재조회를 막으므로,
+      // 접근성 트리와 무관하게 좌표를 읽을 수 있도록 element 핸들을 미리 잡아둔다.
+      const logoHandle = await logo.elementHandle();
+      const before = (await logoHandle!.boundingBox())?.x;
+
+      await page.getByRole('button', { name: 'Change theme' }).click();
+      await expect(page.getByRole('menu')).toBeVisible();
+
+      const after = (await logoHandle!.boundingBox())?.x;
+      expect(after).toBe(before);
+    });
+
     test('mobile sheet opens from the left side', async ({ page }) => {
       await page.setViewportSize({ width: 480, height: 900 });
       await page.goto('/ko');
