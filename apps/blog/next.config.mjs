@@ -10,7 +10,10 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  allowedDevOrigins: ['blog.mumak.localhost'],
+  // portless는 git 브랜치 prefix가 붙은 `{branch}.blog.mumak.localhost`로 서빙한다.
+  // 누락되면 dev-only endpoint가 cross-origin 차단돼 hydration 이후 클라이언트
+  // 인터랙션(spotify, 테마/언어 버튼 등)이 통째로 깨진다.
+  allowedDevOrigins: ['blog.mumak.localhost', '*.blog.mumak.localhost'],
   output: 'standalone',
   outputFileTracingRoot: path.join(import.meta.dirname, '../../'),
   outputFileTracingIncludes: {

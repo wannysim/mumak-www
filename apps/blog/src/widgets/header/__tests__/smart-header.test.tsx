@@ -126,6 +126,17 @@ describe('SmartHeader', () => {
       expect(header).toHaveClass('fixed', 'top-0', 'left-0', 'right-0', 'z-50');
     });
 
+    it('compensates scrollbar width while overlays lock body scroll (fixed 요소 밀림 방지)', () => {
+      render(
+        <SmartHeader>
+          <nav>Test</nav>
+        </SmartHeader>
+      );
+
+      const header = screen.getByRole('banner');
+      expect(header).toHaveClass('pr-[var(--removed-body-scroll-bar-size,0px)]');
+    });
+
     it('has no backdrop-blur when at top for Safari iOS theme-color compatibility', () => {
       mockUseScrollDirection.mockReturnValue({
         isVisible: true,
