@@ -152,9 +152,9 @@ PR 묶음 단위로 진행한다. 완료 시 체크하고 옆에 PR 번호를 �
 
 ### B-4. Playwright 브라우저 캐시 / E2E 소요 시간 단축 — 완료(2026-06-16)
 
-> 완료. 측정상 E2E 워크플로 wall-clock ~7.5~8분 중 blog가 7분 단일 병목이었다(나머지 mumak-next/react/native는 병렬로 1~2분). 원인은 안정성 때문에 blog만 `ciWorkers: 1` 직렬 실행이라는 점.
+> 완료. 측정상 E2E 워크플로 wall-clock ~~7.5~~8분 중 blog가 7분 단일 병목이었다(나머지 mumak-next/react/native는 병렬로 1~2분). 원인은 안정성 때문에 blog만 `ciWorkers: 1` 직렬 실행이라는 점.
 >
-> - **갈래 1 (브라우저 재다운로드) — 조사 후 종료.** 추가 다운로드는 발생하지 않는다. e2e.yml은 `mcr.microsoft.com/playwright:v1.58.2-noble` 컨테이너에서 돌고, `test:e2e`는 `playwright test`만 호출한다(`playwright install` 호출 지점이 저장소 어디에도 없음 — workflows/scripts 전역 grep으로 확인). `@playwright/test`는 `^1.58.2`로 컨테이너 버전(v1.58.2)과 정렬돼 있어 버전 불일치로 인한 누락/재설치도 없다. 즉 이 갈래는 손댈 것이 없다.
+> - **갈래 1 (브라우저 재다운로드) — 조사 후 종료.** 추가 다운로드는 발생하지 않는다. e2e.yml은 `mcr.microsoft.com/playwright:v1.62.0-noble` 컨테이너에서 돌고, `test:e2e`는 `playwright test`만 호출한다(`playwright install` 호출 지점이 저장소 어디에도 없음 — workflows/scripts 전역 grep으로 확인). `@playwright/test`는 `^1.62.0`으로 컨테이너 버전(v1.62.0)과 정렬돼 있어 버전 불일치로 인한 누락/재설치도 없다. 즉 이 갈래는 손댈 것이 없다.
 > - **갈래 2 (shard 분할) — 적용.** blog E2E를 Playwright `--shard`로 4분할해 잡 수준으로 병렬화하되, 각 shard는 `ciWorkers: 1`을 그대로 유지해 안정성을 보존한다. 구현:
 >   - `apps.yml`에 `e2eShards`(앱별 shard 수, 미설정=1) 추가 — blog=4.
 >   - `.github/actions/shard-matrix` 신설: scopes-to-matrix의 앱 배열을 `{app,shard,shards}` object 매트릭스로 펼친다. ci.yml이 쓰는 scopes-to-matrix의 string 배열 출력은 불변(e2e.yml 전용).

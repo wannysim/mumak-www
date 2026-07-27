@@ -13,18 +13,18 @@ describe('useColorScheme', () => {
     mockedUseRNColorScheme.mockReset();
   });
 
-  it('returns dark only when React Native reports dark', () => {
+  it('returns dark only when React Native reports dark', async () => {
     mockedUseRNColorScheme.mockReturnValue('dark');
 
-    const { result } = renderHook(() => useColorScheme());
+    const { result } = await renderHook(() => useColorScheme());
 
     expect(result.current).toBe('dark');
   });
 
-  it('falls back to light when no dark scheme is reported', () => {
+  it('falls back to light when no dark scheme is reported', async () => {
     mockedUseRNColorScheme.mockReturnValue('light');
 
-    const { result } = renderHook(() => useColorScheme());
+    const { result } = await renderHook(() => useColorScheme());
 
     expect(result.current).toBe('light');
   });
@@ -41,18 +41,18 @@ describe('useColorScheme.web', () => {
     addChangeListener.mockClear();
   });
 
-  it('follows a dark client scheme', () => {
+  it('follows a dark client scheme', async () => {
     getColorScheme.mockReturnValue('dark');
 
-    const { result } = renderHook(() => useWebColorScheme());
+    const { result } = await renderHook(() => useWebColorScheme());
 
     expect(result.current).toBe('dark');
   });
 
-  it('falls back to light when the client scheme is not dark', () => {
+  it('falls back to light when the client scheme is not dark', async () => {
     getColorScheme.mockReturnValue('light');
 
-    const { result } = renderHook(() => useWebColorScheme());
+    const { result } = await renderHook(() => useWebColorScheme());
 
     expect(result.current).toBe('light');
   });

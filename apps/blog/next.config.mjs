@@ -19,7 +19,7 @@ const nextConfig = {
     // 포함하지 않는다.)
     '/*': ['./content/**/*', './messages/**/*', './public/assets/fonts/**/*'],
   },
-  transpilePackages: ['@mumak/ui'],
+  transpilePackages: ['@mumak/ui', 'marked'],
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
@@ -35,6 +35,7 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   experimental: {
+    useTypeScriptCli: true,
     // 'use cache' 디렉티브만 활성화한다. cacheComponents(전부 동적-기본 + PPR)와 달리
     // generateStaticParams 기반 콘텐츠 페이지의 static-by-default 동작을 유지하므로,
     // 페이지 이동 시 RSC payload가 정적/캐시 가능(no-store 아님)하게 서빙된다.

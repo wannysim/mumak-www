@@ -6,14 +6,14 @@ import { Colors } from '@/constants/theme';
 import { ThemedView } from '../themed-view';
 
 describe('ThemedView', () => {
-  it('applies the themed background color', () => {
-    render(<ThemedView testID="tv" />);
+  it('applies the themed background color', async () => {
+    await render(<ThemedView testID="tv" />);
     const flat = StyleSheet.flatten(screen.getByTestId('tv').props.style);
     expect(flat.backgroundColor).toBe(Colors.light.background);
   });
 
-  it('honors an explicit lightColor override', () => {
-    render(<ThemedView testID="tv" lightColor="#abcabc" />);
+  it('honors an explicit lightColor override', async () => {
+    await render(<ThemedView testID="tv" lightColor="#abcabc" />);
     const flat = StyleSheet.flatten(screen.getByTestId('tv').props.style);
     expect(flat.backgroundColor).toBe('#abcabc');
   });

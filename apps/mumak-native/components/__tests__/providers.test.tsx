@@ -16,8 +16,8 @@ describe('AppProviders', () => {
     mockedUseColorScheme.mockReturnValue('light');
   });
 
-  it('wraps children in safe area + light theme providers', () => {
-    render(
+  it('wraps children in safe area + light theme providers', async () => {
+    await render(
       <AppProviders>
         <Text>child</Text>
       </AppProviders>
@@ -28,10 +28,10 @@ describe('AppProviders', () => {
     expect(screen.getByText('child')).toBeTruthy();
   });
 
-  it('applies the dark theme when the device is dark', () => {
+  it('applies the dark theme when the device is dark', async () => {
     mockedUseColorScheme.mockReturnValue('dark');
 
-    render(
+    await render(
       <AppProviders>
         <Text>child</Text>
       </AppProviders>

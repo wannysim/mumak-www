@@ -17,14 +17,19 @@ describe('content frontmatter schemas', () => {
   });
 
   it('rejects post tags that are not an array', () => {
-    expect(() =>
-      PostFrontmatterSchema.parse({
+    expect(
+      PostFrontmatterSchema.safeParse({
         title: 'Post title',
         date: '2026-06-12',
         description: 'Description',
         tags: 'test',
       })
-    ).toThrow('Expected array');
+    ).toMatchObject({
+      error: {
+        issues: [{ code: 'invalid_type', path: ['tags'] }],
+      },
+      success: false,
+    });
   });
 
   it('rejects invalid ISO date values', () => {
@@ -50,14 +55,19 @@ describe('content frontmatter schemas', () => {
   });
 
   it('rejects unknown note status values', () => {
-    expect(() =>
-      NoteFrontmatterSchema.parse({
+    expect(
+      NoteFrontmatterSchema.safeParse({
         title: 'Note title',
         created: '2026-06-12',
         status: 'sprout',
         tags: ['garden'],
       })
-    ).toThrow('Invalid enum value');
+    ).toMatchObject({
+      error: {
+        issues: [{ code: 'invalid_value', path: ['status'] }],
+      },
+      success: false,
+    });
   });
 });
 

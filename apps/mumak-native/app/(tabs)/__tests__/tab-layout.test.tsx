@@ -17,8 +17,8 @@ describe('TabLayout', () => {
     mockedUseColorScheme.mockReturnValue('light');
   });
 
-  it('configures tabs with the current theme and haptic tab button', () => {
-    render(<TabLayout />);
+  it('configures tabs with the current theme and haptic tab button', async () => {
+    await render(<TabLayout />);
 
     const tabs = screen.getByTestId('tabs');
     expect(tabs.props.screenOptions).toEqual(
@@ -30,8 +30,8 @@ describe('TabLayout', () => {
     );
   });
 
-  it('registers home and explore tab screens', () => {
-    render(<TabLayout />);
+  it('registers home and explore tab screens', async () => {
+    await render(<TabLayout />);
 
     const [home, explore] = screen.getAllByTestId('tabs-screen');
     expect(home.props.accessibilityLabel).toBe('index');
@@ -49,10 +49,10 @@ describe('TabLayout', () => {
     );
   });
 
-  it('uses the dark tab tint when the device is dark', () => {
+  it('uses the dark tab tint when the device is dark', async () => {
     mockedUseColorScheme.mockReturnValue('dark');
 
-    render(<TabLayout />);
+    await render(<TabLayout />);
 
     expect(screen.getByTestId('tabs').props.screenOptions.tabBarActiveTintColor).toBe(Colors.dark.tint);
   });

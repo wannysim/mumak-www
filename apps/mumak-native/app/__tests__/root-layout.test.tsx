@@ -24,8 +24,8 @@ describe('RootLayout', () => {
     expect(ErrorBoundary).toBeInstanceOf(Function);
   });
 
-  it('renders the stack inside the safe area + light theme providers', () => {
-    render(<RootLayout />);
+  it('renders the stack inside the safe area + light theme providers', async () => {
+    await render(<RootLayout />);
 
     expect(screen.getByTestId('safe-area-provider')).toBeTruthy();
     expect(screen.getByTestId('theme-provider').props.value).toBe(DefaultTheme);
@@ -38,10 +38,10 @@ describe('RootLayout', () => {
     expect(notFound.props.options).toEqual({ title: 'Oops!' });
   });
 
-  it('switches to the dark theme when the device is dark', () => {
+  it('switches to the dark theme when the device is dark', async () => {
     mockedUseColorScheme.mockReturnValue('dark');
 
-    render(<RootLayout />);
+    await render(<RootLayout />);
 
     expect(screen.getByTestId('theme-provider').props.value).toBe(DarkTheme);
   });
