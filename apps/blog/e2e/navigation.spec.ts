@@ -301,12 +301,15 @@ test.describe('Navigation', () => {
 
       const logo = page.getByRole('link', { name: 'Wan Sim' });
       await expect(logo).toBeVisible();
-      const before = (await logo.boundingBox())?.x;
+      // 열린 드롭다운은 배경에 aria-hidden을 걸어 role 기반 재조회를 막으므로,
+      // 접근성 트리와 무관하게 좌표를 읽을 수 있도록 element 핸들을 미리 잡아둔다.
+      const logoHandle = await logo.elementHandle();
+      const before = (await logoHandle!.boundingBox())?.x;
 
       await page.getByRole('button', { name: 'Change theme' }).click();
       await expect(page.getByRole('menu')).toBeVisible();
 
-      const after = (await logo.boundingBox())?.x;
+      const after = (await logoHandle!.boundingBox())?.x;
       expect(after).toBe(before);
     });
 
