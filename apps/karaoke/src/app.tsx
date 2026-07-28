@@ -3,6 +3,7 @@ import * as React from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 
+import { AboutDrawer } from '@/components/about-drawer';
 import { DisplayToggle } from '@/components/display-toggle';
 import { LyricsView } from '@/components/lyrics-view';
 import { PlayerControls } from '@/components/player-controls';
@@ -22,6 +23,7 @@ export default function App() {
   const [playbackMode, setPlaybackMode] = useLocalStorageState('karaoke:playback', DEFAULT_PLAYBACK_MODE);
   const song = songs.find(candidate => candidate.slug === songSlug) ?? defaultSong;
   const lyrics = useLyrics(song.slug);
+  const [aboutOpen, setAboutOpen] = React.useState(false);
 
   // 곡이 끝났을 때의 처리. seekTo는 플레이어 훅이 돌려주므로 ref로 건네받는다.
   // 다음 곡 전환은 loadVideoById가 곧바로 재생까지 이어 준다.
@@ -44,7 +46,12 @@ export default function App() {
         <Button variant="ghost" size="icon" aria-label="이전 곡" onClick={() => step(-1)} className="size-12">
           <ChevronLeft className="size-6" />
         </Button>
-        <SongDrawer songs={songs} current={song} onSelect={next => setSongSlug(next.slug)} />
+        <SongDrawer
+          songs={songs}
+          current={song}
+          onSelect={next => setSongSlug(next.slug)}
+          onAbout={() => setAboutOpen(true)}
+        />
         <Button variant="ghost" size="icon" aria-label="다음 곡" onClick={() => step(1)} className="size-12">
           <ChevronRight className="size-6" />
         </Button>
@@ -77,6 +84,8 @@ export default function App() {
       </div>
 
       <LyricsView key={song.slug} lyrics={lyrics} time={time} display={display} onSeek={seekTo} />
+
+      <AboutDrawer open={aboutOpen} onOpenChange={setAboutOpen} />
     </div>
   );
 }
