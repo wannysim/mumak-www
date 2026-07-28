@@ -1,0 +1,65 @@
+@font-face {
+  /* KS X 1001 완성형 + 라틴만 남긴 서브셋(2MB -> 449KB). scripts/subset-font.py 참고.
+     범위 밖 희귀 음절은 시스템 폰트로 글자 단위 폴백된다. */
+  font-family: 'Pretendard';
+  src: url('./assets/fonts/PretendardVariable.subset.woff2') format('woff2-variations');
+  font-weight: 45 920;
+  font-display: swap;
+  unicode-range: U+0020-007F, U+00A0-00FF, U+2010-202F, U+3130-3163, U+AC00-D7A3, U+20A9, U+20AC, U+2122, U+266A-266B;
+}
+
+:root {
+  /* 기본 CSS easing은 힘이 약하다. UI 반응에는 강한 ease-out을 쓴다. */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+html,
+body {
+  /* 노래방 화면은 뷰포트에 고정된다. 문서가 스크롤되면 헤더와 플레이어가 밀려난다. */
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: 'Pretendard', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 모바일: 탭 시 파란 하이라이트 제거, 가로모드 글자 자동 확대 방지 */
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+}
+
+/*
+  누를 수 있는 요소는 전부 같은 방식으로 반응한다.
+
+  기본값에 맡기면 앱 안에서 제각각이 된다. shadcn Button의 press 효과는
+  `active:not-aria-[haspopup]:translate-y-px`라 드로어 트리거(곡 제목·싱크 편집)에서 빠지고,
+  ToggleGroupItem에는 :active 규칙이 아예 없다.
+
+  이 규칙들은 레이어에 속하지 않아 Tailwind 유틸리티(@layer)보다 우선한다.
+  transition은 :where()로 특이도 0을 줘서, 이미 transition-all을 가진 컴포넌트를 방해하지 않는다.
+*/
+:where(button, [data-slot='toggle-group-item']) {
+  transition: transform 160ms var(--ease-out-strong);
+}
+
+button:active,
+[data-slot='toggle-group-item']:active {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+  /* Button 기본 translate-y-px를 끈다. !important가 없으면 미니파이어가 이 선언을
+     위의 transform 축약으로 접어 버려서 Tailwind의 translate가 그대로 살아남는다. */
+  translate: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 움직임은 없애되 이해를 돕는 페이드는 남긴다. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

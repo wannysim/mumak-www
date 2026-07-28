@@ -44,6 +44,13 @@ apps:
       - ui
       - typescript-config
 
+  - app: karaoke
+    type: vite
+    hasE2E: true
+    packageDependencies:
+      - ui
+      - typescript-config
+
   - app: mumak-native
     type: expo
     hasE2E: true # web export(react-native-web) 기반 Playwright E2E

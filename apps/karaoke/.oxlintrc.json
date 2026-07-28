@@ -1,0 +1,27 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "extends": ["../../.oxlintrc.json"],
+  "plugins": ["eslint", "typescript", "oxc", "unicorn", "react", "jsx-a11y"],
+  "overrides": [
+    {
+      // import.meta.env.PROD는 Vite가 빌드 시 인라인하는 상수이지 turbo가 추적할 환경변수가 아니다.
+      "files": ["src/register-sw.ts"],
+      "rules": {
+        "turbo/no-undeclared-env-vars": "off"
+      }
+    },
+    {
+      "files": ["**/*.{test,spec}.{ts,tsx,js,jsx}", "**/__tests__/**/*.{ts,tsx,js,jsx}"],
+      "plugins": ["eslint", "typescript", "oxc", "unicorn", "react", "vitest"],
+      "rules": {
+        "vitest/no-conditional-expect": "off",
+        "vitest/require-mock-type-parameters": "off",
+        "vitest/no-focused-tests": "error",
+        "jsx-a11y/click-events-have-key-events": "off",
+        "jsx-a11y/no-static-element-interactions": "off",
+        "jsx-a11y/no-noninteractive-element-interactions": "off",
+        "jsx-a11y/control-has-associated-label": "off"
+      }
+    }
+  ]
+}
