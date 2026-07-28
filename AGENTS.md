@@ -42,6 +42,8 @@
 - `release` — Git Flow 기반 버전 관리
 - `expressive-refactor` — 이름·구조 중심 리팩토링
 - `perf-optimization` — 성능 최적화 체크리스트
+- `emil-design-eng` — 애니메이션·UI 폴리시 구현 가이드 (easing/duration/GPU/a11y, [emilkowalski/skills](https://github.com/emilkowalski/skills) 벤더링)
+- `review-animations` — 모션 코드 엄격 리뷰 (명시 호출 전용, 같은 출처)
 
 ### 서브에이전트 (위임용)
 
