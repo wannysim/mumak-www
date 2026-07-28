@@ -290,6 +290,15 @@ jobs:
           flags: lattice
           fail_ci_if_error: false
 
+      - name: Upload karaoke coverage to Codecov
+        if: hashFiles('coverage-artifacts/coverage-karaoke/lcov.info') != ''
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-artifacts/coverage-karaoke/lcov.info
+          flags: karaoke
+          fail_ci_if_error: false
+
   # Summary job for branch protection
   ci-success:
     name: CI Success
