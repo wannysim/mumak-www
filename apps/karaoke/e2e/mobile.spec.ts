@@ -21,30 +21,22 @@ async function gotoWithLyrics(page: Page) {
 
 const lyricsBox = (page: Page) => page.locator('ul').first().locator('..');
 
-/** 스크롤이 멈출 때까지 기다린다. smooth scroll은 여러 프레임에 걸쳐 진행된다. */
-async function waitForScrollSettled(page: Page) {
-  const readTop = () => lyricsBox(page).evaluate(el => el.scrollTop);
-  let previous = await readTop();
-  let stableRounds = 0;
-
-  await expect
-    .poll(
-      async () => {
-        const current = await readTop();
-        stableRounds = current === previous ? stableRounds + 1 : 0;
-        previous = current;
-        return stableRounds;
-      },
-      { intervals: [50], timeout: 5000 }
-    )
-    .toBeGreaterThan(3);
-}
-
 /** 줄의 중심이 가사 뷰포트 중심에서 얼마나 벗어나 있는지(px). */
 async function offsetFromCenter(page: Page, name: RegExp) {
   const line = await page.getByRole('button', { name }).boundingBox();
   const view = await lyricsBox(page).boundingBox();
   return Math.abs(line!.y + line!.height / 2 - (view!.y + view!.height / 2));
+}
+
+/**
+ * 줄이 가운데로 올 때까지 기다린다.
+ *
+ * "스크롤이 멈췄는지"를 보면 안 된다. smooth scroll이 시작되기 전에도 scrollTop은
+ * 잠시 그대로라 멈춘 것으로 오판하고, 그대로 단언하면 간헐적으로 실패한다.
+ * 원하는 최종 상태를 직접 기다리는 편이 짧고 확실하다.
+ */
+async function expectCentered(page: Page, name: RegExp) {
+  await expect.poll(() => offsetFromCenter(page, name), { timeout: 5000 }).toBeLessThan(40);
 }
 
 test.describe('Mobile karaoke', () => {
@@ -68,9 +60,7 @@ test.describe('Mobile karaoke', () => {
     await gotoWithLyrics(page);
 
     await page.getByRole('button', { name: /日本語の歌詞 6/ }).tap();
-    await waitForScrollSettled(page);
-
-    expect(await offsetFromCenter(page, /日本語の歌詞 6/)).toBeLessThan(40);
+    await expectCentered(page, /日本語の歌詞 6/);
   });
 
   test('still centers on tap right after the user scrolled by hand', async ({ page }) => {
@@ -83,9 +73,7 @@ test.describe('Mobile karaoke', () => {
       el.scrollBy(0, 900);
     });
     await page.getByRole('button', { name: /日本語の歌詞 12/ }).tap();
-    await waitForScrollSettled(page);
-
-    expect(await offsetFromCenter(page, /日本語の歌詞 12/)).toBeLessThan(40);
+    await expectCentered(page, /日本語の歌詞 12/);
   });
 
   test('re-centers when tapping the line that is already active', async ({ page }) => {
@@ -93,16 +81,15 @@ test.describe('Mobile karaoke', () => {
     const container = lyricsBox(page);
 
     await page.getByRole('button', { name: /日本語の歌詞 9/ }).tap();
-    await waitForScrollSettled(page);
+    // 첫 탭의 스크롤이 끝난 뒤에 손 스크롤을 넣어야 두 동작이 겹치지 않는다.
+    await expectCentered(page, /日本語の歌詞 9/);
 
     await container.evaluate(el => {
       el.dispatchEvent(new TouchEvent('touchmove', { bubbles: true }));
       el.scrollBy(0, 500);
     });
     await page.getByRole('button', { name: /日本語の歌詞 9/ }).tap();
-    await waitForScrollSettled(page);
-
-    expect(await offsetFromCenter(page, /日本語の歌詞 9/)).toBeLessThan(40);
+    await expectCentered(page, /日本語の歌詞 9/);
   });
 
   test('switches songs by tapping the header controls', async ({ page }) => {

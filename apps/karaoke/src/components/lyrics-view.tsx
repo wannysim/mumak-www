@@ -33,9 +33,9 @@ const LyricRow = React.memo(function LyricRow({
         aria-current={isActive ? 'true' : undefined}
         onClick={() => onSelect(index)}
         className={cn(
+          // press 피드백은 index.css가 모든 버튼에 공통으로 준다.
           'w-full rounded-lg px-2 py-2.5 text-center',
           'transition-[opacity,transform] duration-200 ease-[var(--ease-out-strong)]',
-          'active:scale-[0.98] active:duration-100',
           isActive ? 'opacity-100' : 'opacity-35 hover:opacity-70'
         )}
       >
