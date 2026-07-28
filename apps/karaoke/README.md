@@ -45,8 +45,17 @@ Vaundy 콘서트 예습용 모바일 노래방 웹앱. 공식 YouTube 음원을 
 [{ "time": 12.3, "jp": "君を握った", "pron": "키미오 니깃타", "ko": "너를 붙잡았어" }]
 ```
 
-`time`은 초 단위, 곡 내에서 순증가해야 한다. 싱크 편집 모드로 만든 JSON을 그대로 저장하면
-된다. slug는 `src/songs/<곡>.ts` 참조. 가사가 없는 곡은 안내 화면이 뜬다.
+`time`은 초 단위, 곡 내에서 순증가해야 한다. slug는 `src/songs/<곡>.ts` 참조.
+가사가 없는 곡은 안내 화면이 뜬다.
+
+만드는 방법과 함정은 **[docs/LYRICS.md](docs/LYRICS.md)** 에 정리해 뒀다. 요약:
+
+```bash
+python3 scripts/fetch-lyrics.py <slug> --write   # lrclib에서 싱크 가사 받아오기
+python3 scripts/check-lyrics.py                  # 전체 검증
+```
+
+싱크 가사가 없는 곡은 앱의 싱크 편집 모드로 직접 찍는다.
 
 E2E는 가사 파일에 의존하지 않는다 — `e2e/mobile.spec.ts`가 fixture를 주입한다.
 

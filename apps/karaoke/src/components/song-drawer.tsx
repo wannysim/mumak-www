@@ -1,3 +1,5 @@
+import { Info } from 'lucide-react';
+
 import { Button } from '@mumak/ui/components/button';
 import {
   Drawer,
@@ -15,10 +17,12 @@ export function SongDrawer({
   songs,
   current,
   onSelect,
+  onAbout,
 }: {
   songs: Song[];
   current: Song;
   onSelect: (song: Song) => void;
+  onAbout: () => void;
 }) {
   return (
     <Drawer>
@@ -40,7 +44,7 @@ export function SongDrawer({
         <DrawerHeader>
           <DrawerTitle>곡 선택</DrawerTitle>
         </DrawerHeader>
-        <ul className="max-h-[60svh] overflow-y-auto px-4 pb-8">
+        <ul className="max-h-[50svh] overflow-y-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {songs.map(song => (
             <li key={song.slug}>
               <DrawerClose asChild>
@@ -64,6 +68,19 @@ export function SongDrawer({
             </li>
           ))}
         </ul>
+        {/* 드로어 중첩을 피하려고 목록을 닫고 나서 About을 연다. */}
+        <div className="px-4 pt-2 pb-8">
+          <DrawerClose asChild>
+            <button
+              type="button"
+              onClick={onAbout}
+              className="text-muted-foreground hover:text-foreground flex min-h-11 w-full items-center gap-2 text-left text-sm"
+            >
+              <Info className="size-4 shrink-0" />
+              이 앱에 대해 · 곡 추가 요청
+            </button>
+          </DrawerClose>
+        </div>
       </DrawerContent>
     </Drawer>
   );

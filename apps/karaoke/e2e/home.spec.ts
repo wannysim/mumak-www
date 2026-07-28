@@ -69,6 +69,22 @@ test.describe('Karaoke Home', () => {
     expect(await page.evaluate(() => document.documentElement.className)).toBe(chosen);
   });
 
+  test('should reach the about sheet from the song list', async ({ page }) => {
+    await page.goto('/');
+
+    await page.getByRole('button', { name: /곡 목록 열기/ }).click();
+    await page.getByRole('button', { name: /이 앱에 대해/ }).click();
+
+    await expect(page.getByRole('heading', { name: '왜 만들었나' })).toBeVisible();
+    // 곡 추가 요청을 받으려면 연락처가 눌러서 바로 메일이 열려야 한다.
+    await expect(page.getByRole('link', { name: /wannysim@gmail\.com/ })).toHaveAttribute(
+      'href',
+      /^mailto:wannysim@gmail\.com/
+    );
+    // 목록 위에 겹쳐 뜨면 안 된다. 목록은 닫히고 About만 남아야 한다.
+    await expect(page.getByText('곡 선택')).toBeHidden();
+  });
+
   test('should never scroll the document itself', async ({ page }) => {
     await page.goto('/');
 

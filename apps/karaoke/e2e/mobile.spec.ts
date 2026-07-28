@@ -15,6 +15,10 @@ async function gotoWithLyrics(page: Page) {
   await page.route('**/lyrics/*.json', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(LYRICS) })
   );
+  // YouTube를 막아 플레이어가 뜨지 않게 한다. 재생이 시작되면 활성 줄이 계속 넘어가면서
+  // 자동 스크롤이 따라가 "탭한 줄이 가운데" 단언이 깨진다. 네트워크 의존도 함께 사라진다.
+  await page.route(/(youtube\.com|ytimg\.com|youtube-nocookie\.com)/, route => route.abort());
+
   await page.goto('/');
   await expect(page.getByRole('button', { name: /日本語の歌詞 0/ })).toBeVisible();
 }
