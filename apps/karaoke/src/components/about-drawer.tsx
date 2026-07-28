@@ -2,18 +2,28 @@ import { Mail } from 'lucide-react';
 
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@mumak/ui/components/drawer';
 
+import { LyricsLibrary } from '@/components/lyrics-library';
+
 const CONTACT = 'wannysim@gmail.com';
 
-export function AboutDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function AboutDrawer({
+  open,
+  onOpenChange,
+  songSlugs,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  songSlugs: readonly string[];
+}) {
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>이 앱에 대해</DrawerTitle>
-          <DrawerDescription>Vaundy를 따라 부르기 위한 모바일 노래방</DrawerDescription>
+          <DrawerDescription>가사를 담지 않고 로컬 파일로 연습하는 모바일 노래방</DrawerDescription>
         </DrawerHeader>
 
-        <div className="max-h-[60svh] space-y-5 overflow-y-auto px-4 pb-8 text-sm leading-relaxed">
+        <div className="max-h-[68svh] space-y-6 overflow-y-auto px-4 pb-8 text-sm leading-relaxed">
           <section className="space-y-2">
             <h3 className="text-foreground font-semibold">왜 만들었나</h3>
             <p className="text-muted-foreground">
@@ -26,9 +36,15 @@ export function AboutDrawer({ open, onOpenChange }: { open: boolean; onOpenChang
             </p>
           </section>
 
+          <section className="space-y-3">
+            <h3 className="text-foreground font-semibold">내 가사</h3>
+            <LyricsLibrary songSlugs={songSlugs} />
+          </section>
+
           <section className="space-y-2">
             <h3 className="text-foreground font-semibold">어떻게 쓰나</h3>
             <ul className="text-muted-foreground list-disc space-y-1 pl-5">
+              <li>JSON 파일을 선택하면 가사가 이 브라우저의 기기 저장소에 들어갑니다.</li>
               <li>헤더의 좌우 화살표로 곡을 넘기고, 가운데 제목을 누르면 곡 목록이 열립니다.</li>
               <li>가사 줄을 누르면 그 구간부터 다시 재생되고 화면 가운데로 맞춰집니다.</li>
               <li>반복 버튼으로 한 곡 반복이나 다음 곡 자동재생을 켤 수 있습니다.</li>
@@ -36,32 +52,26 @@ export function AboutDrawer({ open, onOpenChange }: { open: boolean; onOpenChang
           </section>
 
           <section className="space-y-2">
-            <h3 className="text-foreground font-semibold">곡을 추가하고 싶다면</h3>
-            <p className="text-muted-foreground">듣고 싶은 곡이 있으면 편하게 알려주세요. 넣을 수 있으면 넣겠습니다.</p>
+            <h3 className="text-foreground font-semibold">가사와 음원에 대해</h3>
+            <p className="text-muted-foreground">
+              음원은 아티스트의 공식 YouTube 영상을 그대로 임베드합니다. 앱에는 가사 원문·발음·번역이 포함되지 않으며,
+              앱의 가사 기능은 사용자가 선택한 파일을 별도 서버나 운영자에게 업로드하지 않습니다. YouTube 재생에는
+              YouTube의 iframe API가 사용됩니다.
+            </p>
+            <p className="text-muted-foreground">
+              불러온 자료는 개인적인 연습 범위에서 사용하고, 파일이나 화면을 공개적으로 다시 공유하지 마세요.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="text-foreground font-semibold">문의</h3>
             <a
-              href={`mailto:${CONTACT}?subject=${encodeURIComponent('[노래방] 곡 추가 요청')}`}
-              className="bg-muted hover:bg-muted/70 text-foreground inline-flex min-h-11 items-center gap-2 rounded-lg px-3 font-medium"
+              href={`mailto:${CONTACT}?subject=${encodeURIComponent('[노래방] 문의')}`}
+              className="bg-muted hover:bg-muted/70 text-foreground inline-flex min-h-11 items-center gap-2 rounded-none px-3 font-medium"
             >
               <Mail className="size-4" />
               {CONTACT}
             </a>
-          </section>
-
-          <section className="space-y-2">
-            <h3 className="text-foreground font-semibold">가사와 음원에 대해</h3>
-            <p className="text-muted-foreground">
-              음원은 재생하지 않고 아티스트의 공식 YouTube 채널에 올라온 것을 그대로 임베드합니다. 가사 원문은
-              저작물이라 앱에 담아 배포하지 않고, 타임스탬프는 공개 가사 데이터베이스{' '}
-              <a
-                href="https://lrclib.net"
-                target="_blank"
-                rel="noreferrer noopener"
-                className="text-primary underline underline-offset-4"
-              >
-                lrclib
-              </a>
-              을 참고했습니다. 발음과 번역은 따라 부르기 위한 보조 표기입니다.
-            </p>
           </section>
         </div>
       </DrawerContent>

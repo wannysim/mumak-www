@@ -27,8 +27,10 @@ class FakePlayer {
 }
 
 /** 곡이 끝났다고 알린다. */
-function endSong() {
-  act(() => FakePlayer.last?.events.onStateChange?.({ data: 0 }));
+async function endSong() {
+  await act(async () => {
+    FakePlayer.last?.events.onStateChange?.({ data: 0 });
+  });
 }
 
 async function renderApp(mode: 'off' | 'all' | 'one') {
@@ -57,7 +59,7 @@ describe('App playback mode', () => {
 
   it('stops on the same song when repeat is off', async () => {
     await renderApp('off');
-    endSong();
+    await endSong();
 
     expect(heading()).toHaveTextContent('怪獣の花唄');
     expect(FakePlayer.last!.seekTo).not.toHaveBeenCalled();
@@ -66,7 +68,7 @@ describe('App playback mode', () => {
 
   it('restarts the same song when repeating one', async () => {
     await renderApp('one');
-    endSong();
+    await endSong();
 
     expect(FakePlayer.last!.seekTo).toHaveBeenCalledWith(0, true);
     expect(FakePlayer.last!.playVideo).toHaveBeenCalled();
@@ -75,7 +77,7 @@ describe('App playback mode', () => {
 
   it('advances to the next song when repeating all', async () => {
     await renderApp('all');
-    endSong();
+    await endSong();
 
     expect(heading()).toHaveTextContent('踊り子');
     expect(FakePlayer.last!.loadVideoById).toHaveBeenCalledWith('CnlMTBwsBHs');
@@ -84,7 +86,7 @@ describe('App playback mode', () => {
   it('wraps from the last song back to the first', async () => {
     localStorage.setItem('karaoke:song', '"time-paradox"');
     await renderApp('all');
-    endSong();
+    await endSong();
 
     expect(heading()).toHaveTextContent('怪獣の花唄');
   });
@@ -95,7 +97,7 @@ describe('App playback mode', () => {
     await act(async () => {
       screen.getByRole('button', { name: /재생 모드: 반복 없음/ }).click();
     });
-    endSong();
+    await endSong();
 
     expect(heading()).toHaveTextContent('踊り子');
   });
