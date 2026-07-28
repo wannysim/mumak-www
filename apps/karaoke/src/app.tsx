@@ -32,7 +32,9 @@ export default function App() {
   }, [playbackMode, song, setSongSlug]);
 
   const { containerRef, time, duration, isPlaying, seekTo, togglePlay } = useYouTubePlayer(song.videoId, handleEnded);
-  seekRef.current = seekTo;
+  React.useEffect(() => {
+    seekRef.current = seekTo;
+  }, [seekTo]);
 
   const step = (offset: number) => setSongSlug(songAt(song, offset).slug);
 

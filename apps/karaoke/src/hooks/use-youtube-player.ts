@@ -68,8 +68,11 @@ export function useYouTubePlayer(videoId: string, onEnded?: () => void) {
   const [duration, setDuration] = React.useState(0);
 
   // 플레이어는 한 번만 만들기 때문에 콜백을 그대로 가두면 낡은 클로저가 남는다.
+  // 갱신은 렌더가 아니라 커밋 후에 한다. 렌더는 버려질 수 있어서 그 안의 변경은 새면 안 된다.
   const onEndedRef = React.useRef(onEnded);
-  onEndedRef.current = onEnded;
+  React.useEffect(() => {
+    onEndedRef.current = onEnded;
+  });
 
   React.useEffect(() => {
     const container = containerRef.current;
