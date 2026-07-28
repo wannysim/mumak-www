@@ -77,12 +77,37 @@ test.describe('Karaoke Home', () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
-  test('should shield the YouTube iframe behind a play toggle', async ({ page }) => {
+  test('should leave the YouTube player unobstructed and interactive', async ({ page }) => {
     await page.goto('/');
 
-    // iframe이 직접 탭되면 YouTube 앱으로 튕기므로 오버레이가 항상 위에 있어야 한다.
+    // YouTube Required Minimum Functionality: 플레이어 앞에 시각 요소를 두면 안 되고
+    // 뷰포트는 200x200 이상이어야 한다. 오버레이를 다시 얹으면 이 테스트가 잡는다.
+    const frame = page.locator('iframe');
+    await expect(frame).toHaveCSS('pointer-events', 'auto');
+
+    const box = (await frame.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(200);
+    expect(box.height).toBeGreaterThanOrEqual(200);
+
+    const covered = await page.evaluate(() => {
+      const rect = document.querySelector('iframe')!.getBoundingClientRect();
+      const at = (x: number, y: number) => document.elementFromPoint(x, y)?.tagName ?? '';
+      return [
+        at(rect.left + rect.width / 2, rect.top + rect.height / 2),
+        at(rect.left + 8, rect.top + 8),
+        at(rect.right - 8, rect.bottom - 8),
+      ];
+    });
+    expect(covered).toEqual(['IFRAME', 'IFRAME', 'IFRAME']);
+  });
+
+  test('should show elapsed and total time with a seek slider', async ({ page }) => {
+    await page.goto('/');
+
+    await expect(page.getByRole('slider', { name: '재생 위치' })).toBeVisible();
     await expect(page.getByRole('button', { name: '재생', exact: true })).toBeVisible();
-    await expect(page.locator('iframe')).toHaveCSS('pointer-events', 'none');
+    // 길이를 모르는 동안에도 자리를 잡아 두어 레이아웃이 흔들리지 않는다.
+    await expect(page.getByText('0:00')).toBeVisible();
   });
 
   test('should toggle a lyric row off', async ({ page }) => {

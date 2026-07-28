@@ -13,6 +13,7 @@ class FakePlayer {
   playVideo = vi.fn();
   pauseVideo = vi.fn();
   destroy = vi.fn();
+  getDuration = vi.fn(() => 224);
   seekTo = vi.fn();
 
   constructor(_el: HTMLElement, options: { videoId: string; events?: Events }) {

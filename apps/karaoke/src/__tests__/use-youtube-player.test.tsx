@@ -25,6 +25,10 @@ class FakePlayer {
     FakePlayer.last = this;
   }
 
+  getDuration() {
+    return 224;
+  }
+
   getCurrentTime() {
     return this.currentTime;
   }

@@ -4,6 +4,7 @@ export type YouTubePlayer = {
   loadVideoById(videoId: string): void;
   seekTo(seconds: number, allowSeekAhead: boolean): void;
   getCurrentTime(): number;
+  getDuration(): number;
   playVideo(): void;
   pauseVideo(): void;
   destroy(): void;
@@ -64,6 +65,7 @@ export function useYouTubePlayer(videoId: string, onEnded?: () => void) {
   const [isReady, setIsReady] = React.useState(false);
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [time, setTime] = React.useState(0);
+  const [duration, setDuration] = React.useState(0);
 
   // 플레이어는 한 번만 만들기 때문에 콜백을 그대로 가두면 낡은 클로저가 남는다.
   const onEndedRef = React.useRef(onEnded);
@@ -91,6 +93,8 @@ export function useYouTubePlayer(videoId: string, onEnded?: () => void) {
           onStateChange: event => {
             if (cancelled) return;
             setIsPlaying(event.data === YT.PlayerState.PLAYING);
+            // 길이는 메타데이터가 도착해야 나온다. 상태가 바뀔 때마다 다시 읽어 둔다.
+            setDuration(player?.getDuration() ?? 0);
             if (event.data === YT.PlayerState.ENDED) onEndedRef.current?.();
           },
         },
@@ -110,14 +114,17 @@ export function useYouTubePlayer(videoId: string, onEnded?: () => void) {
     if (!isReady || loadedVideoIdRef.current === videoId) return;
     loadedVideoIdRef.current = videoId;
     setTime(0);
+    setDuration(0);
     playerRef.current?.loadVideoById(videoId);
   }, [isReady, videoId]);
 
   React.useEffect(() => {
     if (!isPlaying) return;
     const id = window.setInterval(() => {
-      const current = playerRef.current?.getCurrentTime();
-      if (current !== undefined) setTime(current);
+      const player = playerRef.current;
+      if (!player) return;
+      setTime(player.getCurrentTime());
+      setDuration(player.getDuration());
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [isPlaying]);
@@ -134,5 +141,5 @@ export function useYouTubePlayer(videoId: string, onEnded?: () => void) {
     else playerRef.current?.playVideo();
   }, [isPlaying]);
 
-  return { containerRef, time, isPlaying, seekTo, togglePlay };
+  return { containerRef, time, duration, isPlaying, seekTo, togglePlay };
 }

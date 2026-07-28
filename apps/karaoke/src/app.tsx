@@ -1,12 +1,11 @@
-import { ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@mumak/ui/components/button';
-import { cn } from '@mumak/ui/lib/utils';
 
 import { DisplayToggle } from '@/components/display-toggle';
 import { LyricsView } from '@/components/lyrics-view';
-import { PlaybackModeToggle } from '@/components/playback-mode-toggle';
+import { PlayerControls } from '@/components/player-controls';
 import { SongDrawer } from '@/components/song-drawer';
 import { SyncEditor } from '@/components/sync-editor';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -32,7 +31,7 @@ export default function App() {
     else if (playbackMode === 'all') setSongSlug(songAt(song, 1).slug);
   }, [playbackMode, song, setSongSlug]);
 
-  const { containerRef, time, isPlaying, seekTo, togglePlay } = useYouTubePlayer(song.videoId, handleEnded);
+  const { containerRef, time, duration, isPlaying, seekTo, togglePlay } = useYouTubePlayer(song.videoId, handleEnded);
   seekRef.current = seekTo;
 
   const step = (offset: number) => setSongSlug(songAt(song, offset).slug);
@@ -49,43 +48,27 @@ export default function App() {
         </Button>
       </header>
 
-      {/* 오버레이가 iframe 탭을 모두 가로채 YouTube 앱으로 튕기는 것을 막고, 재생/일시정지를 대신한다. */}
-      <div className="relative aspect-video w-full shrink-0 bg-black">
-        <div ref={containerRef} className="pointer-events-none absolute inset-0 [&>*]:size-full [&_iframe]:size-full" />
-        {/* 정지 상태에서는 스크림으로 YouTube 자체 UI(제목·공유·"YouTube에서 보기")를 가린다. */}
-        <button
-          type="button"
-          aria-label={isPlaying ? '일시정지' : '재생'}
-          onClick={togglePlay}
-          className="group absolute inset-0"
-        >
-          <span
-            aria-hidden
-            className={cn(
-              'absolute inset-0 bg-black/70 transition-opacity duration-200 ease-[var(--ease-out-strong)]',
-              isPlaying ? 'opacity-0' : 'opacity-100'
-            )}
-          />
-          <span
-            aria-hidden
-            className={cn(
-              'absolute inset-0 flex items-center justify-center',
-              'transition-[opacity,transform] duration-200 ease-[var(--ease-out-strong)]',
-              'group-active:scale-95 group-active:duration-100',
-              isPlaying ? 'scale-90 opacity-0' : 'scale-100 opacity-100'
-            )}
-          >
-            <span className="bg-primary text-primary-foreground flex size-16 items-center justify-center rounded-full">
-              <Play className="size-7 translate-x-0.5 fill-current" />
-            </span>
-          </span>
-        </button>
-      </div>
+      {/*
+        플레이어 위에는 아무것도 덮지 않는다. YouTube의 Required Minimum Functionality가
+        "플레이어 앞에 오버레이·프레임 등 시각 요소를 두지 말 것"과 최소 200x200 뷰포트를 요구한다.
+        재생/탐색은 아래 PlayerControls가, 컨트롤 바 숨김은 공식 파라미터(controls=0)가 담당한다.
+        @see https://developers.google.com/youtube/terms/required-minimum-functionality
+      */}
+      <div ref={containerRef} className="aspect-video w-full shrink-0 bg-black [&>*]:size-full [&_iframe]:size-full" />
 
-      <div className="flex shrink-0 items-center justify-between gap-2 px-2 py-2">
+      <PlayerControls
+        time={time}
+        duration={duration}
+        isPlaying={isPlaying}
+        onSeek={seekTo}
+        onTogglePlay={togglePlay}
+        playbackMode={playbackMode}
+        onPlaybackModeChange={setPlaybackMode}
+      />
+
+      <div className="flex shrink-0 items-center justify-between gap-2 px-2 pb-1">
         <DisplayToggle value={display} onChange={setDisplay} />
         <div className="flex items-center">
-          <PlaybackModeToggle mode={playbackMode} onChange={setPlaybackMode} />
           <ThemeToggle />
           <SyncEditor time={time} />
         </div>
