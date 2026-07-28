@@ -30,9 +30,11 @@ export function ThemeProvider({
   });
 
   useEffect(() => {
+    // index.html의 인라인 스크립트가 첫 페인트 전에 같은 일을 해 둔다. 여기서는 이후 변경만 반영한다.
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(theme);
+    root.style.colorScheme = theme;
   }, [theme]);
 
   const value = useMemo(

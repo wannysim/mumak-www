@@ -1,10 +1,12 @@
 import { ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import * as React from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 import { cn } from '@mumak/ui/lib/utils';
 
 import { DisplayToggle } from '@/components/display-toggle';
 import { LyricsView } from '@/components/lyrics-view';
+import { PlaybackModeToggle } from '@/components/playback-mode-toggle';
 import { SongDrawer } from '@/components/song-drawer';
 import { SyncEditor } from '@/components/sync-editor';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -12,14 +14,26 @@ import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useLyrics } from '@/hooks/use-lyrics';
 import { useYouTubePlayer } from '@/hooks/use-youtube-player';
 import { DEFAULT_DISPLAY } from '@/lib/display-settings';
+import { DEFAULT_PLAYBACK_MODE } from '@/lib/playback-mode';
 import { defaultSong, songAt, songs } from '@/songs';
 
 export default function App() {
   const [display, setDisplay] = useLocalStorageState('karaoke:display', DEFAULT_DISPLAY);
   const [songSlug, setSongSlug] = useLocalStorageState('karaoke:song', defaultSong.slug);
+  const [playbackMode, setPlaybackMode] = useLocalStorageState('karaoke:playback', DEFAULT_PLAYBACK_MODE);
   const song = songs.find(candidate => candidate.slug === songSlug) ?? defaultSong;
-  const { containerRef, time, isPlaying, seekTo, togglePlay } = useYouTubePlayer(song.videoId);
   const lyrics = useLyrics(song.slug);
+
+  // 곡이 끝났을 때의 처리. seekTo는 플레이어 훅이 돌려주므로 ref로 건네받는다.
+  // 다음 곡 전환은 loadVideoById가 곧바로 재생까지 이어 준다.
+  const seekRef = React.useRef<(seconds: number) => void>(() => {});
+  const handleEnded = React.useCallback(() => {
+    if (playbackMode === 'one') seekRef.current(0);
+    else if (playbackMode === 'all') setSongSlug(songAt(song, 1).slug);
+  }, [playbackMode, song, setSongSlug]);
+
+  const { containerRef, time, isPlaying, seekTo, togglePlay } = useYouTubePlayer(song.videoId, handleEnded);
+  seekRef.current = seekTo;
 
   const step = (offset: number) => setSongSlug(songAt(song, offset).slug);
 
@@ -71,6 +85,7 @@ export default function App() {
       <div className="flex shrink-0 items-center justify-between gap-2 px-2 py-2">
         <DisplayToggle value={display} onChange={setDisplay} />
         <div className="flex items-center">
+          <PlaybackModeToggle mode={playbackMode} onChange={setPlaybackMode} />
           <ThemeToggle />
           <SyncEditor time={time} />
         </div>

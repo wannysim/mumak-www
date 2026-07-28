@@ -21,7 +21,7 @@ export type YouTubeApi = {
       };
     }
   ) => YouTubePlayer;
-  PlayerState: { PLAYING: number };
+  PlayerState: { PLAYING: number; ENDED: number };
 };
 
 declare global {
@@ -57,13 +57,17 @@ const POLL_INTERVAL_MS = 250;
  * YouTube IFrame Player를 마운트하고 재생 시간을 폴링하는 훅.
  * 모바일 자동재생 제한 때문에 최초 재생은 항상 사용자 탭으로 시작된다.
  */
-export function useYouTubePlayer(videoId: string) {
+export function useYouTubePlayer(videoId: string, onEnded?: () => void) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const playerRef = React.useRef<YouTubePlayer | null>(null);
   const loadedVideoIdRef = React.useRef(videoId);
   const [isReady, setIsReady] = React.useState(false);
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [time, setTime] = React.useState(0);
+
+  // 플레이어는 한 번만 만들기 때문에 콜백을 그대로 가두면 낡은 클로저가 남는다.
+  const onEndedRef = React.useRef(onEnded);
+  onEndedRef.current = onEnded;
 
   React.useEffect(() => {
     const container = containerRef.current;
@@ -85,7 +89,9 @@ export function useYouTubePlayer(videoId: string) {
             if (!cancelled) setIsReady(true);
           },
           onStateChange: event => {
-            if (!cancelled) setIsPlaying(event.data === YT.PlayerState.PLAYING);
+            if (cancelled) return;
+            setIsPlaying(event.data === YT.PlayerState.PLAYING);
+            if (event.data === YT.PlayerState.ENDED) onEndedRef.current?.();
           },
         },
       });

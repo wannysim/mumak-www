@@ -60,7 +60,8 @@ test.describe('Mobile karaoke', () => {
     // 가사가 아무리 스크롤돼도 헤더와 플레이어는 화면에 남아야 한다.
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
     await expect(page.getByRole('heading', { level: 1 })).toBeInViewport();
-    await expect(page.getByRole('button', { name: /재생|일시정지/ })).toBeInViewport();
+    // "재생 모드" 버튼과 겹치지 않도록 접근명 전체를 고정한다.
+    await expect(page.getByRole('button', { name: /^(재생|일시정지)$/ })).toBeInViewport();
   });
 
   test('centers a lyric line when tapped', async ({ page }) => {

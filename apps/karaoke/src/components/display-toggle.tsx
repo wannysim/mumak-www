@@ -23,8 +23,9 @@ export function DisplayToggle({
       }}
       aria-label="가사 표시 설정"
     >
+      {/* 320px 화면에서는 컨트롤 줄이 넘치므로 좁을 때만 좌우 여백을 줄인다. 높이(44px)는 유지. */}
       {DISPLAY_FIELDS.map(field => (
-        <ToggleGroupItem key={field.key} value={field.key} className="h-11 px-3.5 text-sm">
+        <ToggleGroupItem key={field.key} value={field.key} className="h-11 px-2 text-sm min-[360px]:px-3.5">
           {field.label}
         </ToggleGroupItem>
       ))}

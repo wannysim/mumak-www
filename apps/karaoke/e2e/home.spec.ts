@@ -45,6 +45,30 @@ test.describe('Karaoke Home', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText('napori');
   });
 
+  test('should settle the theme before React mounts', async ({ page }) => {
+    // 마운트 후에 테마를 붙이면 첫 페인트가 밝게 나갔다가 어두워지며 깜빡인다.
+    await page.goto('/', { waitUntil: 'commit' });
+
+    const early = await page.evaluate(() => ({
+      className: document.documentElement.className,
+      colorScheme: document.documentElement.style.colorScheme,
+      mounted: (document.getElementById('root')?.childElementCount ?? 0) > 0,
+    }));
+
+    expect(early.mounted).toBe(false);
+    expect(early.className).toMatch(/\b(light|dark)\b/);
+    expect(early.colorScheme).toMatch(/^(light|dark)$/);
+  });
+
+  test('should keep the stored theme across reloads', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: /테마로 전환/ }).click();
+    const chosen = await page.evaluate(() => document.documentElement.className);
+
+    await page.reload({ waitUntil: 'commit' });
+    expect(await page.evaluate(() => document.documentElement.className)).toBe(chosen);
+  });
+
   test('should never scroll the document itself', async ({ page }) => {
     await page.goto('/');
 
@@ -57,7 +81,7 @@ test.describe('Karaoke Home', () => {
     await page.goto('/');
 
     // iframe이 직접 탭되면 YouTube 앱으로 튕기므로 오버레이가 항상 위에 있어야 한다.
-    await expect(page.getByRole('button', { name: '재생' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '재생', exact: true })).toBeVisible();
     await expect(page.locator('iframe')).toHaveCSS('pointer-events', 'none');
   });
 
@@ -68,6 +92,40 @@ test.describe('Karaoke Home', () => {
     await expect(koToggle).toHaveAttribute('aria-pressed', 'true');
     await koToggle.click();
     await expect(koToggle).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('should cycle the playback mode', async ({ page }) => {
+    await page.goto('/');
+
+    const button = page.getByRole('button', { name: /재생 모드/ });
+    await expect(button).toHaveAccessibleName(/반복 없음/);
+    await expect(button).toHaveAttribute('aria-pressed', 'false');
+
+    await button.click();
+    await expect(button).toHaveAccessibleName(/전체 반복/);
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+
+    await button.click();
+    await expect(button).toHaveAccessibleName(/한 곡 반복/);
+
+    await page.reload();
+    await expect(page.getByRole('button', { name: /재생 모드/ })).toHaveAccessibleName(/한 곡 반복/);
+  });
+
+  test('should fit its controls on a 320px screen', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/');
+
+    const overflow = await page.evaluate(() => {
+      const toggle = document.querySelector('[aria-label="가사 표시 설정"]')!;
+      const row = toggle.parentElement!;
+      return {
+        row: row.scrollWidth - row.clientWidth,
+        doc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    expect(overflow.row).toBeLessThanOrEqual(0);
+    expect(overflow.doc).toBeLessThanOrEqual(0);
   });
 
   test('should be usable on a mobile viewport', async ({ page }) => {

@@ -30,8 +30,8 @@ class FakePlayer {
   }
 }
 
-function Probe({ videoId }: { videoId: string }) {
-  const { containerRef, time, isPlaying, seekTo, togglePlay } = useYouTubePlayer(videoId);
+function Probe({ videoId, onEnded }: { videoId: string; onEnded?: () => void }) {
+  const { containerRef, time, isPlaying, seekTo, togglePlay } = useYouTubePlayer(videoId, onEnded);
   return (
     <div>
       <div ref={containerRef} />
@@ -59,7 +59,7 @@ describe('useYouTubePlayer', () => {
     vi.useFakeTimers();
     window.YT = {
       Player: FakePlayer as unknown as YouTubeApi['Player'],
-      PlayerState: { PLAYING: 1 },
+      PlayerState: { PLAYING: 1, ENDED: 0 },
     };
   });
 
@@ -110,6 +110,32 @@ describe('useYouTubePlayer', () => {
     act(() => FakePlayer.last?.events.onStateChange?.({ data: 1 }));
     act(() => toggle.click());
     expect(FakePlayer.last!.pauseVideo).toHaveBeenCalled();
+  });
+
+  it('calls onEnded when the video finishes', async () => {
+    const onEnded = vi.fn();
+    render(<Probe videoId="first" onEnded={onEnded} />);
+    await act(async () => {});
+    act(() => FakePlayer.last?.events.onReady?.());
+
+    act(() => FakePlayer.last?.events.onStateChange?.({ data: 0 }));
+
+    expect(onEnded).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('playing')).toHaveTextContent('false');
+  });
+
+  it('uses the latest onEnded, not the one captured at mount', async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender } = render(<Probe videoId="first" onEnded={first} />);
+    await act(async () => {});
+    act(() => FakePlayer.last?.events.onReady?.());
+
+    rerender(<Probe videoId="first" onEnded={second} />);
+    act(() => FakePlayer.last?.events.onStateChange?.({ data: 0 }));
+
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
   });
 
   it('destroys the player on unmount', async () => {
