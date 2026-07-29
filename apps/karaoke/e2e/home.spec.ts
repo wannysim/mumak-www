@@ -210,7 +210,10 @@ test.describe('Karaoke Home', () => {
     expect(await cachedFontCount()).toBeLessThan(20);
   });
 
-  test('should reload the app shell offline after the first visit', async ({ page, context }) => {
+  test('should reload the app shell offline after the first visit', async ({ page, context, browserName }) => {
+    // https://playwright.dev/docs/api/class-browsercontext#browser-context-service-workers
+    test.skip(browserName !== 'chromium', 'Playwright supports service workers only in Chromium.');
+
     await page.goto('/');
     await page.evaluate(() => navigator.serviceWorker.ready);
     await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
