@@ -62,6 +62,8 @@ describe('AboutDrawer', () => {
     await screen.findByText('0/2곡');
 
     const reset = screen.getByRole('button', { name: '재생목록 초기화…' });
+    expect(reset).toHaveAttribute('data-variant', 'destructive');
+    expect(reset).toHaveClass('dark:text-destructive-foreground');
     await userEvent.click(reset);
     expect(onResetPlaylists).not.toHaveBeenCalled();
     await userEvent.click(reset);

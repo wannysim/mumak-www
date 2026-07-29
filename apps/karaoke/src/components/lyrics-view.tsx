@@ -35,15 +35,12 @@ const LyricRow = React.memo(function LyricRow({
         data-line={index}
         aria-current={isActive ? 'true' : undefined}
         onClick={() => onSelect(index)}
-        className={cn(
-          // press 피드백은 index.css가 모든 버튼에 공통으로 준다.
-          'lyric-row w-full rounded-none px-1 py-4 text-left',
-          'transition-transform duration-200 ease-[var(--ease-out-strong)]'
-        )}
+        // press 피드백은 index.css가 모든 버튼에 공통으로 준다.
+        className="lyric-row w-full rounded-none px-1 py-4 text-left"
       >
         <div
           className={cn(
-            'lyric-content origin-left transition-[transform] duration-200 ease-[var(--ease-out-strong)]',
+            'lyric-content origin-left',
             isActive ? 'scale-100' : readingMode ? 'scale-[0.92]' : 'scale-[0.84]'
           )}
         >

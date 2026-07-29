@@ -436,7 +436,11 @@ export function SyncEditor({
               </div>
 
               {importStage === 'source' ? (
-                <section aria-label="원문 입력" className="border-border bg-card border p-3">
+                <section
+                  key="source"
+                  aria-label="원문 입력"
+                  className="border-border bg-card animate-in fade-in-0 border p-3 duration-150 ease-[var(--ease-out-strong)]"
+                >
                   <p className="text-muted-foreground text-xs">노래에서 부르는 줄바꿈 그대로 붙여 넣으세요.</p>
                   <div className="mt-3 grid gap-1.5">
                     <Label htmlFor="source-lyrics">일본어 원문</Label>
@@ -492,7 +496,11 @@ export function SyncEditor({
                   )}
                 </section>
               ) : (
-                <section aria-label="데이터 적용 단계" className="border-border bg-accent/35 border p-3">
+                <section
+                  key="result"
+                  aria-label="데이터 적용 단계"
+                  className="border-border bg-accent/35 animate-in fade-in-0 border p-3 duration-150 ease-[var(--ease-out-strong)]"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="flex items-center gap-1.5 text-sm font-medium">

@@ -67,9 +67,9 @@ export function AboutDrawer({
             </p>
             <Button
               type="button"
-              variant="outline"
+              variant="destructive"
               size="sm"
-              className="text-destructive"
+              className="border-destructive/30 dark:border-destructive-foreground/30 dark:text-destructive-foreground"
               onClick={() => {
                 if (
                   !window.confirm(

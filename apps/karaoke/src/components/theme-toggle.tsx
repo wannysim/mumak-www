@@ -7,7 +7,7 @@ import { useTheme } from '@/components/theme-provider';
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const isDark = theme === 'dark';
-  const Icon = isDark ? Sun : Moon;
+  const Icon = isDark ? Moon : Sun;
   const action = isDark ? '화면 밝게' : '화면 어둡게';
 
   return (

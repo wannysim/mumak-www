@@ -39,16 +39,18 @@ describe('ThemeToggle', () => {
   });
 
   it('toggles straight between light and dark', async () => {
-    renderToggle();
+    const { container } = renderToggle();
 
     const darkToggle = screen.getByRole('button', { name: '화면 어둡게' });
     expect(darkToggle).not.toHaveTextContent(/\S/);
+    expect(container.querySelector('.lucide-sun')).toBeInTheDocument();
     await userEvent.click(darkToggle);
     expect(localStorage.getItem('karaoke:theme')).toBe('dark');
     expect(document.documentElement.classList.contains('dark')).toBe(true);
 
     const lightToggle = screen.getByRole('button', { name: '화면 밝게' });
     expect(lightToggle).not.toHaveTextContent(/\S/);
+    expect(container.querySelector('.lucide-moon')).toBeInTheDocument();
     await userEvent.click(lightToggle);
     expect(localStorage.getItem('karaoke:theme')).toBe('light');
     expect(document.documentElement.classList.contains('light')).toBe(true);

@@ -329,12 +329,6 @@ body {
   background: var(--primary);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .lyric-row:not([aria-current='true']):hover .lyric-content {
-    transform: scale(0.9);
-  }
-}
-
 /*
   누를 수 있는 요소는 전부 같은 방식으로 반응한다.
 
