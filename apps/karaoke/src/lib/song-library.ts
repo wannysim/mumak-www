@@ -4,7 +4,7 @@ export const SONG_LIBRARY_KEY = 'karaoke:song-library-v2';
 export const ACTIVE_PLAYLIST_KEY = 'karaoke:active-playlist-v1';
 export const DEFAULT_PLAYLIST_ID = 'vaundy';
 export const FUJII_KAZE_PLAYLIST_ID = 'fujii-kaze';
-const SONG_LIBRARY_SCHEMA_VERSION = 2;
+const SONG_LIBRARY_SCHEMA_VERSION = 3;
 
 export type Playlist = {
   id: string;
@@ -24,30 +24,30 @@ type SongDetails = {
 };
 
 const fujiiKazeSongs: Song[] = [
-  { slug: 'fujii-kaze-matsuri', titleJa: 'まつり', titleKo: '마츠리', videoId: 'NwOvu-j_WjY' },
+  { slug: 'fujii-kaze-matsuri', titleJa: 'まつり', titleKo: '마츠리', videoId: 'Uqwz7ESQ470' },
   {
     slug: 'fujii-kaze-workin-hard',
     titleJa: "Workin' Hard",
     titleKo: '워킹 하드',
-    videoId: '88wHgiUAKoI',
+    videoId: 'm5zaFbH-CqQ',
   },
-  { slug: 'fujii-kaze-nan-nan', titleJa: '何なんw', titleKo: '난난', videoId: 'Nt6ZwuVzOS4' },
-  { slug: 'fujii-kaze-kirari', titleJa: 'きらり', titleKo: '키라리', videoId: 'TcLLpZBWsck' },
-  { slug: 'fujii-kaze-hana', titleJa: '花', titleKo: '하나', videoId: 'SfPkl7lol7g' },
-  { slug: 'fujii-kaze-garden', titleJa: 'ガーデン', titleKo: '가든', videoId: 'vkPfKnUaq5k' },
-  { slug: 'fujii-kaze-damn', titleJa: 'damn', titleKo: '댐', videoId: 'yP7K2lXr6GA' },
+  { slug: 'fujii-kaze-nan-nan', titleJa: '何なんw', titleKo: '난난', videoId: '52aoci01npY' },
+  { slug: 'fujii-kaze-kirari', titleJa: 'きらり', titleKo: '키라리', videoId: 'o_IyNh6DiLk' },
+  { slug: 'fujii-kaze-hana', titleJa: '花', titleKo: '하나', videoId: 'MZveSpig4QM' },
+  { slug: 'fujii-kaze-garden', titleJa: 'ガーデン', titleKo: '가든', videoId: 'FXxuIiqUXZ0' },
+  { slug: 'fujii-kaze-damn', titleJa: 'damn', titleKo: '댐', videoId: 'WtOSGFHt1sQ' },
   {
     slug: 'fujii-kaze-shinunoga-e-wa',
     titleJa: '死ぬのがいいわ',
     titleKo: '시누노가 이이와',
-    videoId: 'dawrQnvwMTY',
+    videoId: 'iSvutomiqOQ',
   },
-  { slug: 'fujii-kaze-tabiji', titleJa: '旅路', titleKo: '타비지', videoId: '29p8FvT_puU' },
+  { slug: 'fujii-kaze-tabiji', titleJa: '旅路', titleKo: '타비지', videoId: 'oHBrSoBw03s' },
   {
     slug: 'fujii-kaze-michi-teyu-ku',
     titleJa: '満ちてゆく',
     titleKo: '미치테유쿠',
-    videoId: 'ptiK8U4WlSc',
+    videoId: 'gtcVDWBRz20',
   },
 ];
 

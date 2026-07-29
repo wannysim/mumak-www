@@ -17,7 +17,7 @@ import {
 } from '../lib/song-library';
 
 describe('song library', () => {
-  it('seeds the Fujii Kaze playlist with ten official videos', () => {
+  it('seeds the Fujii Kaze playlist with ten official album audio tracks', () => {
     const library = createDefaultSongLibrary();
     const songs = songsInPlaylist(library, FUJII_KAZE_PLAYLIST_ID);
 
@@ -34,7 +34,18 @@ describe('song library', () => {
       '旅路',
       '満ちてゆく',
     ]);
-    expect(new Set(songs.map(song => song.videoId)).size).toBe(10);
+    expect(songs.map(song => song.videoId)).toEqual([
+      'Uqwz7ESQ470',
+      'm5zaFbH-CqQ',
+      '52aoci01npY',
+      'o_IyNh6DiLk',
+      'MZveSpig4QM',
+      'FXxuIiqUXZ0',
+      'WtOSGFHt1sQ',
+      'iSvutomiqOQ',
+      'oHBrSoBw03s',
+      'gtcVDWBRz20',
+    ]);
   });
 
   it.each([
@@ -51,15 +62,15 @@ describe('song library', () => {
   it('falls back when stored metadata is malformed or collides', () => {
     const duplicate = createDefaultSongLibrary();
     duplicate.songs[1] = { ...duplicate.songs[1]!, videoId: duplicate.songs[0]!.videoId };
-    const developmentSnapshot = {
+    const outdatedSnapshot = {
       ...createDefaultSongLibrary(),
-      schemaVersion: 1,
+      schemaVersion: 2,
       playlists: [createDefaultSongLibrary().playlists[0]!],
     };
 
     expect(parseSongLibrary({ nope: true })).toEqual(createDefaultSongLibrary());
     expect(parseSongLibrary(duplicate)).toEqual(createDefaultSongLibrary());
-    expect(parseSongLibrary(developmentSnapshot)).toEqual(createDefaultSongLibrary());
+    expect(parseSongLibrary(outdatedSnapshot)).toEqual(createDefaultSongLibrary());
   });
 
   it('creates, renames, and removes a playlist while keeping one playable list', () => {
