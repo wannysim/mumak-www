@@ -22,15 +22,16 @@ describe('LyricsView', () => {
         onSeek={() => {}}
       />
     );
-    expect(screen.getByText('歌詞をひらく。')).toBeInTheDocument();
+    expect(screen.getByText('가사를 불러오세요')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '가사 파일 불러오기' })).toBeInTheDocument();
-    expect(screen.getByText(/이 브라우저의 IndexedDB에 저장/)).toBeInTheDocument();
+    expect(screen.getByText(/이 기기에만 저장/)).toBeInTheDocument();
+    expect(screen.queryByText(/IndexedDB/)).not.toBeInTheDocument();
   });
 
   it('does not show the import invitation while the local library is loading', () => {
     render(<LyricsView lyrics={[]} status="loading" time={0} display={DEFAULT_DISPLAY} onSeek={() => {}} />);
-    expect(screen.getByText(/Local library · loading/)).toBeInTheDocument();
-    expect(screen.queryByText('歌詞をひらく。')).not.toBeInTheDocument();
+    expect(screen.getByText(/내 가사 확인 중/)).toBeInTheDocument();
+    expect(screen.queryByText('가사를 불러오세요')).not.toBeInTheDocument();
   });
 
   it('keeps recovery import available and explains a stored-record error', () => {

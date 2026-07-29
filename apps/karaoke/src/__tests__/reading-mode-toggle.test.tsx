@@ -22,5 +22,6 @@ describe('ReadingModeToggle', () => {
     const button = screen.getByRole('button', { name: 'READ — 발음·해석 확대 모드' });
     expect(button).toHaveAttribute('aria-pressed', 'true');
     expect(button).toHaveAttribute('title', '일본어 타이포그래피 중심으로 돌아가기');
+    expect(button).toHaveClass('display-toggle-item');
   });
 });

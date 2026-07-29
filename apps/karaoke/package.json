@@ -7,6 +7,7 @@
     "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name karaoke.mumak vite",
     "build": "pnpm check:no-lyrics && tsc -b && vite build && node scripts/assert-no-shipped-lyrics.mjs dist",
     "check:no-lyrics": "node scripts/assert-no-shipped-lyrics.mjs public",
+    "lyrics:generate": "node scripts/generate-lyrics.mjs",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --check .",
@@ -28,10 +29,14 @@
     "clean": "rm -rf dist .turbo coverage test-results playwright-report node_modules/.cache"
   },
   "dependencies": {
+    "@dnd-kit/react": "0.5.0",
     "@fontsource-variable/noto-serif-jp": "5.3.0",
     "@mumak/ui": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
+    "driver.js": "1.8.0",
     "lucide-react": "^1.27.0",
+    "qr-scanner": "1.4.2",
+    "qrcode.react": "4.2.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

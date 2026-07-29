@@ -63,6 +63,10 @@ describe('lyrics storage', () => {
       skippedRecordCount: 0,
     });
 
+    await storage.deleteStoredLyrics('odoriko');
+    expect(await storage.readStoredLyrics('odoriko')).toEqual([]);
+    expect(await storage.listStoredLyrics()).toEqual(['kaiju-no-hanauta']);
+
     await storage.clearStoredLyrics();
     expect(await storage.listStoredLyrics()).toEqual([]);
   });
@@ -134,13 +138,15 @@ describe('lyrics storage', () => {
     const unsubscribe = storage.subscribeLyricsChanges(listener);
 
     await storage.saveStoredLyrics('odoriko', lines);
+    await storage.deleteStoredLyrics('odoriko');
     await storage.clearStoredLyrics();
     expect(listener).toHaveBeenNthCalledWith(1, 'odoriko');
-    expect(listener).toHaveBeenNthCalledWith(2, null);
+    expect(listener).toHaveBeenNthCalledWith(2, 'odoriko');
+    expect(listener).toHaveBeenNthCalledWith(3, null);
 
     unsubscribe();
     await storage.saveStoredLyrics('odoriko', lines);
-    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledTimes(3);
   });
 
   it('broadcasts changes and accepts only valid cross-tab messages', async () => {

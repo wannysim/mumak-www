@@ -18,11 +18,13 @@ type ImportMessage = { kind: 'error'; text: string } | { kind: 'success'; text: 
 
 export function LyricsImportButton({
   songSlugs,
+  targetSongSlug,
   className,
   label = '가사 파일 불러오기',
   onImported,
 }: React.ComponentProps<'div'> & {
   songSlugs: readonly string[];
+  targetSongSlug?: string;
   label?: string;
   onImported?: (slugs: string[]) => void;
 }) {
@@ -37,6 +39,10 @@ export function LyricsImportButton({
 
   const importFiles = async (files: File[]) => {
     if (files.length === 0) return;
+    if (targetSongSlug && files.length !== 1) {
+      setMessage({ kind: 'error', text: '현재 곡에는 가사 파일 한 개만 불러올 수 있습니다.' });
+      return;
+    }
     if (files.length > MAX_FILE_COUNT) {
       setMessage({ kind: 'error', text: `한 번에 ${MAX_FILE_COUNT}개 파일까지 불러올 수 있습니다.` });
       return;
@@ -63,6 +69,9 @@ export function LyricsImportButton({
           }
 
           const isBackup = isLyricsLibraryBackup(value);
+          if (targetSongSlug && isBackup) {
+            throw new Error(`${file.name}: 전체 백업은 ‘이 앱에 대해’의 내 가사 보관함에서 불러와 주세요.`);
+          }
           let results: ReturnType<typeof parseLyricsImportFile>;
           try {
             results = parseLyricsImportFile(value);
@@ -75,6 +84,18 @@ export function LyricsImportButton({
           if (!isBackup && file.size > MAX_SINGLE_FILE_SIZE) {
             throw new Error(`${file.name}: 한 곡 파일이 2MB보다 큽니다.`);
           }
+          if (targetSongSlug) {
+            const result = results[0];
+            if (!result) throw new Error(`${file.name}: 저장할 가사가 없습니다.`);
+            if (result.slug && result.slug !== targetSongSlug) {
+              throw new Error(`${file.name}: 현재 곡과 다른 곡의 가사 파일입니다.`);
+            }
+            return {
+              entries: [{ slug: targetSongSlug, lyrics: result.lyrics }],
+              archivedCount: 0,
+            };
+          }
+
           const fileSlug = slugFromFileName(file.name);
           const entries = results.flatMap(result => {
             const slug = result.slug ?? (results.length === 1 && knownSlugs.has(fileSlug) ? fileSlug : undefined);
@@ -141,7 +162,7 @@ export function LyricsImportButton({
         ref={inputRef}
         type="file"
         accept=".json,application/json"
-        multiple
+        multiple={!targetSongSlug}
         hidden
         tabIndex={-1}
         aria-hidden="true"
@@ -153,6 +174,7 @@ export function LyricsImportButton({
       <Button
         type="button"
         variant="outline"
+        data-tour={targetSongSlug ? 'lyrics-file-import' : undefined}
         className="border-foreground/20 hover:border-foreground/40 min-h-11 rounded-none"
         disabled={busy}
         onClick={() => inputRef.current?.click()}

@@ -35,15 +35,12 @@ const LyricRow = React.memo(function LyricRow({
         data-line={index}
         aria-current={isActive ? 'true' : undefined}
         onClick={() => onSelect(index)}
-        className={cn(
-          // press 피드백은 index.css가 모든 버튼에 공통으로 준다.
-          'lyric-row w-full rounded-none px-1 py-4 text-left',
-          'transition-transform duration-200 ease-[var(--ease-out-strong)]'
-        )}
+        // press 피드백은 index.css가 모든 버튼에 공통으로 준다.
+        className="lyric-row w-full rounded-none px-1 py-4 text-left"
       >
         <div
           className={cn(
-            'lyric-content origin-left transition-[transform] duration-200 ease-[var(--ease-out-strong)]',
+            'lyric-content origin-left',
             isActive ? 'scale-100' : readingMode ? 'scale-[0.92]' : 'scale-[0.84]'
           )}
         >
@@ -141,7 +138,7 @@ export function LyricsView({
   if (status === 'loading') {
     return (
       <div className="karaoke-lyrics text-muted-foreground min-h-0 flex-1 px-6 text-xs tracking-[0.14em] uppercase">
-        <div className="flex min-h-full items-center py-6">Local library · loading</div>
+        <div className="flex min-h-full items-center py-6">내 가사 확인 중</div>
       </div>
     );
   }
@@ -150,17 +147,14 @@ export function LyricsView({
     return (
       <div className="karaoke-lyrics text-muted-foreground min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-6 text-left [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex min-h-full flex-col items-start justify-center py-6">
-          <p className="mb-4 text-[0.68rem] font-semibold tracking-[0.16em] uppercase">Local · IndexedDB</p>
-          <p lang="ja" className="font-japanese text-foreground text-[2rem] font-semibold tracking-[-0.055em]">
-            歌詞をひらく。
-          </p>
+          <p className="mb-4 text-[0.68rem] font-semibold tracking-[0.16em] uppercase">내 가사</p>
+          <p className="text-foreground text-2xl font-semibold tracking-[-0.04em]">가사를 불러오세요</p>
           <p className="mt-3 max-w-[19rem] text-sm leading-relaxed">
             {status === 'error'
               ? `저장된 가사를 읽지 못했습니다. ${errorMessage ?? '새 파일을 불러오거나 기기 저장소를 비운 뒤 다시 시도해 주세요.'}`
-              : '가사 JSON을 한 번 불러오면 이 브라우저의 IndexedDB에 저장되고, 다음부터는 오프라인에서도 바로 열립니다.'}
+              : '가사 파일을 한 번 불러오면 이 기기에만 저장되고, 다음부터는 오프라인에서도 바로 열립니다.'}
           </p>
           <div className="mt-5">{emptyAction}</div>
-          <p className="mt-3 text-xs">JSON · 여러 곡 동시 선택 가능</p>
         </div>
       </div>
     );
