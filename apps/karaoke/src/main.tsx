@@ -7,6 +7,7 @@ import App from './app';
 import { registerServiceWorker } from './register-sw';
 
 import '@mumak/ui/globals.css';
+import 'driver.js/dist/driver.css';
 import './index.css';
 
 import '@fontsource-variable/noto-serif-jp';

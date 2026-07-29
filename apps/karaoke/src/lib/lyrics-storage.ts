@@ -266,6 +266,24 @@ export async function readStoredLyricsLibrary(): Promise<{
   }
 }
 
+export async function deleteStoredLyrics(slug: string): Promise<void> {
+  const normalizedSlug = slug.trim();
+  if (!normalizedSlug) throw new Error('지울 곡의 slug가 없습니다.');
+
+  const database = await openDatabase();
+  if (!database) return;
+
+  try {
+    const transaction = database.transaction(STORE_NAME, 'readwrite');
+    transaction.objectStore(STORE_NAME).delete(normalizedSlug);
+    await transactionCompleted(transaction);
+  } finally {
+    database.close();
+  }
+
+  notifyLyricsChanged(normalizedSlug);
+}
+
 export async function clearStoredLyrics(): Promise<void> {
   const database = await openDatabase();
   if (!database) return;

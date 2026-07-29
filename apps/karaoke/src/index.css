@@ -81,6 +81,72 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.driver-popover.karaoke-guide {
+  --driver-popover-font-family: 'Mumak Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  width: min(20rem, calc(100vw - 2rem));
+  min-width: 0;
+  max-width: none;
+  color: var(--popover-foreground);
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 28%);
+}
+
+.driver-popover.karaoke-guide .driver-popover-title {
+  padding-right: 2rem;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.driver-popover.karaoke-guide .driver-popover-description {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.driver-popover.karaoke-guide .driver-popover-close-btn {
+  color: var(--muted-foreground);
+}
+
+.driver-popover.karaoke-guide .driver-popover-close-btn:focus-visible {
+  color: var(--foreground);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.driver-popover.karaoke-guide .driver-popover-progress-text {
+  color: var(--muted-foreground);
+  font-family: var(--font-utility);
+  font-size: 0.6875rem;
+}
+
+.driver-popover.karaoke-guide .driver-popover-footer-btn {
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  color: var(--foreground);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.driver-popover.karaoke-guide .driver-popover-next-btn {
+  color: var(--primary-foreground);
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.driver-popover.karaoke-guide .driver-popover-footer-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.driver-popover.karaoke-guide .driver-popover-arrow {
+  display: none;
+}
+
 .lyric-jp {
   font-size: clamp(1.875rem, 8vw, 2.5rem);
   font-weight: 600;
@@ -133,7 +199,8 @@ body {
     opacity 160ms ease-out;
 }
 
-.display-toggle-item[data-state='on']::after {
+.display-toggle-item[data-state='on']::after,
+.display-toggle-item[aria-pressed='true']::after {
   opacity: 1;
   transform: translateX(-50%) scaleX(1);
 }
@@ -155,7 +222,7 @@ body {
     display: grid;
     max-width: none;
     grid-template-columns: minmax(200px, 43vw) minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
   }
 
   .karaoke-media {
@@ -196,7 +263,8 @@ body {
 
   .karaoke-header,
   .karaoke-toolbar,
-  .karaoke-lyrics {
+  .karaoke-lyrics,
+  .karaoke-footer {
     min-width: 0;
     grid-column: 2;
   }
@@ -211,6 +279,10 @@ body {
 
   .karaoke-lyrics {
     grid-row: 3;
+  }
+
+  .karaoke-footer {
+    grid-row: 4;
   }
 }
 

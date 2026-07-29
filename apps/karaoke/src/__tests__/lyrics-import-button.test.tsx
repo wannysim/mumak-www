@@ -23,6 +23,55 @@ describe('LyricsImportButton', () => {
     storage.withLyricsLibraryWriteLock.mockClear();
   });
 
+  it('imports one arbitrarily named file into the current song', async () => {
+    const { container } = render(
+      <LyricsImportButton songSlugs={['kaiju-no-hanauta', 'odoriko']} targetSongSlug="odoriko" />
+    );
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+    expect(input).not.toHaveAttribute('multiple');
+    await userEvent.upload(input, new File([JSON.stringify(lines)], 'ai-result.json', { type: 'application/json' }));
+
+    expect(storage.saveStoredLyricsBatch).toHaveBeenCalledWith([{ slug: 'odoriko', lyrics: lines }]);
+    expect(await screen.findByText('1곡을 이 기기에 저장했습니다.')).toBeInTheDocument();
+  });
+
+  it('does not replace the current song with a file explicitly made for another song', async () => {
+    const { container } = render(
+      <LyricsImportButton songSlugs={['kaiju-no-hanauta', 'odoriko']} targetSongSlug="odoriko" />
+    );
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+    await userEvent.upload(
+      input,
+      new File([JSON.stringify({ slug: 'kaiju-no-hanauta', lyrics: lines })], 'lyrics.json', {
+        type: 'application/json',
+      })
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('현재 곡과 다른 곡의 가사 파일');
+    expect(storage.saveStoredLyricsBatch).not.toHaveBeenCalled();
+  });
+
+  it('sends a library backup to the library restore screen instead of importing it into one song', async () => {
+    const { container } = render(
+      <LyricsImportButton songSlugs={['kaiju-no-hanauta', 'odoriko']} targetSongSlug="odoriko" />
+    );
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const backup = {
+      schemaVersion: 1,
+      songs: [{ slug: 'odoriko', lyrics: lines }],
+    };
+
+    await userEvent.upload(
+      input,
+      new File([JSON.stringify(backup)], 'karaoke-lyrics-backup.json', { type: 'application/json' })
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('내 가사 보관함에서 불러와 주세요');
+    expect(storage.saveStoredLyricsBatch).not.toHaveBeenCalled();
+  });
+
   it('uses recognized file names to import several songs in one transaction', async () => {
     const { container } = render(<LyricsImportButton songSlugs={['kaiju-no-hanauta', 'odoriko']} />);
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;

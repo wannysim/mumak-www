@@ -55,8 +55,7 @@ test.describe('Mobile karaoke', () => {
     expect(await emptyState.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
     await emptyState.evaluate(element => element.scrollTo(0, element.scrollHeight));
 
-    await expect(page.getByRole('button', { name: '가사 파일 불러오기' })).toBeInViewport();
-    await expect(page.getByText('JSON · 여러 곡 동시 선택 가능')).toBeInViewport();
+    await expect(page.getByRole('button', { name: '이 곡의 JSON 불러오기' })).toBeInViewport();
 
     await page.locator('input[type="file"]').setInputFiles({
       name: 'kaiju-no-hanauta.json',
@@ -140,8 +139,15 @@ test.describe('Mobile karaoke', () => {
   test('keeps every control at a comfortable touch size', async ({ page }) => {
     await gotoWithLyrics(page);
 
-    for (const name of ['이전 곡', '다음 곡', '싱크 편집 모드', /테마로 전환/, /READ/]) {
+    for (const name of ['이전 곡', '다음 곡', '앱 정보', '가사 편집 열기', /화면 (밝게|어둡게)/, /READ/]) {
       const box = await page.getByRole('button', { name: name as string }).boundingBox();
+      expect(box!.height, `${name} height`).toBeGreaterThanOrEqual(44);
+      expect(box!.width, `${name} width`).toBeGreaterThanOrEqual(44);
+    }
+
+    await page.getByRole('button', { name: /곡 목록 열기/ }).tap();
+    for (const name of ['재생목록 보기', 'Vaundy에 곡 추가', '怪獣の花唄 순서 이동']) {
+      const box = await page.getByRole('button', { name }).boundingBox();
       expect(box!.height, `${name} height`).toBeGreaterThanOrEqual(44);
       expect(box!.width, `${name} width`).toBeGreaterThanOrEqual(44);
     }
@@ -161,31 +167,31 @@ test.describe('Mobile karaoke', () => {
     const fontSize = (locator: typeof japanese) =>
       locator.evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize));
 
-    const before = {
+    const reading = {
       japanese: await fontSize(japanese),
       pronunciation: await fontSize(pronunciation),
       translation: await fontSize(translation),
     };
 
     const toggle = page.getByRole('button', { name: /READ/ });
-    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
     await toggle.tap();
 
-    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-    await expect(lyricsBox(page)).toHaveAttribute('data-reading-mode', 'true');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(lyricsBox(page)).toHaveAttribute('data-reading-mode', 'false');
     await expectCentered(page, /日本語の歌詞 12/);
 
-    const after = {
+    const normal = {
       japanese: await fontSize(japanese),
       pronunciation: await fontSize(pronunciation),
       translation: await fontSize(translation),
     };
-    expect(after.japanese).toBeLessThan(before.japanese);
-    expect(after.pronunciation).toBeGreaterThan(before.pronunciation);
-    expect(after.translation).toBeGreaterThan(before.translation);
+    expect(reading.japanese).toBeLessThan(normal.japanese);
+    expect(reading.pronunciation).toBeGreaterThan(normal.pronunciation);
+    expect(reading.translation).toBeGreaterThan(normal.translation);
 
     await page.reload();
-    await expect(lyricsBox(page)).toHaveAttribute('data-reading-mode', 'true');
+    await expect(lyricsBox(page)).toHaveAttribute('data-reading-mode', 'false');
   });
 
   test('keeps both the player and lyrics usable in a short landscape viewport', async ({ page }) => {
@@ -227,7 +233,7 @@ test.describe('Mobile karaoke', () => {
     const toolbar = page.locator('.karaoke-toolbar');
     expect(await toolbar.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(0);
 
-    for (const name of [/^JP,/, /^PRON,/, /^KO,/, /READ/, /테마로 전환/, '싱크 편집 모드']) {
+    for (const name of [/^JP,/, /^PRON,/, /^KO,/, /READ/, '가사 편집 열기']) {
       const button = page.getByRole('button', { name: name as string });
       const box = await button.boundingBox();
       expect(box!.height, `${name} height`).toBeGreaterThanOrEqual(44);

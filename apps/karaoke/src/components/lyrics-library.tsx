@@ -7,6 +7,7 @@ import { LyricsImportButton } from '@/components/lyrics-import-button';
 import { serializeLyricsLibraryBackup } from '@/lib/lyrics-import';
 import {
   clearStoredLyrics,
+  deleteStoredLyrics,
   listStoredLyrics,
   readStoredLyricsLibrary,
   subscribeLyricsChanges,
@@ -76,6 +77,25 @@ export function LyricsLibrary({ songSlugs }: { songSlugs: readonly string[] }) {
     }
   };
 
+  const remove = async (slug: string) => {
+    setMessage(null);
+    try {
+      const removed = await withLyricsLibraryWriteLock(async () => {
+        if (!window.confirm(`${slug}에 저장된 가사만 지울까요? 백업이 없으면 되돌릴 수 없습니다.`)) return false;
+        await deleteStoredLyrics(slug);
+        return true;
+      });
+      if (!removed) return;
+      setStoredSlugs(current => current.filter(storedSlug => storedSlug !== slug));
+      setMessage({ kind: 'success', text: `${slug} 가사를 지웠습니다.` });
+    } catch (error) {
+      setMessage({
+        kind: 'error',
+        text: error instanceof Error ? error.message : '곡의 가사를 지우지 못했습니다.',
+      });
+    }
+  };
+
   const exportBackup = async () => {
     setExporting(true);
     setMessage(null);
@@ -112,7 +132,7 @@ export function LyricsLibrary({ songSlugs }: { songSlugs: readonly string[] }) {
   return (
     <div className="border-border space-y-3 border-y py-4">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-foreground text-[0.68rem] font-semibold tracking-[0.16em] uppercase">Local · IndexedDB</p>
+        <p className="text-foreground text-[0.68rem] font-semibold tracking-[0.16em] uppercase">내 가사 보관함</p>
         <p className="text-muted-foreground text-xs tabular-nums">
           {status === 'loading'
             ? '확인 중'
@@ -122,11 +142,17 @@ export function LyricsLibrary({ songSlugs }: { songSlugs: readonly string[] }) {
         </p>
       </div>
       <p className="text-muted-foreground">
-        가사 불러오기 기능은 선택한 JSON을 별도 서버에 업로드하지 않고 이 브라우저의 IndexedDB에 저장합니다. 한 번
-        불러오면 오프라인에서도 그대로 열립니다. 브라우저 데이터를 지우기 전에는 백업을 내보내 주세요.
+        선택한 가사 파일은 별도 서버에 업로드하지 않고 이 기기에만 저장합니다. 한 번 불러오면 오프라인에서도 그대로
+        열립니다. 브라우저 데이터를 지우기 전에는 백업을 내보내 주세요.
+      </p>
+      <p className="text-muted-foreground text-xs">
+        저장 원리 · 가사는 브라우저가 제공하는 기기 내 저장 공간(IndexedDB)에 보관됩니다.
+      </p>
+      <p className="text-muted-foreground text-xs">
+        여러 곡은 이 앱에서 내보낸 백업 파일 하나에 곡 정보를 함께 담아 구분합니다.
       </p>
       <div className="flex flex-wrap items-start gap-2">
-        <LyricsImportButton songSlugs={songSlugs} />
+        <LyricsImportButton songSlugs={songSlugs} label="백업 또는 가사 파일 불러오기" />
         {storedSlugs.length > 0 && (
           <>
             <Button
@@ -139,18 +165,42 @@ export function LyricsLibrary({ songSlugs }: { songSlugs: readonly string[] }) {
               <Download className="size-4" />
               {exporting ? '내보내는 중…' : '백업 내보내기'}
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="text-muted-foreground min-h-11 rounded-none px-3"
-              onClick={() => void clear()}
-            >
-              <Trash2 className="size-4" />
-              모두 지우기
-            </Button>
           </>
         )}
       </div>
+      {storedSlugs.length > 0 && (
+        <details className="border-border border-t pt-3">
+          <summary className="text-muted-foreground cursor-pointer text-xs font-medium">저장된 가사 관리</summary>
+          <ul className="mt-2 space-y-1">
+            {storedSlugs.map(slug => (
+              <li key={slug} className="border-border flex min-h-11 items-center justify-between gap-3 border-b">
+                <span className="font-utility truncate text-xs">{slug}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  aria-label={`${slug} 가사 지우기`}
+                  onClick={() => void remove(slug)}
+                >
+                  <Trash2 />
+                  지우기
+                </Button>
+              </li>
+            ))}
+          </ul>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive mt-3"
+            onClick={() => void clear()}
+          >
+            <Trash2 />
+            저장된 가사 모두 지우기
+          </Button>
+        </details>
+      )}
       {message && (
         <p
           role={message.kind === 'error' ? 'alert' : 'status'}

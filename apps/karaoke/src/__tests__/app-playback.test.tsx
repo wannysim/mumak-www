@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import App from '../app';
+import App, { KARAOKE_GUIDE_KEY, PRIVACY_CONSENT_KEY } from '../app';
 import type { YouTubeApi } from '../hooks/use-youtube-player';
 
 type Events = { onReady?: () => void; onStateChange?: (event: { data: number }) => void };
@@ -45,6 +45,8 @@ const heading = () => screen.getByRole('heading', { level: 1 });
 describe('App playback mode', () => {
   beforeEach(() => {
     localStorage.clear();
+    localStorage.setItem(PRIVACY_CONSENT_KEY, 'true');
+    localStorage.setItem(KARAOKE_GUIDE_KEY, 'true');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false } as Response));
     window.YT = {
       Player: FakePlayer as unknown as YouTubeApi['Player'],

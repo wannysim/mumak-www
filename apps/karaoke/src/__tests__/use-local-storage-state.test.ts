@@ -30,4 +30,21 @@ describe('useLocalStorageState', () => {
     const { result } = renderHook(() => useLocalStorageState('k', 'fallback'));
     expect(result.current[0]).toBe('fallback');
   });
+
+  it('syncs valid updates written by another tab', () => {
+    const { result } = renderHook(() => useLocalStorageState('k', 'local'));
+
+    act(() => {
+      localStorage.setItem('k', '"remote"');
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'k',
+          newValue: '"remote"',
+          storageArea: localStorage,
+        })
+      );
+    });
+
+    expect(result.current[0]).toBe('remote');
+  });
 });
