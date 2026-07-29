@@ -7,6 +7,7 @@
     "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name karaoke.mumak vite",
     "build": "pnpm check:no-lyrics && tsc -b && vite build && node scripts/assert-no-shipped-lyrics.mjs dist",
     "check:no-lyrics": "node scripts/assert-no-shipped-lyrics.mjs public",
+    "lyrics:generate": "node scripts/generate-lyrics.mjs",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --check .",
