@@ -62,6 +62,8 @@ describe('song library', () => {
   it('falls back when stored metadata is malformed or collides', () => {
     const duplicate = createDefaultSongLibrary();
     duplicate.songs[1] = { ...duplicate.songs[1]!, videoId: duplicate.songs[0]!.videoId };
+    const unplayable = createDefaultSongLibrary();
+    unplayable.playlists = [{ ...unplayable.playlists[0]!, songSlugs: [] }];
     const outdatedSnapshot = {
       ...createDefaultSongLibrary(),
       schemaVersion: 2,
@@ -70,6 +72,7 @@ describe('song library', () => {
 
     expect(parseSongLibrary({ nope: true })).toEqual(createDefaultSongLibrary());
     expect(parseSongLibrary(duplicate)).toEqual(createDefaultSongLibrary());
+    expect(parseSongLibrary(unplayable)).toEqual(createDefaultSongLibrary());
     expect(parseSongLibrary(outdatedSnapshot)).toEqual(createDefaultSongLibrary());
   });
 
@@ -143,5 +146,31 @@ describe('song library', () => {
     ).toThrow('곡을 추가할 재생목록');
     expect(() => updateSongDetails(library, 'missing', { titleJa: 'きらり', titleKo: '키라리' })).toThrow('수정할 곡');
     expect(() => removeSongFromPlaylist(library, 'missing', 'missing')).toThrow('재생목록에서 곡');
+  });
+
+  it('rejects duplicate IDs and invalid reorder data', () => {
+    const library = createDefaultSongLibrary();
+    const conflicting = {
+      ...library,
+      songs: [
+        ...library.songs,
+        {
+          slug: 'youtube-dQw4w9WgXcQ',
+          titleJa: '충돌',
+          titleKo: '충돌',
+          videoId: 'aaaaaaaaaaa',
+        },
+      ],
+    };
+    const songs = songsInPlaylist(library, 'vaundy');
+
+    expect(() => addPlaylist(library, 'vaundy', '중복')).toThrow('같은 ID');
+    expect(() =>
+      saveSongToPlaylist(conflicting, 'vaundy', 'https://youtu.be/dQw4w9WgXcQ', {
+        titleJa: '충돌',
+        titleKo: '충돌',
+      })
+    ).toThrow('곡 ID가 충돌');
+    expect(reorderPlaylistSongs(library, 'vaundy', [songs[0]!, songs[0]!, ...songs.slice(2)])).toBe(library);
   });
 });

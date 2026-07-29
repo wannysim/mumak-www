@@ -1,0 +1,30 @@
+diff --git a/utilities.cjs b/utilities.cjs
+index 7882140f83287425db627f2a990afb6d3c51b2f0..f1d522aa558b38a161a231e9bd6088031763846b 100644
+--- a/utilities.cjs
++++ b/utilities.cjs
+@@ -221,6 +221,10 @@ function getDocuments(rootDoc = document, seen = /* @__PURE__ */ new Set()) {
+     rootDoc.querySelectorAll("iframe, frame")
+   )) {
+     try {
++      const source = frame.getAttribute("src");
++      if (source && !source.startsWith("about:") && new URL(source, rootDoc.baseURI).origin !== rootDoc.location.origin) {
++        continue;
++      }
+       const childDoc = frame.contentDocument;
+       if (childDoc && !seen.has(childDoc)) {
+         docs.push(...getDocuments(childDoc, seen));
+diff --git a/utilities.js b/utilities.js
+index c9aec7dbb41948bf9a85205e13a04ef2f30634bc..f1c9b5cc83d09382ac3496ca9f07bb778909ad69 100644
+--- a/utilities.js
++++ b/utilities.js
+@@ -219,6 +219,10 @@ function getDocuments(rootDoc = document, seen = /* @__PURE__ */ new Set()) {
+     rootDoc.querySelectorAll("iframe, frame")
+   )) {
+     try {
++      const source = frame.getAttribute("src");
++      if (source && !source.startsWith("about:") && new URL(source, rootDoc.baseURI).origin !== rootDoc.location.origin) {
++        continue;
++      }
+       const childDoc = frame.contentDocument;
+       if (childDoc && !seen.has(childDoc)) {
+         docs.push(...getDocuments(childDoc, seen));

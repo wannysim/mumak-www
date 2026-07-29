@@ -68,16 +68,41 @@ test.describe('Karaoke Home', () => {
   });
 
   test('should persist a dragged song order and use it for navigation', async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    await page.route('https://cross-origin.test/frame', route => route.abort());
     await page.goto('/');
+    await page.evaluate(() => {
+      const frame = document.createElement('iframe');
+      frame.hidden = true;
+      frame.src = 'https://cross-origin.test/frame';
+      Object.defineProperty(frame, 'contentDocument', {
+        get() {
+          document.body.dataset.crossOriginFrameRead = 'true';
+          return null;
+        },
+      });
+      document.body.append(frame);
+    });
     await page.getByRole('button', { name: /곡 목록 열기/ }).click();
 
     const list = page.getByRole('list', { name: 'Vaundy 곡 순서' });
-    await page
-      .getByRole('button', { name: '怪獣の花唄 순서 이동' })
-      .dragTo(page.getByRole('button', { name: '踊り子 순서 이동' }));
+    const source = page.getByRole('button', { name: '怪獣の花唄 순서 이동' });
+    const target = page.getByRole('button', { name: '踊り子 순서 이동' });
+    await source.hover();
+    const targetBox = await target.boundingBox();
+    expect(targetBox).not.toBeNull();
+
+    await page.mouse.down();
+    await expect(source).toHaveAttribute('aria-grabbed', 'true');
+    await page.mouse.move(targetBox!.x + targetBox!.width / 2, targetBox!.y + targetBox!.height / 2, { steps: 10 });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve(undefined))));
+    await page.mouse.up();
 
     await expect(list.getByRole('listitem').nth(0)).toContainText('踊り子');
     await expect(list.getByRole('listitem').nth(1)).toContainText('怪獣の花唄');
+    await expect(page.locator('body')).not.toHaveAttribute('data-cross-origin-frame-read', 'true');
+    expect(pageErrors.join('\n')).not.toContain('Blocked a frame');
 
     await page.keyboard.press('Escape');
     await page.reload();
