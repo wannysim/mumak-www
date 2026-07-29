@@ -23,8 +23,8 @@ const config: PlaywrightTestConfig = {
         {
           origin: 'http://localhost:3005',
           localStorage: [
-            { name: 'karaoke:privacy-consent-v1', value: 'true' },
-            { name: 'karaoke:first-guide-v1', value: 'true' },
+            { name: 'karaoke:privacy-consent', value: 'true' },
+            { name: 'karaoke:first-guide', value: 'true' },
           ],
         },
       ],

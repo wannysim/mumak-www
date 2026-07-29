@@ -16,20 +16,11 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useLyrics } from '@/hooks/use-lyrics';
 import { useYouTubePlayer } from '@/hooks/use-youtube-player';
+import { LOCAL_STORAGE_KEYS } from '@/lib/client-storage';
 import { DEFAULT_DISPLAY } from '@/lib/display-settings';
 import { DEFAULT_PLAYBACK_MODE } from '@/lib/playback-mode';
-import {
-  ACTIVE_PLAYLIST_KEY,
-  createDefaultSongLibrary,
-  DEFAULT_PLAYLIST_ID,
-  parseSongLibrary,
-  resolvePlayback,
-  SONG_LIBRARY_KEY,
-} from '@/lib/song-library';
+import { createDefaultSongLibrary, DEFAULT_PLAYLIST_ID, parseSongLibrary, resolvePlayback } from '@/lib/song-library';
 import { defaultSong, songAt } from '@/songs';
-
-export const PRIVACY_CONSENT_KEY = 'karaoke:privacy-consent-v1';
-export const KARAOKE_GUIDE_KEY = 'karaoke:first-guide-v1';
 
 type InstallPromptEvent = Event & {
   prompt(): Promise<void>;
@@ -37,7 +28,7 @@ type InstallPromptEvent = Event & {
 };
 
 function KaraokeGuide({ replay, ready }: { replay: number; ready: boolean }) {
-  const [seen] = useLocalStorageState(KARAOKE_GUIDE_KEY, false);
+  const [seen] = useLocalStorageState(LOCAL_STORAGE_KEYS.firstGuide, false);
   const guideRef = React.useRef<Driver>(null);
   const shownRef = React.useRef(seen);
   const handledReplayRef = React.useRef(0);
@@ -60,7 +51,7 @@ function KaraokeGuide({ replay, ready }: { replay: number; ready: boolean }) {
         onPopoverRender: popover => {
           shownRef.current = true;
           handledReplayRef.current = replay;
-          localStorage.setItem(KARAOKE_GUIDE_KEY, 'true');
+          localStorage.setItem(LOCAL_STORAGE_KEYS.firstGuide, 'true');
           popover.closeButton.setAttribute('aria-label', '가이드 닫기');
         },
         popoverClass: 'karaoke-guide',
@@ -165,7 +156,7 @@ function PrivacyConsent({ onAccept }: { onAccept: () => void }) {
 }
 
 export default function App() {
-  const [accepted, setAccepted] = useLocalStorageState(PRIVACY_CONSENT_KEY, false);
+  const [accepted, setAccepted] = useLocalStorageState(LOCAL_STORAGE_KEYS.privacyConsent, false);
   const [installPrompt, setInstallPrompt] = React.useState<InstallPromptEvent | null>(null);
 
   React.useEffect(() => {
@@ -201,12 +192,18 @@ export default function App() {
 }
 
 function KaraokeApp({ onInstall }: { onInstall?: () => void }) {
-  const [display, setDisplay] = useLocalStorageState('karaoke:display', DEFAULT_DISPLAY);
-  const [songSlug, setSongSlug] = useLocalStorageState('karaoke:song', defaultSong.slug);
-  const [activePlaylistId, setActivePlaylistId] = useLocalStorageState(ACTIVE_PLAYLIST_KEY, DEFAULT_PLAYLIST_ID);
-  const [storedLibrary, setStoredLibrary] = useLocalStorageState<unknown>(SONG_LIBRARY_KEY, createDefaultSongLibrary());
-  const [playbackMode, setPlaybackMode] = useLocalStorageState('karaoke:playback', DEFAULT_PLAYBACK_MODE);
-  const [readingMode, setReadingMode] = useLocalStorageState('karaoke:reading-mode', true);
+  const [display, setDisplay] = useLocalStorageState(LOCAL_STORAGE_KEYS.display, DEFAULT_DISPLAY);
+  const [songSlug, setSongSlug] = useLocalStorageState(LOCAL_STORAGE_KEYS.song, defaultSong.slug);
+  const [activePlaylistId, setActivePlaylistId] = useLocalStorageState(
+    LOCAL_STORAGE_KEYS.activePlaylist,
+    DEFAULT_PLAYLIST_ID
+  );
+  const [storedLibrary, setStoredLibrary] = useLocalStorageState<unknown>(
+    LOCAL_STORAGE_KEYS.songLibrary,
+    createDefaultSongLibrary()
+  );
+  const [playbackMode, setPlaybackMode] = useLocalStorageState(LOCAL_STORAGE_KEYS.playback, DEFAULT_PLAYBACK_MODE);
+  const [readingMode, setReadingMode] = useLocalStorageState(LOCAL_STORAGE_KEYS.readingMode, true);
   const library = React.useMemo(() => parseSongLibrary(storedLibrary), [storedLibrary]);
   const playback = React.useMemo(
     () => resolvePlayback(library, activePlaylistId, songSlug),

@@ -1,8 +1,9 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import App, { KARAOKE_GUIDE_KEY, PRIVACY_CONSENT_KEY } from '../app';
+import App from '../app';
 import type { YouTubeApi } from '../hooks/use-youtube-player';
+import { LOCAL_STORAGE_KEYS } from '../lib/client-storage';
 
 type Events = { onReady?: () => void; onStateChange?: (event: { data: number }) => void };
 
@@ -34,7 +35,7 @@ async function endSong() {
 }
 
 async function renderApp(mode: 'off' | 'all' | 'one') {
-  localStorage.setItem('karaoke:playback', JSON.stringify(mode));
+  localStorage.setItem(LOCAL_STORAGE_KEYS.playback, JSON.stringify(mode));
   render(<App />);
   await act(async () => {});
   act(() => FakePlayer.last?.events.onReady?.());
@@ -45,8 +46,8 @@ const heading = () => screen.getByRole('heading', { level: 1 });
 describe('App playback mode', () => {
   beforeEach(() => {
     localStorage.clear();
-    localStorage.setItem(PRIVACY_CONSENT_KEY, 'true');
-    localStorage.setItem(KARAOKE_GUIDE_KEY, 'true');
+    localStorage.setItem(LOCAL_STORAGE_KEYS.privacyConsent, 'true');
+    localStorage.setItem(LOCAL_STORAGE_KEYS.firstGuide, 'true');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false } as Response));
     window.YT = {
       Player: FakePlayer as unknown as YouTubeApi['Player'],
@@ -86,7 +87,7 @@ describe('App playback mode', () => {
   });
 
   it('wraps from the last song back to the first', async () => {
-    localStorage.setItem('karaoke:song', '"time-paradox"');
+    localStorage.setItem(LOCAL_STORAGE_KEYS.song, '"time-paradox"');
     await renderApp('all');
     await endSong();
 

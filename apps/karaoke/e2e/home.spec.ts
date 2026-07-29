@@ -1,6 +1,35 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Karaoke Home', () => {
+  test('should migrate versioned localStorage keys on startup', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.removeItem('karaoke:privacy-consent');
+      localStorage.removeItem('karaoke:first-guide');
+      localStorage.removeItem('karaoke:active-playlist');
+      localStorage.setItem('karaoke:privacy-consent-v1', 'true');
+      localStorage.setItem('karaoke:first-guide-v1', 'true');
+      localStorage.setItem('karaoke:active-playlist-v1', '"fujii-kaze"');
+    });
+    await page.goto('/');
+
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('まつり');
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          activePlaylist: localStorage.getItem('karaoke:active-playlist'),
+          legacyActivePlaylist: localStorage.getItem('karaoke:active-playlist-v1'),
+          legacyConsent: localStorage.getItem('karaoke:privacy-consent-v1'),
+          legacyGuide: localStorage.getItem('karaoke:first-guide-v1'),
+        }))
+      )
+      .toEqual({
+        activePlaylist: '"fujii-kaze"',
+        legacyActivePlaylist: null,
+        legacyConsent: null,
+        legacyGuide: null,
+      });
+  });
+
   test('should display the current song and display toggles', async ({ page }) => {
     await page.goto('/');
 
@@ -30,7 +59,7 @@ test.describe('Karaoke Home', () => {
   test('should show the first-use guide once and allow replay from About', async ({ page }) => {
     await page.addInitScript(() => {
       if (sessionStorage.getItem('guide-test-reset')) return;
-      localStorage.removeItem('karaoke:first-guide-v1');
+      localStorage.removeItem('karaoke:first-guide');
       sessionStorage.setItem('guide-test-reset', 'true');
     });
     await page.goto('/');

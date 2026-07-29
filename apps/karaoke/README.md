@@ -64,6 +64,15 @@
 `public/lyrics`나 `dist/lyrics`에 파일이 생기면 확장자와 관계없이 빌드 검사가 실패한다.
 다른 경로의 JSON·LRC·자막·텍스트 데이터 파일도 라이선스 고지를 제외하고 차단한다.
 
+### 저장 구조
+
+- `localStorage`: 표시 설정, 현재 곡, 재생목록처럼 작은 상태. 키는 `src/lib/client-storage.ts`의
+  버전 없는 `karaoke:*` 이름을 사용한다. 기존 `-v1`·`-v2` 키는 시작할 때 한 번 옮긴 뒤 제거한다.
+- `IndexedDB`: 용량이 커질 수 있는 가사 본문. DB `version`은 저장소 구조 변경에만 사용하고,
+  레코드·백업의 `schemaVersion`은 각 JSON 형식의 호환성을 뜻한다.
+- `CacheStorage`: 오프라인 앱 셸. 서비스워커의 `RELEASE`는 사용자 데이터 버전과 무관한 캐시
+  교체 번호다.
+
 ```bash
 pnpm --filter karaoke check:no-lyrics
 ```

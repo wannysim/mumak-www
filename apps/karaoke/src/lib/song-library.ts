@@ -1,7 +1,5 @@
 import { defaultSong, songs as bundledSongs, type Song } from '@/songs';
 
-export const SONG_LIBRARY_KEY = 'karaoke:song-library-v2';
-export const ACTIVE_PLAYLIST_KEY = 'karaoke:active-playlist-v1';
 export const DEFAULT_PLAYLIST_ID = 'vaundy';
 export const FUJII_KAZE_PLAYLIST_ID = 'fujii-kaze';
 const SONG_LIBRARY_SCHEMA_VERSION = 3;

@@ -1,3 +1,4 @@
+import { LYRICS_DATABASE } from '@/lib/client-storage';
 import type { LyricLine } from '@/lib/lyrics';
 import {
   MAX_LYRICS_LIBRARY_SONGS,
@@ -6,15 +7,12 @@ import {
   type StoredLyricsEntry,
 } from '@/lib/lyrics-import';
 
-const DATABASE_NAME = 'karaoke-local-library';
-const DATABASE_VERSION = 1;
-const STORE_NAME = 'lyrics';
-const RECORD_SCHEMA_VERSION = 1;
+const LYRICS_RECORD_SCHEMA_VERSION = 1;
 const CHANNEL_NAME = 'karaoke-local-library-changes';
 const WRITE_LOCK_NAME = 'karaoke-local-library-write';
 
 type StoredLyrics = {
-  schemaVersion: typeof RECORD_SCHEMA_VERSION;
+  schemaVersion: typeof LYRICS_RECORD_SCHEMA_VERSION;
   slug: string;
   lyrics: LyricLine[];
   updatedAt: string;
@@ -31,7 +29,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseStoredLyricsRecord(value: unknown): StoredLyrics {
   if (!isRecord(value)) throw new Error('저장된 가사 레코드의 형식이 올바르지 않습니다.');
-  if (value.schemaVersion !== RECORD_SCHEMA_VERSION) {
+  if (value.schemaVersion !== LYRICS_RECORD_SCHEMA_VERSION) {
     throw new Error('저장된 가사 형식의 버전을 읽을 수 없습니다.');
   }
   if (typeof value.slug !== 'string' || value.slug.trim().length === 0) {
@@ -42,7 +40,7 @@ function parseStoredLyricsRecord(value: unknown): StoredLyrics {
   }
 
   return {
-    schemaVersion: RECORD_SCHEMA_VERSION,
+    schemaVersion: LYRICS_RECORD_SCHEMA_VERSION,
     slug: value.slug,
     lyrics: parseLyricsFile(value.lyrics).lyrics,
     updatedAt: value.updatedAt,
@@ -82,10 +80,10 @@ async function openDatabase(): Promise<IDBDatabase | null> {
   const factory = indexedDb();
   if (!factory) return null;
 
-  const request = factory.open(DATABASE_NAME, DATABASE_VERSION);
+  const request = factory.open(LYRICS_DATABASE.name, LYRICS_DATABASE.version);
   request.addEventListener('upgradeneeded', () => {
-    if (!request.result.objectStoreNames.contains(STORE_NAME)) {
-      request.result.createObjectStore(STORE_NAME, { keyPath: 'slug' });
+    if (!request.result.objectStoreNames.contains(LYRICS_DATABASE.storeName)) {
+      request.result.createObjectStore(LYRICS_DATABASE.storeName, { keyPath: 'slug' });
     }
   });
 
@@ -140,8 +138,8 @@ export async function readStoredLyrics(slug: string): Promise<LyricLine[]> {
   if (!database) return [];
 
   try {
-    const transaction = database.transaction(STORE_NAME, 'readonly');
-    const record = await requestResult<unknown>(transaction.objectStore(STORE_NAME).get(slug));
+    const transaction = database.transaction(LYRICS_DATABASE.storeName, 'readonly');
+    const record = await requestResult<unknown>(transaction.objectStore(LYRICS_DATABASE.storeName).get(slug));
     await transactionCompleted(transaction);
     if (!record) return [];
     return parseStoredLyricsRecord(record).lyrics;
@@ -170,8 +168,8 @@ export async function saveStoredLyricsBatch(entries: readonly { slug: string; ly
   if (!database) throw new Error('이 브라우저에서는 기기 저장소를 사용할 수 없습니다.');
 
   try {
-    const transaction = database.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
+    const transaction = database.transaction(LYRICS_DATABASE.storeName, 'readwrite');
+    const store = transaction.objectStore(LYRICS_DATABASE.storeName);
     const completed = transactionCompleted(transaction);
     try {
       const [storedKeys, storedRecords] = await Promise.all([
@@ -199,7 +197,7 @@ export async function saveStoredLyricsBatch(entries: readonly { slug: string; ly
       const updatedAt = new Date().toISOString();
       for (const entry of normalizedEntries) {
         store.put({
-          schemaVersion: RECORD_SCHEMA_VERSION,
+          schemaVersion: LYRICS_RECORD_SCHEMA_VERSION,
           slug: entry.slug,
           lyrics: entry.lyrics,
           updatedAt,
@@ -227,8 +225,8 @@ export async function listStoredLyrics(): Promise<string[]> {
   if (!database) return [];
 
   try {
-    const transaction = database.transaction(STORE_NAME, 'readonly');
-    const keys = await requestResult(transaction.objectStore(STORE_NAME).getAllKeys());
+    const transaction = database.transaction(LYRICS_DATABASE.storeName, 'readonly');
+    const keys = await requestResult(transaction.objectStore(LYRICS_DATABASE.storeName).getAllKeys());
     await transactionCompleted(transaction);
     return keys.filter((key): key is string => typeof key === 'string').toSorted();
   } finally {
@@ -244,8 +242,8 @@ export async function readStoredLyricsLibrary(): Promise<{
   if (!database) return { entries: [], skippedRecordCount: 0 };
 
   try {
-    const transaction = database.transaction(STORE_NAME, 'readonly');
-    const records = await requestResult<unknown[]>(transaction.objectStore(STORE_NAME).getAll());
+    const transaction = database.transaction(LYRICS_DATABASE.storeName, 'readonly');
+    const records = await requestResult<unknown[]>(transaction.objectStore(LYRICS_DATABASE.storeName).getAll());
     await transactionCompleted(transaction);
     const entries: StoredLyricsEntry[] = [];
     let skippedRecordCount = 0;
@@ -274,8 +272,8 @@ export async function deleteStoredLyrics(slug: string): Promise<void> {
   if (!database) return;
 
   try {
-    const transaction = database.transaction(STORE_NAME, 'readwrite');
-    transaction.objectStore(STORE_NAME).delete(normalizedSlug);
+    const transaction = database.transaction(LYRICS_DATABASE.storeName, 'readwrite');
+    transaction.objectStore(LYRICS_DATABASE.storeName).delete(normalizedSlug);
     await transactionCompleted(transaction);
   } finally {
     database.close();
@@ -289,8 +287,8 @@ export async function clearStoredLyrics(): Promise<void> {
   if (!database) return;
 
   try {
-    const transaction = database.transaction(STORE_NAME, 'readwrite');
-    transaction.objectStore(STORE_NAME).clear();
+    const transaction = database.transaction(LYRICS_DATABASE.storeName, 'readwrite');
+    transaction.objectStore(LYRICS_DATABASE.storeName).clear();
     await transactionCompleted(transaction);
   } finally {
     database.close();

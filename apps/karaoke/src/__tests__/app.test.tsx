@@ -2,24 +2,19 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import App, { KARAOKE_GUIDE_KEY, PRIVACY_CONSENT_KEY } from '../app';
-import {
-  ACTIVE_PLAYLIST_KEY,
-  addPlaylist,
-  createDefaultSongLibrary,
-  saveSongToPlaylist,
-  SONG_LIBRARY_KEY,
-} from '../lib/song-library';
+import App from '../app';
+import { LOCAL_STORAGE_KEYS } from '../lib/client-storage';
+import { addPlaylist, createDefaultSongLibrary, saveSongToPlaylist } from '../lib/song-library';
 
 describe('App', () => {
   beforeEach(() => {
     localStorage.clear();
-    localStorage.setItem(PRIVACY_CONSENT_KEY, 'true');
-    localStorage.setItem(KARAOKE_GUIDE_KEY, 'true');
+    localStorage.setItem(LOCAL_STORAGE_KEYS.privacyConsent, 'true');
+    localStorage.setItem(LOCAL_STORAGE_KEYS.firstGuide, 'true');
   });
 
   it('requires privacy consent before loading the karaoke', async () => {
-    localStorage.removeItem(PRIVACY_CONSENT_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_KEYS.privacyConsent);
     render(<App />);
 
     expect(screen.getByRole('heading', { name: '재생 전 확인' })).toBeInTheDocument();
@@ -27,7 +22,7 @@ describe('App', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '동의하고 시작' }));
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('怪獣の花唄');
-    expect(localStorage.getItem(PRIVACY_CONSENT_KEY)).toBe('true');
+    expect(localStorage.getItem(LOCAL_STORAGE_KEYS.privacyConsent)).toBe('true');
   });
 
   it('renders the first song by default', async () => {
@@ -42,7 +37,7 @@ describe('App', () => {
       prompt,
       userChoice: Promise.resolve({ outcome: 'accepted' as const }),
     });
-    localStorage.removeItem(PRIVACY_CONSENT_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_KEYS.privacyConsent);
     render(<App />);
 
     act(() => window.dispatchEvent(event));
@@ -54,13 +49,13 @@ describe('App', () => {
   });
 
   it('restores the last selected song from localStorage', async () => {
-    localStorage.setItem('karaoke:song', '"odoriko"');
+    localStorage.setItem(LOCAL_STORAGE_KEYS.song, '"odoriko"');
     render(<App />);
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('踊り子');
   });
 
   it('falls back to the first song for an unknown stored slug', async () => {
-    localStorage.setItem('karaoke:song', '"deleted-song"');
+    localStorage.setItem(LOCAL_STORAGE_KEYS.song, '"deleted-song"');
     render(<App />);
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('怪獣の花唄');
   });
@@ -83,7 +78,7 @@ describe('App', () => {
       'kaiju-no-hanauta',
       ...library.playlists[0]!.songSlugs.filter(slug => slug !== 'odoriko' && slug !== 'kaiju-no-hanauta'),
     ];
-    localStorage.setItem(SONG_LIBRARY_KEY, JSON.stringify(library));
+    localStorage.setItem(LOCAL_STORAGE_KEYS.songLibrary, JSON.stringify(library));
     render(<App />);
 
     expect(await screen.findByText('02 / 09')).toBeInTheDocument();
@@ -107,9 +102,9 @@ describe('App', () => {
       titleJa: '둘째 곡',
       titleKo: '둘째 곡',
     });
-    localStorage.setItem(SONG_LIBRARY_KEY, JSON.stringify(second.library));
-    localStorage.setItem(ACTIVE_PLAYLIST_KEY, JSON.stringify('custom'));
-    localStorage.setItem('karaoke:song', JSON.stringify(first.song.slug));
+    localStorage.setItem(LOCAL_STORAGE_KEYS.songLibrary, JSON.stringify(second.library));
+    localStorage.setItem(LOCAL_STORAGE_KEYS.activePlaylist, JSON.stringify('custom'));
+    localStorage.setItem(LOCAL_STORAGE_KEYS.song, JSON.stringify(first.song.slug));
     render(<App />);
 
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('첫 곡');
@@ -128,6 +123,6 @@ describe('App', () => {
     await userEvent.click(screen.getByRole('button', { name: 'きらり (키라리)' }));
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('きらり');
-    expect(localStorage.getItem(ACTIVE_PLAYLIST_KEY)).toBe(JSON.stringify('fujii-kaze'));
+    expect(localStorage.getItem(LOCAL_STORAGE_KEYS.activePlaylist)).toBe(JSON.stringify('fujii-kaze'));
   });
 });
