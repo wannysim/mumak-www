@@ -1,5 +1,5 @@
 import { ArrowLeft, Camera, FileDown, FileUp, Library, ListMusic, QrCode, ScanLine, Send, X } from 'lucide-react';
-import type QrScanner from 'qr-scanner';
+import QrScanner from 'qr-scanner';
 import { QRCodeSVG } from 'qrcode.react';
 import * as React from 'react';
 
@@ -308,9 +308,8 @@ export function ShareDrawer({
     setMessage(null);
     try {
       if (!videoRef.current) throw new Error('카메라 화면을 준비하지 못했습니다.');
-      const { default: Scanner } = await import('qr-scanner');
       if (requestId !== cameraRequestRef.current) return;
-      const scanner = new Scanner(videoRef.current, result => void receiveFrame(result.data), {
+      const scanner = new QrScanner(videoRef.current, result => void receiveFrame(result.data), {
         preferredCamera: 'environment',
         maxScansPerSecond: 12,
         highlightScanRegion: true,
@@ -619,7 +618,7 @@ export function ShareDrawer({
                   <video
                     ref={videoRef}
                     aria-label="QR 스캔 카메라"
-                    className={cn('size-full object-cover', !cameraActive && 'invisible')}
+                    className="size-full object-cover"
                     muted
                     playsInline
                   />
