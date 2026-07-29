@@ -2,7 +2,7 @@ import { defaultSong, songs as bundledSongs, type Song } from '@/songs';
 
 export const DEFAULT_PLAYLIST_ID = 'vaundy';
 export const FUJII_KAZE_PLAYLIST_ID = 'fujii-kaze';
-const SONG_LIBRARY_SCHEMA_VERSION = 3;
+export const SONG_LIBRARY_SCHEMA_VERSION = 3;
 
 export type Playlist = {
   id: string;
@@ -78,55 +78,65 @@ export function createDefaultSongLibrary(): SongLibrary {
   };
 }
 
-export function parseSongLibrary(value: unknown): SongLibrary {
+export function parseSongLibraryStrict(value: unknown): SongLibrary {
   if (
     !isRecord(value) ||
     value.schemaVersion !== SONG_LIBRARY_SCHEMA_VERSION ||
     !Array.isArray(value.songs) ||
     !Array.isArray(value.playlists)
   ) {
-    return createDefaultSongLibrary();
+    throw new Error('지원하지 않는 곡 보관함 형식입니다.');
   }
 
+  const songs = value.songs.map(candidate => {
+    if (!isRecord(candidate)) throw new Error('곡 정보 형식이 올바르지 않습니다.');
+    const song = {
+      slug: cleanRequired(typeof candidate.slug === 'string' ? candidate.slug : '', '곡 ID'),
+      titleJa: cleanRequired(typeof candidate.titleJa === 'string' ? candidate.titleJa : '', '원어 제목'),
+      titleKo: cleanRequired(typeof candidate.titleKo === 'string' ? candidate.titleKo : '', '한국어 표기'),
+      videoId: typeof candidate.videoId === 'string' ? candidate.videoId : '',
+    };
+    if (!/^[\w-]{11}$/.test(song.videoId)) throw new Error('YouTube 영상 ID가 올바르지 않습니다.');
+    return song;
+  });
+  const songSlugs = new Set(songs.map(song => song.slug));
+  if (songSlugs.size !== songs.length || new Set(songs.map(song => song.videoId)).size !== songs.length) {
+    throw new Error('같은 곡 ID 또는 YouTube 영상이 두 번 들어 있습니다.');
+  }
+
+  const playlists = value.playlists.map(candidate => {
+    if (!isRecord(candidate) || !Array.isArray(candidate.songSlugs)) {
+      throw new Error('재생목록 형식이 올바르지 않습니다.');
+    }
+    const playlist = {
+      id: cleanRequired(typeof candidate.id === 'string' ? candidate.id : '', '재생목록 ID'),
+      name: cleanRequired(typeof candidate.name === 'string' ? candidate.name : '', '재생목록 이름'),
+      songSlugs: candidate.songSlugs.map(slug => {
+        if (typeof slug !== 'string' || !songSlugs.has(slug)) {
+          throw new Error('재생목록에 찾을 수 없는 곡이 있습니다.');
+        }
+        return slug;
+      }),
+    };
+    if (new Set(playlist.songSlugs).size !== playlist.songSlugs.length) {
+      throw new Error('재생목록에 같은 곡이 두 번 들어 있습니다.');
+    }
+    return playlist;
+  });
+  if (
+    playlists.length === 0 ||
+    new Set(playlists.map(playlist => playlist.id)).size !== playlists.length ||
+    playlists.every(playlist => playlist.songSlugs.length === 0)
+  ) {
+    throw new Error('재생할 곡이 있는 재생목록이 하나 이상 필요합니다.');
+  }
+
+  return { schemaVersion: SONG_LIBRARY_SCHEMA_VERSION, songs, playlists };
+}
+
+export function parseSongLibrary(value: unknown): SongLibrary {
   try {
-    const songs = value.songs.map(candidate => {
-      if (!isRecord(candidate)) throw new Error();
-      const song = {
-        slug: cleanRequired(typeof candidate.slug === 'string' ? candidate.slug : '', '곡 ID'),
-        titleJa: cleanRequired(typeof candidate.titleJa === 'string' ? candidate.titleJa : '', '원어 제목'),
-        titleKo: cleanRequired(typeof candidate.titleKo === 'string' ? candidate.titleKo : '', '한국어 표기'),
-        videoId: typeof candidate.videoId === 'string' ? candidate.videoId : '',
-      };
-      if (!/^[\w-]{11}$/.test(song.videoId)) throw new Error();
-      return song;
-    });
-    const songSlugs = new Set(songs.map(song => song.slug));
-    if (songSlugs.size !== songs.length || new Set(songs.map(song => song.videoId)).size !== songs.length) {
-      throw new Error();
-    }
-
-    const playlists = value.playlists.map(candidate => {
-      if (!isRecord(candidate) || !Array.isArray(candidate.songSlugs)) throw new Error();
-      const playlist = {
-        id: cleanRequired(typeof candidate.id === 'string' ? candidate.id : '', '재생목록 ID'),
-        name: cleanRequired(typeof candidate.name === 'string' ? candidate.name : '', '재생목록 이름'),
-        songSlugs: candidate.songSlugs.map(slug => {
-          if (typeof slug !== 'string' || !songSlugs.has(slug)) throw new Error();
-          return slug;
-        }),
-      };
-      if (new Set(playlist.songSlugs).size !== playlist.songSlugs.length) throw new Error();
-      return playlist;
-    });
-    if (
-      playlists.length === 0 ||
-      new Set(playlists.map(playlist => playlist.id)).size !== playlists.length ||
-      playlists.every(playlist => playlist.songSlugs.length === 0)
-    ) {
-      throw new Error();
-    }
-
-    return { schemaVersion: SONG_LIBRARY_SCHEMA_VERSION, songs, playlists };
+    return parseSongLibraryStrict(value);
   } catch {
     return createDefaultSongLibrary();
   }

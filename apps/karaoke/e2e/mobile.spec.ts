@@ -139,7 +139,15 @@ test.describe('Mobile karaoke', () => {
   test('keeps every control at a comfortable touch size', async ({ page }) => {
     await gotoWithLyrics(page);
 
-    for (const name of ['이전 곡', '다음 곡', '앱 정보', '가사 편집 열기', /화면 (밝게|어둡게)/, /READ/]) {
+    for (const name of [
+      '이전 곡',
+      '다음 곡',
+      'QR로 보내고 받기',
+      '앱 정보',
+      '가사 편집 열기',
+      /화면 (밝게|어둡게)/,
+      /READ/,
+    ]) {
       const box = await page.getByRole('button', { name: name as string }).boundingBox();
       expect(box!.height, `${name} height`).toBeGreaterThanOrEqual(44);
       expect(box!.width, `${name} width`).toBeGreaterThanOrEqual(44);
@@ -151,6 +159,26 @@ test.describe('Mobile karaoke', () => {
       expect(box!.height, `${name} height`).toBeGreaterThanOrEqual(44);
       expect(box!.width, `${name} width`).toBeGreaterThanOrEqual(44);
     }
+  });
+
+  test('keeps the QR share flow inside a narrow mobile viewport', async ({ page }) => {
+    await page.route(/(youtube\.com|ytimg\.com|youtube-nocookie\.com)/, route => route.abort());
+    await page.goto('/');
+
+    await page.getByRole('button', { name: 'QR로 보내고 받기' }).tap();
+    await page
+      .getByRole('dialog', { name: '기기 간 공유' })
+      .getByRole('button', { name: /보내기/ })
+      .tap();
+    await page.getByRole('dialog', { name: '보낼 데이터' }).getByRole('button', { name: 'QR 만들기' }).tap();
+
+    const drawer = page.getByRole('dialog', { name: 'QR 보내기' });
+    const qr = drawer.getByRole('img', { name: '노래 데이터 공유 QR' });
+    await expect(qr).toBeInViewport();
+    const [drawerBox, qrBox] = await Promise.all([drawer.boundingBox(), qr.boundingBox()]);
+    expect(qrBox!.width).toBeLessThanOrEqual(drawerBox!.width);
+    expect(await drawer.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
   });
 
   test('offers a persistent reading mode for pronunciation and translation', async ({ page }) => {

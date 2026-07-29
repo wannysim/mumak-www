@@ -10,6 +10,7 @@ import { LyricsImportButton } from '@/components/lyrics-import-button';
 import { LyricsView } from '@/components/lyrics-view';
 import { PlayerControls } from '@/components/player-controls';
 import { ReadingModeToggle } from '@/components/reading-mode-toggle';
+import { ShareDrawer } from '@/components/share-drawer';
 import { SongDrawer } from '@/components/song-drawer';
 import { SyncEditor } from '@/components/sync-editor';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -329,7 +330,7 @@ function KaraokeApp({ onInstall }: { onInstall?: () => void }) {
       />
 
       <footer
-        aria-label="앱 설치와 정보, 화면 설정"
+        aria-label="앱 설치와 기기 간 공유, 정보, 화면 설정"
         className="karaoke-footer border-border flex shrink-0 justify-center border-t pb-[env(safe-area-inset-bottom)]"
       >
         <div className="divide-border flex divide-x">
@@ -344,6 +345,16 @@ function KaraokeApp({ onInstall }: { onInstall?: () => void }) {
               <Download className="size-3.5 stroke-[1.5]" />
             </Button>
           )}
+          <ShareDrawer
+            library={library}
+            currentPlaylistId={playlist.id}
+            currentSong={song}
+            onImport={(nextLibrary, selection) => {
+              setStoredLibrary(nextLibrary);
+              setActivePlaylistId(selection.playlistId);
+              setSongSlug(selection.songSlug);
+            }}
+          />
           <Button
             variant="ghost"
             size="icon"

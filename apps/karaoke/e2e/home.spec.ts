@@ -57,6 +57,31 @@ test.describe('Karaoke Home', () => {
     );
   });
 
+  test('should create a private device-transfer QR from the footer', async ({ page }) => {
+    await page.route(/(youtube\.com|ytimg\.com|youtube-nocookie\.com)/, route => route.abort());
+    await page.goto('/');
+
+    await page.getByRole('button', { name: 'QR로 보내고 받기' }).click();
+    const startDrawer = page.getByRole('dialog', { name: '기기 간 공유' });
+    await expect(startDrawer.getByRole('button', { name: /보내기/ })).toBeVisible();
+    await expect(startDrawer.getByText(/운영자 서버로 보내지 않습니다/)).toBeVisible();
+
+    await startDrawer.getByRole('button', { name: /보내기/ }).click();
+    const settingsDrawer = page.getByRole('dialog', { name: '보낼 데이터' });
+    const selectedPlaylist = settingsDrawer.getByRole('radio', { name: /현재 재생목록/ });
+    await expect(selectedPlaylist).toBeChecked();
+    await expect(selectedPlaylist).toHaveCSS('background-color', 'rgb(38, 60, 255)');
+    await settingsDrawer.getByRole('button', { name: 'QR 만들기' }).click();
+
+    const qrDrawer = page.getByRole('dialog', { name: 'QR 보내기' });
+    const qr = qrDrawer.getByRole('img', { name: '노래 데이터 공유 QR' });
+    await expect(qr).toBeVisible();
+    await expect(qrDrawer.getByText(/반복 표시/)).toBeVisible();
+    const qrBox = await qr.boundingBox();
+    expect(qrBox!.width).toBeLessThanOrEqual(320);
+    expect(qrBox!.width).toBe(qrBox!.height);
+  });
+
   test('should show the first-use guide once and allow replay from About', async ({ page }) => {
     await page.addInitScript(() => {
       if (sessionStorage.getItem('guide-test-reset')) return;
