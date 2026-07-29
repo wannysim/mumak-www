@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
+import { LOCAL_STORAGE_KEYS } from '@/lib/client-storage';
+
 type Theme = 'dark' | 'light';
 
 type ThemeProviderState = {
@@ -18,7 +20,7 @@ function deviceTheme(): Theme {
 
 export function ThemeProvider({
   children,
-  storageKey = 'karaoke:theme',
+  storageKey = LOCAL_STORAGE_KEYS.theme,
 }: {
   children: React.ReactNode;
   storageKey?: string;

@@ -6,6 +6,7 @@ import { LyricsLibrary } from '../components/lyrics-library';
 
 const storage = vi.hoisted(() => ({
   clearStoredLyrics: vi.fn(),
+  deleteStoredLyrics: vi.fn(),
   listStoredLyrics: vi.fn(),
   readStoredLyricsLibrary: vi.fn(),
   subscribeLyricsChanges: vi.fn(() => () => {}),
@@ -24,6 +25,7 @@ const entries = [
 describe('LyricsLibrary', () => {
   beforeEach(() => {
     storage.clearStoredLyrics.mockReset().mockResolvedValue(undefined);
+    storage.deleteStoredLyrics.mockReset().mockResolvedValue(undefined);
     storage.listStoredLyrics.mockReset().mockResolvedValue(['odoriko']);
     storage.readStoredLyricsLibrary.mockReset().mockResolvedValue({ entries, skippedRecordCount: 0 });
     storage.subscribeLyricsChanges.mockClear();
@@ -84,9 +86,23 @@ describe('LyricsLibrary', () => {
 
     render(<LyricsLibrary songSlugs={['odoriko']} />);
     await screen.findByText('1/1곡');
-    await userEvent.click(screen.getByRole('button', { name: '모두 지우기' }));
+    await userEvent.click(screen.getByText('저장된 가사 관리'));
+    await userEvent.click(screen.getByRole('button', { name: '저장된 가사 모두 지우기' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('저장소를 비우지 못했습니다.');
     expect(screen.getByText('1/1곡')).toBeInTheDocument();
+  });
+
+  it('deletes one selected song only after confirmation', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<LyricsLibrary songSlugs={['odoriko']} />);
+    await screen.findByText('1/1곡');
+    await userEvent.click(screen.getByText('저장된 가사 관리'));
+    await userEvent.click(screen.getByRole('button', { name: 'odoriko 가사 지우기' }));
+
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('odoriko에 저장된 가사만'));
+    expect(storage.deleteStoredLyrics).toHaveBeenCalledWith('odoriko');
+    expect(await screen.findByText('odoriko 가사를 지웠습니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'odoriko 가사 지우기' })).not.toBeInTheDocument();
   });
 });

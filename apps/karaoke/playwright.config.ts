@@ -15,6 +15,21 @@ const DEVICE_ONLY = /(?:mobile|webkit)\.spec\.ts/;
 
 const config: PlaywrightTestConfig = {
   ...base,
+  use: {
+    ...base.use,
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: 'http://localhost:3005',
+          localStorage: [
+            { name: 'karaoke:privacy-consent', value: 'true' },
+            { name: 'karaoke:first-guide', value: 'true' },
+          ],
+        },
+      ],
+    },
+  },
   projects: [
     ...(base.projects ?? []).map(project => ({ ...project, testIgnore: DEVICE_ONLY })),
     {

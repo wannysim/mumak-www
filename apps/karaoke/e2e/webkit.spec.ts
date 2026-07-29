@@ -17,8 +17,7 @@ test.describe('Mobile WebKit local library', () => {
     await page.reload();
     await expect(page.getByRole('button', { name: /練習の歌/ })).toBeVisible();
 
-    await page.getByRole('button', { name: /곡 목록 열기/ }).click();
-    await page.getByRole('button', { name: /이 앱에 대해/ }).click();
+    await page.getByRole('button', { name: '앱 정보' }).click();
     const downloadStarted = page.waitForEvent('download');
     await page.getByRole('button', { name: '백업 내보내기' }).click();
     const download = await downloadStarted;
