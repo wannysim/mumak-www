@@ -69,6 +69,7 @@ describe('ShareDrawer', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('creates a looping QR for the current playlist and offers the same data as a file', async () => {
@@ -164,12 +165,13 @@ describe('ShareDrawer', () => {
     const onImport = vi.fn();
     const { library } = renderShareDrawer(onImport);
     const replacement = structuredClone(library);
-    replacement.playlists = [replacement.playlists[0]!];
+    const fallbackPlaylist = replacement.playlists[1]!;
+    replacement.playlists = [fallbackPlaylist];
     const bundle = createKaraokeShareBundle({
       library: replacement,
       kind: 'library',
-      playlistId: 'vaundy',
-      songSlug: replacement.songs[0]!.slug,
+      playlistId: fallbackPlaylist.id,
+      songSlug: fallbackPlaylist.songSlugs[0]!,
     });
 
     await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
@@ -194,8 +196,36 @@ describe('ShareDrawer', () => {
     await userEvent.click(replace);
     expect(onImport).toHaveBeenCalledWith(
       replacement,
-      expect.objectContaining({ playlistId: 'vaundy', songSlug: library.songs[0]!.slug })
+      expect.objectContaining({ playlistId: fallbackPlaylist.id, songSlug: fallbackPlaylist.songSlugs[0] })
     );
+  });
+
+  it('uses the imported playlist as the next selection', async () => {
+    const onImport = vi.fn();
+    const { library } = renderShareDrawer(onImport);
+    const incoming = structuredClone(library);
+    incoming.playlists[0]!.songSlugs.reverse();
+    const playlist = incoming.playlists[0]!;
+    const bundle = createKaraokeShareBundle({
+      library: incoming,
+      kind: 'playlist',
+      playlistId: playlist.id,
+      songSlug: playlist.songSlugs[0]!,
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
+    await userEvent.click(screen.getByRole('button', { name: /받기/ }));
+    fireEvent.change(screen.getByLabelText('공유 파일 선택'), {
+      target: {
+        files: [new File([serializeKaraokeShareBundle(bundle)], 'share.json', { type: 'application/json' })],
+      },
+    });
+    await userEvent.click(await screen.findByRole('button', { name: '이 재생목록 가져오기' }));
+
+    expect(onImport).toHaveBeenCalledWith(expect.objectContaining({ playlists: expect.arrayContaining([playlist]) }), {
+      playlistId: playlist.id,
+      songSlug: playlist.songSlugs[0],
+    });
   });
 
   it('explains a denied camera permission and rejects an invalid share file', async () => {
@@ -239,6 +269,69 @@ describe('ShareDrawer', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /받기/ }));
     expect(screen.getByRole('button', { name: '카메라 켜기' })).toBeVisible();
+  });
+
+  it('reports scanner failures, stops a hidden camera, and opens the file picker fallback', async () => {
+    renderShareDrawer();
+
+    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
+    await userEvent.click(screen.getByRole('button', { name: /받기/ }));
+    await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
+
+    await act(async () => {
+      scanner.callback?.({ data: 'MK1|broken' });
+      await Promise.resolve();
+    });
+    expect(await screen.findByRole('alert')).toHaveTextContent('이 앱에서 만든 공유 QR이 아닙니다');
+
+    scanner.start.mockRejectedValueOnce(new Error('카메라를 사용할 수 없습니다.'));
+    await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('카메라를 사용할 수 없습니다');
+
+    scanner.start.mockRejectedValueOnce('unknown failure');
+    await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('카메라를 시작하지 못했습니다');
+
+    scanner.start.mockResolvedValueOnce(undefined);
+    await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
+    scanner.destroy.mockClear();
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+    fireEvent(document, new Event('visibilitychange'));
+    expect(scanner.destroy).toHaveBeenCalledOnce();
+
+    const openPicker = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {});
+    await userEvent.click(screen.getByRole('button', { name: '카메라 대신 공유 파일 불러오기' }));
+    expect(openPicker).toHaveBeenCalledOnce();
+  });
+
+  it('shows lyric loading and sender fallback errors without leaving the setup screen', async () => {
+    let rejectLyricsRead = (_error: Error) => {};
+    storage.readStoredLyricsLibrary.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectLyricsRead = reject;
+        })
+    );
+    renderShareDrawer();
+
+    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
+    await userEvent.click(screen.getByRole('button', { name: /보내기/ }));
+    expect(screen.getByText('가사 확인 중')).toBeInTheDocument();
+    await act(async () => {
+      rejectLyricsRead(new Error('가사를 읽지 못했습니다.'));
+    });
+    expect(await screen.findByText('포함하지 않음')).toBeInTheDocument();
+
+    vi.stubGlobal('CompressionStream', undefined);
+    await userEvent.click(screen.getByRole('button', { name: 'QR 만들기' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('공유 파일을 이용해 주세요');
+    vi.unstubAllGlobals();
+
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => {
+      throw new Error('파일을 만들 수 없습니다.');
+    });
+    await userEvent.click(screen.getByRole('button', { name: '공유 파일 저장' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('파일을 만들 수 없습니다');
   });
 
   it('does not overwrite lyrics when the song library cannot be persisted', async () => {
@@ -294,6 +387,37 @@ describe('ShareDrawer', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('가사 저장 실패');
     expect(localStorage.getItem(LOCAL_STORAGE_KEYS.songLibrary)).toBe(previousLibrary);
+    expect(onImport).not.toHaveBeenCalled();
+  });
+
+  it('reports when both lyric saving and song-library rollback fail', async () => {
+    localStorage.setItem(LOCAL_STORAGE_KEYS.songLibrary, '{"previous":true}');
+    storage.saveStoredLyricsBatch.mockRejectedValueOnce(new Error('가사 저장 실패'));
+    const onImport = vi.fn();
+    const { library } = renderShareDrawer(onImport);
+    const incoming = createKaraokeShareBundle({
+      library,
+      kind: 'song',
+      playlistId: 'vaundy',
+      songSlug: library.songs[0]!.slug,
+      lyrics,
+    });
+    vi.spyOn(Storage.prototype, 'setItem')
+      .mockImplementationOnce(() => {})
+      .mockImplementationOnce(() => {
+        throw new DOMException('quota', 'QuotaExceededError');
+      });
+
+    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
+    await userEvent.click(screen.getByRole('button', { name: /받기/ }));
+    fireEvent.change(screen.getByLabelText('공유 파일 선택'), {
+      target: {
+        files: [new File([serializeKaraokeShareBundle(incoming)], 'share.json', { type: 'application/json' })],
+      },
+    });
+    await userEvent.click(await screen.findByRole('button', { name: '이 곡 가져오기' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('기존 곡 보관함도 복구하지 못했습니다');
     expect(onImport).not.toHaveBeenCalled();
   });
 });

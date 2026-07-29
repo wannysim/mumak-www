@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { StoredLyricsEntry } from '../lib/lyrics-import';
 import {
@@ -110,6 +110,12 @@ describe('karaoke share transfer', () => {
     expect(parseKaraokeShareText(serializeKaraokeShareBundle(bundle))).toEqual(bundle);
     expect(() => parseKaraokeShareText('{')).toThrow('JSON 형식');
     expect(() => parseKaraokeShareBundle({ ...bundle, version: 99 })).toThrow('지원하지 않는 공유 데이터');
+    expect(() => parseKaraokeShareBundle({ ...bundle, exportedAt: 'not-a-date' })).toThrow('생성 시간이 올바르지');
+    expect(() => parseKaraokeShareBundle({ ...bundle, scope: null })).toThrow('공유 범위가 올바르지');
+    expect(() => parseKaraokeShareBundle({ ...bundle, scope: { kind: 'future' } })).toThrow('지원하지 않는 공유 범위');
+    expect(() => parseKaraokeShareText(JSON.stringify({ ...bundle, exportedAt: 'not-a-date' }))).toThrow(
+      '생성 시간이 올바르지'
+    );
     expect(() =>
       parseKaraokeShareBundle({
         ...bundle,
@@ -155,6 +161,27 @@ describe('karaoke share transfer', () => {
         },
       })
     ).toThrow('보관함 버전');
+  });
+
+  it('rejects malformed QR payloads and browsers without decompression support', async () => {
+    const malformedBase64 = 'MK1|abcdefghijklmnop|0|1|A';
+    expect(() => new KaraokeShareFrameCollector().add(malformedBase64)).toThrow('QR 조각을 읽을 수 없습니다');
+    expect(() => new KaraokeShareFrameCollector().add('MK1|abcdefghijklmnop|0|2|AQ')).toThrow('데이터 길이가 올바르지');
+
+    const library = createDefaultSongLibrary();
+    const frames = await encodeKaraokeShareFrames(
+      createKaraokeShareBundle({
+        library,
+        kind: 'song',
+        playlistId: 'vaundy',
+        songSlug: 'kaiju-no-hanauta',
+      })
+    );
+    const collector = new KaraokeShareFrameCollector();
+    for (const frame of frames) collector.add(frame);
+    vi.stubGlobal('DecompressionStream', undefined);
+    await expect(collector.decode()).rejects.toThrow('압축을 지원하지 않습니다');
+    vi.unstubAllGlobals();
   });
 
   it('upserts one shared song into the current playlist', () => {
@@ -209,6 +236,15 @@ describe('karaoke share transfer', () => {
       removedSongCount: 0,
       removedPlaylistCount: 0,
     });
+
+    changed.playlists[0] = { ...changed.playlists[0]!, id: 'shared-vaundy' };
+    const added = createKaraokeShareBundle({
+      library: changed,
+      kind: 'playlist',
+      playlistId: 'shared-vaundy',
+      songSlug: changed.playlists[0]!.songSlugs[0]!,
+    });
+    expect(createShareImportPlan(current, added, 'vaundy').library.playlists.at(-1)?.id).toBe('shared-vaundy');
   });
 
   it('plans a full replacement and rejects slug or video collisions', () => {
