@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Karaoke Home', () => {
   test('should migrate versioned localStorage keys on startup', async ({ page }) => {
-    await page.addInitScript(() => {
+    await page.goto('/');
+    await page.evaluate(() => {
       localStorage.removeItem('karaoke:privacy-consent');
       localStorage.removeItem('karaoke:first-guide');
       localStorage.removeItem('karaoke:active-playlist');
@@ -10,7 +11,7 @@ test.describe('Karaoke Home', () => {
       localStorage.setItem('karaoke:first-guide-v1', 'true');
       localStorage.setItem('karaoke:active-playlist-v1', '"fujii-kaze"');
     });
-    await page.goto('/');
+    await page.reload();
 
     await expect(page.getByRole('heading', { level: 1 })).toContainText('まつり');
     await expect
