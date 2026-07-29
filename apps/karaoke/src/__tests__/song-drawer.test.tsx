@@ -4,7 +4,7 @@ import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SongDrawer } from '../components/song-drawer';
-import { addPlaylist, saveSongToPlaylist, type SongLibrary } from '../lib/song-library';
+import { addPlaylist, saveSongToPlaylist, SONG_LIBRARY_SCHEMA_VERSION, type SongLibrary } from '../lib/song-library';
 import type { Song } from '../songs';
 
 vi.mock('@dnd-kit/react', () => ({
@@ -45,7 +45,7 @@ vi.mock('@dnd-kit/react/sortable', () => ({
 const songA: Song = { slug: 'a', titleJa: '怪獣の花唄', titleKo: '괴수의 꽃노래', videoId: 'aaaaaaaaaaa' };
 const songB: Song = { slug: 'b', titleJa: '踊り子', titleKo: '오도리코', videoId: 'bbbbbbbbbbb' };
 const library: SongLibrary = {
-  schemaVersion: 3,
+  schemaVersion: SONG_LIBRARY_SCHEMA_VERSION,
   songs: [songA, songB],
   playlists: [{ id: 'test', name: '테스트 목록', songSlugs: ['a', 'b'] }],
 };
@@ -227,7 +227,7 @@ describe('SongDrawer', () => {
     render(
       <SongDrawerHarness
         initialLibrary={{
-          schemaVersion: 3,
+          schemaVersion: SONG_LIBRARY_SCHEMA_VERSION,
           songs: [songA],
           playlists: [{ id: 'only', name: '마지막 목록', songSlugs: ['a'] }],
         }}

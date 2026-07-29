@@ -2,7 +2,8 @@ import { defaultSong, songs as bundledSongs, type Song } from '@/songs';
 
 export const DEFAULT_PLAYLIST_ID = 'vaundy';
 export const FUJII_KAZE_PLAYLIST_ID = 'fujii-kaze';
-export const SONG_LIBRARY_SCHEMA_VERSION = 3;
+export const SONG_LIBRARY_SCHEMA_VERSION = 5;
+const MIGRATABLE_SONG_LIBRARY_SCHEMA_VERSIONS = new Set([3, 4]);
 
 export type Playlist = {
   id: string;
@@ -19,6 +20,13 @@ export type SongLibrary = {
 type SongDetails = {
   titleJa: string;
   titleKo: string;
+};
+
+const seishunSick: Song = {
+  slug: 'fujii-kaze-seishun-sick',
+  titleJa: '青春病',
+  titleKo: '청춘병',
+  videoId: 'WRHPEtCeSXo',
 };
 
 const fujiiKazeSongs: Song[] = [
@@ -47,6 +55,7 @@ const fujiiKazeSongs: Song[] = [
     titleKo: '미치테유쿠',
     videoId: 'gtcVDWBRz20',
   },
+  seishunSick,
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -81,7 +90,8 @@ export function createDefaultSongLibrary(): SongLibrary {
 export function parseSongLibraryStrict(value: unknown): SongLibrary {
   if (
     !isRecord(value) ||
-    value.schemaVersion !== SONG_LIBRARY_SCHEMA_VERSION ||
+    (value.schemaVersion !== SONG_LIBRARY_SCHEMA_VERSION &&
+      !MIGRATABLE_SONG_LIBRARY_SCHEMA_VERSIONS.has(value.schemaVersion as number)) ||
     !Array.isArray(value.songs) ||
     !Array.isArray(value.playlists)
   ) {
@@ -129,6 +139,17 @@ export function parseSongLibraryStrict(value: unknown): SongLibrary {
     playlists.every(playlist => playlist.songSlugs.length === 0)
   ) {
     throw new Error('재생할 곡이 있는 재생목록이 하나 이상 필요합니다.');
+  }
+
+  if (MIGRATABLE_SONG_LIBRARY_SCHEMA_VERSIONS.has(value.schemaVersion as number)) {
+    const songIndex = songs.findIndex(song => song.slug === seishunSick.slug);
+    const existingAudio = songs.find(song => song.videoId === seishunSick.videoId);
+    const songSlug = existingAudio?.slug ?? seishunSick.slug;
+    if (songIndex >= 0 && !existingAudio) songs[songIndex] = { ...seishunSick };
+    else if (songIndex < 0 && !existingAudio) songs.push({ ...seishunSick });
+
+    const playlist = playlists.find(candidate => candidate.id === FUJII_KAZE_PLAYLIST_ID);
+    if (playlist && !playlist.songSlugs.includes(songSlug)) playlist.songSlugs.push(songSlug);
   }
 
   return { schemaVersion: SONG_LIBRARY_SCHEMA_VERSION, songs, playlists };

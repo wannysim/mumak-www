@@ -17,10 +17,11 @@ import {
 } from '../lib/song-library';
 
 describe('song library', () => {
-  it('seeds the Fujii Kaze playlist with ten official album audio tracks', () => {
+  it('seeds the Fujii Kaze playlist with eleven default tracks', () => {
     const library = createDefaultSongLibrary();
     const songs = songsInPlaylist(library, FUJII_KAZE_PLAYLIST_ID);
 
+    expect(library.songs).toHaveLength(20);
     expect(library.playlists.map(playlist => playlist.name)).toEqual(['Vaundy', 'Fujii Kaze']);
     expect(songs.map(song => song.titleJa)).toEqual([
       'まつり',
@@ -33,6 +34,7 @@ describe('song library', () => {
       '死ぬのがいいわ',
       '旅路',
       '満ちてゆく',
+      '青春病',
     ]);
     expect(songs.map(song => song.videoId)).toEqual([
       'Uqwz7ESQ470',
@@ -45,6 +47,7 @@ describe('song library', () => {
       'iSvutomiqOQ',
       'oHBrSoBw03s',
       'gtcVDWBRz20',
+      'WRHPEtCeSXo',
     ]);
   });
 
@@ -74,6 +77,35 @@ describe('song library', () => {
     expect(parseSongLibrary(duplicate)).toEqual(createDefaultSongLibrary());
     expect(parseSongLibrary(unplayable)).toEqual(createDefaultSongLibrary());
     expect(parseSongLibrary(outdatedSnapshot)).toEqual(createDefaultSongLibrary());
+  });
+
+  it.each([
+    [3, false],
+    [4, true],
+  ])('migrates a version %i library to the Seishun Sick album audio', (schemaVersion, hadMusicVideo) => {
+    const current = createDefaultSongLibrary();
+    const previous = {
+      ...current,
+      schemaVersion,
+      songs: hadMusicVideo
+        ? current.songs.map(song =>
+            song.slug === 'fujii-kaze-seishun-sick' ? { ...song, videoId: 'kQvT37OzkP8' } : song
+          )
+        : current.songs.filter(song => song.slug !== 'fujii-kaze-seishun-sick'),
+      playlists: current.playlists.map(playlist => ({
+        ...playlist,
+        songSlugs: hadMusicVideo
+          ? playlist.songSlugs
+          : playlist.songSlugs.filter(slug => slug !== 'fujii-kaze-seishun-sick'),
+      })),
+    };
+
+    const migrated = parseSongLibrary(previous);
+
+    expect(migrated.schemaVersion).toBe(5);
+    expect(migrated.songs).toHaveLength(20);
+    expect(songsInPlaylist(migrated, FUJII_KAZE_PLAYLIST_ID).at(-1)?.titleJa).toBe('青春病');
+    expect(migrated.songs.at(-1)?.videoId).toBe('WRHPEtCeSXo');
   });
 
   it('creates, renames, and removes a playlist while keeping one playable list', () => {
