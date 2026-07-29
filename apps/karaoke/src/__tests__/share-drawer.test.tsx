@@ -133,6 +133,7 @@ describe('ShareDrawer', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
     await userEvent.click(screen.getByRole('button', { name: /받기/ }));
+    expect(screen.getByLabelText('QR 스캔 카메라')).not.toHaveClass('invisible');
     await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
     expect(scanner.start).toHaveBeenCalledOnce();
 
