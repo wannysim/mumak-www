@@ -2,10 +2,14 @@ packages:
   - apps/*
   - packages/*
 overrides:
+  '@axe-core/playwright>playwright-core': 1.61.0
   '@types/react': 19.2.15
   '@types/react-dom': 19.2.3
+  'brace-expansion@>=5.0.0 <5.0.8': 5.0.8
   jest-mock: ^30.4.1
+  'next>postcss': 8.5.23
   react-kapsule: 2.6.0
+  react-native-worklets: 0.10.0
 allowBuilds:
   '@parcel/watcher': false
   '@swc/core': false

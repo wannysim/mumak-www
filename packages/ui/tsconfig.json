@@ -1,7 +1,6 @@
 {
   "extends": "@mumak/typescript-config/react-library.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@mumak/ui/*": ["./src/*"]
     }

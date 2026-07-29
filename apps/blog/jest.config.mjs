@@ -20,7 +20,7 @@ const customJestConfig = {
     '^@/(.*)$': '<rootDir>/$1',
     '^@mumak/ui/(.*)$': '<rootDir>/../../packages/ui/src/$1',
   },
-  transformIgnorePatterns: ['/node_modules/(?!(next-intl|use-intl|@formatjs)/)'],
+  transformIgnorePatterns: ['/node_modules/(?!.*(?:next-intl|use-intl|@formatjs|marked))'],
   testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/', '<rootDir>/e2e/'],
   testMatch: ['**/src/**/__tests__/**/*.test.[jt]s?(x)', '**/__tests__/**/*.test.[jt]s?(x)'],
   collectCoverageFrom: [

@@ -16,23 +16,23 @@ describe('HapticTab', () => {
     jest.clearAllMocks();
   });
 
-  it('runs light haptic feedback on iOS press in', () => {
+  it('runs light haptic feedback on iOS press in', async () => {
     const onPressIn = jest.fn();
     Platform.OS = 'ios';
 
-    renderHapticTab({ onPressIn });
-    fireEvent(screen.getByRole('button'), 'pressIn', { nativeEvent: {} });
+    await renderHapticTab({ onPressIn });
+    await fireEvent(screen.getByRole('button'), 'pressIn', { nativeEvent: {} });
 
     expect(Haptics.impactAsync).toHaveBeenCalledWith(Haptics.ImpactFeedbackStyle.Light);
     expect(onPressIn).toHaveBeenCalled();
   });
 
-  it('skips haptic feedback off iOS but still forwards the press', () => {
+  it('skips haptic feedback off iOS but still forwards the press', async () => {
     const onPressIn = jest.fn();
     Platform.OS = 'android';
 
-    renderHapticTab({ onPressIn });
-    fireEvent(screen.getByRole('button'), 'pressIn', { nativeEvent: {} });
+    await renderHapticTab({ onPressIn });
+    await fireEvent(screen.getByRole('button'), 'pressIn', { nativeEvent: {} });
 
     expect(Haptics.impactAsync).not.toHaveBeenCalled();
     expect(onPressIn).toHaveBeenCalled();

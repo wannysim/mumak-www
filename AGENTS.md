@@ -42,6 +42,8 @@
 - `release` — Git Flow 기반 버전 관리
 - `expressive-refactor` — 이름·구조 중심 리팩토링
 - `perf-optimization` — 성능 최적화 체크리스트
+- `emil-design-eng` — 애니메이션·UI 폴리시 구현 가이드 (easing/duration/GPU/a11y, [emilkowalski/skills](https://github.com/emilkowalski/skills) 벤더링)
+- `review-animations` — 모션 코드 엄격 리뷰 (명시 호출 전용, 같은 출처)
 
 ### 서브에이전트 (위임용)
 
@@ -373,7 +375,7 @@ import { mockUser } from '@/test/mocks';
 - Next.js 앱을 Portless hostname으로 접근할 때는 해당 hostname을 앱의 `next.config.mjs` `allowedDevOrigins`에 추가한다. 누락되면 dev-only endpoint/HMR cross-origin 차단 때문에 hydration 이후 클라이언트 인터랙션이 깨져 보일 수 있다.
 - Portless 적용 중 클라이언트 기능이 함께 죽어 보이면 dev resource 차단과 앱 코드의 hydration/runtime 오류를 분리해서 본다. Spotify/search/theme/locale 같은 선택적 클라이언트 위젯은 `ClientErrorBoundary` 등으로 실패 단위를 작게 유지한다.
 - `start`, `start:e2e`, `preview:e2e`, Playwright `webServer` 포트는 CI/E2E용 고정 포트로 유지한다. Portless는 로컬 `dev` 전용이고 E2E 서버와 섞지 않는다.
-- 현재 E2E 포트는 `mumak-next: 3000`, `mumak-react: 3001`, `blog: 3002`, `mumak-native: 3003`, `lattice: 3004`이다. 새 앱을 추가하면 중복되지 않게 배정한다.
+- 현재 E2E 포트는 `mumak-next: 3000`, `mumak-react: 3001`, `blog: 3002`, `mumak-native: 3003`, `lattice: 3004`, `karaoke: 3005`이다. 새 앱을 추가하면 중복되지 않게 배정한다.
 - dev proxy 상태가 꼬이면 `pnpm exec portless proxy stop` 후 다시 앱 `dev` 스크립트를 실행한다.
 
 ---
