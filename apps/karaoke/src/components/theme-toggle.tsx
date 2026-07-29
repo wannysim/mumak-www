@@ -13,7 +13,7 @@ export function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
-      className="size-11"
+      className="size-11 rounded-none hover:bg-transparent"
       aria-label={isDark ? '라이트 테마로 전환' : '다크 테마로 전환'}
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
     >

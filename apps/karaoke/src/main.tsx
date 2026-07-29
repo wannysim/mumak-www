@@ -9,6 +9,8 @@ import { registerServiceWorker } from './register-sw';
 import '@mumak/ui/globals.css';
 import './index.css';
 
+import '@fontsource-variable/noto-serif-jp';
+
 registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(

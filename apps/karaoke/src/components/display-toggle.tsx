@@ -14,19 +14,24 @@ export function DisplayToggle({
   return (
     <ToggleGroup
       type="multiple"
-      variant="outline"
       size="lg"
+      spacing={0}
       value={selected}
       onValueChange={(keys: string[]) => {
         if (keys.length === 0) return; // 최소 한 줄은 남긴다
         onChange({ jp: keys.includes('jp'), pron: keys.includes('pron'), ko: keys.includes('ko') });
       }}
       aria-label="가사 표시 설정"
+      className="rounded-none"
     >
-      {/* 320px 화면에서는 컨트롤 줄이 넘치므로 좁을 때만 좌우 여백을 줄인다. 높이(44px)는 유지. */}
       {DISPLAY_FIELDS.map(field => (
-        <ToggleGroupItem key={field.key} value={field.key} className="h-11 px-2 text-sm min-[360px]:px-3.5">
-          {field.label}
+        <ToggleGroupItem
+          key={field.key}
+          value={field.key}
+          aria-label={`${field.shortLabel}, ${field.label}`}
+          className="display-toggle-item font-utility text-muted-foreground hover:text-foreground relative h-11 min-w-11 rounded-none border-0 bg-transparent px-1 text-[0.625rem] tracking-[0.12em] data-[state=on]:bg-transparent data-[state=on]:font-semibold data-[state=on]:text-foreground min-[360px]:min-w-12"
+        >
+          {field.shortLabel}
         </ToggleGroupItem>
       ))}
     </ToggleGroup>

@@ -5,8 +5,10 @@ import { Button } from '@mumak/ui/components/button';
 
 import { AboutDrawer } from '@/components/about-drawer';
 import { DisplayToggle } from '@/components/display-toggle';
+import { LyricsImportButton } from '@/components/lyrics-import-button';
 import { LyricsView } from '@/components/lyrics-view';
 import { PlayerControls } from '@/components/player-controls';
+import { ReadingModeToggle } from '@/components/reading-mode-toggle';
 import { SongDrawer } from '@/components/song-drawer';
 import { SyncEditor } from '@/components/sync-editor';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -21,8 +23,10 @@ export default function App() {
   const [display, setDisplay] = useLocalStorageState('karaoke:display', DEFAULT_DISPLAY);
   const [songSlug, setSongSlug] = useLocalStorageState('karaoke:song', defaultSong.slug);
   const [playbackMode, setPlaybackMode] = useLocalStorageState('karaoke:playback', DEFAULT_PLAYBACK_MODE);
+  const [readingMode, setReadingMode] = useLocalStorageState('karaoke:reading-mode', false);
   const song = songs.find(candidate => candidate.slug === songSlug) ?? defaultSong;
-  const lyrics = useLyrics(song.slug);
+  const { lyrics, status: lyricsStatus, errorMessage: lyricsErrorMessage } = useLyrics(song.slug);
+  const songSlugs = React.useMemo(() => songs.map(candidate => candidate.slug), []);
   const [aboutOpen, setAboutOpen] = React.useState(false);
 
   // 곡이 끝났을 때의 처리. seekTo는 플레이어 훅이 돌려주므로 ref로 건네받는다.
@@ -41,10 +45,16 @@ export default function App() {
   const step = (offset: number) => setSongSlug(songAt(song, offset).slug);
 
   return (
-    <div className="mx-auto flex h-svh max-w-2xl flex-col pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-      <header className="flex shrink-0 items-center gap-1 px-1 pt-[env(safe-area-inset-top)]">
-        <Button variant="ghost" size="icon" aria-label="이전 곡" onClick={() => step(-1)} className="size-12">
-          <ChevronLeft className="size-6" />
+    <div className="karaoke-shell border-border/70 bg-background mx-auto flex h-svh max-w-[32rem] flex-col border-x-0 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] sm:border-x">
+      <header className="karaoke-header border-border flex shrink-0 items-center gap-1 border-b px-1 pt-[env(safe-area-inset-top)]">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="이전 곡"
+          onClick={() => step(-1)}
+          className="size-12 rounded-none hover:bg-transparent"
+        >
+          <ChevronLeft className="size-5 stroke-[1.5]" />
         </Button>
         <SongDrawer
           songs={songs}
@@ -52,40 +62,62 @@ export default function App() {
           onSelect={next => setSongSlug(next.slug)}
           onAbout={() => setAboutOpen(true)}
         />
-        <Button variant="ghost" size="icon" aria-label="다음 곡" onClick={() => step(1)} className="size-12">
-          <ChevronRight className="size-6" />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="다음 곡"
+          onClick={() => step(1)}
+          className="size-12 rounded-none hover:bg-transparent"
+        >
+          <ChevronRight className="size-5 stroke-[1.5]" />
         </Button>
       </header>
 
-      {/*
-        플레이어 위에는 아무것도 덮지 않는다. YouTube의 Required Minimum Functionality가
-        "플레이어 앞에 오버레이·프레임 등 시각 요소를 두지 말 것"과 최소 200x200 뷰포트를 요구한다.
-        재생/탐색은 아래 PlayerControls가, 컨트롤 바 숨김은 공식 파라미터(controls=0)가 담당한다.
-        @see https://developers.google.com/youtube/terms/required-minimum-functionality
-      */}
-      <div ref={containerRef} className="aspect-video w-full shrink-0 bg-black [&>*]:size-full [&_iframe]:size-full" />
+      <div className="karaoke-media">
+        {/*
+          플레이어 위에는 아무것도 덮지 않는다. YouTube의 Required Minimum Functionality가
+          "플레이어 앞에 오버레이·프레임 등 시각 요소를 두지 말 것"과 최소 200x200 뷰포트를 요구한다.
+          재생/탐색은 아래 PlayerControls가, 컨트롤 바 숨김은 공식 파라미터(controls=0)가 담당한다.
+          @see https://developers.google.com/youtube/terms/required-minimum-functionality
+        */}
+        <div
+          ref={containerRef}
+          className="karaoke-player aspect-video min-h-[200px] w-full max-h-[378px] shrink-0 bg-black [&>*]:size-full [&_iframe]:size-full"
+        />
 
-      <PlayerControls
-        time={time}
-        duration={duration}
-        isPlaying={isPlaying}
-        onSeek={seekTo}
-        onTogglePlay={togglePlay}
-        playbackMode={playbackMode}
-        onPlaybackModeChange={setPlaybackMode}
-      />
+        <PlayerControls
+          time={time}
+          duration={duration}
+          isPlaying={isPlaying}
+          onSeek={seekTo}
+          onTogglePlay={togglePlay}
+          playbackMode={playbackMode}
+          onPlaybackModeChange={setPlaybackMode}
+        />
+      </div>
 
-      <div className="flex shrink-0 items-center justify-between gap-2 px-2 pb-1">
+      <div className="karaoke-toolbar border-border flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-2">
         <DisplayToggle value={display} onChange={setDisplay} />
         <div className="flex items-center">
+          <ReadingModeToggle enabled={readingMode} onChange={setReadingMode} />
           <ThemeToggle />
-          <SyncEditor time={time} />
+          <SyncEditor key={song.slug} time={time} songSlug={song.slug} />
         </div>
       </div>
 
-      <LyricsView key={song.slug} lyrics={lyrics} time={time} display={display} onSeek={seekTo} />
+      <LyricsView
+        key={song.slug}
+        lyrics={lyrics}
+        status={lyricsStatus}
+        errorMessage={lyricsErrorMessage}
+        time={time}
+        display={display}
+        readingMode={readingMode}
+        emptyAction={<LyricsImportButton songSlugs={songSlugs} />}
+        onSeek={seekTo}
+      />
 
-      <AboutDrawer open={aboutOpen} onOpenChange={setAboutOpen} />
+      <AboutDrawer open={aboutOpen} onOpenChange={setAboutOpen} songSlugs={songSlugs} />
     </div>
   );
 }

@@ -1,20 +1,18 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import App from '../app';
 
 describe('App', () => {
   beforeEach(() => {
     localStorage.clear();
-    // 가사 파일은 gitignore 대상이라 테스트에선 항상 404로 취급한다.
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false } as Response));
   });
 
   it('renders the first song by default', async () => {
     render(<App />);
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('怪獣の花唄');
-    expect(screen.getByText(/아직 가사가 등록되지 않은/)).toBeInTheDocument();
+    expect(await screen.findByText('歌詞をひらく。')).toBeInTheDocument();
   });
 
   it('restores the last selected song from localStorage', async () => {

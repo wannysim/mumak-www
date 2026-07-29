@@ -1,16 +1,56 @@
 @font-face {
-  /* KS X 1001 완성형 + 라틴만 남긴 서브셋(2MB -> 449KB). scripts/subset-font.py 참고.
-     범위 밖 희귀 음절은 시스템 폰트로 글자 단위 폴백된다. */
-  font-family: 'Pretendard';
-  src: url('./assets/fonts/PretendardVariable.subset.woff2') format('woff2-variations');
+  /* Pretendard(OFL-1.1)에서 KS X 1001 완성형 + 라틴만 남긴 수정본(2MB -> 449KB).
+     OFL 예약명과 구분해 Mumak Sans Variable로 배포한다. scripts/subset-font.py 참고. */
+  font-family: 'Mumak Sans Variable';
+  src: url('./assets/fonts/mumak-sans-variable.woff2') format('woff2-variations');
   font-weight: 45 920;
   font-display: swap;
   unicode-range: U+0020-007F, U+00A0-00FF, U+2010-202F, U+3130-3163, U+AC00-D7A3, U+20A9, U+20AC, U+2122, U+266A-266B;
 }
 
 :root {
+  --background: #e9edf0;
+  --foreground: #111318;
+  --card: #eef1f3;
+  --card-foreground: #111318;
+  --popover: #eef1f3;
+  --popover-foreground: #111318;
+  --primary: #263cff;
+  --primary-foreground: #f8f9ff;
+  --secondary: #dfe4e8;
+  --secondary-foreground: #20242a;
+  --muted: #dce1e5;
+  --muted-foreground: #59616b;
+  --accent: #dce2ff;
+  --accent-foreground: #1c2fd9;
+  --border: #bcc3ca;
+  --input: #7e8792;
+  --ring: #263cff;
+  --radius: 0.25rem;
+  --font-japanese: 'Noto Serif JP Variable', 'Hiragino Mincho ProN', 'Yu Mincho', 'YuMincho', serif;
+  --font-utility: 'SFMono-Regular', 'Roboto Mono', 'Cascadia Mono', ui-monospace, monospace;
   /* 기본 CSS easing은 힘이 약하다. UI 반응에는 강한 ease-out을 쓴다. */
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.dark {
+  --background: #15171b;
+  --foreground: #f1f3f4;
+  --card: #1b1e23;
+  --card-foreground: #f1f3f4;
+  --popover: #1b1e23;
+  --popover-foreground: #f1f3f4;
+  --primary: #8390ff;
+  --primary-foreground: #111423;
+  --secondary: #25282e;
+  --secondary-foreground: #f1f3f4;
+  --muted: #25282e;
+  --muted-foreground: #abb1b7;
+  --accent: #282d50;
+  --accent-foreground: #cbd0ff;
+  --border: #3a3f46;
+  --input: #626a74;
+  --ring: #8390ff;
 }
 
 html,
@@ -21,12 +61,206 @@ body {
 }
 
 body {
-  font-family: 'Pretendard', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Mumak Sans Variable', ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   /* 모바일: 탭 시 파란 하이라이트 제거, 가로모드 글자 자동 확대 방지 */
   -webkit-tap-highlight-color: transparent;
   text-size-adjust: 100%;
+}
+
+.font-japanese {
+  font-family: var(--font-japanese);
+  font-optical-sizing: auto;
+  font-feature-settings: 'palt' 1;
+}
+
+.font-utility {
+  font-family: var(--font-utility);
+  font-variant-numeric: tabular-nums;
+}
+
+.lyric-jp {
+  font-size: clamp(1.875rem, 8vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.14;
+  letter-spacing: -0.045em;
+}
+
+.lyric-pron {
+  margin-top: 0.375rem;
+  font-weight: 500;
+  line-height: 1.375;
+}
+
+.lyric-ko {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.375;
+}
+
+.karaoke-lyrics[data-reading-mode='true'] .lyric-jp {
+  font-size: clamp(1.5rem, 6vw, 1.875rem);
+  letter-spacing: -0.035em;
+}
+
+.karaoke-lyrics[data-reading-mode='true'] .lyric-pron {
+  margin-top: 0.5rem;
+  font-size: clamp(1.125rem, 4.5vw, 1.25rem);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.karaoke-lyrics[data-reading-mode='true'] .lyric-ko {
+  margin-top: 0.375rem;
+  font-size: 1rem;
+  line-height: 1.625;
+}
+
+.display-toggle-item::after {
+  position: absolute;
+  bottom: 0.375rem;
+  left: 50%;
+  width: 0.75rem;
+  height: 1px;
+  content: '';
+  background: var(--primary);
+  opacity: 0;
+  transform: translateX(-50%) scaleX(0);
+  transition:
+    transform 160ms var(--ease-out-strong),
+    opacity 160ms ease-out;
+}
+
+.display-toggle-item[data-state='on']::after {
+  opacity: 1;
+  transform: translateX(-50%) scaleX(1);
+}
+
+.karaoke-player {
+  border-bottom: 1px solid var(--border);
+}
+
+/*
+  세로 화면에서는 DOM 순서 그대로 한 열을 쓴다. 높이가 낮은 가로 화면에서는
+  200px YouTube 뷰포트를 지키면서 가사가 사라지지 않도록 미디어와 활자를 나란히 둔다.
+*/
+.karaoke-media {
+  display: contents;
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .karaoke-shell {
+    display: grid;
+    max-width: none;
+    grid-template-columns: minmax(200px, 43vw) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .karaoke-media {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    grid-column: 1;
+    grid-row: 1 / -1;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+  }
+
+  .karaoke-player {
+    min-height: 200px;
+    max-height: none;
+    flex: 1 1 auto;
+    aspect-ratio: auto;
+  }
+
+  .karaoke-controls {
+    gap: 0;
+    padding-inline: 4px;
+    border-bottom: 0;
+  }
+
+  .karaoke-toolbar {
+    gap: 0;
+    padding-inline: 4px;
+  }
+
+  .display-toggle-item {
+    min-width: 44px;
+  }
+
+  .karaoke-time {
+    width: 30px;
+  }
+
+  .karaoke-header,
+  .karaoke-toolbar,
+  .karaoke-lyrics {
+    min-width: 0;
+    grid-column: 2;
+  }
+
+  .karaoke-header {
+    grid-row: 1;
+  }
+
+  .karaoke-toolbar {
+    grid-row: 2;
+  }
+
+  .karaoke-lyrics {
+    grid-row: 3;
+  }
+}
+
+/*
+  네이티브 range의 접근성과 터치 드래그는 유지하고, 보이는 부분만 1px 규칙선으로 만든다.
+  thumb는 현재 시간을 나타내는 코발트 점 하나만 남긴다.
+*/
+.karaoke-progress {
+  appearance: none;
+  background: transparent;
+}
+
+.karaoke-progress::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--input);
+}
+
+.karaoke-progress::-webkit-slider-thumb {
+  width: 8px;
+  height: 8px;
+  margin-top: -3.5px;
+  appearance: none;
+  border: 0;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.karaoke-progress::-moz-range-track {
+  height: 1px;
+  border: 0;
+  background: var(--input);
+}
+
+.karaoke-progress::-moz-range-progress {
+  height: 1px;
+  background: var(--primary);
+}
+
+.karaoke-progress::-moz-range-thumb {
+  width: 8px;
+  height: 8px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lyric-row:not([aria-current='true']):hover .lyric-content {
+    transform: scale(0.9);
+  }
 }
 
 /*

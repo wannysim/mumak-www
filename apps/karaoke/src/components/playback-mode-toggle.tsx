@@ -12,14 +12,19 @@ export function PlaybackModeToggle({ mode, onChange }: { mode: PlaybackMode; onC
     <Button
       variant="ghost"
       size="icon"
-      className="relative size-11"
+      className="relative size-11 rounded-none hover:bg-transparent"
       aria-label={`재생 모드: ${PLAYBACK_MODE_LABEL[mode]}`}
       aria-pressed={mode !== 'off'}
       onClick={() => onChange(nextPlaybackMode(mode))}
     >
       {/* 꺼진 상태도 같은 아이콘을 흐리게 두어야 버튼 위치가 흔들리지 않는다. */}
-      <Icon className={cn('size-5 transition-opacity duration-150', mode === 'off' && 'opacity-40')} />
-      {mode !== 'off' && <span className="bg-primary absolute bottom-1.5 size-1 rounded-full" />}
+      <Icon
+        className={cn(
+          'size-5 transition-[color,opacity] duration-150',
+          mode === 'off' ? 'text-muted-foreground' : 'text-primary'
+        )}
+      />
+      {mode !== 'off' && <span className="bg-primary absolute bottom-1.5 h-px w-3" />}
     </Button>
   );
 }
