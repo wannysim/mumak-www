@@ -20,12 +20,12 @@
     "title": "Wan Sim",
     "description": "A space for thoughts and records",
     "intro": "Created this blog to write anything I want.\nI'm interested in web technologies and user experience.\nGonna write about anything from daily life to developer's thoughts.",
-    "latestPosts": "Latest Post",
-    "recentPosts": "Recent Posts",
+    "latestPosts": "Latest posts",
     "listeningTo": "Listening to Spotify",
     "lastPlayed": "Last Played on Spotify",
     "aboutCta": "More about me",
-    "gardenTitle": "From the garden",
+    "blogCta": "Browse all {count} posts",
+    "gardenTitle": "Latest notes",
     "gardenCta": "Browse all {count} notes",
     "nowTitle": "Now",
     "nowCta": "What I am up to"
@@ -91,7 +91,7 @@
   "about": {
     "title": "About",
     "description": "Hello, I'm Wan Sim.",
-    "role": "Frontend Engineer at Apartmentary",
+    "role": "Software Engineer at Apartmentary",
     "intro": "I am a software engineer who values positivity, efficiency, and honesty.\nThis is a space where I refactor the tangled thoughts in my head into clean text.\nWhile this blog serves more as a personal record than a content for others, it is always open.\n\nFeel free to look around, just like browsing through my source code.",
     "stackTitle": "Tech Stack",
     "nowCta": "What I'm up to now"
@@ -159,7 +159,8 @@
       "openTree": "Browse",
       "collapse": "Collapse sidebar",
       "expand": "Expand sidebar"
-    }
+    },
+    "linkCount": "{count} links"
   },
   "graph": {
     "title": "Graph",

@@ -1,11 +1,8 @@
 import { getTranslations } from 'next-intl/server';
 
-import { cn } from '@mumak/ui/lib/utils';
-
 import { type NoteMeta } from '@/src/entities/note';
-import { Link } from '@/src/shared/config/i18n';
-import { formatDateForLocale } from '@/src/shared/lib/date';
-import { ArrowLink, cardSurfaceClass } from '@/src/shared/ui';
+import { ArrowLink } from '@/src/shared/ui';
+import { NoteCard } from '@/src/widgets/note-card';
 
 interface GardenHighlightsProps {
   notes: NoteMeta[];
@@ -13,11 +10,11 @@ interface GardenHighlightsProps {
   totalCount: number;
 }
 
-// 홈에서 가든을 대표하는 블록. 최신 글 블록과 같은 h2 위계를 갖되, 카드 형태는 다르다.
-// 노트는 글보다 짧고 수가 많아서 전문 카드 대신 제목 중심 타일로 훑게 한다.
+// 홈에서 가든을 대표하는 블록. "최신 글" 섹션과 의도적으로 같은 모양이다 — 같은 h2 위계,
+// 같은 ContentCard shell(NoteCard), 같은 개수, 같은 "전체 보기" 마무리. 두 섹션이 다르게
+// 생기면 어느 쪽이 더 중요한지에 대한 신호를 주게 되는데, 홈에서 둘은 대등하다.
 //
-// 성장 상태(씨앗/새싹) 배지는 의도적으로 넣지 않는다. 실제로 관리되지 않는 축이라
-// 홈에서 광고하면 없는 편집 관행을 약속하는 셈이 된다. 갱신일이 그 자리를 대신한다.
+// 성장 단계 배지만 끈다. 실제로 관리되는 축이 아니라서 가든 안에서만 쓴다.
 export async function GardenHighlights({ notes, locale, totalCount }: GardenHighlightsProps) {
   if (notes.length === 0) {
     return null;
@@ -26,33 +23,16 @@ export async function GardenHighlights({ notes, locale, totalCount }: GardenHigh
   const t = await getTranslations('home');
 
   return (
-    <section>
+    <section data-slot="garden-highlights">
       <h2 className="text-2xl font-semibold mb-6">{t('gardenTitle')}</h2>
 
-      <div data-slot="garden-highlights" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {notes.map(note => {
-          const date = note.updated || note.created;
-          return (
-            <Link
-              key={note.slug}
-              href={`/garden/${note.slug}`}
-              className={cn(cardSurfaceClass, 'group flex flex-col gap-1.5 p-4')}
-            >
-              <span className="font-medium tracking-tight transition-colors group-hover:text-primary line-clamp-2">
-                {note.title}
-              </span>
-              {note.excerpt && (
-                <span className="text-sm leading-relaxed text-muted-foreground line-clamp-2">{note.excerpt}</span>
-              )}
-              <time dateTime={date} className="mt-auto pt-1 text-xs text-muted-foreground">
-                {formatDateForLocale(date, locale).text}
-              </time>
-            </Link>
-          );
-        })}
+      <div className="space-y-6">
+        {notes.map(note => (
+          <NoteCard key={note.slug} note={note} locale={locale} showStatus={false} />
+        ))}
       </div>
 
-      <div className="mt-4">
+      <div className="mt-6">
         <ArrowLink href="/garden">{t('gardenCta', { count: totalCount })}</ArrowLink>
       </div>
     </section>

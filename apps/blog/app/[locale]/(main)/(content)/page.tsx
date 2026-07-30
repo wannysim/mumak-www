@@ -10,8 +10,8 @@ import { GardenHighlights } from '@/src/widgets/garden-highlights';
 import { PostCard } from '@/src/widgets/post-card';
 import { SpotifyVinylClient } from '@/src/widgets/spotify-vinyl';
 
-const HOME_POST_LIMIT = 4;
-const HOME_NOTE_LIMIT = 4;
+// 블로그와 가든을 홈에서 대등하게 다루므로 개수도 같게 맞춘다.
+const HOME_ITEM_LIMIT = 3;
 
 interface HomePageProps {
   params: Promise<{ locale: string }>;
@@ -33,9 +33,8 @@ export default async function HomePage({ params }: HomePageProps) {
   setRequestLocale(locale);
 
   const [t, tCommon] = await Promise.all([getTranslations('home'), getTranslations('common')]);
-  const allPosts = getPosts(locale as Locale).slice(0, HOME_POST_LIMIT);
-  const [featuredPost, ...recentPosts] = allPosts;
 
+  const allPosts = getPosts(locale as Locale);
   const allNotes = getNotes(locale as Locale);
   const nowPage = getPage(locale as Locale, 'now');
 
@@ -66,18 +65,14 @@ export default async function HomePage({ params }: HomePageProps) {
         </div>
       </div>
 
-      {featuredPost && (
+      {/* 블로그와 가든은 홈에서 대등한 두 블록이다. 같은 h2 위계, 같은 카드 shell, 같은 개수,
+          같은 "전체 보기" 마무리로 맞춘다. 앞서 "최신 글"과 "이전 글"로 나뉘어 있던 두 섹션은
+          같은 PostCard를 쓰고 있어서 시각적 차이 없이 헤딩만 갈라진 상태였다. */}
+      {allPosts.length > 0 && (
         <section>
           <h2 className="text-2xl font-semibold mb-6">{t('latestPosts')}</h2>
-          <PostCard post={featuredPost} locale={locale} categoryLabel={translateCategory(featuredPost.category)} />
-        </section>
-      )}
-
-      {recentPosts.length > 0 && (
-        <section>
-          <h2 className="text-2xl font-semibold mb-6">{t('recentPosts')}</h2>
           <div className="space-y-6">
-            {recentPosts.map(post => (
+            {allPosts.slice(0, HOME_ITEM_LIMIT).map(post => (
               <PostCard
                 key={`${post.category}-${post.slug}`}
                 post={post}
@@ -86,10 +81,13 @@ export default async function HomePage({ params }: HomePageProps) {
               />
             ))}
           </div>
+          <div className="mt-6">
+            <ArrowLink href="/blog">{t('blogCta', { count: allPosts.length })}</ArrowLink>
+          </div>
         </section>
       )}
 
-      <GardenHighlights notes={allNotes.slice(0, HOME_NOTE_LIMIT)} locale={locale} totalCount={allNotes.length} />
+      <GardenHighlights notes={allNotes.slice(0, HOME_ITEM_LIMIT)} locale={locale} totalCount={allNotes.length} />
 
       {nowPage && (
         <section className="border-t border-border pt-6">

@@ -7,11 +7,12 @@ import { NoteCard } from '../ui/note-card';
 import '@testing-library/jest-dom';
 
 jest.mock('next-intl/server', () => ({
-  getTranslations: jest.fn(async () => (key: string) => {
+  getTranslations: jest.fn(async () => (key: string, values?: Record<string, unknown>) => {
     const translations: Record<string, string> = {
       'status.seedling': '새싹',
       'status.budding': '성장 중',
       'status.evergreen': '완성',
+      linkCount: `링크 ${values?.count}개`,
     };
     return translations[key] ?? key;
   }),
@@ -58,8 +59,9 @@ const baseNote: NoteMeta = {
   readingTime: 3,
 };
 
-async function renderNoteCard(note: NoteMeta = baseNote, locale = 'ko') {
-  const element = await NoteCard({ note, locale });
+async function renderNoteCard(note: NoteMeta = baseNote, options: { locale?: string; showStatus?: boolean } = {}) {
+  const { locale = 'ko', showStatus } = options;
+  const element = await NoteCard({ note, locale, showStatus });
   return render(element);
 }
 
@@ -114,13 +116,30 @@ describe('NoteCard', () => {
     it('does not render link count when empty', async () => {
       await renderNoteCard({ ...baseNote, outgoingLinks: [] });
 
-      expect(screen.queryByText(/links/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/링크/)).not.toBeInTheDocument();
     });
 
-    it('renders link count when there are outgoing links', async () => {
+    // 하드코딩된 "N links"는 한국어 페이지에 영문이 새어 나오는 i18n 규칙 위반이었다.
+    it('renders link count through the message catalog', async () => {
       await renderNoteCard({ ...baseNote, outgoingLinks: ['a', 'b', 'c'] });
 
-      expect(screen.getByText('3 links')).toBeInTheDocument();
+      expect(screen.getByText('링크 3개')).toBeInTheDocument();
+      expect(screen.queryByText(/\d+ links/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('showStatus', () => {
+    it('renders the growth status badge by default', async () => {
+      await renderNoteCard({ ...baseNote, status: 'budding' });
+
+      expect(screen.getByText('성장 중')).toBeInTheDocument();
+    });
+
+    // 홈 등 가든 밖 표면에서는 관리되지 않는 축을 노출하지 않는다.
+    it('omits the growth status badge when disabled', async () => {
+      await renderNoteCard({ ...baseNote, status: 'budding' }, { showStatus: false });
+
+      expect(screen.queryByText('성장 중')).not.toBeInTheDocument();
     });
   });
 
@@ -151,7 +170,7 @@ describe('NoteCard', () => {
       await renderNoteCard({ ...baseNote, readingTime: 7, outgoingLinks: ['a', 'b'] });
 
       expect(screen.getByText('7', { exact: false })).toBeInTheDocument();
-      expect(screen.getByText('2 links')).toBeInTheDocument();
+      expect(screen.getByText('링크 2개')).toBeInTheDocument();
     });
   });
 
