@@ -1,6 +1,6 @@
 {
   "name": "mumak-www",
-  "version": "1.13.0",
+  "version": "1.13.1",
   "private": true,
   "scripts": {
     "build": "turbo run build",
@@ -58,5 +58,5 @@
   "engines": {
     "node": ">=24.11.1"
   },
-  "packageManager": "pnpm@11.13.1"
+  "packageManager": "pnpm@11.18.0"
 }
