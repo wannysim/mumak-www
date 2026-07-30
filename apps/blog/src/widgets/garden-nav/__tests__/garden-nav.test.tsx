@@ -71,4 +71,31 @@ describe('GardenNav', () => {
     expect(screen.getByRole('link', { name: /태그/ })).toHaveClass(ACTIVE_CLASS_FRAGMENT);
     expect(screen.getByRole('link', { name: '전체' })).not.toHaveClass(ACTIVE_CLASS_FRAGMENT);
   });
+
+  describe('empty status segments', () => {
+    const renderWithCounts = (counts: Record<string, number>) =>
+      render(<GardenNav allLabel="전체" statusLabels={statusLabels} tagsLabel="태그" counts={counts} />);
+
+    // 빈 목록으로만 이어지는 세그먼트가 nav 자리를 차지하면 없는 편집 관행을 광고하게 된다.
+    it('hides a status with no notes', () => {
+      renderWithCounts({ all: 97, seedling: 55, budding: 42, evergreen: 0, tags: 164 });
+
+      expect(screen.getByRole('link', { name: /새싹/ })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: '완성' })).not.toBeInTheDocument();
+    });
+
+    it('keeps the active status visible even when it has no notes', () => {
+      mockUsePathname.mockReturnValue('/garden/status/evergreen');
+
+      renderWithCounts({ all: 97, seedling: 55, budding: 42, evergreen: 0, tags: 164 });
+
+      expect(screen.getByRole('link', { name: /완성/ })).toHaveClass(ACTIVE_CLASS_FRAGMENT);
+    });
+
+    it('shows every status when counts are not supplied', () => {
+      renderNav();
+
+      expect(screen.getByRole('link', { name: '완성' })).toBeInTheDocument();
+    });
+  });
 });

@@ -7,7 +7,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
 const AUTHOR_SAME_AS = socialLinks.map(link => link.url);
 
 const AUTHOR_KNOWS_ABOUT = [
-  'Frontend Engineering',
+  'Software Engineering',
   'React',
   'Next.js',
   'TypeScript',

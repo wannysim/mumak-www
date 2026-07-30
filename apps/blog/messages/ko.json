@@ -21,23 +21,20 @@
     "description": "생각과 기록을 담는 공간",
     "intro": "글을 써보고 싶어서 만든 블로그입니다.\n웹 기술과 사용자 경험에 관심이 많습니다.\n사사로운 일상부터 개발자로서 고민한 흔적들을 기록하고자 합니다.",
     "latestPosts": "최신 글",
-    "recentPosts": "이전 글",
     "listeningTo": "Spotify에서 재생 중",
     "lastPlayed": "Spotify에서 최근 재생",
-    "aboutCta": "소개 더 보기"
+    "aboutCta": "소개 더 보기",
+    "blogCta": "글 {count}개 전체 보기",
+    "gardenTitle": "최신 노트",
+    "gardenCta": "노트 {count}개 전체 보기",
+    "nowTitle": "지금",
+    "nowCta": "요즘 하는 일"
   },
   "blog": {
     "title": "블로그",
     "description": "생각과 기록을 담는 공간",
     "allPosts": "전체 글",
-    "postsCount": "{count}개의 글",
-    "search": {
-      "title": "글 검색",
-      "description": "모든 블로그 카테고리에서 글을 찾습니다",
-      "placeholder": "글 검색…",
-      "empty": "일치하는 글이 없습니다",
-      "aria": "글 검색"
-    }
+    "postsCount": "{count}개의 글"
   },
   "category": {
     "essay": {
@@ -67,6 +64,19 @@
     "tagTitle": "#{tag}",
     "tagDescription": "{tag} 태그가 포함된 글 목록"
   },
+  "search": {
+    "title": "검색",
+    "description": "블로그 글과 가든 노트를 함께 찾습니다",
+    "placeholder": "검색…",
+    "empty": "일치하는 결과가 없습니다",
+    "loading": "검색 준비 중…",
+    "aria": "사이트 검색",
+    "gardenGroup": "가든",
+    "scopedToBlog": "블로그에서 검색 중",
+    "scopedToGarden": "가든에서 검색 중",
+    "scopedToSite": "사이트 전체에서 검색 중",
+    "searchEverywhere": "전체에서 검색"
+  },
   "notFound": {
     "title": "페이지를 찾을 수 없습니다",
     "description": "요청하신 페이지가 존재하지 않습니다.",
@@ -81,7 +91,7 @@
   "about": {
     "title": "소개",
     "description": "안녕하세요, 심완입니다.",
-    "role": "아파트멘터리 프론트엔드 엔지니어",
+    "role": "아파트멘터리 소프트웨어 엔지니어",
     "intro": "긍정과 효율을 지향하며, 솔직함을 미덕으로 삼는 소프트웨어 엔지니어입니다.\n이곳은 머릿속에 엉켜있는 생각들을 텍스트로 정갈하게 리팩토링하는 공간입니다.\n타인을 위한 정보보다는 저를 위한 기록에 가깝지만, 언제나 열려있습니다.\n\n제 소스 코드를 구경하듯 편하게 머물다 가세요.",
     "stackTitle": "기술 스택",
     "nowCta": "지금은 이렇게 지내요"
@@ -103,7 +113,7 @@
     "intro": {
       "line1": "환영합니다! 이곳은 제 디지털 가든입니다.",
       "line2": "이 가든은 PARA(Projects, Areas, Resources, Archives) 구조를 통해 제 생각과 지식을 정리하고 공유하는 공간입니다.",
-      "line3": "좌측 사이드바를 통해 각각의 카테고리별로 작성된 글들을 탐색할 수 있습니다."
+      "line3": "아래 카테고리에서 주제별로 노트를 둘러볼 수 있습니다."
     },
     "categories": {
       "title": "카테고리 설명",
@@ -148,13 +158,9 @@
       "title": "PARA 가든",
       "openTree": "둘러보기",
       "collapse": "사이드바 접기",
-      "expand": "사이드바 펼치기",
-      "searchPlaceholder": "노트 검색…",
-      "searchAria": "노트 검색",
-      "searchTitle": "노트 검색",
-      "searchDescription": "모든 PARA 카테고리에서 노트를 찾습니다",
-      "searchEmpty": "일치하는 노트가 없습니다"
-    }
+      "expand": "사이드바 펼치기"
+    },
+    "linkCount": "링크 {count}개"
   },
   "graph": {
     "title": "그래프",

@@ -38,6 +38,16 @@ jest.mock('@/src/features/switch-theme', () => ({
   ThemeSwitcher: () => mockThemeSwitcher(),
 }));
 
+jest.mock('@/src/features/site-search', () => ({
+  SiteSearch: ({ categoryLabels }: { categoryLabels: Record<string, string> }) => (
+    <div data-testid="site-search">{Object.values(categoryLabels).join(',')}</div>
+  ),
+}));
+
+jest.mock('@/src/entities/post', () => ({
+  getCategories: () => ['essay', 'articles', 'notes'],
+}));
+
 jest.mock('../ui/mobile-menu', () => ({
   MobileMenu: ({ items }: { items: { label: string; href: string }[] }) => (
     <div data-testid="mobile-menu">
@@ -87,6 +97,18 @@ describe('Navigation', () => {
     const mobileMenu = screen.getByTestId('mobile-menu');
     expect(mobileMenu).toBeInTheDocument();
     expect(mobileMenu).toHaveTextContent('블로그');
+  });
+
+  // 검색은 섹션별 진입점에서 헤더 전역 팔레트로 옮겨졌다. 헤더에 없으면 홈/소개/now에서
+  // 검색이 다시 사라지므로 마운트 자체를 고정한다.
+  it('should mount site-wide search with translated blog category labels', async () => {
+    const jsx = await Navigation();
+    render(jsx);
+
+    const siteSearch = screen.getByTestId('site-search');
+    expect(siteSearch).toBeInTheDocument();
+    expect(siteSearch).toHaveTextContent('에세이');
+    expect(siteSearch).toHaveTextContent('아티클');
   });
 
   it('should render theme switcher and locale switcher', async () => {
