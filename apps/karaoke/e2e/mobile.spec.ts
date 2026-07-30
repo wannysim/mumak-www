@@ -270,6 +270,51 @@ test.describe('Mobile karaoke', () => {
     }
   });
 
+  test('continues the bottom rule across both landscape columns', async ({ page }) => {
+    await page.setViewportSize({ width: 852, height: 393 });
+    await gotoWithLyrics(page);
+
+    // 가로모드는 왼쪽 미디어 열과 오른쪽 열이 나란히 선다. 왼쪽의 player/controls 경계선과
+    // 오른쪽의 lyrics/footer 경계선이 어긋나면 화면 하단에 계단이 생긴다.
+    const bands = await page.evaluate(() => {
+      const read = (selector: string) => {
+        const node = document.querySelector(selector)!;
+        const rect = node.getBoundingClientRect();
+        const style = getComputedStyle(node);
+        const borderTop = Number.parseFloat(style.borderTopWidth);
+        const borderBottom = Number.parseFloat(style.borderBottomWidth);
+        return {
+          top: rect.y,
+          bottom: rect.bottom,
+          borderTop,
+          borderBottom,
+          // 규칙선과 패딩을 뺀, 아이콘이 실제로 놓이는 높이
+          content:
+            rect.height -
+            borderTop -
+            borderBottom -
+            Number.parseFloat(style.paddingTop) -
+            Number.parseFloat(style.paddingBottom),
+        };
+      };
+      return {
+        player: read('.karaoke-player'),
+        controls: read('.karaoke-controls'),
+        footer: read('.karaoke-footer'),
+      };
+    });
+
+    // 두 열의 수평 규칙선이 한 줄로 이어진다
+    expect(bands.player.borderBottom).toBeGreaterThan(0);
+    expect(bands.footer.borderTop).toBeGreaterThan(0);
+    const playerRuleY = bands.player.bottom - bands.player.borderBottom;
+    expect(Math.abs(playerRuleY - bands.footer.top)).toBeLessThanOrEqual(0.5);
+
+    // 재생 컨트롤과 footer는 같은 높이로 화면 바닥에 나란히 붙는다
+    expect(Math.abs(bands.controls.bottom - bands.footer.bottom)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(bands.controls.content - bands.footer.content)).toBeLessThanOrEqual(0.5);
+  });
+
   test('avoids a one-column layout cliff near 600px landscape height', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 561 });
     await gotoWithLyrics(page);

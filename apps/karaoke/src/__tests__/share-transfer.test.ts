@@ -15,16 +15,29 @@ import { createDefaultSongLibrary, SONG_LIBRARY_SCHEMA_VERSION } from '../lib/so
 const sampleLyrics: StoredLyricsEntry[] = [
   {
     slug: 'kaiju-no-hanauta',
-    lyrics: [
-      { time: 0, jp: '思い出すのは', pron: '오모이다스노와', ko: '떠올리는 것은' },
-      { time: 4.2, jp: '君の歌', pron: '키미노 우타', ko: '너의 노래' },
-    ],
+    lyrics: Array.from({ length: 80 }, (_, index) => ({
+      time: index * 4.2,
+      jp: `思い出すのは ${index} 君の歌 ${index * 97}`,
+      pron: `오모이다스노와 ${index} 키미노 우타 ${index * 193}`,
+      ko: `떠올리는 것은 ${index} 너의 노래 ${index * 389}`,
+    })),
   },
   {
     slug: 'fujii-kaze-kirari',
     lyrics: [{ time: 0, jp: '荒れ狂う季節の中を', pron: '아레쿠루우 키세츠노 나카오', ko: '거친 계절 속을' }],
   },
 ];
+
+function frameParts(frame: string): { header: string[]; payload: string; separator: ':' | '|' } {
+  const separator = frame.startsWith('MK2:') ? ':' : '|';
+  const parts = frame.split(separator);
+  return { header: parts.slice(0, 4), payload: parts.slice(4).join(separator), separator };
+}
+
+function replaceFramePayload(frame: string, payload: string): string {
+  const { header, separator } = frameParts(frame);
+  return [...header, payload].join(separator);
+}
 
 describe('karaoke share transfer', () => {
   it('filters lyrics to the selected scope and restores shuffled QR frames', async () => {
@@ -43,6 +56,8 @@ describe('karaoke share transfer', () => {
     const frames = await encodeKaraokeShareFrames(bundle);
     const collector = new KaraokeShareFrameCollector();
     expect(frames.length).toBeGreaterThan(1);
+    expect(frames[0]).toMatch(/^MK2:/);
+    expect(frameParts(frames[0]!).payload).toHaveLength(768);
     for (const frame of frames.toReversed()) collector.add(frame);
     expect(collector.add(frames[0]!)).toMatchObject({ accepted: true, added: false });
     expect(collector.complete).toBe(true);
@@ -72,10 +87,9 @@ describe('karaoke share transfer', () => {
     collector.add(first[0]!);
     expect(collector.add(second[0]!)).toMatchObject({ accepted: false, added: false });
 
-    const parts = first[0]!.split('|');
-    const payload = parts[4]!;
-    parts[4] = `${payload[0] === 'A' ? 'B' : 'A'}${payload.slice(1)}`;
-    expect(() => collector.add(parts.join('|'))).toThrow('내용이 서로 다릅니다');
+    const payload = frameParts(first[0]!).payload;
+    const conflictingFrame = replaceFramePayload(first[0]!, `${payload[0] === '0' ? '1' : '0'}${payload.slice(1)}`);
+    expect(() => collector.add(conflictingFrame)).toThrow('내용이 서로 다릅니다');
     await expect(collector.decode()).rejects.toThrow('아직 받지 못한');
 
     collector.reset();
@@ -84,17 +98,18 @@ describe('karaoke share transfer', () => {
     expect(collector.complete).toBe(false);
 
     const tamperedFrames = [...first];
-    const tamperedParts = tamperedFrames[0]!.split('|');
-    const tamperedPayload = tamperedParts[4]!;
-    tamperedParts[4] = `${tamperedPayload[0] === 'A' ? 'B' : 'A'}${tamperedPayload.slice(1)}`;
-    tamperedFrames[0] = tamperedParts.join('|');
+    const tamperedPayload = frameParts(tamperedFrames[0]!).payload;
+    tamperedFrames[0] = replaceFramePayload(
+      tamperedFrames[0]!,
+      `${tamperedPayload[0] === '0' ? '1' : '0'}${tamperedPayload.slice(1)}`
+    );
     const tamperedCollector = new KaraokeShareFrameCollector();
     for (const frame of tamperedFrames) tamperedCollector.add(frame);
     await expect(tamperedCollector.decode()).rejects.toThrow('무결성');
 
-    const oversizedParts = first[0]!.split('|');
-    oversizedParts[3] = (701).toString(36);
-    expect(() => new KaraokeShareFrameCollector().add(oversizedParts.join('|'))).toThrow('조각 번호');
+    const oversizedParts = first[0]!.split(':');
+    oversizedParts[3] = (701).toString(36).toUpperCase();
+    expect(() => new KaraokeShareFrameCollector().add(oversizedParts.join(':'))).toThrow('조각 번호');
   });
 
   it('strictly validates share files instead of replacing malformed data with defaults', () => {
@@ -167,6 +182,16 @@ describe('karaoke share transfer', () => {
     const malformedBase64 = 'MK1|abcdefghijklmnop|0|1|A';
     expect(() => new KaraokeShareFrameCollector().add(malformedBase64)).toThrow('QR 조각을 읽을 수 없습니다');
     expect(() => new KaraokeShareFrameCollector().add('MK1|abcdefghijklmnop|0|2|AQ')).toThrow('데이터 길이가 올바르지');
+    expect(new KaraokeShareFrameCollector().add(`MK1|abcdefghijklmnop|0|2|${'A'.repeat(256)}`)).toMatchObject({
+      accepted: true,
+      added: true,
+      received: 1,
+      total: 2,
+    });
+    expect(() => new KaraokeShareFrameCollector().add('MK2:0123456789ABCDEF01234567:0:1:0')).toThrow('문자 형식');
+    expect(() => new KaraokeShareFrameCollector().add('MK2:0123456789ABCDEF01234567:0:1:GGW')).toThrow(
+      'QR 조각을 읽을 수 없습니다'
+    );
 
     const library = createDefaultSongLibrary();
     const frames = await encodeKaraokeShareFrames(

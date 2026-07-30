@@ -612,12 +612,14 @@ export function SongDrawer({
 
   return (
     <Drawer open={open} onOpenChange={changeOpen}>
-      <h1 className="min-w-0 flex-1">
+      {/* flex가 없으면 h1이 블록 컨텍스트라 inline-flex 버튼 아래로 line box의 디센더
+          공백 6px이 붙는다. 그만큼 헤더가 높아지고 제목이 좌우 화살표보다 3px 내려간다. */}
+      <h1 className="flex min-w-0 flex-1">
         <DrawerTrigger asChild>
           <Button
             variant="ghost"
             aria-label={`${current.titleJa} — ${currentPlaylist.name} 곡 목록 열기`}
-            className="h-16 w-full flex-col items-center gap-0 rounded-none px-2 hover:bg-transparent"
+            className="h-14 w-full flex-col items-center gap-0 rounded-none px-2 hover:bg-transparent"
           >
             <span className="font-utility text-muted-foreground mb-0.5 text-[0.5625rem] leading-none tracking-[0.18em]">
               {trackPosition}
@@ -634,7 +636,7 @@ export function SongDrawer({
           </Button>
         </DrawerTrigger>
       </h1>
-      <DrawerContent className="h-[min(85svh,46rem)] md:data-[vaul-drawer-direction=bottom]:inset-x-[calc((100%-32rem)/2)] md:border-x">
+      <DrawerContent className="karaoke-sheet md:data-[vaul-drawer-direction=bottom]:inset-x-[calc((100%-32rem)/2)] md:border-x">
         {content}
       </DrawerContent>
     </Drawer>

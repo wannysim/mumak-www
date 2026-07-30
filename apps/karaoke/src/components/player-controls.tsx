@@ -37,7 +37,7 @@ export function PlayerControls({
   };
 
   return (
-    <div className="karaoke-controls border-border flex min-h-16 shrink-0 items-center gap-1 border-b px-2 min-[360px]:gap-2 min-[360px]:px-3">
+    <div className="karaoke-controls border-border flex min-h-11 shrink-0 items-center gap-1 border-b px-2 min-[360px]:gap-2 min-[360px]:px-3">
       <Button
         variant="ghost"
         size="icon"
