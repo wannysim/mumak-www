@@ -55,6 +55,12 @@ test.describe('Karaoke Home', () => {
     await expect(page.getByRole('button', { name: '가사 편집 열기' }).locator('svg')).toHaveClass(
       /lucide-file-pen-line/
     );
+
+    // 제목 버튼을 감싼 h1이 블록 컨텍스트면 inline-flex 버튼 아래로 line box 공백이 붙어
+    // 제목이 좌우 화살표보다 내려앉는다. 세 요소의 수직 중심이 같아야 한다.
+    const prevBox = await header.getByRole('button', { name: '이전 곡' }).boundingBox();
+    const centerOf = (box: { y: number; height: number }) => box.y + box.height / 2;
+    expect(Math.abs(centerOf(titleBox!) - centerOf(prevBox!))).toBeLessThanOrEqual(0.5);
   });
 
   test('should create a private device-transfer QR from the footer', async ({ page }) => {

@@ -300,7 +300,7 @@ function KaraokeApp({ onInstall }: { onInstall?: () => void }) {
         />
       </div>
 
-      <div className="karaoke-toolbar border-border flex min-h-12 shrink-0 items-center justify-between gap-2 border-b px-2">
+      <div className="karaoke-toolbar border-border flex min-h-11 shrink-0 items-center justify-between gap-2 border-b px-2">
         <div className="flex items-center">
           <DisplayToggle value={display} onChange={setDisplay} />
           <ReadingModeToggle enabled={readingMode} onChange={setReadingMode} />

@@ -186,7 +186,10 @@ body {
 
 .display-toggle-item::after {
   position: absolute;
-  bottom: 0.375rem;
+  /* 밴드가 44px인데 라벨은 10px이라 글자를 중앙에 두면 아래로 17px이 남는다. 그 사이에
+     밑줄을 띄우면 글자와도 규칙선과도 붙지 않아 밴드 전체가 아래로 쏠려 보인다.
+     규칙선에 겹쳐 두면 "활성 구간이 강조된 divider"로 읽히고 글자는 중앙에 남는다. */
+  bottom: -1px;
   left: 50%;
   width: 0.75rem;
   height: 1px;

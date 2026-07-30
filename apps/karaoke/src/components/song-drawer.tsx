@@ -612,7 +612,9 @@ export function SongDrawer({
 
   return (
     <Drawer open={open} onOpenChange={changeOpen}>
-      <h1 className="min-w-0 flex-1">
+      {/* flex가 없으면 h1이 블록 컨텍스트라 inline-flex 버튼 아래로 line box의 디센더
+          공백 6px이 붙는다. 그만큼 헤더가 높아지고 제목이 좌우 화살표보다 3px 내려간다. */}
+      <h1 className="flex min-w-0 flex-1">
         <DrawerTrigger asChild>
           <Button
             variant="ghost"
