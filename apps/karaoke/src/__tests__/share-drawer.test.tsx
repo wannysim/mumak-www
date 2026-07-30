@@ -107,13 +107,16 @@ describe('ShareDrawer', () => {
     expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce();
   });
 
-  it('shares the selected data as a native text file when JSON file sharing is unavailable', async () => {
+  it('always shares a .txt file even when canShare accepts every format, like Chrome', async () => {
     const share = vi
       .fn()
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
-      .mockRejectedValueOnce(new Error('기기 공유 실패'));
-    const canShare = vi.fn(({ files }: ShareData) => files?.[0]?.type === 'text/plain');
+      .mockRejectedValueOnce(new Error('기기 공유 실패'))
+      .mockRejectedValueOnce(new DOMException('Permission denied', 'NotAllowedError'));
+    // Chrome의 canShare()는 파일 형식을 검증하지 않고 무조건 true를 준다.
+    // 형식 검증은 share() 시점의 확장자 safelist에서만 일어난다(.json은 거부 대상).
+    const canShare = vi.fn(() => true);
     Object.defineProperties(navigator, {
       share: { configurable: true, value: share },
       canShare: { configurable: true, value: canShare },
@@ -135,6 +138,9 @@ describe('ShareDrawer', () => {
 
     await userEvent.click(button);
     expect(await screen.findByRole('alert')).toHaveTextContent('기기 공유 실패');
+
+    await userEvent.click(button);
+    expect(await screen.findByRole('alert')).toHaveTextContent('브라우저가 이 파일 공유를 허용하지 않습니다');
   });
 
   it('collects camera frames, shows a change summary, and imports only after confirmation', async () => {
