@@ -636,7 +636,7 @@ export function SongDrawer({
           </Button>
         </DrawerTrigger>
       </h1>
-      <DrawerContent className="h-[min(85svh,46rem)] md:data-[vaul-drawer-direction=bottom]:inset-x-[calc((100%-32rem)/2)] md:border-x">
+      <DrawerContent className="karaoke-sheet md:data-[vaul-drawer-direction=bottom]:inset-x-[calc((100%-32rem)/2)] md:border-x">
         {content}
       </DrawerContent>
     </Drawer>

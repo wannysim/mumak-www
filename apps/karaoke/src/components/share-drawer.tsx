@@ -510,7 +510,7 @@ export function ShareDrawer({
           <QrCode className="size-3.5 stroke-[1.5]" />
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="h-[min(88svh,48rem)] overflow-hidden md:data-[vaul-drawer-direction=bottom]:inset-x-[calc((100%-32rem)/2)] md:border-x">
+      <DrawerContent className="karaoke-sheet md:data-[vaul-drawer-direction=bottom]:inset-x-[calc((100%-32rem)/2)] md:border-x overflow-hidden">
         <p className="sr-only" aria-live="polite">
           {view === 'confirm' ? 'QR 수신이 끝났습니다. 가져올 내용을 확인해 주세요.' : ''}
           {view === 'done' ? '공유 데이터를 이 기기에 가져왔습니다.' : ''}
@@ -618,11 +618,13 @@ export function ShareDrawer({
                           : '포함하지 않음'}
                     </p>
                   </div>
+                  {/* 이 앱의 컨트롤은 전부 각지다. Switch만 shadcn 기본 pill이라 각을 맞춘다. */}
                   <Switch
                     id="share-lyrics"
                     checked={includeLyrics}
                     disabled={lyricsLoading}
                     onCheckedChange={setIncludeLyrics}
+                    className="rounded-none [&_[data-slot=switch-thumb]]:rounded-none"
                   />
                 </div>
                 {includeLyrics && (

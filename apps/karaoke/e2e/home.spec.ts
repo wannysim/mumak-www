@@ -63,6 +63,55 @@ test.describe('Karaoke Home', () => {
     expect(Math.abs(centerOf(titleBox!) - centerOf(prevBox!))).toBeLessThanOrEqual(0.5);
   });
 
+  test('should show the lyrics-include switch changing state', async ({ page }) => {
+    await page.route(/(youtube\.com|ytimg\.com|youtube-nocookie\.com)/, route => route.abort());
+    await page.goto('/');
+
+    await page.getByRole('button', { name: 'QR로 보내고 받기' }).click();
+    await page
+      .getByRole('dialog', { name: '기기 간 공유' })
+      .getByRole('button', { name: /보내기/ })
+      .click();
+    const settings = page.getByRole('dialog', { name: '보낼 데이터' });
+    const toggle = settings.getByRole('switch', { name: '저장된 가사도 포함' });
+    await expect(toggle).toBeVisible();
+
+    // 상태 변형을 data-checked로 쓰면 Radix의 data-state와 맞지 않아 트랙 색과 썸 이동이
+    // 둘 다 죽는다. 눌러도 아무 변화가 없으므로 실제 픽셀로 확인한다.
+    const readState = () =>
+      toggle.evaluate(node => {
+        const thumb = node.querySelector('[data-slot="switch-thumb"]')!;
+        return {
+          track: getComputedStyle(node).backgroundColor,
+          thumbOffset: Math.round(thumb.getBoundingClientRect().x - node.getBoundingClientRect().x),
+        };
+      });
+
+    const off = await readState();
+    await toggle.click();
+    await expect(toggle).toBeChecked();
+
+    // transition-transform이 끝나야 최종 위치가 잡힌다. 임의 대기 대신 값 변화를 기다린다.
+    await expect
+      .poll(async () => Math.abs((await readState()).thumbOffset - off.thumbOffset))
+      .toBeGreaterThanOrEqual(8);
+
+    expect((await readState()).track).not.toBe(off.track);
+
+    // 터치 타깃은 ::after 확장을 포함해 44px 이상이어야 한다 (PRODUCT.md 제약).
+    const hit = await toggle.evaluate(node => {
+      const rect = node.getBoundingClientRect();
+      const after = getComputedStyle(node, '::after');
+      const px = (value: string) => Number.parseFloat(value) || 0;
+      return {
+        height: rect.height - px(after.top) - px(after.bottom),
+        width: rect.width - px(after.left) - px(after.right),
+      };
+    });
+    expect(hit.height).toBeGreaterThanOrEqual(44);
+    expect(hit.width).toBeGreaterThanOrEqual(44);
+  });
+
   test('should create a private device-transfer QR from the footer', async ({ page }) => {
     await page.route(/(youtube\.com|ytimg\.com|youtube-nocookie\.com)/, route => route.abort());
     await page.goto('/');

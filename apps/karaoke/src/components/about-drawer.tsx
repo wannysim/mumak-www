@@ -22,13 +22,13 @@ export function AboutDrawer({
 }) {
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="md:data-[vaul-drawer-direction=bottom]:inset-x-[calc((100%-32rem)/2)] md:border-x">
+      <DrawerContent className="karaoke-sheet md:data-[vaul-drawer-direction=bottom]:inset-x-[calc((100%-32rem)/2)] md:border-x">
         <DrawerHeader>
           <DrawerTitle>이 앱에 대해</DrawerTitle>
           <DrawerDescription>가사를 기기에만 보관하며 YouTube 영상으로 연습하는 노래방</DrawerDescription>
         </DrawerHeader>
 
-        <div className="max-h-[68svh] space-y-6 overflow-y-auto px-4 pb-8 text-sm leading-relaxed [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 pb-8 text-sm leading-relaxed [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <section className="space-y-2">
             <h3 className="text-foreground font-semibold">무엇을 위한 앱인가</h3>
             <p className="text-muted-foreground">
