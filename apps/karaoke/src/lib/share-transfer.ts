@@ -15,18 +15,21 @@ import type { Song } from '@/songs';
 
 const SHARE_FORMAT = 'mumak-karaoke-share';
 const SHARE_VERSION = 1;
-const FRAME_PREFIX = 'MK1';
-const FRAME_CHUNK_BYTES = 192;
+const FRAME_PREFIX = 'MK2';
+const FRAME_CHUNK_BYTES = 512;
+const LEGACY_FRAME_CHUNK_BYTES = 192;
 const MAX_FRAME_COUNT = 700;
 const DIGEST_BYTES = 12;
+// RFC 9285 keeps binary payloads in QR Alphanumeric mode: https://www.rfc-editor.org/rfc/rfc9285.html#section-4
+const BASE45_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:';
 const MAX_SONGS = 1_000;
 const MAX_PLAYLISTS = 100;
 const MAX_SONGS_PER_PLAYLIST = 1_000;
 const MAX_ID_LENGTH = 160;
 const MAX_TITLE_LENGTH = 240;
 
-// ponytail: optical QR transfer is capped at about 128 KiB compressed; add an
-// encrypted relay only if real libraries outgrow the included share-file fallback.
+// ponytail: optical QR transfer is capped at about 350 KiB compressed; add a
+// temporary relay only if real libraries outgrow the included share-file fallback.
 export const MAX_QR_SHARE_BYTES = FRAME_CHUNK_BYTES * MAX_FRAME_COUNT;
 export const MAX_SHARE_FILE_BYTES = MAX_LYRICS_BACKUP_SIZE;
 
@@ -61,6 +64,7 @@ export type ShareImportPlan = {
 };
 
 type ParsedFrame = {
+  version: 1 | 2;
   id: string;
   index: number;
   total: number;
@@ -303,13 +307,54 @@ function base64UrlToBytes(value: string): Uint8Array {
   return Uint8Array.from(decoded, character => character.charCodeAt(0));
 }
 
+function bytesToBase45(bytes: Uint8Array): string {
+  let encoded = '';
+  for (let index = 0; index < bytes.length; index += 2) {
+    const first = bytes[index]!;
+    if (index + 1 === bytes.length) {
+      encoded += BASE45_ALPHABET[first % 45]! + BASE45_ALPHABET[Math.floor(first / 45)]!;
+      break;
+    }
+
+    const value = first * 256 + bytes[index + 1]!;
+    encoded +=
+      BASE45_ALPHABET[value % 45]! +
+      BASE45_ALPHABET[Math.floor(value / 45) % 45]! +
+      BASE45_ALPHABET[Math.floor(value / 45 ** 2)]!;
+  }
+  return encoded;
+}
+
+function base45ToBytes(value: string): Uint8Array {
+  if (!value || value.length % 3 === 1) throw new Error('QR 조각의 문자 형식이 올바르지 않습니다.');
+  const decoded = new Uint8Array(Math.floor(value.length / 3) * 2 + (value.length % 3 === 2 ? 1 : 0));
+  let decodedIndex = 0;
+
+  for (let index = 0; index < value.length; index += 3) {
+    const groupLength = Math.min(3, value.length - index);
+    const digits = Array.from({ length: groupLength }, (_, offset) => BASE45_ALPHABET.indexOf(value[index + offset]!));
+    if (digits.some(digit => digit < 0)) throw new Error('QR 조각의 문자 형식이 올바르지 않습니다.');
+    const number = digits[0]! + digits[1]! * 45 + (digits[2] ?? 0) * 45 ** 2;
+    if (number > (groupLength === 3 ? 65_535 : 255)) throw new Error('QR 조각을 읽을 수 없습니다.');
+
+    if (groupLength === 3) decoded[decodedIndex++] = Math.floor(number / 256);
+    decoded[decodedIndex++] = number % 256;
+  }
+  return decoded;
+}
+
 function ownedArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return Uint8Array.from(bytes).buffer;
 }
 
-async function digestId(bytes: Uint8Array): Promise<string> {
+async function digestId(bytes: Uint8Array, version: 1 | 2): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', ownedArrayBuffer(bytes)));
-  return bytesToBase64Url(digest.subarray(0, DIGEST_BYTES));
+  const truncated = digest.subarray(0, DIGEST_BYTES);
+  return version === 1
+    ? bytesToBase64Url(truncated)
+    : Array.from(truncated, byte => byte.toString(16).padStart(2, '0'))
+        .join('')
+        .toUpperCase();
 }
 
 async function gzip(text: string): Promise<Uint8Array> {
@@ -349,14 +394,34 @@ export async function encodeKaraokeShareFrames(bundle: KaraokeShareBundle): Prom
   if (total === 0 || total > MAX_FRAME_COUNT) {
     throw new Error('QR로 보내기에는 데이터가 너무 큽니다. 공유 파일을 이용해 주세요.');
   }
-  const id = await digestId(compressed);
+  const id = await digestId(compressed, 2);
   return Array.from({ length: total }, (_, index) => {
     const chunk = compressed.subarray(index * FRAME_CHUNK_BYTES, (index + 1) * FRAME_CHUNK_BYTES);
-    return `${FRAME_PREFIX}|${id}|${index.toString(36)}|${total.toString(36)}|${bytesToBase64Url(chunk)}`;
+    return `${FRAME_PREFIX}:${id}:${index.toString(36).toUpperCase()}:${total.toString(36).toUpperCase()}:${bytesToBase45(chunk)}`;
   });
 }
 
 function parseFrame(value: string): ParsedFrame {
+  if (value.startsWith('MK1|')) return parseLegacyFrame(value);
+  if (value.length > 820) throw new Error('QR 조각이 허용된 크기를 넘습니다.');
+  const match = /^MK2:([0-9A-F]{24}):([0-9A-Z]{1,2}):([0-9A-Z]{1,2}):([-A-Z0-9 $%*+./:]+)$/u.exec(value);
+  if (!match) throw new Error('이 앱에서 만든 공유 QR이 아닙니다.');
+  const index = Number.parseInt(match[2]!, 36);
+  const total = Number.parseInt(match[3]!, 36);
+  if (!Number.isSafeInteger(index) || !Number.isSafeInteger(total) || total < 1 || total > MAX_FRAME_COUNT) {
+    throw new Error('QR 조각 번호가 올바르지 않습니다.');
+  }
+  if (index < 0 || index >= total) throw new Error('QR 조각 순서가 올바르지 않습니다.');
+  const chunk = base45ToBytes(match[4]!);
+  const expectedLength =
+    index === total - 1 ? { min: 1, max: FRAME_CHUNK_BYTES } : { min: FRAME_CHUNK_BYTES, max: FRAME_CHUNK_BYTES };
+  if (chunk.byteLength < expectedLength.min || chunk.byteLength > expectedLength.max) {
+    throw new Error('QR 조각의 데이터 길이가 올바르지 않습니다.');
+  }
+  return { version: 2, id: match[1]!, index, total, chunk };
+}
+
+function parseLegacyFrame(value: string): ParsedFrame {
   if (value.length > 320) throw new Error('QR 조각이 허용된 크기를 넘습니다.');
   const match = /^MK1\|([\w-]{16})\|([0-9a-z]{1,2})\|([0-9a-z]{1,2})\|([\w-]+)$/u.exec(value);
   if (!match) throw new Error('이 앱에서 만든 공유 QR이 아닙니다.');
@@ -368,11 +433,13 @@ function parseFrame(value: string): ParsedFrame {
   if (index < 0 || index >= total) throw new Error('QR 조각 순서가 올바르지 않습니다.');
   const chunk = base64UrlToBytes(match[4]!);
   const expectedLength =
-    index === total - 1 ? { min: 1, max: FRAME_CHUNK_BYTES } : { min: FRAME_CHUNK_BYTES, max: FRAME_CHUNK_BYTES };
+    index === total - 1
+      ? { min: 1, max: LEGACY_FRAME_CHUNK_BYTES }
+      : { min: LEGACY_FRAME_CHUNK_BYTES, max: LEGACY_FRAME_CHUNK_BYTES };
   if (chunk.byteLength < expectedLength.min || chunk.byteLength > expectedLength.max) {
     throw new Error('QR 조각의 데이터 길이가 올바르지 않습니다.');
   }
-  return { id: match[1]!, index, total, chunk };
+  return { version: 1, id: match[1]!, index, total, chunk };
 }
 
 function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
@@ -380,6 +447,7 @@ function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
 }
 
 export class KaraokeShareFrameCollector {
+  private version: 1 | 2 | null = null;
   private id: string | null = null;
   private expectedTotal = 0;
   private chunks = new Map<number, Uint8Array>();
@@ -398,10 +466,14 @@ export class KaraokeShareFrameCollector {
 
   add(value: string): { accepted: boolean; added: boolean; received: number; total: number } {
     const frame = parseFrame(value);
-    if (this.id !== null && (frame.id !== this.id || frame.total !== this.expectedTotal)) {
+    if (
+      this.id !== null &&
+      (frame.version !== this.version || frame.id !== this.id || frame.total !== this.expectedTotal)
+    ) {
       return { accepted: false, added: false, received: this.received, total: this.total };
     }
     if (this.id === null) {
+      this.version = frame.version;
       this.id = frame.id;
       this.expectedTotal = frame.total;
     }
@@ -415,19 +487,20 @@ export class KaraokeShareFrameCollector {
   }
 
   async decode(): Promise<KaraokeShareBundle> {
-    if (!this.complete || !this.id) throw new Error('아직 받지 못한 QR 조각이 있습니다.');
+    if (!this.complete || !this.id || !this.version) throw new Error('아직 받지 못한 QR 조각이 있습니다.');
     const ordered = Array.from({ length: this.expectedTotal }, (_, index) => this.chunks.get(index)!);
     const compressed = concatBytes(
       ordered,
       ordered.reduce((total, chunk) => total + chunk.byteLength, 0)
     );
-    if ((await digestId(compressed)) !== this.id) {
+    if ((await digestId(compressed, this.version)) !== this.id) {
       throw new Error('QR 데이터의 무결성 검사를 통과하지 못했습니다.');
     }
     return parseKaraokeShareText(await gunzip(compressed));
   }
 
   reset() {
+    this.version = null;
     this.id = null;
     this.expectedTotal = 0;
     this.chunks.clear();
