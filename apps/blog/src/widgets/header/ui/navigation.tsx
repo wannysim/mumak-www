@@ -1,5 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 
+import { getCategories } from '@/src/entities/post';
+import { SiteSearch } from '@/src/features/site-search';
 import { LocaleSwitcher } from '@/src/features/switch-locale';
 import { ThemeSwitcher } from '@/src/features/switch-theme';
 import { Link } from '@/src/shared/config/i18n';
@@ -24,6 +26,8 @@ export async function Navigation() {
     label: t(item.labelKey),
   }));
 
+  const categoryLabels = Object.fromEntries(getCategories().map(category => [category, t(category)]));
+
   return (
     <nav className="border-b border-border">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
@@ -41,6 +45,7 @@ export async function Navigation() {
           </div>
 
           <div className="flex items-center gap-2">
+            <SiteSearch categoryLabels={categoryLabels} />
             <ClientErrorBoundary name="ThemeSwitcher">
               <ThemeSwitcher />
             </ClientErrorBoundary>

@@ -63,13 +63,9 @@ export default async function GardenPage({ params }: GardenPageProps) {
         </ArrowLink>
       </div>
 
-      <GardenNav
-        allLabel={tCommon('all')}
-        statusLabels={statusLabels}
-        tagsLabel={tCommon('tags')}
-        counts={getGardenNavCounts(locale as Locale)}
-      />
-
+      {/* 분류가 이 화면의 1순위 결정이다. status/tags 세그먼트는 자기가 걸러내는 목록
+          바로 위에 두어 "이 목록의 필터"로 읽히게 하고, 페이지의 주 내비게이션처럼
+          맨 위에서 분류와 경쟁하지 않게 한다. */}
       {overviewItems.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold tracking-tight">{t('overviewTitle')}</h2>
@@ -79,6 +75,14 @@ export default async function GardenPage({ params }: GardenPageProps) {
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold tracking-tight">{t('latestTitle')}</h2>
+
+        <GardenNav
+          allLabel={tCommon('all')}
+          statusLabels={statusLabels}
+          tagsLabel={tCommon('tags')}
+          counts={getGardenNavCounts(locale as Locale)}
+        />
+
         {latestNotes.length === 0 ? (
           <p className="text-muted-foreground">{t('empty')}</p>
         ) : (

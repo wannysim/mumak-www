@@ -7,7 +7,6 @@ import { getCategories, getPosts, isValidCategory, type Category } from '@/src/e
 import { locales, type Locale } from '@/src/shared/config/i18n';
 import { PageHeader } from '@/src/shared/ui';
 import { BlogNav, getBlogNavCounts } from '@/src/widgets/blog-nav';
-import { BlogSearch } from '@/src/widgets/blog-search';
 import { PostCard } from '@/src/widgets/post-card';
 
 interface BlogCategoryPageProps {
@@ -61,15 +60,12 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
     <div className="space-y-8">
       <PageHeader title={t(`${category}.title`)} description={t(`${category}.description`)} />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <BlogNav
-          allLabel={tCommon('all')}
-          categoryLabels={categoryLabels}
-          tagsLabel={tCommon('tags')}
-          counts={getBlogNavCounts(locale as Locale)}
-        />
-        <BlogSearch categoryLabels={categoryLabels} triggerClassName="sm:w-72" />
-      </div>
+      <BlogNav
+        allLabel={tCommon('all')}
+        categoryLabels={categoryLabels}
+        tagsLabel={tCommon('tags')}
+        counts={getBlogNavCounts(locale as Locale)}
+      />
 
       <section className="space-y-6">
         {posts.length === 0 ? (

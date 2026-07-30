@@ -49,6 +49,47 @@ test.describe('Home Page', () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  // 홈이 블로그만 보여주면 첫 방문자는 노트 100여 개를 못 보고 "작은 블로그"로 판단한다.
+  test('should surface the garden alongside the blog', async ({ page }) => {
+    await page.goto('/ko');
+
+    await expect(page.getByRole('heading', { level: 2, name: '가든에서' })).toBeVisible();
+
+    const gardenSection = page.locator('section').filter({ hasText: '가든에서' });
+    const noteLinks = gardenSection.locator('a[href^="/ko/garden/"]');
+    expect(await noteLinks.count()).toBeGreaterThan(0);
+
+    const browseAll = gardenSection.getByRole('link', { name: /노트 \d+개 전체 보기/ });
+    await expect(browseAll).toBeVisible();
+
+    await browseAll.click();
+    await page.waitForURL(/\/ko\/garden$/);
+  });
+
+  // footer 링크와 별개로, 본문에서도 now에 닿을 수 있어야 한다(footer 전용이던 게 원래 문제).
+  test('should link to the now page from the home surface', async ({ page }) => {
+    await page.goto('/ko');
+
+    const nowLink = page.getByRole('main').getByRole('link', { name: '요즘 하는 일' });
+    await expect(nowLink).toBeVisible();
+
+    await nowLink.click();
+    await page.waitForURL(/\/ko\/now$/);
+  });
+
+  // 헤더 전역 검색은 섹션 밖에서도 열려야 한다. 홈에서 Cmd+K가 죽어 있던 게 원래 문제였다.
+  test('should search posts and notes together from the home surface', async ({ page }) => {
+    await page.goto('/ko');
+
+    await page.getByRole('button', { name: '사이트 검색' }).click();
+
+    const dialog = page.getByRole('dialog', { name: '검색' });
+    await expect(dialog).toBeVisible();
+
+    await dialog.getByPlaceholder('검색…').fill('디지털 가든');
+    await expect(dialog.getByRole('option', { name: /디지털 가든과 Second Brain/ })).toBeVisible();
+  });
+
   test('should work in English', async ({ page }) => {
     await page.goto('/en');
 

@@ -138,19 +138,19 @@ test.describe('Blog - Category and Post Pages', () => {
     });
   });
 
-  test.describe('Blog Search Palette', () => {
-    test('should open the palette by clicking the search trigger and navigate', async ({ page }) => {
+  test.describe('Site Search Palette', () => {
+    test('should open the palette from the header and navigate', async ({ page }) => {
       await page.goto('/ko/blog');
 
-      const trigger = page.getByRole('button', { name: '글 검색', exact: true });
+      const trigger = page.getByRole('button', { name: '사이트 검색' });
       await expect(trigger).toBeVisible();
 
       await trigger.click();
 
-      const dialog = page.getByRole('dialog', { name: '글 검색' });
+      const dialog = page.getByRole('dialog', { name: '검색' });
       await expect(dialog).toBeVisible();
 
-      const input = dialog.getByPlaceholder('글 검색…');
+      const input = dialog.getByPlaceholder('검색…');
       await input.fill('나는 글 쓰는');
 
       const result = dialog.getByRole('option', { name: /나는 글 쓰는 걸 좋아한다/ });
@@ -166,10 +166,10 @@ test.describe('Blog - Category and Post Pages', () => {
       await page.goto('/en/blog');
 
       // Prime the client-side search before dispatching the shortcut.
-      const trigger = page.getByRole('button', { name: 'Search posts', exact: true });
+      const trigger = page.getByRole('button', { name: 'Search the site' });
       await expect(trigger).toBeVisible();
 
-      const dialog = page.getByRole('dialog', { name: 'Search posts' });
+      const dialog = page.getByRole('dialog', { name: 'Search' });
 
       await trigger.click();
       await expect(dialog).toBeVisible();
@@ -186,12 +186,12 @@ test.describe('Blog - Category and Post Pages', () => {
     test('should also be available on a category page', async ({ page }) => {
       await page.goto('/ko/blog/essay');
 
-      const trigger = page.getByRole('button', { name: '글 검색', exact: true });
+      const trigger = page.getByRole('button', { name: '사이트 검색' });
       await expect(trigger).toBeVisible();
 
       await trigger.click();
 
-      await expect(page.getByRole('dialog', { name: '글 검색' })).toBeVisible();
+      await expect(page.getByRole('dialog', { name: '검색' })).toBeVisible();
     });
   });
 

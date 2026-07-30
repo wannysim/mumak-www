@@ -553,6 +553,21 @@ describe('advanced anchor utilities', () => {
     expect(getNoteEmbedPreview('ko', 'totally-missing-note')).toBeNull();
   });
 
+  // 발췌는 렌더된 HTML이 아니라 원문에서 뽑기 때문에, 위키링크를 걷지 않으면 카드에
+  // [[slug|label]] 문법이 그대로 노출된다.
+  it('어떤 노트의 발췌에도 위키링크 문법이 남지 않는다', () => {
+    const withWikilink = getNotes('ko').filter(note => note.excerpt?.includes('[['));
+
+    expect(withWikilink.map(note => note.slug)).toEqual([]);
+  });
+
+  it('위키링크의 표시 텍스트는 발췌에 그대로 남는다', () => {
+    const note = getNotes('ko').find(item => item.slug === 'fcm-token-lifecycle');
+
+    expect(note?.excerpt).toContain('APNs 토큰과 FCM 토큰은 다르다');
+    expect(note?.excerpt).not.toContain('push-token-apns-vs-fcm');
+  });
+
   it('heading 옵션으로 해당 섹션 발췌를 반환한다', () => {
     const preview = getNoteEmbedPreview('ko', 'what-is-digital-garden', { heading: '성장 단계' });
 

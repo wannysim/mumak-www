@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { getSearchIndexPath, type SearchIndex } from '@/src/shared/lib/search';
+import { EMPTY_SEARCH_INDEX, getSearchIndexPath, type SearchIndex } from '@/src/shared/lib/search';
 
 // locale별로 한 번만 fetch하고 모듈 레벨에서 메모이즈한다. 같은 세션에서 검색창을 여러 번
 // 열거나 페이지를 이동해도 정적 JSON을 다시 받지 않는다.
@@ -48,7 +48,7 @@ export function useSearchIndex(locale: string, enabled: boolean): SearchIndex | 
         if (active) setIndex(data);
       })
       .catch(() => {
-        if (active) setIndex({ posts: [] });
+        if (active) setIndex(EMPTY_SEARCH_INDEX);
       });
 
     return () => {
