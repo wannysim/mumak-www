@@ -130,6 +130,9 @@ function createShareFile(content: string, format: ShareFileFormat = 'json'): Fil
 }
 
 // Source: https://www.w3.org/TR/web-share/#sharing-a-file
+// canShare()는 파일 형식을 검증하지 않는다(Chrome은 share() 시점에 브라우저 프로세스의
+// 확장자 safelist로 걸러 .json을 프롬프트 없이 NotAllowedError "Permission denied"로
+// 거부한다). 형식 탐지가 불가능하므로 기기 공유는 safelist에 있는 .txt(text/plain)로 고정한다.
 function supportedShareFileFormat(): ShareFileFormat | null {
   if (
     typeof navigator === 'undefined' ||
@@ -139,13 +142,10 @@ function supportedShareFileFormat(): ShareFileFormat | null {
     return null;
   }
   try {
-    for (const format of ['json', 'text'] as const) {
-      if (navigator.canShare({ files: [createShareFile('{}', format)] })) return format;
-    }
+    return navigator.canShare({ files: [createShareFile('{}', 'text')] }) ? 'text' : null;
   } catch {
     return null;
   }
-  return null;
 }
 
 function downloadShareFile(bundle: KaraokeShareBundle) {
@@ -325,7 +325,13 @@ export function ShareDrawer({
       await navigator.share({ title: 'MUMAK Karaoke 공유', files: [file] });
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        setMessage(error instanceof Error ? error.message : '기기로 공유하지 못했습니다.');
+        setMessage(
+          error instanceof DOMException && error.name === 'NotAllowedError'
+            ? '브라우저가 이 파일 공유를 허용하지 않습니다. 공유 파일 저장을 이용해 주세요.'
+            : error instanceof Error
+              ? error.message
+              : '기기로 공유하지 못했습니다.'
+        );
       }
     } finally {
       setSharing(false);
