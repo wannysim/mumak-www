@@ -527,8 +527,8 @@ test.describe('Karaoke Home', () => {
     const bounds = await editor.boundingBox();
 
     expect(bounds).not.toBeNull();
-    expect(bounds?.width).toBe(672);
-    expect(bounds?.x).toBe((1440 - 672) / 2);
+    expect(bounds?.width).toBe(512);
+    expect(bounds?.x).toBe((1440 - 512) / 2);
   });
 
   test('should copy the AI prompt when direct clipboard access is denied', async ({ page }) => {

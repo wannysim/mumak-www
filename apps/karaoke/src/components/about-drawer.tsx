@@ -22,7 +22,7 @@ export function AboutDrawer({
 }) {
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
+      <DrawerContent className="md:data-[vaul-drawer-direction=bottom]:inset-x-[calc((100%-32rem)/2)] md:border-x">
         <DrawerHeader>
           <DrawerTitle>이 앱에 대해</DrawerTitle>
           <DrawerDescription>가사를 기기에만 보관하며 YouTube 영상으로 연습하는 노래방</DrawerDescription>

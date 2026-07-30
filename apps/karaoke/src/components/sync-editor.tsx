@@ -406,7 +406,7 @@ export function SyncEditor({
           <FilePenLine className="size-4 stroke-[1.5]" />
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="max-h-[92vh] md:data-[vaul-drawer-direction=bottom]:inset-x-[calc((100%-42rem)/2)] md:border-x">
+      <DrawerContent className="max-h-[92vh] md:data-[vaul-drawer-direction=bottom]:inset-x-[calc((100%-32rem)/2)] md:border-x">
         <DrawerHeader className="border-border shrink-0 border-b text-left">
           <DrawerTitle>{preparing ? '새 가사 가져오기' : '가사 편집'}</DrawerTitle>
           <DrawerDescription>

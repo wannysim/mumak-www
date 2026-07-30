@@ -617,7 +617,7 @@ export function SongDrawer({
           <Button
             variant="ghost"
             aria-label={`${current.titleJa} — ${currentPlaylist.name} 곡 목록 열기`}
-            className="h-16 w-full flex-col items-center gap-0 rounded-none px-2 hover:bg-transparent"
+            className="h-14 w-full flex-col items-center gap-0 rounded-none px-2 hover:bg-transparent"
           >
             <span className="font-utility text-muted-foreground mb-0.5 text-[0.5625rem] leading-none tracking-[0.18em]">
               {trackPosition}
