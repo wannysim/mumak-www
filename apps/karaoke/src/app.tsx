@@ -106,7 +106,7 @@ function KaraokeGuide({ replay, ready }: { replay: number; ready: boolean }) {
 
 function PrivacyConsent({ onAccept }: { onAccept: () => void }) {
   return (
-    <main className="bg-background mx-auto flex min-h-svh max-w-[32rem] items-center px-6 py-10">
+    <main className="bg-background mx-auto flex min-h-dvh max-w-[32rem] items-center px-6 py-10">
       <section aria-labelledby="privacy-consent-title" className="border-border w-full space-y-5 border-y py-6">
         <div className="space-y-2">
           <p className="font-utility text-primary text-[0.68rem] font-semibold tracking-[0.16em] uppercase">
@@ -240,8 +240,11 @@ function KaraokeApp({ onInstall }: { onInstall?: () => void }) {
     window.setTimeout(() => setGuideReplay(current => current + 1), 300);
   };
 
+  // dvh를 쓴다. svh는 iOS 홈 화면 앱(standalone)에서 존재하지 않는 브라우저 크롬만큼 작게
+  // 계산돼 footer 아래가 뜨고, Arc처럼 하단 바를 띄우는 브라우저에서는 footer가 가려진다.
+  // 이 앱은 문서 스크롤이 없어(overflow: hidden) dvh여도 레이아웃이 출렁이지 않는다.
   return (
-    <div className="karaoke-shell border-border/70 bg-background mx-auto flex h-svh max-w-[32rem] flex-col border-x-0 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] sm:border-x">
+    <div className="karaoke-shell border-border/70 bg-background mx-auto flex h-dvh max-w-[32rem] flex-col border-x-0 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] sm:border-x">
       <KaraokeGuide replay={guideReplay} ready={lyricsStatus !== 'loading'} />
       <header className="karaoke-header border-border flex shrink-0 items-center gap-1 border-b px-1 pt-[env(safe-area-inset-top)]">
         <Button
@@ -297,7 +300,7 @@ function KaraokeApp({ onInstall }: { onInstall?: () => void }) {
         />
       </div>
 
-      <div className="karaoke-toolbar border-border flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-2">
+      <div className="karaoke-toolbar border-border flex min-h-11 shrink-0 items-center justify-between gap-2 border-b px-2">
         <div className="flex items-center">
           <DisplayToggle value={display} onChange={setDisplay} />
           <ReadingModeToggle enabled={readingMode} onChange={setReadingMode} />
