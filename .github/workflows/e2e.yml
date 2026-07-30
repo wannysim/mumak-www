@@ -164,32 +164,41 @@ jobs:
             apps/${{ matrix.app }}/test-results/
           retention-days: 7
 
-  # Summary job for branch protection
+  # Summary job for branch protection. `always()` survives concurrency
+  # cancellation, so use `!cancelled()` while still aggregating failed needs.
+  # Source: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-cancellation
   e2e-success:
     name: E2E Success
     needs: [detect-scopes, prepare-matrix, e2e]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Check results
         run: |
+          if [ "${{ needs.detect-scopes.result }}" != "success" ]; then
+            echo "detect-scopes did not succeed (result: ${{ needs.detect-scopes.result }})"
+            exit 1
+          fi
+
           if [ "${{ needs.detect-scopes.outputs.has_changes }}" != "true" ]; then
             echo "No relevant changes detected - E2E passed"
             exit 0
           fi
 
-          if [ "${{ needs.prepare-matrix.outputs.count }}" == "0" ]; then
+          if [ "${{ needs.prepare-matrix.result }}" != "success" ]; then
+            echo "prepare-matrix did not succeed (result: ${{ needs.prepare-matrix.result }})"
+            exit 1
+          fi
+
+          if [ "${{ needs.prepare-matrix.outputs.count }}" == "0" ] &&
+             [ "${{ needs.e2e.result }}" == "skipped" ]; then
             echo "No E2E-enabled apps affected - E2E passed"
             exit 0
           fi
 
-          if [ "${{ needs.e2e.result }}" == "success" ]; then
-            echo "All E2E tests passed"
-            exit 0
-          elif [ "${{ needs.e2e.result }}" == "skipped" ]; then
-            echo "E2E tests skipped"
-            exit 0
-          else
+          if [ "${{ needs.e2e.result }}" != "success" ]; then
             echo "Some E2E tests failed"
             exit 1
           fi
+
+          echo "All E2E tests passed"
