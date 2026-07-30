@@ -70,9 +70,12 @@ describe('ShareDrawer', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    Reflect.deleteProperty(navigator, 'share');
+    Reflect.deleteProperty(navigator, 'canShare');
   });
 
   it('creates a looping QR for the current playlist and offers the same data as a file', async () => {
+    const interval = vi.spyOn(window, 'setInterval');
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:share');
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
@@ -94,13 +97,44 @@ describe('ShareDrawer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'QR 만들기' }));
 
     const qr = await screen.findByLabelText('노래 데이터 공유 QR');
-    expect(qr).toHaveAttribute('data-value', expect.stringMatching(/^MK1\|/));
+    expect(qr).toHaveAttribute('data-value', expect.stringMatching(/^MK2:/));
     expect(screen.getByText(/반복 표시/)).toBeInTheDocument();
+    expect(interval).toHaveBeenCalledWith(expect.any(Function), 500);
 
     await userEvent.click(screen.getByRole('button', { name: '이전 화면' }));
     await userEvent.click(screen.getByRole('button', { name: '공유 파일 저장' }));
     expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
     expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce();
+  });
+
+  it('shares the selected data as a native text file when JSON file sharing is unavailable', async () => {
+    const share = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
+      .mockRejectedValueOnce(new Error('기기 공유 실패'));
+    const canShare = vi.fn(({ files }: ShareData) => files?.[0]?.type === 'text/plain');
+    Object.defineProperties(navigator, {
+      share: { configurable: true, value: share },
+      canShare: { configurable: true, value: canShare },
+    });
+    renderShareDrawer();
+
+    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
+    await userEvent.click(screen.getByRole('button', { name: /보내기/ }));
+    const button = screen.getByRole('button', { name: '기기로 바로 공유' });
+
+    await userEvent.click(button);
+    const sharedFile = share.mock.calls[0]![0].files[0] as File;
+    expect(sharedFile).toMatchObject({ type: 'text/plain' });
+    expect(sharedFile.name).toMatch(/\.txt$/);
+    expect(JSON.parse(await sharedFile.text())).toMatchObject({ scope: { kind: 'playlist' } });
+
+    await userEvent.click(button);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    await userEvent.click(button);
+    expect(await screen.findByRole('alert')).toHaveTextContent('기기 공유 실패');
   });
 
   it('collects camera frames, shows a change summary, and imports only after confirmation', async () => {
