@@ -1,6 +1,37 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Garden Page (PARA Sidebar Navigation)', () => {
+  // 가든·PARA·성장 단계는 처음 온 사람이 추측으로 알 수 없는 어휘다. 이 안내는 한동안
+  // messages에만 있고 화면에는 없었다. 다시 죽으면 콘텐츠 대부분이 설명 없이 남는다.
+  test('explains what the garden and PARA are on the index', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/ko/garden');
+
+    const main = page.getByRole('main');
+    await expect(main.getByText('이곳은 제 디지털 가든입니다', { exact: false })).toBeVisible();
+    await expect(main.getByText('PARA(Projects, Areas, Resources, Archives)', { exact: false })).toBeVisible();
+  });
+
+  test('explains the garden in English too', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/en/garden');
+
+    const main = page.getByRole('main');
+    await expect(main.getByText('This is my digital garden', { exact: false })).toBeVisible();
+    await expect(main.getByText('PARA (Projects, Areas, Resources, Archives)', { exact: false })).toBeVisible();
+  });
+
+  // 안내가 모바일에서도 보여야 한다. 예전 문구는 "좌측 사이드바"를 가리켰는데 모바일에는
+  // 좌측 사이드바가 없어서 틀린 안내였다.
+  test('shows the garden explainer on mobile without pointing at a sidebar', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/ko/garden');
+
+    const main = page.getByRole('main');
+    await expect(main.getByText('이곳은 제 디지털 가든입니다', { exact: false })).toBeVisible();
+    await expect(main.getByText('좌측 사이드바', { exact: false })).toHaveCount(0);
+  });
+
   test('should display PARA sidebar with category sections on desktop', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/ko/garden');

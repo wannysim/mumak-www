@@ -57,6 +57,17 @@ export default async function GardenPage({ params }: GardenPageProps) {
     <div className="space-y-8">
       <div className="space-y-3">
         <PageHeader title={t('title')} description={t('noteCount', { count: notes.length })} />
+
+        {/* 가든 어휘(가든, PARA)를 처음 온 사람이 해독할 수 있게 하는 유일한 안내다.
+            이 문구는 messages에만 있고 화면에 없던 적이 있다 — 지우면 콘텐츠 대부분이
+            설명 없는 전문용어 뒤로 다시 숨는다. e2e/garden.spec.ts가 노출을 지킨다. */}
+        <div className="max-w-2xl space-y-1 text-muted-foreground leading-relaxed">
+          <p>
+            {t('intro.line1')} {t('intro.line2')}
+          </p>
+          <p>{t('intro.line3')}</p>
+        </div>
+
         <ArrowLink href={{ pathname: '/graph', query: { tab: 'garden' } }}>
           <Waypoints className="size-4" aria-hidden />
           {tCommon('viewGraph')}
