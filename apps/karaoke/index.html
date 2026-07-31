@@ -13,16 +13,14 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="노래방" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#252525" />
-
-    <link rel="preconnect" href="https://www.youtube.com" />
-    <link rel="preconnect" href="https://i.ytimg.com" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#e9edf0" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#15171b" />
 
     <!--
       React가 마운트되기 전에 테마를 확정한다. 이 스크립트가 없으면 첫 페인트가 밝은 기본
       배경으로 나갔다가 다크로 바뀌면서 깜빡인다. 동기 스크립트라 파싱을 막고 페인트보다 먼저 돈다.
-      판단 규칙은 src/components/theme-provider.tsx와 같아야 한다 (키·저장값·기기 설정 순).
+      키는 LOCAL_STORAGE_KEYS.theme과 같고, 판단 규칙은 src/components/theme-provider.tsx와
+      같아야 한다 (저장값·기기 설정 순).
     -->
     <script>
       (function () {

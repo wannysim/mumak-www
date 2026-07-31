@@ -20,24 +20,21 @@
     "title": "Wan Sim",
     "description": "A space for thoughts and records",
     "intro": "Created this blog to write anything I want.\nI'm interested in web technologies and user experience.\nGonna write about anything from daily life to developer's thoughts.",
-    "latestPosts": "Latest Post",
-    "recentPosts": "Recent Posts",
+    "latestPosts": "Latest posts",
     "listeningTo": "Listening to Spotify",
     "lastPlayed": "Last Played on Spotify",
-    "aboutCta": "More about me"
+    "aboutCta": "More about me",
+    "blogCta": "Browse all {count} posts",
+    "gardenTitle": "Latest notes",
+    "gardenCta": "Browse all {count} notes",
+    "nowTitle": "Now",
+    "nowCta": "What I am up to"
   },
   "blog": {
     "title": "Blog",
     "description": "A space for thoughts and records",
     "allPosts": "All Posts",
-    "postsCount": "{count} posts",
-    "search": {
-      "title": "Search posts",
-      "description": "Find a post across all blog categories",
-      "placeholder": "Search posts…",
-      "empty": "No posts found",
-      "aria": "Search posts"
-    }
+    "postsCount": "{count} posts"
   },
   "category": {
     "essay": {
@@ -67,6 +64,19 @@
     "tagTitle": "#{tag}",
     "tagDescription": "Posts tagged with {tag}"
   },
+  "search": {
+    "title": "Search",
+    "description": "Find blog posts and garden notes together",
+    "placeholder": "Search…",
+    "empty": "No results found",
+    "loading": "Preparing search…",
+    "aria": "Search the site",
+    "gardenGroup": "Garden",
+    "scopedToBlog": "Searching the blog",
+    "scopedToGarden": "Searching the garden",
+    "scopedToSite": "Searching the whole site",
+    "searchEverywhere": "Search everywhere"
+  },
   "notFound": {
     "title": "Page Not Found",
     "description": "The page you requested does not exist.",
@@ -81,7 +91,7 @@
   "about": {
     "title": "About",
     "description": "Hello, I'm Wan Sim.",
-    "role": "Frontend Engineer at Apartmentary",
+    "role": "Software Engineer at Apartmentary",
     "intro": "I am a software engineer who values positivity, efficiency, and honesty.\nThis is a space where I refactor the tangled thoughts in my head into clean text.\nWhile this blog serves more as a personal record than a content for others, it is always open.\n\nFeel free to look around, just like browsing through my source code.",
     "stackTitle": "Tech Stack",
     "nowCta": "What I'm up to now"
@@ -103,7 +113,7 @@
     "intro": {
       "line1": "Welcome! This is my digital garden.",
       "line2": "This garden uses the PARA (Projects, Areas, Resources, Archives) structure to organize and share my thoughts and knowledge.",
-      "line3": "Use the sidebar to explore notes by each category."
+      "line3": "Browse notes by topic from the categories below."
     },
     "categories": {
       "title": "Category Guide",
@@ -148,13 +158,9 @@
       "title": "PARA Garden",
       "openTree": "Browse",
       "collapse": "Collapse sidebar",
-      "expand": "Expand sidebar",
-      "searchPlaceholder": "Search notes…",
-      "searchAria": "Search notes",
-      "searchTitle": "Search notes",
-      "searchDescription": "Find a note across all PARA categories",
-      "searchEmpty": "No notes found"
-    }
+      "expand": "Expand sidebar"
+    },
+    "linkCount": "{count} links"
   },
   "graph": {
     "title": "Graph",

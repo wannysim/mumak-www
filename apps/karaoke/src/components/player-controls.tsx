@@ -37,11 +37,11 @@ export function PlayerControls({
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-2 px-2">
+    <div className="karaoke-controls border-border flex min-h-11 shrink-0 items-center gap-1 border-b px-2 min-[360px]:gap-2 min-[360px]:px-3">
       <Button
         variant="ghost"
         size="icon"
-        className="size-11 shrink-0"
+        className="size-11 shrink-0 rounded-none hover:bg-transparent"
         aria-label={isPlaying ? '일시정지' : '재생'}
         onClick={onTogglePlay}
       >
@@ -52,13 +52,15 @@ export function PlayerControls({
         )}
       </Button>
 
-      <span className="text-muted-foreground w-9 shrink-0 text-right text-xs tabular-nums">{formatTime(shown)}</span>
+      <span className="karaoke-time font-utility text-muted-foreground w-8 shrink-0 text-right text-[0.625rem] tabular-nums">
+        {formatTime(shown)}
+      </span>
 
       {/* 네이티브 range는 터치 드래그·키보드·스크린리더를 전부 공짜로 얻는다. */}
       <input
         type="range"
         aria-label="재생 위치"
-        className="accent-primary h-11 min-w-0 flex-1 cursor-pointer disabled:cursor-default disabled:opacity-40"
+        className="karaoke-progress h-11 min-w-0 flex-1 cursor-pointer disabled:cursor-default disabled:opacity-40"
         min={0}
         max={known ? duration : 1}
         step={0.5}
@@ -70,7 +72,7 @@ export function PlayerControls({
         onBlur={commit}
       />
 
-      <span className="text-muted-foreground w-9 shrink-0 text-xs tabular-nums">
+      <span className="karaoke-time font-utility text-muted-foreground w-8 shrink-0 text-[0.625rem] tabular-nums">
         {known ? formatTime(duration) : '--:--'}
       </span>
 

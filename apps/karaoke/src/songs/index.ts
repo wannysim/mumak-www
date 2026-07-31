@@ -31,7 +31,7 @@ export const songs: Song[] = [
 ];
 
 /** 목록을 순환하며 offset만큼 떨어진 곡. 마지막 다음은 처음으로 돌아간다. */
-export function songAt(from: Song, offset: number): Song {
-  const index = songs.indexOf(from);
-  return songs[(index + offset + songs.length) % songs.length] ?? defaultSong;
+export function songAt(list: readonly Song[], from: Song, offset: number): Song {
+  const index = list.indexOf(from);
+  return list[(index + offset + list.length) % list.length] ?? defaultSong;
 }

@@ -39,13 +39,19 @@ describe('ThemeToggle', () => {
   });
 
   it('toggles straight between light and dark', async () => {
-    renderToggle();
+    const { container } = renderToggle();
 
-    await userEvent.click(screen.getByRole('button', { name: '다크 테마로 전환' }));
+    const darkToggle = screen.getByRole('button', { name: '화면 어둡게' });
+    expect(darkToggle).not.toHaveTextContent(/\S/);
+    expect(container.querySelector('.lucide-sun')).toBeInTheDocument();
+    await userEvent.click(darkToggle);
     expect(localStorage.getItem('karaoke:theme')).toBe('dark');
     expect(document.documentElement.classList.contains('dark')).toBe(true);
 
-    await userEvent.click(screen.getByRole('button', { name: '라이트 테마로 전환' }));
+    const lightToggle = screen.getByRole('button', { name: '화면 밝게' });
+    expect(lightToggle).not.toHaveTextContent(/\S/);
+    expect(container.querySelector('.lucide-moon')).toBeInTheDocument();
+    await userEvent.click(lightToggle);
     expect(localStorage.getItem('karaoke:theme')).toBe('light');
     expect(document.documentElement.classList.contains('light')).toBe(true);
   });
@@ -55,14 +61,14 @@ describe('ThemeToggle', () => {
     renderToggle();
 
     // 기기가 다크면 다크로 시작하고, 버튼은 라이트로 넘어가는 동작을 안내한다.
-    expect(screen.getByRole('button', { name: '라이트 테마로 전환' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '화면 밝게' })).toBeInTheDocument();
     expect(localStorage.getItem('karaoke:theme')).toBeNull();
   });
 
   it('never offers a system option', async () => {
     renderToggle();
-    await userEvent.click(screen.getByRole('button', { name: '다크 테마로 전환' }));
-    await userEvent.click(screen.getByRole('button', { name: '라이트 테마로 전환' }));
+    await userEvent.click(screen.getByRole('button', { name: '화면 어둡게' }));
+    await userEvent.click(screen.getByRole('button', { name: '화면 밝게' }));
 
     expect(localStorage.getItem('karaoke:theme')).toBe('light');
     expect(screen.queryByRole('button', { name: /시스템/ })).not.toBeInTheDocument();

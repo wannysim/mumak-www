@@ -299,37 +299,43 @@ jobs:
           flags: karaoke
           fail_ci_if_error: false
 
-  # Summary job for branch protection
+  # Summary job for branch protection. `always()` survives concurrency
+  # cancellation, so use `!cancelled()` while still aggregating failed needs.
+  # Source: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-cancellation
   ci-success:
     name: CI Success
-    needs: [detect-scopes, warm-pnpm-cache, root-quality, validate]
-    if: always()
+    needs: [detect-scopes, prepare-matrix, warm-pnpm-cache, root-quality, validate]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Check results
         run: |
+          if [ "${{ needs.detect-scopes.result }}" != "success" ]; then
+            echo "detect-scopes did not succeed (result: ${{ needs.detect-scopes.result }})"
+            exit 1
+          fi
+
           if [ "${{ needs.detect-scopes.outputs.has_changes }}" != "true" ]; then
             echo "No relevant changes detected - CI passed"
             exit 0
           fi
 
-          # If the warm-up job failed, downstream jobs are skipped. That must
-          # not be misread as "no apps to validate" and silently pass CI.
-          if [ "${{ needs.warm-pnpm-cache.result }}" != "success" ]; then
-            echo "warm-pnpm-cache did not succeed (result: ${{ needs.warm-pnpm-cache.result }})"
+          if [ "${{ needs.prepare-matrix.result }}" != "success" ] ||
+             [ "${{ needs.warm-pnpm-cache.result }}" != "success" ] ||
+             [ "${{ needs.root-quality.result }}" != "success" ]; then
+            echo "CI setup or root quality failed"
             exit 1
           fi
 
-          if [ "${{ needs.root-quality.result }}" == "success" ] && [ "${{ needs.validate.result }}" == "success" ]; then
-            echo "All validations passed"
+          if [ "${{ needs.prepare-matrix.outputs.count }}" == "0" ] &&
+             [ "${{ needs.validate.result }}" == "skipped" ]; then
+            echo "No apps to validate - CI passed"
             exit 0
-          elif [ "${{ needs.root-quality.result }}" == "success" ] && [ "${{ needs.validate.result }}" == "skipped" ]; then
-            echo "Root quality passed, validations skipped (no apps to validate)"
-            exit 0
-          elif [ "${{ needs.root-quality.result }}" == "skipped" ] && [ "${{ needs.validate.result }}" == "skipped" ]; then
-            echo "Validations skipped (no apps to validate)"
-            exit 0
-          else
+          fi
+
+          if [ "${{ needs.validate.result }}" != "success" ]; then
             echo "Some validations failed"
             exit 1
           fi
+
+          echo "All validations passed"

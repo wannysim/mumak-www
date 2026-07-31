@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatTime } from '../lib/format-time';
+import { formatCueTime, formatTime } from '../lib/format-time';
 
 describe('formatTime', () => {
   it('formats seconds as m:ss', () => {
@@ -23,5 +23,19 @@ describe('formatTime', () => {
     expect(formatTime(Number.NaN)).toBe('--:--');
     expect(formatTime(-1)).toBe('--:--');
     expect(formatTime(Number.POSITIVE_INFINITY)).toBe('--:--');
+  });
+});
+
+describe('formatCueTime', () => {
+  it('formats lyric cues as a padded timecode with tenths', () => {
+    expect(formatCueTime(0)).toBe('00:00.0');
+    expect(formatCueTime(9.24)).toBe('00:09.2');
+    expect(formatCueTime(59.96)).toBe('01:00.0');
+    expect(formatCueTime(65.14)).toBe('01:05.1');
+  });
+
+  it('returns a placeholder for invalid cue times', () => {
+    expect(formatCueTime(Number.NaN)).toBe('--:--.-');
+    expect(formatCueTime(-1)).toBe('--:--.-');
   });
 });

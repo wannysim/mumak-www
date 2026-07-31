@@ -10,7 +10,3 @@ export interface Category {
   noteCount: number;
   tree: SidebarTreeNode[];
 }
-
-export function flattenTree(nodes: SidebarTreeNode[]): { slug: string; title: string }[] {
-  return nodes.flatMap(node => [{ slug: node.slug, title: node.title }, ...flattenTree(node.children)]);
-}

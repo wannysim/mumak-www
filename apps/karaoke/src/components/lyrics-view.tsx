@@ -3,6 +3,7 @@ import * as React from 'react';
 import { cn } from '@mumak/ui/lib/utils';
 
 import type { DisplaySettings } from '@/lib/display-settings';
+import { formatCueTime } from '@/lib/format-time';
 import { currentLineIndex, type LyricLine } from '@/lib/lyrics';
 
 /** 손으로 스크롤한 뒤 이 시간 동안은 자동 스크롤이 화면을 뺏지 않는다. */
@@ -17,12 +18,14 @@ const LyricRow = React.memo(function LyricRow({
   index,
   isActive,
   display,
+  readingMode,
   onSelect,
 }: {
   line: LyricLine;
   index: number;
   isActive: boolean;
   display: DisplaySettings;
+  readingMode: boolean;
   onSelect: (index: number) => void;
 }) {
   return (
@@ -32,20 +35,49 @@ const LyricRow = React.memo(function LyricRow({
         data-line={index}
         aria-current={isActive ? 'true' : undefined}
         onClick={() => onSelect(index)}
-        className={cn(
-          // press 피드백은 index.css가 모든 버튼에 공통으로 준다.
-          'w-full rounded-lg px-2 py-2.5 text-center',
-          'transition-[opacity,transform] duration-200 ease-[var(--ease-out-strong)]',
-          isActive ? 'opacity-100' : 'opacity-35 hover:opacity-70'
-        )}
+        // press 피드백은 index.css가 모든 버튼에 공통으로 준다.
+        className="lyric-row w-full rounded-none px-1 py-4 text-left"
       >
-        {display.jp && (
-          <p lang="ja" className="text-xl leading-snug font-bold text-balance">
-            {line.jp}
-          </p>
-        )}
-        {display.pron && line.pron && <p className="text-primary mt-0.5 leading-snug">{line.pron}</p>}
-        {display.ko && line.ko && <p className="text-muted-foreground mt-0.5 text-sm leading-snug">{line.ko}</p>}
+        <div
+          className={cn(
+            'lyric-content origin-left',
+            isActive ? 'scale-100' : readingMode ? 'scale-[0.92]' : 'scale-[0.84]'
+          )}
+        >
+          {display.jp && (
+            <p
+              lang="ja"
+              className={cn(
+                'lyric-jp font-japanese text-balance',
+                isActive ? 'text-foreground' : 'text-muted-foreground'
+              )}
+            >
+              {line.jp}
+            </p>
+          )}
+
+          <span
+            aria-hidden="true"
+            className={cn(
+              'mt-2 flex items-center gap-2 transition-opacity duration-150',
+              isActive ? 'opacity-100' : 'opacity-0'
+            )}
+          >
+            <span className="bg-primary h-px min-w-0 flex-1" />
+            <span className="font-utility text-primary shrink-0 text-[0.5625rem] tracking-[0.08em] tabular-nums">
+              {formatCueTime(line.time)}
+            </span>
+          </span>
+
+          {display.pron && line.pron && (
+            <p className={cn('lyric-pron', isActive ? 'text-primary' : 'text-muted-foreground')}>{line.pron}</p>
+          )}
+          {display.ko && line.ko && (
+            <p className={cn('lyric-ko', readingMode && isActive ? 'text-foreground' : 'text-muted-foreground')}>
+              {line.ko}
+            </p>
+          )}
+        </div>
       </button>
     </li>
   );
@@ -53,18 +85,27 @@ const LyricRow = React.memo(function LyricRow({
 
 export function LyricsView({
   lyrics,
+  status = 'ready',
+  errorMessage,
   time,
   display,
+  readingMode = false,
+  emptyAction,
   onSeek,
 }: {
   lyrics: LyricLine[];
+  status?: 'loading' | 'ready' | 'error';
+  errorMessage?: string;
   time: number;
   display: DisplaySettings;
+  readingMode?: boolean;
+  emptyAction?: React.ReactNode;
   onSeek: (seconds: number) => void;
 }) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const manualScrollUntilRef = React.useRef(0);
   const activeIndex = currentLineIndex(lyrics, time);
+  const focusedIndex = activeIndex >= 0 ? activeIndex : lyrics.length > 0 ? 0 : -1;
 
   const centerLine = React.useCallback((index: number) => {
     containerRef.current
@@ -73,9 +114,9 @@ export function LyricsView({
   }, []);
 
   React.useEffect(() => {
-    if (activeIndex < 0 || Date.now() < manualScrollUntilRef.current) return;
-    centerLine(activeIndex);
-  }, [activeIndex, centerLine]);
+    if (focusedIndex < 0 || Date.now() < manualScrollUntilRef.current) return;
+    centerLine(focusedIndex);
+  }, [activeIndex, focusedIndex, centerLine, readingMode, display.jp, display.pron, display.ko]);
 
   // 줄을 직접 탭한 것은 명시적인 의사표시다. 직전에 손으로 스크롤했더라도
   // 자동 스크롤을 즉시 되살리고, 이미 활성인 줄을 눌렀을 때도 가운데로 보정한다.
@@ -94,13 +135,27 @@ export function LyricsView({
     manualScrollUntilRef.current = Date.now() + MANUAL_SCROLL_HOLD_MS;
   };
 
+  if (status === 'loading') {
+    return (
+      <div className="karaoke-lyrics text-muted-foreground min-h-0 flex-1 px-6 text-xs tracking-[0.14em] uppercase">
+        <div className="flex min-h-full items-center py-6">내 가사 확인 중</div>
+      </div>
+    );
+  }
+
   if (lyrics.length === 0) {
     return (
-      <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 px-8 text-center">
-        <p className="font-medium">아직 가사가 등록되지 않은 곡이에요.</p>
-        <p className="text-sm">
-          싱크 편집 모드로 가사를 만들어 public/lyrics/&lt;곡&gt;.json으로 저장하면 노래방 모드가 켜져요.
-        </p>
+      <div className="karaoke-lyrics text-muted-foreground min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-6 text-left [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-h-full flex-col items-start justify-center py-6">
+          <p className="mb-4 text-[0.68rem] font-semibold tracking-[0.16em] uppercase">내 가사</p>
+          <p className="text-foreground text-2xl font-semibold tracking-[-0.04em]">가사를 불러오세요</p>
+          <p className="mt-3 max-w-[19rem] text-sm leading-relaxed">
+            {status === 'error'
+              ? `저장된 가사를 읽지 못했습니다. ${errorMessage ?? '새 파일을 불러오거나 기기 저장소를 비운 뒤 다시 시도해 주세요.'}`
+              : '가사 파일을 한 번 불러오면 이 기기에만 저장되고, 다음부터는 오프라인에서도 바로 열립니다.'}
+          </p>
+          <div className="mt-5">{emptyAction}</div>
+        </div>
       </div>
     );
   }
@@ -110,11 +165,12 @@ export function LyricsView({
   return (
     <div
       ref={containerRef}
+      data-reading-mode={readingMode ? 'true' : 'false'}
       onWheel={holdAutoScroll}
       onTouchMove={holdAutoScroll}
-      className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="karaoke-lyrics min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-[480px]:px-7"
     >
-      <ul className="flex flex-col gap-1 py-[35svh]">
+      <ul className="flex flex-col gap-3 py-[30svh]">
         {lyrics.map((line, index) => (
           <LyricRow
             key={line.time}
@@ -122,6 +178,7 @@ export function LyricsView({
             index={index}
             isActive={index === activeIndex}
             display={display}
+            readingMode={readingMode}
             onSelect={selectLine}
           />
         ))}

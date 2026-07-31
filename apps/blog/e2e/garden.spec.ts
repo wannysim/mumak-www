@@ -1,6 +1,37 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Garden Page (PARA Sidebar Navigation)', () => {
+  // 가든·PARA·성장 단계는 처음 온 사람이 추측으로 알 수 없는 어휘다. 이 안내는 한동안
+  // messages에만 있고 화면에는 없었다. 다시 죽으면 콘텐츠 대부분이 설명 없이 남는다.
+  test('explains what the garden and PARA are on the index', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/ko/garden');
+
+    const main = page.getByRole('main');
+    await expect(main.getByText('이곳은 제 디지털 가든입니다', { exact: false })).toBeVisible();
+    await expect(main.getByText('PARA(Projects, Areas, Resources, Archives)', { exact: false })).toBeVisible();
+  });
+
+  test('explains the garden in English too', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/en/garden');
+
+    const main = page.getByRole('main');
+    await expect(main.getByText('This is my digital garden', { exact: false })).toBeVisible();
+    await expect(main.getByText('PARA (Projects, Areas, Resources, Archives)', { exact: false })).toBeVisible();
+  });
+
+  // 안내가 모바일에서도 보여야 한다. 예전 문구는 "좌측 사이드바"를 가리켰는데 모바일에는
+  // 좌측 사이드바가 없어서 틀린 안내였다.
+  test('shows the garden explainer on mobile without pointing at a sidebar', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/ko/garden');
+
+    const main = page.getByRole('main');
+    await expect(main.getByText('이곳은 제 디지털 가든입니다', { exact: false })).toBeVisible();
+    await expect(main.getByText('좌측 사이드바', { exact: false })).toHaveCount(0);
+  });
+
   test('should display PARA sidebar with category sections on desktop', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/ko/garden');
@@ -46,9 +77,8 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/ko/garden');
 
-    // Wait for the sidebar to mount so the keydown listener is installed.
-    const sidebar = page.locator('aside').filter({ hasText: 'PARA 가든' });
-    await expect(sidebar.getByRole('button', { name: /노트 검색…/ })).toBeVisible();
+    // Wait for the header search to mount so the keydown listener is installed.
+    await expect(page.getByRole('button', { name: '사이트 검색' })).toBeVisible();
 
     await page.locator('body').click();
     // Dispatch the keydown directly so the test stays deterministic across platforms
@@ -57,10 +87,10 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
     });
 
-    const dialog = page.getByRole('dialog', { name: '노트 검색' });
+    const dialog = page.getByRole('dialog', { name: '검색' });
     await expect(dialog).toBeVisible();
 
-    const input = dialog.getByPlaceholder('노트 검색…');
+    const input = dialog.getByPlaceholder('검색…');
     await expect(input).toBeVisible();
 
     await input.fill('디지털 가든');
@@ -74,17 +104,34 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     await expect(page.getByRole('heading', { level: 1, name: '디지털 가든과 Second Brain' })).toBeVisible();
   });
 
-  test('should open the search palette by clicking the trigger on desktop', async ({ page }) => {
+  test('should open the search palette by clicking the header trigger on desktop', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/ko/garden');
 
-    const sidebar = page.locator('aside').filter({ hasText: 'PARA 가든' });
-    const trigger = sidebar.getByRole('button', { name: /노트 검색…/ });
+    const trigger = page.getByRole('button', { name: '사이트 검색' });
     await expect(trigger).toBeVisible();
 
     await trigger.click();
 
-    await expect(page.getByRole('dialog', { name: '노트 검색' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: '검색' })).toBeVisible();
+  });
+
+  // 가든 안에서 검색을 열면 가든으로 스코프되고, 푸터 전환으로 사이트 전체까지 넓어진다.
+  test('scopes search to the garden and widens to the whole site on request', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/ko/garden');
+
+    await page.getByRole('button', { name: '사이트 검색' }).click();
+    const dialog = page.getByRole('dialog', { name: '검색' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('가든에서 검색 중')).toBeVisible();
+
+    await dialog.getByPlaceholder('검색…').fill('나는 글 쓰는');
+    await expect(dialog.getByRole('option', { name: /나는 글 쓰는 걸 좋아한다/ })).toBeHidden();
+
+    await dialog.getByRole('button', { name: '전체에서 검색' }).click();
+
+    await expect(dialog.getByRole('option', { name: /나는 글 쓰는 걸 좋아한다/ })).toBeVisible();
   });
 
   test('desktop: collapses the sidebar to reclaim width and expands it again', async ({ page }) => {
@@ -127,16 +174,16 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     await expect(page.getByRole('heading', { level: 1, name: '디지털 가든과 Second Brain' })).toBeVisible();
   });
 
-  test('mobile: should open the search palette via the search button', async ({ page }) => {
+  test('mobile: should open the search palette via the header search button', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/ko/garden');
 
-    const searchButton = page.getByRole('button', { name: '노트 검색' });
+    const searchButton = page.getByRole('button', { name: '사이트 검색' });
     await expect(searchButton).toBeVisible();
 
     await searchButton.click();
 
-    await expect(page.getByRole('dialog', { name: '노트 검색' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: '검색' })).toBeVisible();
   });
 
   test('should keep linked notes collapsed by default and expand on toggle', async ({ page }) => {

@@ -196,58 +196,6 @@ describe('GardenSidebar', () => {
     expect(within(nav).getByRole('link', { name: 'Second Subnote' })).toBeInTheDocument();
   });
 
-  it('opens the search dialog via the Cmd/Ctrl+K shortcut', async () => {
-    const user = userEvent.setup();
-    render(<GardenSidebar categories={categories} />);
-
-    const dialog = screen.getByTestId('command-dialog');
-    expect(dialog).toHaveAttribute('data-open', 'false');
-
-    await user.keyboard('{Meta>}k{/Meta}');
-
-    expect(screen.getByTestId('command-dialog')).toHaveAttribute('data-open', 'true');
-  });
-
-  it('opens the search dialog when the search trigger button is clicked', async () => {
-    const user = userEvent.setup();
-    render(<GardenSidebar categories={categories} />);
-
-    expect(screen.getByTestId('command-dialog')).toHaveAttribute('data-open', 'false');
-
-    const triggerButtons = screen.getAllByRole('button', { name: /searchPlaceholder/i });
-    await user.click(triggerButtons[0]!);
-
-    expect(screen.getByTestId('command-dialog')).toHaveAttribute('data-open', 'true');
-  });
-
-  it('navigates and closes the dialog when a search result is selected', async () => {
-    const user = userEvent.setup();
-    render(<GardenSidebar categories={categories} />);
-
-    await user.keyboard('{Meta>}k{/Meta}');
-    expect(screen.getByTestId('command-dialog')).toHaveAttribute('data-open', 'true');
-
-    const items = screen.getAllByTestId('command-item');
-    const target = items.find(item => item.textContent?.includes('First Subnote'));
-    expect(target).toBeDefined();
-    await user.click(target!);
-
-    expect(mockPush).toHaveBeenCalledWith('/garden/projects/active/first');
-    expect(screen.getByTestId('command-dialog')).toHaveAttribute('data-open', 'false');
-  });
-
-  it('flattens nested notes so descendants are searchable', async () => {
-    const user = userEvent.setup();
-    render(<GardenSidebar categories={categories} />);
-
-    await user.keyboard('{Meta>}k{/Meta}');
-
-    const itemLabels = screen.getAllByTestId('command-item').map(node => node.textContent ?? '');
-    expect(itemLabels.some(label => label.includes('First Subnote'))).toBe(true);
-    expect(itemLabels.some(label => label.includes('Second Subnote'))).toBe(true);
-    expect(itemLabels.some(label => label.includes('Active Project'))).toBe(true);
-  });
-
   describe('desktop collapse', () => {
     it('shows a collapse control by default and toggles to an expand control', async () => {
       const user = userEvent.setup();

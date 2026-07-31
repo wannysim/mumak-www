@@ -10,9 +10,23 @@ export function useLocalStorageState<T>(key: string, fallback: T) {
     }
   });
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     localStorage.setItem(key, JSON.stringify(value));
   }, [key, value]);
+
+  const syncFromAnotherTab = React.useEffectEvent((event: StorageEvent) => {
+    if (event.storageArea !== localStorage || event.key !== key) return;
+    try {
+      setValue(event.newValue ? (JSON.parse(event.newValue) as T) : fallback);
+    } catch {
+      // Keep the last valid local value when another tab writes corrupt data.
+    }
+  });
+
+  React.useEffect(() => {
+    window.addEventListener('storage', syncFromAnotherTab);
+    return () => window.removeEventListener('storage', syncFromAnotherTab);
+  }, [key]);
 
   return [value, setValue] as const;
 }

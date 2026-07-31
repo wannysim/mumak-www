@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from '../app';
 import type { YouTubeApi } from '../hooks/use-youtube-player';
+import { LOCAL_STORAGE_KEYS } from '../lib/client-storage';
 
 type Events = { onReady?: () => void; onStateChange?: (event: { data: number }) => void };
 
@@ -27,12 +28,14 @@ class FakePlayer {
 }
 
 /** 곡이 끝났다고 알린다. */
-function endSong() {
-  act(() => FakePlayer.last?.events.onStateChange?.({ data: 0 }));
+async function endSong() {
+  await act(async () => {
+    FakePlayer.last?.events.onStateChange?.({ data: 0 });
+  });
 }
 
 async function renderApp(mode: 'off' | 'all' | 'one') {
-  localStorage.setItem('karaoke:playback', JSON.stringify(mode));
+  localStorage.setItem(LOCAL_STORAGE_KEYS.playback, JSON.stringify(mode));
   render(<App />);
   await act(async () => {});
   act(() => FakePlayer.last?.events.onReady?.());
@@ -43,6 +46,8 @@ const heading = () => screen.getByRole('heading', { level: 1 });
 describe('App playback mode', () => {
   beforeEach(() => {
     localStorage.clear();
+    localStorage.setItem(LOCAL_STORAGE_KEYS.privacyConsent, 'true');
+    localStorage.setItem(LOCAL_STORAGE_KEYS.firstGuide, 'true');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false } as Response));
     window.YT = {
       Player: FakePlayer as unknown as YouTubeApi['Player'],
@@ -57,7 +62,7 @@ describe('App playback mode', () => {
 
   it('stops on the same song when repeat is off', async () => {
     await renderApp('off');
-    endSong();
+    await endSong();
 
     expect(heading()).toHaveTextContent('怪獣の花唄');
     expect(FakePlayer.last!.seekTo).not.toHaveBeenCalled();
@@ -66,7 +71,7 @@ describe('App playback mode', () => {
 
   it('restarts the same song when repeating one', async () => {
     await renderApp('one');
-    endSong();
+    await endSong();
 
     expect(FakePlayer.last!.seekTo).toHaveBeenCalledWith(0, true);
     expect(FakePlayer.last!.playVideo).toHaveBeenCalled();
@@ -75,16 +80,16 @@ describe('App playback mode', () => {
 
   it('advances to the next song when repeating all', async () => {
     await renderApp('all');
-    endSong();
+    await endSong();
 
     expect(heading()).toHaveTextContent('踊り子');
     expect(FakePlayer.last!.loadVideoById).toHaveBeenCalledWith('CnlMTBwsBHs');
   });
 
   it('wraps from the last song back to the first', async () => {
-    localStorage.setItem('karaoke:song', '"time-paradox"');
+    localStorage.setItem(LOCAL_STORAGE_KEYS.song, '"time-paradox"');
     await renderApp('all');
-    endSong();
+    await endSong();
 
     expect(heading()).toHaveTextContent('怪獣の花唄');
   });
@@ -95,7 +100,7 @@ describe('App playback mode', () => {
     await act(async () => {
       screen.getByRole('button', { name: /재생 모드: 반복 없음/ }).click();
     });
-    endSong();
+    await endSong();
 
     expect(heading()).toHaveTextContent('踊り子');
   });
