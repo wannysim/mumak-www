@@ -1,6 +1,7 @@
 ---
 title: '네트워크와 웹 보안'
 created: '2026-06-05'
+updated: '2026-07-31'
 status: 'seedling'
 parent: 'frontend'
 tags: ['frontend', 'network', 'security']
@@ -24,6 +25,8 @@ tags: ['frontend', 'network', 'security']
 - [[web-auth-session-vs-token|웹 인증: 세션과 토큰은 같은 문제를 어떻게 다르게 푸는가]]
 - [[access-refresh-token-pattern|Access + Refresh 토큰: 새로고침해도 로그인이 유지되는 이유]]
 - [[mobile-social-login-refresh-token-design|모바일 소셜 로그인과 Refresh Token 설계: idToken은 로그인 재료, refreshToken은 우리 세션]]
+- [[keep-alive-timeout-ordering|Keep-Alive 타임아웃 순서: 뒤에 선 서버가 더 오래 기다려야 하는 이유]]
+- [[tcp-retransmission-timeout|TCP 재전송 타임아웃(RTO): 응답 없는 1초의 정체]]
 
 ## 읽는 순서 제안
 
@@ -36,3 +39,5 @@ OAuth 콜백 보안(CSRF의 변종) — 으로 이어 읽으면 일반론이 손
 OAuth/OIDC 쪽은 state로 콜백을 먼저 이해하고, Authorization Code와 ID Token의 차이를 잡은 뒤,
 nonce로 ID Token 자체를 묶는 방식까지 이어 읽으면 "state와 nonce가 뭐가 다른데?"라는 질문이 정리된다.
 모바일 앱 소셜 로그인까지 이어지면, provider의 idToken과 우리 서비스 refreshToken의 책임을 분리해서 읽으면 좋다.
+프로덕션 트러블슈팅에 관심이 있다면, keep-alive 타임아웃 순서로 로드밸런서 뒤의 연결 재사용 규칙을 잡고
+TCP 재전송 타임아웃으로 "에러의 소요 시간이 지문이 된다"는 감각까지 이어 읽으면 좋다.
