@@ -1,0 +1,143 @@
+---
+title: 'The 502 That Left No Server Logs: How a Correct OTP Became "Invalid Code"'
+date: '2026-07-31'
+description: 'A correct verification code errored out, and the API server had no record of the call. From Datadog RUM to a keep-alive timeout race — a troubleshooting log about using absence as evidence'
+tags: ['debugging', 'network', 'infra', 'datadog', 'http', 'nodejs']
+draft: false
+---
+
+A user pasted the six-digit verification code from their SMS — **correctly** — and the screen said "invalid verification code." The stranger part came next: the API server had **no record of the verification call at that moment at all.**
+
+Did the app never send the request? Was there a failure hiding somewhere in our logic? This is the log of how one error message led through frontend code → Datadog RUM → the absence of server logs → a 30-day error distribution, and landed on **a keep-alive timeout race between Node and the load balancer**.
+
+> **TL;DR** — The 502's cause was Node's `keepAliveTimeout` (default 5s) being shorter than the ALB's idle timeout (60s). When the ALB loads a request onto an idle connection the server already closed, the request never reaches the server and becomes a 502. Of course the server logs were empty. The fix was three lines in `main.ts`. And what translated that 502 into "invalid verification code" was the frontend's bad fallback message.
+
+## 1. Before opening any tool: pin down what to look for
+
+I read the frontend code before opening Datadog, and the order mattered. **Enumerating every path that could produce that message** gave three; intersecting them with the user's two constraints —
+
+- No "N attempts left" suffix → the server didn't send attempt counts → **this wasn't a server verdict**
+- No record on the server → **the request never reached it**
+
+— left exactly one path. Our error handler lumped **every unclassified error** — not a 401, not a network drop, not a timeout — into the fallback string `"invalid verification code"`. Something had failed at the transport layer, and it got translated into "you typed the wrong code."
+
+At this point I didn't know the cause, but **what to verify was settled**: did the verify request actually leave the device, and if so, what did it receive? Less a hypothesis than a discriminator — and it pays off shortly.
+
+## 2. The first query missed: search by behavior, not identity
+
+I searched Datadog RUM by the user's ID. **Zero events in 30 days.**
+
+I could have stopped at "no data." But I'd already confirmed in code that the RUM SDK was installed, so the likelier failure was **my query's assumptions**. I stopped filtering and started enumerating — aggregated the app list, counted sessions carrying a user ID: **four users in a month**. User identification was barely attached at all, and the signup flow happens pre-login anyway, so it could never be identified. That search axis was structurally a dead end.
+
+So I flipped the approach: **if you can't find the person, find their behavior.** OTP verification necessarily hits a specific endpoint, and URLs get recorded regardless of login state.
+
+```
+@type:resource @resource.url:*verification-codes*
+```
+
+It was on the first page of results.
+
+```
+POST /auth/signup/verification-codes/verify
+→ 502, 1.08s, response body 122 bytes
+```
+
+Honestly, I threw that query to check _whether the request went out at all_ — I wasn't expecting a 502. But because of the discriminator built in step 1, I recognized it instantly: _502 → not 401, not a network error → fallback → that suffix-less message._ The pieces snapped together.
+
+The timeline reconstructed perfectly too: send 200 → **verify 502 six seconds later** → retry with the same code five seconds after that, 200. The user did nothing wrong.
+
+## 3. To use absence as evidence, establish a baseline first
+
+Next: verify "the server has no record." But **absence by itself is not evidence** — maybe the system just doesn't log.
+
+So I first pulled arbitrary server logs to **confirm the premise: this server writes START/END logs for every request.** Then I looked at the moment in question:
+
+| Time         | Server log                                                    |
+| ------------ | ------------------------------------------------------------- |
+| 10:36:07     | `sendSignUpVerificationCode` — completed in 36ms              |
+| **10:36:14** | **nothing** ← the moment of the 502                           |
+| 10:36:19     | `verifySignUpVerificationCode` — completed in 7ms (the retry) |
+
+A server that logs every request didn't log this one. No APM span either. Conclusion: **the request never reached the server.** And the 122-byte body matched the size of the 502 page an ALB fabricates itself. The request made it to the load balancer and died somewhere between it and the server.
+
+I also checked the most common suspect — deploys — with a query designed to _break_ my conclusion. ECS events showed the last deploy finished 18 minutes earlier, with zero task changes around the incident. Not the deploy.
+
+## 4. Thirty days of data split the 502s in two
+
+One clue can be a coincidence. Bucketing all 104 502s from 30 days by hour produced a clean **bimodal distribution**:
+
+```
+count
+ 32 │                        █ ← deploy time
+ 29 │      █ ← deploy time
+ 19 │              █ ← deploy time
+  3 │  ▂ ▂   ▂  ▂ ▂  ▂ ▂  ▂ ▂ ▂  ← scattered singles (our case)
+    └─────────────────────────────▶ 30 days
+```
+
+And **time-to-502** separated the two groups:
+
+| Mode                | When                                | Time to 502  | Meaning                                      |
+| ------------------- | ----------------------------------- | ------------ | -------------------------------------------- |
+| Bursts (19–32 each) | Exactly matching ECS deploy windows | **20–240ms** | dying targets refusing connections instantly |
+| Singles (~16)       | Unrelated to deploys, anytime       | **1.0–2.0s** | sent somewhere silent, failed late           |
+
+Nothing lived between tens of milliseconds and one second. When the same status code splits into two clean duration clusters, **you have two causes.** The bursts were explained by deploy draining. The remaining singles' profile — deploy-independent, never reaching the server, ~1s to fail — was the textbook signature of one pattern.
+
+The ~1s isn't a coincidence either. A packet sent into a dead connection gets no reply, and TCP's initial retransmission timeout — the wait before the first resend — is **one second** by standard (RFC 6298, Linux `TCP_TIMEOUT_INIT`). Without a packet capture I kept this part labeled as circumstantial, but it matches the measured 1.05–1.20s.
+
+## 5. Why the server never got the request: two timers
+
+Time to read the code. The server's bootstrap ended like this:
+
+```ts
+await app.listen(process.env.PORT ?? 3001); // no timeout tuning
+```
+
+Zero hits for `keepAliveTimeout` across the repo. Base image: Node 22. So **Node's 5-second default** was live. And the ALB in front had its default **60-second** idle timeout.
+
+The relationship between those two numbers is the whole incident. HTTP keep-alive is an optimization that reuses connections to save handshake cost, and a connection pool lives between the ALB and the server. But each side independently decides when to close an idle connection:
+
+```
+Server: idle 5s → I hang up (FIN)
+ALB:    until idle 60s → still considers it reusable
+
+Right after the server closes, there's a brief window before the ALB learns of it.
+Load a new request onto the dead connection inside that window —
+nobody is listening, and the ALB won't retry a request it already sent (POST is non-idempotent).
+→ 502. The server never received it, so there are no logs.
+```
+
+**The side that receives (behind) must never hang up before the side that decides reuse (in front).** AWS's guidance says exactly this — keep the target's keep-alive timeout above the ALB's idle timeout — and ours was inverted not because someone misconfigured it, but because **nobody configured it and the defaults collide**.
+
+## 6. The fix: three lines, always as a pair
+
+```ts
+const server = app.getHttpServer();
+server.keepAliveTimeout = 65_000; // above ALB idle (60s) → ALB always closes first
+server.headersTimeout = 66_000; // rule: always above keepAliveTimeout
+```
+
+- **Why 65s** — anything above the ALB works. If the server waits longer, idle connections are always cleaned up by the ALB first, and the ALB never reuses a connection it closed, so the race is structurally gone.
+- **Why headersTimeout too** — Node measures header-arrival time of requests landing during keep-alive waiting against this value (default 60s). Raising only keepAlive inverts the pair and the same class of premature cutoff returns through another door.
+- **"Isn't a long value risky?"** — No. The actual idle lifetime is `min(ALB, server)` — the ALB's value governs. The server-side number is a safety pin, not a lifetime. And there's no traffic-based formula for the "right" value; this is an **ordering constraint**, not a capacity knob.
+
+Verification is equally crisp: if the "one-second scattered 502s" drop to zero after deploying, done. Even if the micro-mechanism (1s = RTO) turned out wrong, the fix holds — when the server never hangs up first, neither scenario can occur.
+
+## 7. Two leftovers
+
+**The frontend sinned too.** Showing a 502 as "invalid verification code" was the FE's fallback string. That message should appear only when the server actually returns a mismatch verdict; unclassified errors deserve "something went wrong, please try again." Infrastructure failures being translated into "your fault" is the worst possible UX.
+
+**An observability gap doubled the work.** With ALB access logs, comparing `elb_status_code` vs `target_status_code` would have settled this in a minute. Without them, I had to reason backward from the _absence_ of server logs. Access logs are getting enabled before the next incident.
+
+## 8. What I kept from this
+
+1. **Build a discriminator before opening any tool.** Decide "what separates the candidates" rather than "what happened" — then even data you stumble into is instantly recognizable.
+2. **A zero-result query means suspect your assumptions, not the data.** Enumerate the axis before filtering it.
+3. **Can't find the identity? Find the behavior.** Endpoints get recorded regardless of login state.
+4. **Absence becomes evidence only after a baseline of presence.** First prove "this system logs every request," then "this request is missing" means something.
+5. **Error latency distribution is a fingerprint.** Instant failures and one-second failures splitting apart means more than one cause.
+6. **Throw queries designed to break your own conclusion.** I disproved the most common explanation (deploys) before moving on.
+7. **Separate circumstantial from confirmed.** "1s = TCP RTO" stayed labeled as inference to the end — including the note that the fix's validity doesn't depend on it.
+
+The timeout-ordering rule and TCP's retransmission timeout each got their own digital-garden note — [Keep-Alive Timeout Ordering](/en/garden/keep-alive-timeout-ordering), [TCP Retransmission Timeout (RTO)](/en/garden/tcp-retransmission-timeout).
