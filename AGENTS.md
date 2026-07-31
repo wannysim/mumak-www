@@ -17,6 +17,7 @@
 | `CLAUDE.md` (루트)                          | `@AGENTS.md` 한 줄 어댑터 + Claude Code 전용 섹션                 | Claude Code                   |
 | `.ai/skills/*/SKILL.md`                     | 프로젝트 공유 스킬 (실체)                                         | Cursor · Codex · Claude Code  |
 | `.ai/agents/*.md`                           | 프로젝트 특화 서브에이전트 (실체)                                 | Cursor · Claude Code          |
+| `.agents/skills → ../.ai/skills` (symlink)  | Codex가 프로젝트 스킬을 읽는 표준 경로                            | Codex                         |
 | `.cursor/skills → ../.ai/skills` (symlink)  | Cursor가 스킬을 읽는 경로                                         | Cursor                        |
 | `.cursor/agents → ../.ai/agents` (symlink)  | Cursor가 서브에이전트를 읽는 경로                                 | Cursor                        |
 | `.claude/skills → ../.ai/skills` (symlink)  | Claude Code가 Agent Skills를 읽는 경로                            | Claude Code                   |
@@ -27,7 +28,8 @@
 
 ### 규칙
 
-- **스킬·서브에이전트의 단일 소스는 `.ai/`**. `.cursor/`·`.claude/` 하위는 symlink이므로 직접 수정하지 말 것.
+- **스킬·서브에이전트의 단일 소스는 `.ai/`**. `.agents/`·`.cursor/`·`.claude/` 하위는 symlink이므로 직접 수정하지 말 것.
+- Codex용 `.codex/agents/*.toml` 복사본은 커밋하지 않는다. Codex에서는 필요한 역할의 `.ai/agents/*.md`를 읽어 generic subagent에 전달한다.
 - **동일 이름의 스킬이 user(`~/.ai-skills`)와 project(`.ai/`) 양쪽에 있으면 project 버전이 우선**.
 - **공통 규칙은 이 파일(또는 nested `AGENTS.md`)에만 적는다.** `.cursor/rules/*.mdc`에 복제하지 않는다. (nested `AGENTS.md` + path-scoped frontmatter로 대체)
 - 새 AI provider 도입 시: 해당 provider가 `AGENTS.md`를 읽는지 먼저 확인하고, 못 읽으면 포인터 파일만 추가한다.
