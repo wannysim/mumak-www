@@ -3,6 +3,8 @@ title: 'Expo 소셜 로그인 (3/3) — 백엔드 연동: OIDC, nonce, 그리고
 date: '2026-06-15'
 description: '토큰을 백엔드에 붙이며 겪은 개념(OIDC·nonce)과 빌드 내부(entitlement)의 삽질. Apple Code 1000의 진짜 범인도 여기서 밝혀진다'
 tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
+series: 'Expo 소셜 로그인'
+part: 3
 draft: false
 ---
 
@@ -11,10 +13,6 @@ draft: false
 3부는 그 골격 위에 백엔드 인증(Phase B)을 붙인 기록이다.
 이번엔 코드 바깥이 아니라 개념(OIDC·nonce)과 빌드 내부(entitlement)에서 헤맸다.
 그리고 2부에서 "시뮬레이터 신뢰 불가"로 결론냈던 Apple `Code 1000`의 진짜 범인도 여기서 밝혀진다.
-
-- [1부 — 설계: 패키지 선택부터 provider-agnostic 골격까지](/ko/blog/articles/expo-social-login)
-- [2부 — 빌드와 디바이스, 토큰을 얻기까지](/ko/blog/articles/expo-social-login-build)
-- **3부 (이 글)** — 백엔드 연동: OIDC, nonce, 그리고 Apple Code 1000
 
 백엔드(NestJS)는 개발자 로컬 서버였고, 앱은 `.env.local`의 `EXPO_PUBLIC_API_BASE_URL`로 거기에 붙었다.
 

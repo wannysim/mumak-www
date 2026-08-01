@@ -47,6 +47,7 @@ function buildNote(overrides: Partial<NoteMeta> = {}): NoteMeta {
     created: '2026-01-01',
     status: 'seedling',
     outgoingLinks: [],
+    outgoingHrefs: [],
     readingTime: 1,
     ...overrides,
   };

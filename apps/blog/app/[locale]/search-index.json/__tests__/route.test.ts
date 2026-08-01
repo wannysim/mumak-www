@@ -38,6 +38,7 @@ const samplePosts: PostMeta[] = [
     category: 'essay',
     tags: ['intro'],
     readingTime: 1,
+    outgoingHrefs: [],
   },
   {
     slug: 'no-tags',
@@ -46,6 +47,7 @@ const samplePosts: PostMeta[] = [
     description: 'A post without tags',
     category: 'articles',
     readingTime: 2,
+    outgoingHrefs: [],
   },
 ];
 
@@ -61,6 +63,7 @@ const sampleNotes: NoteMeta[] = [
     outgoingLinks: [],
     excerpt: 'A note excerpt',
     readingTime: 1,
+    outgoingHrefs: [],
   },
   {
     slug: 'bare-note',
@@ -70,6 +73,7 @@ const sampleNotes: NoteMeta[] = [
     status: 'budding',
     outgoingLinks: [],
     readingTime: 1,
+    outgoingHrefs: [],
   },
 ];
 

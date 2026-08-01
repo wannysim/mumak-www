@@ -3,6 +3,8 @@ title: 'Expo Social Login (3/3) — Backend Integration: OIDC, nonce, and Apple 
 date: '2026-06-15'
 description: 'Wiring the token to the backend brought struggles in concepts (OIDC/nonce) and inside the build (entitlement). The real culprit behind Apple Code 1000 is revealed here too'
 tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
+series: 'Expo Social Login'
+part: 3
 draft: false
 ---
 
@@ -11,10 +13,6 @@ In [Part 2](/en/blog/articles/expo-social-login-build) I got to a token via the 
 Part 3 is the record of wiring backend authentication (Phase B) onto that skeleton.
 This time I struggled not outside the code, but in the concepts (OIDC/nonce) and inside the build (entitlement).
 And the real culprit behind the Apple `Code 1000` I'd concluded was "the simulator can't be trusted" in Part 2 is revealed here.
-
-- [Part 1 — Design: from picking a package to a provider-agnostic skeleton](/en/blog/articles/expo-social-login)
-- [Part 2 — Build and device: getting to a token](/en/blog/articles/expo-social-login-build)
-- **Part 3 (this post)** — Backend integration: OIDC, nonce, and Apple Code 1000
 
 The backend (NestJS) was a developer's local server, and the app connected to it through `EXPO_PUBLIC_API_BASE_URL` in `.env.local`.
 

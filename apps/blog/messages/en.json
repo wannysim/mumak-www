@@ -64,8 +64,18 @@
   },
   "post": {
     "readMore": "Read more",
-    "backToList": "Back to list",
-    "readingTimeUnit": " min"
+    "readingTimeUnit": " min",
+    "nextReading": "What to read next",
+    "moreInCategory": "More in {category}",
+    "nextInSeries": "Next in series",
+    "seriesProgress": "Part {current} of {total}",
+    "seriesPart": "Part {part}",
+    "linkDirection": {
+      "outgoing": "This post references",
+      "incoming": "References this post",
+      "bidirectional": "Mutual reference"
+    },
+    "tableOfContents": "On this page"
   },
   "tags": {
     "title": "Blog Tags",
