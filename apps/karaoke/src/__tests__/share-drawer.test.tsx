@@ -168,7 +168,7 @@ describe('ShareDrawer', () => {
     // turbo가 네이티브 디코더에서만 빠르다는 사실을 감추면 더 느린 선택지를 빠른 줄 알고 고른다.
     // 문구는 실측이 지지하는 만큼만 말한다 — jsQR 경로에서 turbo는 fast와 사실상 같으므로 "느리다"가 아니다.
     expect(screen.getByRole('radio', { name: /^고속/ })).toHaveAccessibleName(/빠르게보다 빠르지 않습니다/);
-    expect(screen.getByRole('radio', { name: /^최대/ })).toHaveAccessibleName(/큰 화면과 밝은 조명/);
+    expect(screen.getByRole('radio', { name: /^최대/ })).toHaveAccessibleName(/폰 화면에는 2장이 함께 들어가지 않아/);
     expect(screen.getByText(/QR 한 장이 초당 20회 바뀝니다/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('radio', { name: /^안정/ }));
