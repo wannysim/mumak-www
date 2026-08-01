@@ -26,13 +26,15 @@ describe('GraphToolbar', () => {
   });
 
   it('뒤로가기 버튼을 렌더링한다', () => {
-    render(<GraphToolbar locale="ko" />);
+    render(<GraphToolbar locale="ko" backLabel="뒤로 가기" />);
 
-    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
+    // 뒤로가기 이름은 하드코딩된 'Back'이 아니라 전달된 로케일 문구여야 한다.
+    expect(screen.getByRole('button', { name: '뒤로 가기' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
   });
 
   it('테마/언어 전환 버튼을 렌더링한다', () => {
-    render(<GraphToolbar locale="ko" />);
+    render(<GraphToolbar locale="ko" backLabel="뒤로 가기" />);
 
     expect(screen.getByTestId('theme-switcher')).toBeInTheDocument();
     expect(screen.getByTestId('locale-switcher')).toBeInTheDocument();
@@ -43,9 +45,9 @@ describe('GraphToolbar', () => {
     Object.defineProperty(document, 'referrer', { value: 'http://localhost:3002/ko', configurable: true });
 
     const user = userEvent.setup();
-    render(<GraphToolbar locale="ko" />);
+    render(<GraphToolbar locale="ko" backLabel="뒤로 가기" />);
 
-    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }));
 
     expect(mockBack).toHaveBeenCalled();
     expect(mockPush).not.toHaveBeenCalled();
@@ -56,7 +58,7 @@ describe('GraphToolbar', () => {
     Object.defineProperty(document, 'referrer', { value: '', configurable: true });
 
     const user = userEvent.setup();
-    render(<GraphToolbar locale="en" />);
+    render(<GraphToolbar locale="en" backLabel="Back" />);
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
 

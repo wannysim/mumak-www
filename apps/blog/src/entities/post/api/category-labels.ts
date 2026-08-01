@@ -7,7 +7,7 @@ import type { Category } from './posts';
 export const CATEGORY_LABELS: Record<Category, Record<Locale, string>> = {
   essay: { ko: '에세이', en: 'Essay' },
   articles: { ko: '아티클', en: 'Articles' },
-  notes: { ko: '노트', en: 'Notes' },
+  notes: { ko: '단상', en: 'Thoughts' },
 };
 
 export function getCategoryLabel(category: Category, locale: Locale): string {

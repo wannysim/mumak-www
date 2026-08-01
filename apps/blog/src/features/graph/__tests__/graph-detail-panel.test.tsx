@@ -32,10 +32,13 @@ const mockNode: GraphNode = {
 };
 
 const defaultLabels = {
+  description: 'Node detail panel',
+  close: 'Close',
   viewDetail: 'View detail',
   connections: 'connections',
   type: { note: 'Note', post: 'Post', tag: 'Tag', category: 'Category' },
   status: { seedling: 'Seedling', budding: 'Budding', evergreen: 'Evergreen' },
+  category: { essay: 'Essay' },
 };
 
 describe('GraphDetailPanel', () => {
@@ -56,6 +59,16 @@ describe('GraphDetailPanel', () => {
     expect(screen.getByText('Note')).toBeInTheDocument();
     expect(screen.getByText('Seedling')).toBeInTheDocument();
     expect(screen.getByText('A test note description')).toBeInTheDocument();
+  });
+
+  it('패널 설명과 닫기 문구를 labels에서 가져온다', () => {
+    const koLabels = { ...defaultLabels, description: '노드 상세 패널', close: '닫기' };
+
+    render(<GraphDetailPanel node={mockNode} open={true} onClose={jest.fn()} locale="ko" labels={koLabels} />);
+
+    expect(screen.getByText('노드 상세 패널')).toBeInTheDocument();
+    expect(screen.getByText('닫기')).toBeInTheDocument();
+    expect(screen.queryByText('Node detail panel')).not.toBeInTheDocument();
   });
 
   it('연결 수를 표시한다', () => {
@@ -87,7 +100,17 @@ describe('GraphDetailPanel', () => {
     expect(screen.queryByRole('link', { name: /View detail/i })).not.toBeInTheDocument();
   });
 
-  it('category가 있으면 category badge를 노출한다', () => {
+  it('category badge는 슬러그가 아니라 지역화된 분류 문구를 쓴다', () => {
+    const nodeWithCategory: GraphNode = { ...mockNode, category: 'essay' };
+    const koLabels = { ...defaultLabels, category: { essay: '에세이' } };
+
+    render(<GraphDetailPanel node={nodeWithCategory} open={true} onClose={jest.fn()} locale="ko" labels={koLabels} />);
+
+    expect(screen.getByText('에세이')).toBeInTheDocument();
+    expect(screen.queryByText('essay')).not.toBeInTheDocument();
+  });
+
+  it('labels에 없는 category는 슬러그를 그대로 노출한다', () => {
     const nodeWithCategory: GraphNode = { ...mockNode, category: 'projects' };
 
     render(
@@ -133,6 +156,15 @@ describe('GraphDetailPanel', () => {
 
       expect(screen.getByText('Test Note')).toBeInTheDocument();
       expect(screen.getByText('Note')).toBeInTheDocument();
+    });
+
+    it('Drawer도 설명·닫기 문구를 labels에서 가져온다', () => {
+      const koLabels = { ...defaultLabels, description: '노드 상세 패널', close: '닫기' };
+
+      render(<GraphDetailPanel node={mockNode} open={true} onClose={jest.fn()} locale="ko" labels={koLabels} />);
+
+      expect(screen.getByText('노드 상세 패널')).toBeInTheDocument();
+      expect(screen.getByText('닫기')).toBeInTheDocument();
     });
 
     it('open이 false이면 Drawer는 렌더되지 않는다', () => {

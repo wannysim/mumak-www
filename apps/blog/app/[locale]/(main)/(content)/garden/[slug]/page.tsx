@@ -123,7 +123,14 @@ export default async function NotePage({ params }: NotePageProps) {
         blockId: input.blockId,
       }),
   });
-  const transformedContent = transformWikilinks(note.content, { resolver, currentSlug: slug });
+  const transformedContent = transformWikilinks(note.content, {
+    resolver,
+    currentSlug: slug,
+    brokenNotice: {
+      link: tGarden('wikilink.missingNote'),
+      embed: (missingSlug: string) => tGarden('wikilink.missingEmbed', { slug: missingSlug }),
+    },
+  });
 
   // PARA 카테고리 단계를 breadcrumb에 포함해 블로그 상세(홈 > 블로그 > 카테고리 > 제목)와
   // 같은 깊이를 유지한다. Uncategorized('garden')는 카테고리 페이지가 없으므로 생략.

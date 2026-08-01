@@ -1,4 +1,5 @@
 import {
+  buildLegendEntries,
   CATEGORY_NODE_SIZE,
   getBackgroundColor,
   getCategoryColor,
@@ -108,6 +109,166 @@ describe('resolveNodeColor', () => {
   it('알 수 없는 타입은 tag 색상으로 폴백한다', () => {
     const unknown = { id: 'x', name: 'x', type: 'unknown', linkCount: 0, url: '' } as unknown as GraphNode;
     expect(resolveNodeColor(unknown, false)).toBe(getTagColor(false));
+  });
+});
+
+// 두 스와치가 "같은 색"으로 읽히지 않는지 보는 최소한의 기준. 정확한 지각 거리(CIEDE2000)
+// 대신 sRGB 유클리드 거리를 쓴다 — 예전 회색 충돌(68)과 오렌지/앰버 충돌(35)은 거르고
+// 현재 팔레트의 최소값(91)은 통과하는 구간이라 이 회귀를 잡기에 충분하다.
+const MIN_LEGEND_COLOR_DISTANCE = 80;
+
+const rgbDistance = (a: string, b: string): number => {
+  const channels = (hex: string) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const [ar, ag, ab] = channels(a) as [number, number, number];
+  const [br, bg, bb] = channels(b) as [number, number, number];
+  return Math.round(Math.hypot(ar - br, ag - bg, ab - bb));
+};
+
+describe('buildLegendEntries', () => {
+  it('같은 status/category 노드가 여러 개여도 행은 하나로 합쳐진다', () => {
+    const entries = buildLegendEntries(
+      [
+        node({ type: 'note', status: 'seedling' }),
+        node({ type: 'note', status: 'seedling' }),
+        node({ type: 'note', status: 'budding' }),
+      ],
+      false
+    );
+
+    expect(entries.map(e => e.key)).toEqual(['status:seedling', 'status:budding']);
+  });
+
+  it('데이터에 없는 status는 행을 만들지 않는다 (evergreen 0건)', () => {
+    const entries = buildLegendEntries([node({ type: 'note', status: 'seedling' }), node({ type: 'tag' })], false);
+
+    expect(entries.map(e => e.key)).not.toContain('status:evergreen');
+  });
+
+  it('각 행의 색은 캔버스와 같은 resolveNodeColor 결과와 일치한다', () => {
+    const nodes = [
+      node({ type: 'note', status: 'budding' }),
+      node({ type: 'post', category: 'essay' }),
+      node({ type: 'tag' }),
+      node({ type: 'category' }),
+    ];
+
+    for (const isDark of [false, true]) {
+      const byKey = new Map(buildLegendEntries(nodes, isDark).map(e => [e.key, e.color]));
+
+      expect(byKey.get('status:budding')).toBe(resolveNodeColor(nodes[0]!, isDark));
+      expect(byKey.get('category:essay')).toBe(resolveNodeColor(nodes[1]!, isDark));
+      expect(byKey.get('type:tag')).toBe(resolveNodeColor(nodes[2]!, isDark));
+      expect(byKey.get('type:category')).toBe(resolveNodeColor(nodes[3]!, isDark));
+    }
+  });
+
+  it('입력 순서와 무관하게 status → category → 구조 노드 순으로 정렬한다', () => {
+    const entries = buildLegendEntries(
+      [
+        node({ type: 'tag' }),
+        node({ type: 'post', category: 'articles' }),
+        node({ type: 'note', status: 'evergreen' }),
+        node({ type: 'note', status: 'seedling' }),
+      ],
+      false
+    );
+
+    expect(entries.map(e => e.key)).toEqual(['status:seedling', 'status:evergreen', 'category:articles', 'type:tag']);
+  });
+
+  it('알려지지 않은 카테고리도 누락되지 않고 뒤에 붙는다', () => {
+    const entries = buildLegendEntries(
+      [node({ type: 'post', category: 'zines' }), node({ type: 'post', category: 'essay' })],
+      false
+    );
+
+    expect(entries.map(e => e.key)).toEqual(['category:essay', 'category:zines']);
+  });
+
+  it('status/category가 없는 노드의 폴백 키가 resolveNodeColor 폴백과 일치한다', () => {
+    const noteWithoutStatus = node({ type: 'note' });
+    const postWithoutCategory = node({ type: 'post' });
+    const entries = buildLegendEntries([noteWithoutStatus, postWithoutCategory], true);
+
+    expect(entries.map(e => e.key)).toEqual(['status:seedling', 'category:notes']);
+    expect(entries[0]!.color).toBe(getNoteColor('seedling', true));
+    expect(entries[1]!.color).toBe(getPostColor('notes', true));
+  });
+
+  it('한 탭에 함께 뜨는 행들의 색이 눈으로 구분된다 (범례가 구분 불가능해지는 회귀 차단)', () => {
+    const gardenNodes = [
+      node({ type: 'note', status: 'seedling' }),
+      node({ type: 'note', status: 'budding' }),
+      node({ type: 'note', status: 'evergreen' }),
+      node({ type: 'tag' }),
+    ];
+    const blogNodes = [
+      node({ type: 'post', category: 'essay' }),
+      node({ type: 'post', category: 'articles' }),
+      node({ type: 'post', category: 'notes' }),
+      node({ type: 'category' }),
+      node({ type: 'tag' }),
+    ];
+
+    const tooClose: string[] = [];
+
+    for (const nodes of [gardenNodes, blogNodes]) {
+      for (const isDark of [false, true]) {
+        const entries = buildLegendEntries(nodes, isDark);
+
+        for (let i = 0; i < entries.length; i++) {
+          for (let j = i + 1; j < entries.length; j++) {
+            const a = entries[i]!;
+            const b = entries[j]!;
+            const distance = rgbDistance(a.color, b.color);
+            if (distance <= MIN_LEGEND_COLOR_DISTANCE) {
+              tooClose.push(`${isDark ? 'dark' : 'light'} ${a.key}(${a.color})/${b.key}(${b.color})=${distance}`);
+            }
+          }
+        }
+      }
+    }
+
+    expect(tooClose).toEqual([]);
+  });
+
+  it('모든 스와치가 캔버스 배경 대비 3:1을 넘는다 (WCAG 1.4.11 비텍스트 대비)', () => {
+    const channel = (v: number) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    const luminance = (hex: string) => {
+      const [r, g, b] = ([1, 3, 5] as const).map(i => channel(parseInt(hex.slice(i, i + 2), 16) / 255)) as [
+        number,
+        number,
+        number,
+      ];
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const contrast = (a: string, b: string) => {
+      const [hi, lo] = [luminance(a), luminance(b)].toSorted((x, y) => y - x) as [number, number];
+      return (hi + 0.05) / (lo + 0.05);
+    };
+
+    const allNodes = [
+      node({ type: 'note', status: 'seedling' }),
+      node({ type: 'note', status: 'budding' }),
+      node({ type: 'note', status: 'evergreen' }),
+      node({ type: 'post', category: 'essay' }),
+      node({ type: 'post', category: 'articles' }),
+      node({ type: 'post', category: 'notes' }),
+      node({ type: 'category' }),
+      node({ type: 'tag' }),
+    ];
+
+    const failures: string[] = [];
+
+    for (const isDark of [false, true]) {
+      const background = getBackgroundColor(isDark);
+      for (const entry of buildLegendEntries(allNodes, isDark)) {
+        const ratio = contrast(entry.color, background);
+        if (ratio < 3) failures.push(`${isDark ? 'dark' : 'light'} ${entry.key}(${entry.color})=${ratio.toFixed(2)}`);
+      }
+    }
+
+    expect(failures).toEqual([]);
   });
 });
 

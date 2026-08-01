@@ -16,6 +16,8 @@ jest.mock('next/navigation', () => ({
 
 // next/dynamic은 SSR 모듈을 비동기로 로드하므로 jest 환경에서는 sync 컴포넌트로 대체.
 // shouldCanvasCrash 플래그로 동일 컴포넌트가 ErrorBoundary 검증 시 throw하도록 분기.
+// canvasReady는 실제 GraphCanvas가 WebGL 지원 + 라이브러리 로드 완료일 때 올리는 신호라,
+// 노드를 렌더하는 이 mock은 항상 true를 보고한다(= 범례가 뜨는 조건).
 jest.mock('next/dynamic', () => () => {
   const Mock = ({
     data,
@@ -23,13 +25,21 @@ jest.mock('next/dynamic', () => () => {
     selectedNodeId,
     highlightNodeIds,
     unsupportedLabels,
+    onReadyChange,
   }: {
     data: GraphData;
     onNodeClick?: (node: GraphNode) => void;
     selectedNodeId?: string | null;
     highlightNodeIds?: Set<string>;
     unsupportedLabels: { title: string; description: string };
+    onReadyChange?: (ready: boolean) => void;
   }) => {
+    // 훅을 throw보다 먼저 호출한다. 렌더가 throw하면 effect는 flush되지 않으므로
+    // 크래시 분기에서 canvasReady가 올라가는 일도 없다.
+    // jest.mock 팩토리는 호이스팅되므로 모듈 스코프 import를 참조할 수 없다.
+    const React = require('react');
+    React.useEffect(() => onReadyChange?.(true), [onReadyChange]);
+
     if (shouldCanvasCrash) {
       throw new Error('GraphCanvas crashed');
     }
@@ -119,14 +129,16 @@ const gardenData: GraphData = {
 const blogData: GraphData = {
   nodes: [
     { id: 'post:hello', name: 'Hello', type: 'post', category: 'essay', linkCount: 0, url: '/blog/essay/hello' },
-    { id: 'cat:essay', name: 'essay', type: 'category', linkCount: 1, url: '' },
+    // 카테고리 노드의 name은 지역화된 표시 문구, id는 원문 슬러그를 유지한다.
+    { id: 'category:essay', name: 'Essay', type: 'category', linkCount: 1, url: '' },
   ],
-  links: [{ source: 'post:hello', target: 'cat:essay', type: 'category' }],
+  links: [{ source: 'post:hello', target: 'category:essay', type: 'category' }],
 };
 
 const labels: React.ComponentProps<typeof GraphView>['labels'] = {
   tabs: { garden: 'Garden', blog: 'Blog' },
   controls: {
+    back: 'Back',
     search: 'Search',
     filter: 'Filter',
     clearFilters: 'Clear',
@@ -136,10 +148,26 @@ const labels: React.ComponentProps<typeof GraphView>['labels'] = {
     categories: 'Categories',
   },
   panel: {
+    description: 'Node detail panel',
+    close: 'Close',
     viewDetail: 'View',
     connections: 'connections',
     type: { note: 'Note', post: 'Post', tag: 'Tag', category: 'Category' },
     status: { seedling: 'Seedling', budding: 'Budding', evergreen: 'Evergreen' },
+    category: { essay: 'Essay' },
+  },
+  legend: {
+    title: 'Legend',
+    hint: 'Click a node to see its details',
+    dismissHint: 'Dismiss hint',
+    sizeNote: 'Node size scales with connections',
+    items: {
+      'status:seedling': 'Seedling',
+      'status:evergreen': 'Evergreen',
+      'category:essay': 'Essay',
+      'type:category': 'Category',
+      'type:tag': 'Tag',
+    },
   },
   unsupported: { title: 'Unsupported', description: 'Use a desktop browser' },
   error: { title: 'Error', description: 'Something went wrong' },
@@ -148,6 +176,7 @@ const labels: React.ComponentProps<typeof GraphView>['labels'] = {
 describe('GraphView', () => {
   beforeEach(() => {
     mockUseSearchParams.mockReturnValue(new URLSearchParams());
+    localStorage.clear();
   });
 
   it('defaults to the garden tab and uses gardenData', () => {
@@ -178,6 +207,62 @@ describe('GraphView', () => {
 
     const canvas = screen.getByTestId('graph-canvas');
     expect(canvas).toHaveAttribute('data-highlight-ids', 'note:a');
+  });
+
+  // 카테고리 노드의 표시 이름이 지역화되면서 슬러그 검색이 죽지 않았는지 고정한다.
+  const localizedBlogData: GraphData = {
+    nodes: [
+      { id: 'post:hello', name: 'Hello', type: 'post', category: 'essay', linkCount: 1, url: '/blog/essay/hello' },
+      { id: 'category:essay', name: '에세이', type: 'category', linkCount: 1, url: '' },
+    ],
+    links: [{ source: 'post:hello', target: 'category:essay', type: 'category' }],
+  };
+
+  it('finds a localized category node by its display label', async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams('tab=blog'));
+    const user = userEvent.setup();
+
+    render(<GraphView gardenData={gardenData} blogData={localizedBlogData} locale="ko" labels={labels} />);
+
+    await user.type(screen.getByTestId('search-input'), '에세이');
+
+    expect(screen.getByTestId('graph-canvas')).toHaveAttribute('data-highlight-ids', 'category:essay');
+  });
+
+  it('still finds a localized category node by its raw slug', async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams('tab=blog'));
+    const user = userEvent.setup();
+
+    render(<GraphView gardenData={gardenData} blogData={localizedBlogData} locale="ko" labels={labels} />);
+
+    // 표시 이름이 '에세이'로 바뀌어도 URL·기존 동작의 슬러그 'essay'로 계속 찾을 수 있어야 한다.
+    await user.type(screen.getByTestId('search-input'), 'essay');
+
+    expect(screen.getByTestId('graph-canvas')).toHaveAttribute('data-highlight-ids', 'category:essay');
+  });
+
+  // 'go'는 'category:essay'의 'cate-go-ry'에 들어 있다. 슬러그 폴백이 id 전체를 보면
+  // 흔한 질의마다 카테고리 허브가 전부 오탐된다.
+  it.each(['go', 'cat', 'ory'])('does not match category hubs through the "category:" prefix (%s)', async query => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams('tab=blog'));
+    const user = userEvent.setup();
+
+    render(<GraphView gardenData={gardenData} blogData={localizedBlogData} locale="ko" labels={labels} />);
+
+    await user.type(screen.getByTestId('search-input'), query);
+
+    expect(screen.getByTestId('graph-canvas')).toHaveAttribute('data-highlight-ids', '');
+  });
+
+  it('does not match a whole node type through its id prefix', async () => {
+    const user = userEvent.setup();
+
+    render(<GraphView gardenData={gardenData} blogData={blogData} locale="en" labels={labels} />);
+
+    // 'note'는 note: 접두사를 가진 모든 노드의 id에 들어 있지만, 슬러그 폴백은 카테고리 노드 전용이다.
+    await user.type(screen.getByTestId('search-input'), 'note:');
+
+    expect(screen.getByTestId('graph-canvas')).toHaveAttribute('data-highlight-ids', '');
   });
 
   it('non-tag filters highlight only the matching nodes (no neighbour expansion)', async () => {
@@ -260,6 +345,53 @@ describe('GraphView', () => {
 
     // 빈 highlight 셋은 GraphCanvas로 undefined가 전달되도록 GraphView에서 가드 처리됨.
     expect(screen.getByTestId('graph-canvas')).toHaveAttribute('data-highlight-ids', '');
+  });
+
+  it('shows the first-visit hint alongside the legend when nothing is stored', () => {
+    render(<GraphView gardenData={gardenData} blogData={blogData} locale="en" labels={labels} />);
+
+    expect(screen.getByText(labels.legend.hint)).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Legend' })).toBeInTheDocument();
+  });
+
+  it('clicking a node retires the hint and remembers it', async () => {
+    const user = userEvent.setup();
+
+    render(<GraphView gardenData={gardenData} blogData={blogData} locale="en" labels={labels} />);
+
+    await user.click(screen.getByTestId('graph-node-note:a'));
+
+    expect(screen.queryByText(labels.legend.hint)).not.toBeInTheDocument();
+    expect(localStorage.getItem('graph-hint-seen')).toBe('1');
+  });
+
+  it('dismissing the hint keeps the legend rows visible', async () => {
+    const user = userEvent.setup();
+
+    render(<GraphView gardenData={gardenData} blogData={blogData} locale="en" labels={labels} />);
+
+    await user.click(screen.getByRole('button', { name: labels.legend.dismissHint }));
+
+    expect(screen.queryByText(labels.legend.hint)).not.toBeInTheDocument();
+    expect(screen.getByText('Seedling')).toBeInTheDocument();
+    expect(localStorage.getItem('graph-hint-seen')).toBe('1');
+  });
+
+  it('never shows the hint again once it is stored, but still renders the legend', () => {
+    localStorage.setItem('graph-hint-seen', '1');
+
+    render(<GraphView gardenData={gardenData} blogData={blogData} locale="en" labels={labels} />);
+
+    expect(screen.queryByText(labels.legend.hint)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('listitem').map(li => li.textContent)).toEqual(['Seedling', 'Evergreen', 'Tag']);
+  });
+
+  it('legend rows follow the active tab', () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams('tab=blog'));
+
+    render(<GraphView gardenData={gardenData} blogData={blogData} locale="en" labels={labels} />);
+
+    expect(screen.getAllByRole('listitem').map(li => li.textContent)).toEqual(['Essay', 'Category']);
   });
 
   it('renders both GraphTabs instances (desktop top + mobile bottom)', () => {

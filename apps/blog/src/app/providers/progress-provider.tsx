@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { usePathname, useSearchParams } from 'next/navigation';
 import * as React from 'react';
 
@@ -55,6 +56,8 @@ function isInternalNavigationClick(event: MouseEvent): boolean {
 }
 
 function PageTransitionBar({ phase, scale, reducedMotion }: { phase: Phase; scale: number; reducedMotion: boolean }) {
+  const t = useTranslations('common');
+
   if (phase === 'idle') return null;
 
   const isLoading = phase === 'loading';
@@ -78,7 +81,7 @@ function PageTransitionBar({ phase, scale, reducedMotion }: { phase: Phase; scal
         '[&::-webkit-progress-value]:bg-[var(--ring)] [&::-webkit-progress-value]:shadow-[0_0_8px_var(--ring),0_0_2px_var(--ring)] [&::-webkit-progress-value]:[transition:var(--ptb-value-transition)]',
         '[&::-moz-progress-bar]:bg-[var(--ring)] [&::-moz-progress-bar]:shadow-[0_0_8px_var(--ring),0_0_2px_var(--ring)] [&::-moz-progress-bar]:[transition:var(--ptb-value-transition)]'
       )}
-      aria-label="Page transition progress"
+      aria-label={t('pageTransitionProgress')}
       aria-hidden={phase === 'done'}
       value={scale}
       max={1}

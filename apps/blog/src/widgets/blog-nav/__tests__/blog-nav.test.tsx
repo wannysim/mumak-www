@@ -20,7 +20,7 @@ jest.mock('@/src/shared/config/i18n', () => ({
 const categoryLabels: Record<Category, string> = {
   essay: '에세이',
   articles: '아티클',
-  notes: '노트',
+  notes: '단상',
 };
 
 const renderNav = (props: Partial<Parameters<typeof BlogNav>[0]> = {}) =>
@@ -40,7 +40,7 @@ describe('BlogNav', () => {
     expect(screen.getByRole('link', { name: '전체' })).toHaveAttribute('href', '/blog');
     expect(screen.getByRole('link', { name: '에세이' })).toHaveAttribute('href', '/blog/essay');
     expect(screen.getByRole('link', { name: '아티클' })).toHaveAttribute('href', '/blog/articles');
-    expect(screen.getByRole('link', { name: '노트' })).toHaveAttribute('href', '/blog/notes');
+    expect(screen.getByRole('link', { name: '단상' })).toHaveAttribute('href', '/blog/notes');
     expect(screen.getByRole('link', { name: /태그/ })).toHaveAttribute('href', '/blog/tags');
   });
 
@@ -56,7 +56,7 @@ describe('BlogNav', () => {
   it.each([
     ['essay', '에세이', '/blog/essay'],
     ['articles', '아티클', '/blog/articles'],
-    ['notes', '노트', '/blog/notes'],
+    ['notes', '단상', '/blog/notes'],
   ] as const)('marks %s active when pathname is %s', (_cat, label, pathname) => {
     mockUsePathname.mockReturnValue(pathname);
 

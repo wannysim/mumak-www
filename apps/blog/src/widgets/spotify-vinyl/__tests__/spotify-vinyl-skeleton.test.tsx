@@ -14,9 +14,10 @@ describe('SpotifyVinylSkeleton', () => {
 
     const { container } = render(<SpotifyVinylSkeleton />);
 
-    // Check wrapper
+    // Check wrapper. 이 클래스 목록은 spotify-vinyl.tsx 루트와 같아야 한다 —
+    // 한쪽만 바꾸면 로딩→로드 전환에서 레이아웃이 점프하므로 이 단언이 깨져야 한다.
     const wrapper = container.firstChild as HTMLElement;
-    expect(wrapper).toHaveClass('w-full', 'max-w-md', 'p-4');
+    expect(wrapper).toHaveClass('w-full', 'max-w-md', 'md:p-4');
   });
 
   it('should render LP disc skeleton', async () => {

@@ -63,3 +63,20 @@ describe('mdxComponents.a', () => {
     expect(link).not.toHaveAttribute('data-i18n-link');
   });
 });
+
+const Blockquote = mdxComponents.blockquote as React.FC<{ children?: React.ReactNode }>;
+
+describe('mdxComponents.blockquote', () => {
+  it('renders quoted prose upright so Korean long-form stays legible', () => {
+    const { container } = render(
+      <Blockquote>
+        <p>한글 장문 인용은 합성 oblique로 렌더되므로 이탤릭을 쓰지 않는다.</p>
+      </Blockquote>
+    );
+
+    const quote = container.querySelector('blockquote') as HTMLElement;
+    expect(quote.className).not.toContain('italic');
+    expect(quote).toHaveClass('bg-muted');
+    expect(quote).toHaveClass('border-l-2');
+  });
+});

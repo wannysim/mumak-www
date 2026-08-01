@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { cn } from '@mumak/ui/lib/utils';
 
 import { useScrollProgress } from '@/src/shared/hooks';
@@ -15,6 +17,7 @@ interface ReadingProgressProps {
  */
 export function ReadingProgress({ className }: ReadingProgressProps) {
   const progress = useScrollProgress();
+  const t = useTranslations('common');
 
   return (
     <progress
@@ -30,7 +33,7 @@ export function ReadingProgress({ className }: ReadingProgressProps) {
       aria-valuenow={Math.round(progress)}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label="Reading progress"
+      aria-label={t('readingProgress')}
     />
   );
 }

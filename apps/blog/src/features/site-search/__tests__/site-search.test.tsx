@@ -85,7 +85,7 @@ const index: SearchIndex = {
   notes: [{ title: 'Garden Note', excerpt: 'a note', slug: 'garden-note', tags: ['idea'] }],
 };
 
-const categoryLabels = { essay: '에세이', articles: '아티클', notes: '노트' };
+const categoryLabels = { essay: '에세이', articles: '아티클', notes: '단상' };
 
 function renderSearch() {
   return render(<SiteSearch categoryLabels={categoryLabels} />);

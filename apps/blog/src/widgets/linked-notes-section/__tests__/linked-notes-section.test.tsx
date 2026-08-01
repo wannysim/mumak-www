@@ -65,7 +65,7 @@ describe('LinkedNotesSection', () => {
     expect(screen.getByRole('button', { name: '연결된 노트 (2)' })).toBeInTheDocument();
   });
 
-  it('기본 상태는 접혀 있고 클릭하면 목록이 펼쳐진다', async () => {
+  it('기본 상태는 펼쳐져 있고 클릭하면 접힌다', async () => {
     const user = userEvent.setup();
 
     render(
@@ -76,23 +76,19 @@ describe('LinkedNotesSection', () => {
       />
     );
 
-    expect(screen.queryByRole('link', { name: '시라트' })).not.toBeInTheDocument();
-
     const trigger = screen.getByRole('button', { name: '연결된 노트 (2)' });
-    expect(trigger).toHaveAttribute('aria-expanded', 'false');
-
-    await user.click(trigger);
-
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('link', { name: '시라트' })).toBeVisible();
     expect(screen.getByRole('link', { name: '루카' })).toBeVisible();
     expect(screen.getByText('서로 참조')).toBeInTheDocument();
     expect(screen.getByText('이 노트가 참조')).toBeInTheDocument();
+
+    await user.click(trigger);
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('펼친 후 링크 경로를 유지한다', async () => {
-    const user = userEvent.setup();
-
+  it('링크 경로를 유지한다', () => {
     render(
       <LinkedNotesSection
         linkedNotes={mockLinkedNotes}
@@ -104,8 +100,6 @@ describe('LinkedNotesSection', () => {
         }}
       />
     );
-
-    await user.click(screen.getByRole('button', { name: 'Linked Notes (2)' }));
 
     expect(screen.getByRole('link', { name: '시라트' })).toHaveAttribute('href', '/garden/sirat');
     expect(screen.getByRole('link', { name: '루카' })).toHaveAttribute('href', '/garden/luca');

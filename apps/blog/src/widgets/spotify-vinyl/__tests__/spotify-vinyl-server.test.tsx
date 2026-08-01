@@ -4,6 +4,10 @@ import type { NowPlaying } from '@/src/entities/spotify';
 
 import '@testing-library/jest-dom';
 
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 // next/cache mock (cacheLife 등 서버 전용 API)
 jest.mock('next/cache', () => ({
   cacheLife: jest.fn(),

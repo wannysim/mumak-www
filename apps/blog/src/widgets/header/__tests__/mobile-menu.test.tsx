@@ -4,6 +4,10 @@ import { MobileMenu } from '../ui/mobile-menu';
 
 import '@testing-library/jest-dom';
 
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 const mockUsePathname = jest.fn(() => '/');
 
 jest.mock('@/src/shared/config/i18n', () => ({
@@ -34,7 +38,7 @@ describe('MobileMenu', () => {
 
   it('should render trigger button', () => {
     render(<MobileMenu items={items} />);
-    expect(screen.getByRole('button', { name: 'Open navigation' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'openNavigation' })).toBeInTheDocument();
   });
 
   it('should render links in sheet content', () => {

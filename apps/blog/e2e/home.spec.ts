@@ -10,7 +10,8 @@ test.describe('Home Page', () => {
     // 로고 링크 확인 (Navigation에 있는 "Wan Sim" 텍스트)
     await expect(page.getByRole('link', { name: 'Wan Sim' })).toBeVisible();
 
-    const introText = await page.locator('p.text-lg').first().textContent();
+    // 인트로 3문장은 모든 뷰포트에서 전부 노출된다(클램프·truncate 금지).
+    const introText = await page.locator('[data-slot="home-intro"]').textContent();
     expect(introText).toContain('글을 써보고 싶어서 만든 블로그입니다.');
     expect(introText).toContain('웹 기술과 사용자 경험에 관심이 많습니다.');
     expect(introText).toContain('사사로운 일상부터 개발자로서 고민한 흔적들을 기록하고자 합니다.');
@@ -119,7 +120,8 @@ test.describe('Home Page', () => {
     await expect(page.getByRole('link', { name: /Browse all \d+ posts/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /Browse all \d+ notes/ })).toBeVisible();
 
-    const introText = await page.locator('p.text-lg').first().textContent();
+    // 인트로 3문장은 모든 뷰포트에서 전부 노출된다(클램프·truncate 금지).
+    const introText = await page.locator('[data-slot="home-intro"]').textContent();
     expect(introText).toContain('Created this blog to write anything I want.');
     expect(introText).toContain("I'm interested in web technologies and user experience.");
     expect(introText).toContain("Gonna write about anything from daily life to developer's thoughts.");
@@ -139,4 +141,28 @@ test.describe('Home Page', () => {
     await page.waitForURL(new RegExp(href!.replace(/\//g, '\\/')));
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
+
+  // 히어로(인트로 + 바이닐 위젯)가 모바일 첫 화면을 통째로 먹으면 첫 카드가 fold 아래로 밀린다.
+  // 압축 전 대비 확보한 예산은 히어로 py(-32) + gap(-12) + space-y(-16) + h2 mb(-8) +
+  // 위젯 루트 패딩(-32) ≈ 100px이고, 인트로는 클램프하지 않으므로 en 기준 한 줄(26px)이
+  // 되돌아온다. 임계 545는 iPhone SE 가시영역(≈553px) 안에 카드 상단이 들어오는 선이다.
+  // 히어로 py/gap/space-y, 위젯 루트 패딩, h2 mb 중 하나라도 되돌아가면 이 값을 넘는다.
+  // 실패하면 임계값을 올리지 말고 어느 압축이 사라졌는지부터 찾을 것.
+  // en을 함께 도는 이유: en 인트로가 더 길어 먼저 깨진다.
+  for (const locale of ['ko', 'en'] as const) {
+    test(`should start the first content card within the first mobile screen (${locale})`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/${locale}`);
+
+      // 웹폰트 교체로 줄 수가 바뀌면 측정이 흔들리므로 폰트 로드를 기다린다.
+      await page.evaluate(() => document.fonts.ready.then(() => true));
+
+      const firstCard = page.locator('[data-slot="content-card"]').first();
+      await expect(firstCard).toBeVisible();
+
+      const box = await firstCard.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.y).toBeLessThan(545);
+    });
+  }
 });

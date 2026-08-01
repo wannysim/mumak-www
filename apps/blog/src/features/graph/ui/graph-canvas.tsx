@@ -22,6 +22,9 @@ interface GraphCanvasProps {
   selectedNodeId?: string | null;
   highlightNodeIds?: Set<string>;
   unsupportedLabels: UnsupportedLabels;
+  // 실제로 3D 캔버스를 그리고 있는지를 상위로 올린다. 범례·힌트처럼 "노드가 보인다"를
+  // 전제하는 오버레이가 미지원 폴백이나 로딩 스켈레톤 위에 뜨지 않게 하는 유일한 신호다.
+  onReadyChange?: (ready: boolean) => void;
 }
 
 function GraphUnsupported({ title, description }: UnsupportedLabels) {
@@ -50,12 +53,24 @@ type ForceGraphInstance = {
 
 type ForceGraphNode = GraphNode & { x?: number; y?: number; z?: number };
 
-function GraphCanvas({ data, onNodeClick, selectedNodeId, highlightNodeIds, unsupportedLabels }: GraphCanvasProps) {
+function GraphCanvas({
+  data,
+  onNodeClick,
+  selectedNodeId,
+  highlightNodeIds,
+  unsupportedLabels,
+  onReadyChange,
+}: GraphCanvasProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const fgRef = useRef<ForceGraphInstance | null>(null);
   const [containerRef, dimensions] = useElementSize({ width: 800, height: 600 });
   const { isSupported, libs } = useForceGraphLibs();
+  const isReady = isSupported && libs !== null;
+
+  useEffect(() => {
+    onReadyChange?.(isReady);
+  }, [isReady, onReadyChange]);
 
   useEffect(() => {
     const fg = fgRef.current;

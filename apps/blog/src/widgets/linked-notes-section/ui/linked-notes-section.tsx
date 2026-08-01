@@ -24,7 +24,8 @@ export function LinkedNotesSection({ linkedNotes, linkedNotesLabel, linkDirectio
 
   return (
     <section className="mt-12 pt-8 border-t border-border" data-linked-notes-section>
-      <Accordion type="single" collapsible data-testid="linked-notes-accordion">
+      {/* 백링크는 가든의 주 재방문 경로다. 기본으로 펼쳐두고 접기만 선택으로 남긴다. */}
+      <Accordion type="single" collapsible defaultValue="linked-notes" data-testid="linked-notes-accordion">
         <AccordionItem value="linked-notes" className="border-b-0">
           <AccordionTrigger className="py-0 text-lg font-semibold hover:no-underline">
             {linkedNotesLabel} ({linkedNotes.length})
@@ -39,7 +40,12 @@ export function LinkedNotesSection({ linkedNotes, linkedNotesLabel, linkDirectio
                   >
                     {directionIcons[linkedNote.direction]}
                   </span>
-                  <Link href={`/garden/${linkedNote.slug}`} className="text-primary hover:underline underline-offset-4">
+                  {/* 본문 MDX 링크·위키링크와 같은 토큰. text-primary는 라이트에서 3.48:1이라
+                      AA 미달이라 사이트 전체가 accent-foreground(7.92:1 / 11.58:1)를 쓴다. */}
+                  <Link
+                    href={`/garden/${linkedNote.slug}`}
+                    className="text-accent-foreground hover:underline underline-offset-4"
+                  >
                     {linkedNote.title}
                   </Link>
                   <span className="text-xs text-muted-foreground">{linkDirectionLabels[linkedNote.direction]}</span>
