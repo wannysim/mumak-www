@@ -17,7 +17,7 @@ export interface PostMeta {
   date: string;
   updated?: string;
   description: string;
-  category: string;
+  category: Category;
   tags?: string[];
   draft?: boolean;
   readingTime: number;
@@ -64,7 +64,7 @@ export function calculateWordCount(content: string): number {
   return koreanChars + words;
 }
 
-function toPostMeta(filePath: string, slug: string, category: string): PostMeta {
+function toPostMeta(filePath: string, slug: string, category: Category): PostMeta {
   const { frontmatter, content } = parseMdxFile(filePath, PostFrontmatterSchema);
 
   return {
@@ -133,7 +133,7 @@ function getPostUncached(locale: Locale, category: string, slug: string): Post |
 }
 
 function getAllPostSlugsUncached(locale: Locale): Array<{
-  category: string;
+  category: Category;
   slug: string;
 }> {
   return getPosts(locale).map(({ category, slug }) => ({ category, slug }));

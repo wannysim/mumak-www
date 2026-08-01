@@ -6,12 +6,20 @@ import { Suspense } from 'react';
 
 import { mdxComponents } from '@/mdx-components';
 import { buildAlternates, generateBlogPostingJsonLd, generateBreadcrumbJsonLd, JsonLdScript } from '@/src/app/seo';
-import { calculateWordCount, getAllPostSlugs, getCategoryLabel, getPost, isValidCategory } from '@/src/entities/post';
-import { Link, locales, type Locale } from '@/src/shared/config/i18n';
+import {
+  calculateWordCount,
+  getAllPostSlugs,
+  getCategoryLabel,
+  getPost,
+  getRelatedPosts,
+  isValidCategory,
+} from '@/src/entities/post';
+import { locales, type Locale } from '@/src/shared/config/i18n';
 import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
 import { Breadcrumbs } from '@/src/shared/ui';
 import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
+import { NextReading } from '@/src/widgets/next-reading';
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
@@ -146,11 +154,7 @@ export default async function PostPage({ params }: PostPageProps) {
         </div>
       </article>
 
-      <nav className="mt-12 pt-8 border-t border-border">
-        <Link href={`/blog/${category}`} className="text-sm font-medium hover:underline">
-          ← {tPost('backToList')}
-        </Link>
-      </nav>
+      <NextReading posts={getRelatedPosts(locale as Locale, post.meta)} locale={locale as Locale} category={category} />
     </div>
   );
 }

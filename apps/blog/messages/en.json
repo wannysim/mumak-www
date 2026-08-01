@@ -64,8 +64,9 @@
   },
   "post": {
     "readMore": "Read more",
-    "backToList": "Back to list",
-    "readingTimeUnit": " min"
+    "readingTimeUnit": " min",
+    "nextReading": "What to read next",
+    "moreInCategory": "More in {category}"
   },
   "tags": {
     "title": "Blog Tags",

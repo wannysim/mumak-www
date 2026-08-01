@@ -8,5 +8,6 @@ export {
   getPosts,
   isValidCategory,
 } from './api/posts';
+export { getRelatedPosts } from './api/related';
 export { toPostDocumentMarkdown, toPostContentHtml } from './api/markdown';
 export { CATEGORY_LABELS, getCategoryLabel } from './api/category-labels';

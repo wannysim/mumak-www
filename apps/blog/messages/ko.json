@@ -64,8 +64,9 @@
   },
   "post": {
     "readMore": "더 읽기",
-    "backToList": "목록으로 돌아가기",
-    "readingTimeUnit": "분"
+    "readingTimeUnit": "분",
+    "nextReading": "다음 읽을거리",
+    "moreInCategory": "{category} 더 보기"
   },
   "tags": {
     "title": "블로그 태그",

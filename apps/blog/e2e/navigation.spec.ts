@@ -344,8 +344,18 @@ test.describe('Navigation', () => {
     test('should navigate back to list from post detail', async ({ page }) => {
       await page.goto('/ko/blog/essay/first');
 
-      await page.getByRole('link', { name: '목록으로 돌아가기' }).click();
+      await page.getByRole('link', { name: /에세이 더 보기/ }).click();
       await page.waitForURL(/\/ko\/blog\/essay$/);
+    });
+
+    test('should navigate to a suggested post from the next-reading block', async ({ page }) => {
+      await page.goto('/ko/blog/essay/first');
+
+      const suggestion = page.locator('[data-slot="next-reading"] [data-slot="content-card-link"]').first();
+      await expect(suggestion).toBeVisible();
+      await Promise.all([page.waitForURL(/\/ko\/blog\/.+\/.+/), suggestion.click()]);
+
+      await expect(page.getByRole('article')).toBeVisible();
     });
   });
 

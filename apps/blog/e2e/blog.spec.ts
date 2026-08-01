@@ -84,10 +84,20 @@ test.describe('Blog - Category and Post Pages', () => {
       await expect(page.getByRole('heading', { name: '나는 글 쓰는 걸 좋아한다' })).toBeVisible();
     });
 
-    test('should display back to list link', async ({ page }) => {
+    test('should end with a next-reading block instead of a bare back link', async ({ page }) => {
       await page.goto('/ko/blog/essay/first');
 
-      const backLink = page.getByRole('link', { name: '목록으로 돌아가기' });
+      const nextReading = page.locator('[data-slot="next-reading"]');
+      await expect(nextReading.getByRole('heading', { level: 2, name: '다음 읽을거리' })).toBeVisible();
+
+      // 이어 읽을 글이 실제 포스트 링크로 제안된다.
+      await expect(nextReading.locator('a[href^="/ko/blog/"]').first()).toBeVisible();
+    });
+
+    test('should keep a secondary link back to the category list', async ({ page }) => {
+      await page.goto('/ko/blog/essay/first');
+
+      const backLink = page.getByRole('link', { name: /에세이 더 보기/ });
       await expect(backLink).toBeVisible();
 
       await backLink.click();
