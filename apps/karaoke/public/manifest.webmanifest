@@ -1,7 +1,7 @@
 {
-  "name": "Vaundy 노래방",
+  "name": "노래방",
   "short_name": "노래방",
-  "description": "Vaundy 곡을 일본어·발음·번역 가사와 함께 따라 부르는 모바일 노래방",
+  "description": "좋아하는 곡을 일본어·발음·번역 가사와 함께 따라 부르는 모바일 노래방",
   "lang": "ko",
   "start_url": "/",
   "scope": "/",
