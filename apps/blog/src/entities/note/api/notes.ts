@@ -50,12 +50,18 @@ function getGardenPath(locale: Locale): string {
 }
 
 function cleanupInlineMarkdown(text: string): string {
-  return text
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .trim();
+  return (
+    text
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      // 위키링크는 excerpt/heading 텍스트에서 표시 텍스트만 남긴다. 렌더된 본문에서는 rehype가
+      // 링크로 바꾸지만, 발췌는 원문에서 뽑기 때문에 여기서 걷지 않으면 카드에 [[slug|label]]이
+      // 그대로 노출된다.
+      .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, slug: string, label?: string) => label ?? slug)
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .trim()
+  );
 }
 
 const BLOCK_MARKER_REGEX = /(?:^|\s)\^([A-Za-z0-9][\w-]*)\s*$/;

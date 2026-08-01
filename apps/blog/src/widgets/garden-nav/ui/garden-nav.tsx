@@ -18,9 +18,15 @@ interface GardenNavProps {
 export function GardenNav({ allLabel, statusLabels, tagsLabel, counts }: GardenNavProps) {
   const pathname = usePathname();
 
+  // 노트가 없는 성장 단계는 세그먼트에서 감춘다. "상록수 0"처럼 빈 목록으로만 이어지는
+  // 항목이 nav 자리를 차지하면, 없는 편집 관행을 광고하는 셈이 된다. 라우트 자체는 살아
+  // 있으므로 직접 링크는 계속 열리고, 현재 보고 있는 단계는 0건이어도 계속 보여준다.
+  const isSegmentVisible = (status: NoteStatus) =>
+    counts?.[status] === undefined || counts[status] > 0 || pathname === `/garden/status/${status}`;
+
   const items: ContentSegmentNavItem[] = [
     { key: 'all', href: '/garden', label: allLabel, active: pathname === '/garden', count: counts?.all },
-    ...STATUSES.map(status => ({
+    ...STATUSES.filter(isSegmentVisible).map(status => ({
       key: status,
       href: `/garden/status/${status}`,
       label: statusLabels[status],

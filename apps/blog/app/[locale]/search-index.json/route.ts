@@ -1,6 +1,7 @@
+import { getNotes } from '@/src/entities/note';
 import { getPosts } from '@/src/entities/post';
 import { isValidLocale, locales, type Locale } from '@/src/shared/config/i18n';
-import { type SearchIndex, type SearchIndexPost } from '@/src/shared/lib/search';
+import { type SearchIndex, type SearchIndexNote, type SearchIndexPost } from '@/src/shared/lib/search';
 
 // 빌드 타임 정적 생성 (sitemap/feed와 동일하게 SSG). 검색창을 열 때만 클라이언트가 1회 fetch한다.
 export const dynamic = 'force-static';
@@ -17,8 +18,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ loc
     return new Response('Not Found', { status: 404 });
   }
 
-  // getPosts는 draft 노출 정책(E2E_INCLUDE_DRAFT 포함)을 이미 적용한다. 인덱스도 같은 소스를
-  // 쓰므로 페이지 목록과 검색 인덱스의 노출 범위가 자동으로 일치한다.
+  // getPosts/getNotes는 draft 노출 정책(E2E_INCLUDE_DRAFT 포함)을 이미 적용한다. 인덱스도 같은
+  // 소스를 쓰므로 페이지 목록과 검색 인덱스의 노출 범위가 자동으로 일치한다.
   const posts: SearchIndexPost[] = getPosts(locale as Locale).map(post => ({
     title: post.title,
     description: post.description,
@@ -27,7 +28,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ loc
     tags: post.tags ?? [],
   }));
 
-  const index: SearchIndex = { posts };
+  const notes: SearchIndexNote[] = getNotes(locale as Locale).map(note => ({
+    title: note.title,
+    excerpt: note.excerpt ?? '',
+    slug: note.slug,
+    tags: note.tags ?? [],
+  }));
+
+  const index: SearchIndex = { posts, notes };
 
   return Response.json(index, {
     headers: {

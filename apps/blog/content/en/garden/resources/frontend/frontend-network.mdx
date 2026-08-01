@@ -1,6 +1,7 @@
 ---
 title: 'Networking and Web Security'
 created: '2026-06-05'
+updated: '2026-07-31'
 status: 'seedling'
 parent: 'frontend'
 tags: ['frontend', 'network', 'security']
@@ -23,6 +24,8 @@ This is a collection of notes covering everything that happens from the moment y
 - [[web-auth-session-vs-token|Web Authentication: How Sessions and Tokens Solve the Same Problem Differently]]
 - [[access-refresh-token-pattern|Access + Refresh Tokens: Why You Stay Logged In Across a Refresh]]
 - [[mobile-social-login-refresh-token-design|Mobile Social Login and Refresh Token Design: idToken proves identity, refreshToken keeps our session alive]]
+- [[keep-alive-timeout-ordering|Keep-Alive Timeout Ordering: Why the Server Behind Must Wait Longer]]
+- [[tcp-retransmission-timeout|TCP Retransmission Timeout (RTO): What That Unanswered One Second Is]]
 
 ## Suggested Reading Order
 
@@ -33,3 +36,5 @@ To grasp authentication from the ground up, first establish the essence of the t
 then build on it with the Access + Refresh token pattern for the real-world implementation (the memory + httpOnly combo).
 For OAuth/OIDC, read state first to understand callback binding, then compare Authorization Code and ID Token, then read nonce to understand how the ID Token itself is bound to the request.
 For mobile social login, separate the provider idToken's job from our service refreshToken's job.
+If production troubleshooting interests you, read keep-alive timeout ordering to establish the connection-reuse rules behind a load balancer,
+then TCP retransmission timeout to develop the instinct that an error's duration is a fingerprint.

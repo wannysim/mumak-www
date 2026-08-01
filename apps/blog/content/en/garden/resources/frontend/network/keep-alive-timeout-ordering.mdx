@@ -1,0 +1,96 @@
+---
+title: 'Keep-Alive Timeout Ordering: Why the Server Behind Must Wait Longer'
+created: '2026-07-31'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['network', 'http', 'tcp', 'infra', 'load-balancer', 'nodejs']
+---
+
+Put a Node server behind a load balancer and you can get intermittent 502s without anyone touching a single setting. Node's keep-alive default (5 seconds) and ALB's idle timeout default (60 seconds) are **misaligned in exactly the wrong direction**. This note is what I distilled after tracing sporadic production 502s caused by this combination.
+
+> One-line summary: **An idle keep-alive connection must never be closed first by the receiving side (behind) — only by the side that decides to reuse it (in front). Make the backend's idle timeout longer than every hop in front of it: for Node, `keepAliveTimeout = ALB idle + 5s`, and `headersTimeout` one second above that.**
+
+## Why does keep-alive exist?
+
+Every HTTP request carries invisible setup cost: a TCP 3-way handshake, plus TLS negotiation on top. Repeating that per request multiplies round-trip latency.
+
+- **Without keep-alive** — dial the phone, say one sentence, hang up. Every sentence pays the dialing cost.
+- **With keep-alive** — dial once, keep the call open, exchange many sentences.
+
+So a **connection pool** lives between the load balancer and the backend, and any user's request rides on an already-open connection.
+
+## The problem: both sides independently decide when to hang up
+
+A connection that is "just holding the line" consumes resources, so eventually someone hangs up. The catch: there is a timer **on each side**.
+
+| Party            | Setting                        | Default |
+| ---------------- | ------------------------------ | ------- |
+| Node HTTP server | `server.keepAliveTimeout`      | **5s**  |
+| AWS ALB          | `idle_timeout.timeout_seconds` | **60s** |
+
+The actual lifetime of an idle connection is `min(front, back)`. But the failure isn't about lifetime — it's about **who hangs up first**.
+
+## Why does the back side hanging up first cause accidents?
+
+The side that decides to **reuse** a connection is the front (the ALB). If the back (the server) closes first, there's a brief window before the front learns about it. If the ALB loads a new request onto the dead connection inside that window:
+
+```
+Server: idle 5s elapsed → closes the connection (FIN)
+ALB:    doesn't know yet → sends a request on that connection
+        → nobody is listening → failure confirmed → ALB fabricates a 502
+```
+
+This 502 has nasty properties:
+
+- **The server never received the request.** No trace in server logs or APM. A "502 with no server logs" is this pattern's signature.
+- **The ALB does not retry a request it already sent.** A POST executed twice could be dangerous (non-idempotent), so it just returns 502.
+- **It's probabilistic.** It only fires when your request happens to land on a connection that sat idle past 5 seconds. It resists reproduction, and a retry succeeds.
+- Failure often takes **~1 second** — a packet sent into a dead connection gets no reply, and TCP's initial retransmission timeout is one second ([[tcp-retransmission-timeout]]).
+
+Conversely, **if the front closes first, nothing happens.** The ALB removes connections it closed from its reuse pool, so a request can never land on a dead one.
+
+## The rule: a timeout pyramid
+
+Everything converges on one principle: **idle timeouts must grow as you move backward along the chain.**
+
+```
+CDN (e.g. CloudFront)  <  ALB (60s)  <  Node server (65s)
+        front               middle           back
+```
+
+If every hop guarantees "the one behind me waits longer than I do," idle connections always get cleaned up from the front, and the race is structurally impossible. AWS's official guidance says the same: keep the target's keep-alive timeout above the ALB idle timeout.
+
+The standard Node setup:
+
+```ts
+const server = app.listen(port);
+server.keepAliveTimeout = 65_000; // ALB idle (60s) + 5s margin
+server.headersTimeout = 66_000; // rule: always above keepAliveTimeout
+```
+
+## Why raise headersTimeout together?
+
+Node measures the **header-arrival time** of a request that lands during keep-alive waiting against `headersTimeout` (default 60s). Raise only `keepAliveTimeout` and you invert the pair — `keepAlive(65s) > headers(60s)` — and the same class of premature cutoff comes back through another door. **Always raise them as a pair.**
+
+## "Isn't a long value risky?"
+
+Set it to 65 or 185 seconds — the real cost is negligible either way, because **the actual idle lifetime is governed by `min(front, back)` — i.e., the ALB's value**. The server-side number is a safety pin that says "I won't hang up first," not a promise to hold connections that long.
+
+- If only the load balancer can reach the server (security groups), idle socket count is bounded by the LB's pool — tens per task, each a file descriptor plus a few KB.
+- ALB picks a target **per request**, so long-lived connections don't skew load balancing.
+- One real caveat: when several ingresses share one ALB via an **ingress group**, an `idle_timeout` attribute set by any member applies to the whole ALB. Don't assume "our manifest doesn't set it, so it's 60s" — measure the effective value, then go above it.
+
+## There is no formula for the "optimal" value
+
+You can't compute it from traffic or user count. This is not a capacity knob; it's an **ordering constraint**.
+
+1. Measure the effective idle timeout of the hop in front (`aws elbv2 describe-load-balancer-attributes`).
+2. Back hop = that value + 5s.
+3. `headersTimeout` = that value + 1s.
+4. Done. As long as the ordering holds, the absolute numbers don't matter.
+
+## Related notes
+
+- [[tcp-retransmission-timeout|TCP Retransmission Timeout (RTO): What That Unanswered One Second Is]] — why this race's 502s take ~1s to fail
+- [[http-versions]] — the context in which keep-alive became HTTP/1.1's default
+- [[url-to-pixels]] — the full picture of per-request setup cost (TCP·TLS)

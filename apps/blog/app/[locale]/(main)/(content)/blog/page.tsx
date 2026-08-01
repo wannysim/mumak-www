@@ -7,7 +7,6 @@ import { getCategories, getPosts, type Category } from '@/src/entities/post';
 import { type Locale } from '@/src/shared/config/i18n';
 import { ArrowLink, PageHeader } from '@/src/shared/ui';
 import { BlogNav, getBlogNavCounts } from '@/src/widgets/blog-nav';
-import { BlogSearch } from '@/src/widgets/blog-search';
 import { PostCard } from '@/src/widgets/post-card';
 
 interface BlogPageProps {
@@ -52,15 +51,12 @@ export default async function BlogPage({ params }: BlogPageProps) {
         </ArrowLink>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <BlogNav
-          allLabel={tCommon('all')}
-          categoryLabels={categoryLabels}
-          tagsLabel={tCommon('tags')}
-          counts={getBlogNavCounts(locale as Locale)}
-        />
-        <BlogSearch categoryLabels={categoryLabels} triggerClassName="sm:w-72" />
-      </div>
+      <BlogNav
+        allLabel={tCommon('all')}
+        categoryLabels={categoryLabels}
+        tagsLabel={tCommon('tags')}
+        counts={getBlogNavCounts(locale as Locale)}
+      />
 
       <section className="space-y-6">
         {posts.length === 0 ? (

@@ -170,14 +170,20 @@ Blog와 Garden은 같은 사이트의 sibling 섹션이다. 두 섹션의 대응
 
 | 영역          | Blog                                  | Garden                                          | 공유 방식                         |
 | ------------- | ------------------------------------- | ----------------------------------------------- | --------------------------------- |
-| index 골격    | header → nav + 검색 → 카드 리스트     | header → nav → PARA overview → 최신 노트 리스트 | `PageHeader` + `ContentCard`      |
+| index 골격    | header → nav → 카드 리스트            | header → PARA overview → nav → 최신 노트 리스트 | `PageHeader` + `ContentCard`      |
 | 페이지 헤더   | `PageHeader`                          | `PageHeader`                                    | `PageHeader` (`shared/ui`)        |
 | segmented nav | `BlogNav` (전체/카테고리/태그)        | `GardenNav` (전체/status/태그)                  | `ContentSegmentNav` (`shared/ui`) |
 | 분류 진입점   | BlogNav 카테고리 → `/blog/[category]` | PARA overview 카드 → `/garden/category/[key]`   | "분류 클릭 → 필터된 카드 리스트"  |
 | 카드          | `PostCard`                            | `NoteCard` (excerpt 포함)                       | `ContentCard` shell (`shared/ui`) |
 | 상세 페이지   | `max-w-3xl` + `prose` + MDX           | `max-w-3xl` + `prose` + MDX                     | 동일 레이아웃 패턴 유지           |
-| 검색          | nav row 우측 `SearchTrigger`          | sidebar 내부 `SearchTrigger`                    | `SearchPalette` / `SearchTrigger` |
+| 검색          | 헤더 전역 팔레트 (섹션 검색창 없음)   | 헤더 전역 팔레트 (섹션 검색창 없음)             | `features/site-search`            |
 
+- 검색은 섹션별 진입점이 아니라 헤더의 단일 전역 팔레트(`features/site-search`)가 담당한다. 글과 노트를 한 인덱스(`/{locale}/search-index.json`의 `posts` + `notes`)에서 함께 찾고, `/blog`·`/garden` 안에서 열면 해당 섹션으로 프리필터된 뒤 "전체에서 검색"으로 넓힌다. 헤더는 모든 페이지에 있으므로 가든 레이아웃 payload에 의존할 수 없어서 노트도 정적 인덱스에 실린다. 섹션 화면에 검색창을 다시 추가하지 않는다.
+- 홈은 "최신 글"과 "최신 노트"(`widgets/garden-highlights`)를 같은 `h2` 위계의 대응 블록으로 유지한다. 홈에서 가든이 빠지면 콘텐츠 대부분이 내비게이션 라벨 하나 뒤에 숨는다.
+- 두 블록의 헤딩은 같은 축("최신 + 대상")으로 맞춘다. 한쪽만 장소("가든에서")나 다른 축으로 이름을 붙이면 똑같이 생긴 두 블록이 왜 갈렸는지 읽히지 않는다.
+- 성장 상태(`seedling`/`budding`/`evergreen`) 배지는 가든 내부 화면에서만 쓰고 홈에는 노출하지 않는다. 실제로 관리되는 축이 아니라서(evergreen 0) 홈에서 광고하면 없는 편집 관행을 약속하는 셈이 된다.
+- Garden index의 1순위 결정은 PARA 분류다. 그래서 index에서는 PARA overview가 `GardenNav`보다 먼저 오고, `GardenNav`는 자기가 걸러내는 "최신 노트" 목록 바로 위에 놓여 페이지 주 내비게이션이 아니라 그 목록의 필터로 읽힌다. status/tags 필터 페이지에서는 `GardenNav`가 그대로 최상단에 온다(그 화면에서는 실제로 주 컨트롤이다).
+- `GardenNav`는 노트가 0건인 status 세그먼트를 감춘다(현재 보고 있는 status는 예외). 라우트는 살아 있어서 직접 링크는 열리지만, 빈 목록으로만 이어지는 항목에 nav 자리를 주지 않는다.
 - Garden index와 category/status 페이지는 `GardenNav`를 공유한다. `GardenNav`의 세그먼트 축은 status이므로 `/garden/category/[key]`에서는 활성 세그먼트가 없다(분류축이 다른 의도된 차이). 카테고리 컨텍스트는 `PageHeader`(label + 설명)가 제공한다.
 - `/garden/category/[key]`의 PARA label은 사이드바와 동일하게 영어로 유지하고(`PARA_LABELS`), 설명은 `garden.categories.{key}.description`을 재사용한다.
 

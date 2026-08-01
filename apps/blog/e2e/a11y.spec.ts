@@ -70,13 +70,12 @@ test.describe('Accessibility (axe)', () => {
     expectNoViolations(await scan(page, { exclude: '.prose' }));
   });
 
-  test('garden search palette (dialog) has no WCAG A/AA violations', async ({ page }) => {
+  test('site search palette (dialog) has no WCAG A/AA violations', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/ko/garden');
 
-    const sidebar = page.locator('aside').filter({ hasText: 'PARA 가든' });
-    await sidebar.getByRole('button', { name: /노트 검색…/ }).click();
-    await expect(page.getByRole('dialog', { name: '노트 검색' })).toBeVisible();
+    await page.getByRole('button', { name: '사이트 검색' }).click();
+    await expect(page.getByRole('dialog', { name: '검색' })).toBeVisible();
 
     expectNoViolations(await scan(page));
   });

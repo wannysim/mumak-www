@@ -1,0 +1,49 @@
+---
+title: 'TCP Retransmission Timeout (RTO): What That Unanswered One Second Is'
+created: '2026-07-31'
+status: 'budding'
+parent: 'frontend-network'
+tags: ['network', 'tcp', 'debugging', 'infra']
+---
+
+While chasing production 502s I noticed an odd regularity. Some 502s failed instantly, in 20–240ms. Others took **a consistent 1.0–2.0 seconds**. That "around one second" was no coincidence — it's a number baked into the TCP spec, and it ended up being the **fingerprint that separated two different failures** using nothing but the error's duration.
+
+> One-line summary: **TCP retransmits data whose acknowledgment (ACK) never arrives, and the wait before the first retransmission — the initial RTO — is one second by standard. So failures of the "request sent into a dead connection" kind leave a ~1s signature. An instant failure (RST) and a one-second failure are different incidents.**
+
+## Why does TCP retransmit?
+
+TCP's core promise: data you send either arrives, or you're told it didn't. To keep it, the receiver acknowledges what it got (ACK), and the sender **resends anything unacknowledged**.
+
+The hard question is _how long to wait before resending_. Too short, and you spray duplicate packets onto a healthy network; too long, and loss recovery crawls. That waiting time is the **RTO (Retransmission TimeOut)**.
+
+## Where does the one second come from?
+
+Mid-connection, RTO is computed dynamically from measured round-trip times (SRTT plus variance, RFC 6298). But **when there's no RTT sample to lean on — or no response at all** — it falls back to the initial value.
+
+- **RFC 6298 §2.1** — recommends an initial RTO of **one second** (its predecessor RFC 1122 said 3s; faster networks brought it down)
+- **Linux kernel** — `TCP_TIMEOUT_INIT = 1 * HZ`, hardcoded one second
+- Repeated failures back off **exponentially**: 1s → 2s → 4s → 8s …
+
+So a failure where "the packet was sent and the peer silently vanished" has a time profile like: send → (silence) → **wait 1s** → retransmit → only then RST/error → failure confirmed. Just over one second total.
+
+## Instant failure vs one-second failure: a fingerprint
+
+The same 502 tells you what **kind** of incident it was, purely by how long it took to fail.
+
+| Duration                       | What happened at the low level                                     | Typical cause                                                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Tens–hundreds of ms**        | Peer **refused instantly with RST** on connect/send                | Process dead, port closed, task being replaced mid-deploy                                                                      |
+| **~1s (or a 1→2→4 staircase)** | Packet **silently dropped** → failure confirmed only after the RTO | Half-open connections, sending on a dead keep-alive connection ([[keep-alive-timeout-ordering]]), NAT/firewall that lost state |
+
+In the real case this distinction was decisive. Laying out 30 days of 502s by time, **the bursts clustered around deploys were all tens of milliseconds** (dying targets refusing instantly), while **the scattered singles in everyday traffic were all in the one-second band** (the idle keep-alive race). Duration alone carried the conclusion: two kinds of 502, two causes.
+
+## Using it while debugging
+
+- **Look at the latency distribution of errors first.** If instant / ~1s / multi-second clusters separate, that's a strong signal you have more than one cause.
+- When **"pretty" numbers like 1s, 2s, 4s** keep recurring, suspect the transport layer (TCP retransmission, kernel timers) rather than application code. App-level delays don't produce staircases this clean.
+- That said, without a packet capture this reasoning is circumstantial. However plausible "1s = RTO" looks, confirming it takes load-balancer access logs or tcpdump. Record which claims are circumstantial and which are confirmed — if the conclusion is later overturned, you'll know exactly how much still stands.
+
+## Related notes
+
+- [[keep-alive-timeout-ordering|Keep-Alive Timeout Ordering]] — the archetypal culprit behind the one-second signature
+- [[url-to-pixels]] — the request's full journey, starting from the TCP handshake
