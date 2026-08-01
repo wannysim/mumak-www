@@ -8,6 +8,7 @@ function post(overrides: Partial<PostMeta> & Pick<PostMeta, 'slug'>): PostMeta {
     description: '',
     category: 'articles',
     readingTime: 5,
+    outgoingHrefs: [],
     ...overrides,
   };
 }

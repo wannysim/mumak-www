@@ -29,6 +29,7 @@ function part(n: number): PostMeta {
     description: '',
     category: 'articles',
     readingTime: 5,
+    outgoingHrefs: [],
     series: 'Expo 소셜 로그인',
     part: n,
   };

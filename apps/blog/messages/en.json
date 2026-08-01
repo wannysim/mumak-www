@@ -69,7 +69,12 @@
     "moreInCategory": "More in {category}",
     "nextInSeries": "Next in series",
     "seriesProgress": "Part {current} of {total}",
-    "seriesPart": "Part {part}"
+    "seriesPart": "Part {part}",
+    "linkDirection": {
+      "outgoing": "This post references",
+      "incoming": "References this post",
+      "bidirectional": "Mutual reference"
+    }
   },
   "tags": {
     "title": "Blog Tags",

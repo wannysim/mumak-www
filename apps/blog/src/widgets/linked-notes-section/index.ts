@@ -1,1 +1,1 @@
-export { LinkedNotesSection } from './ui/linked-notes-section';
+export { LinkedNotesSection, type LinkedItem } from './ui/linked-notes-section';

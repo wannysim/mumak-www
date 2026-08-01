@@ -51,6 +51,7 @@ const mockPost: PostMeta = {
   description: 'Test post description',
   category: 'articles',
   readingTime: 5,
+  outgoingHrefs: [],
 };
 
 async function renderPostCard(props: Partial<Parameters<typeof PostCard>[0]> = {}) {

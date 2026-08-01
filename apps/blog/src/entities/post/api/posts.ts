@@ -3,6 +3,7 @@ import { cache } from 'react';
 
 import type { Locale } from '@/src/shared/config/i18n';
 import {
+  extractInAppLinks,
   isPublishable,
   listMdxFiles,
   PageFrontmatterSchema,
@@ -30,6 +31,8 @@ export interface PostMeta {
   series?: string;
   /** 시리즈 안에서의 순번(1부터). series 없이 단독으로 쓰지 않는다. */
   part?: number;
+  /** 본문이 가리키는 사이트 내부 경로(정규화됨). 가든 노트와의 연결에 쓴다. */
+  outgoingHrefs: string[];
 }
 
 export interface Post {
@@ -92,6 +95,7 @@ function toPostMeta(
     readingTime: calculateReadingTime(content),
     series: frontmatter.series,
     part: frontmatter.part,
+    outgoingHrefs: extractInAppLinks(content),
   };
 }
 

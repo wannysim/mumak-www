@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 
 import { mdxComponents } from '@/mdx-components';
 import { buildAlternates, generateBlogPostingJsonLd, generateBreadcrumbJsonLd, JsonLdScript } from '@/src/app/seo';
+import { getMergedLinkedNotes, getNotesByHrefs, getNotesLinkingTo } from '@/src/entities/note';
 import {
   calculateWordCount,
   getAllPostSlugs,
@@ -14,11 +15,13 @@ import {
   getRelatedPosts,
   getSeriesContext,
   isValidCategory,
+  toPostHref,
 } from '@/src/entities/post';
 import { locales, type Locale } from '@/src/shared/config/i18n';
 import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
 import { Breadcrumbs } from '@/src/shared/ui';
+import { LinkedNotesSection, type LinkedItem } from '@/src/widgets/linked-notes-section';
 import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
 import { NextReading } from '@/src/widgets/next-reading';
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
@@ -95,11 +98,25 @@ export default async function PostPage({ params }: PostPageProps) {
     notFound();
   }
 
-  const tCommon = await getTranslations({ locale, namespace: 'common' });
-  const tPost = await getTranslations({ locale, namespace: 'post' });
+  const [tCommon, tPost, tGarden] = await Promise.all([
+    getTranslations({ locale, namespace: 'common' }),
+    getTranslations({ locale, namespace: 'post' }),
+    getTranslations({ locale, namespace: 'garden' }),
+  ]);
   const categoryTitle = getCategoryLabel(category, locale as Locale);
 
   const series = getSeriesContext(locale as Locale, post.meta);
+
+  // 가든 노트는 백링크로 이어지는데 블로그 글은 그렇지 않았다. 글이 인용한 노트와
+  // 글을 인용한 노트를 가든 상세와 같은 목록·같은 방향 표기로 보여준다.
+  const postHref = toPostHref(post.meta);
+  const citedNotes = getNotesByHrefs(locale as Locale, post.meta.outgoingHrefs);
+  const citingNotes = getNotesLinkingTo(locale as Locale, postHref);
+  const linkedItems: LinkedItem[] = getMergedLinkedNotes(citedNotes, citingNotes).map(linked => ({
+    href: `/garden/${linked.slug}`,
+    title: linked.title,
+    direction: linked.direction,
+  }));
 
   const blogPostingJsonLd = generateBlogPostingJsonLd({
     post: post.meta,
@@ -159,6 +176,19 @@ export default async function PostPage({ params }: PostPageProps) {
           </Suspense>
         </div>
       </article>
+
+      {/* 섹션 라벨은 가든과 같은 문구를 쓴다(항목이 전부 가든 노트라 정확하기도 하고,
+          두 섹션의 같은 블록이 다른 이름으로 갈리지 않게 한다). 방향 라벨만 글 관점으로
+          바꾼다 — 가든 문구는 "이 노트가 참조"라서 글 페이지에서는 주어가 틀린다. */}
+      <LinkedNotesSection
+        linkedItems={linkedItems}
+        linkedNotesLabel={tGarden('linkedNotes')}
+        linkDirectionLabels={{
+          outgoing: tPost('linkDirection.outgoing'),
+          incoming: tPost('linkDirection.incoming'),
+          bidirectional: tPost('linkDirection.bidirectional'),
+        }}
+      />
 
       <NextReading
         posts={getRelatedPosts(locale as Locale, post.meta)}

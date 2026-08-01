@@ -133,6 +133,33 @@ test.describe('Blog - Category and Post Pages', () => {
       });
     });
 
+    // 가든 노트는 백링크가 있는데 블로그 글은 없어서 두 섹션이 비대칭이었다.
+    // 저자가 본문에 손으로 써둔 인용 관계를 양쪽에서 되짚는다.
+    test.describe('Linked garden notes', () => {
+      test('shows the notes a post cites', async ({ page }) => {
+        await page.goto('/ko/blog/articles/silent-502-keepalive-race');
+
+        const linked = page.locator('[data-linked-notes-section]');
+        await expect(linked.locator('a[href="/ko/garden/keep-alive-timeout-ordering"]')).toBeVisible();
+        await expect(linked.locator('a[href="/ko/garden/tcp-retransmission-timeout"]')).toBeVisible();
+      });
+
+      test('shows the citing post back on the garden note', async ({ page }) => {
+        await page.goto('/ko/garden/keep-alive-timeout-ordering');
+
+        const linked = page.locator('[data-linked-notes-section]');
+        await expect(linked.locator('a[href="/ko/blog/articles/silent-502-keepalive-race"]')).toBeVisible();
+      });
+
+      test('normalizes file-path style links written by the author', async ({ page }) => {
+        // 본문에는 `/ko/garden/resources/frontend/browser/….mdx`로 적혀 있다.
+        await page.goto('/ko/blog/articles/css-animation-performance');
+
+        const linked = page.locator('[data-linked-notes-section]');
+        await expect(linked.locator('a[href="/ko/garden/browser-rendering-pipeline"]')).toBeVisible();
+      });
+    });
+
     test('should end with a next-reading block instead of a bare back link', async ({ page }) => {
       await page.goto('/ko/blog/essay/first');
 

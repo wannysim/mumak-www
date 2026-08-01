@@ -69,7 +69,12 @@
     "moreInCategory": "{category} 더 보기",
     "nextInSeries": "다음 편",
     "seriesProgress": "{total}편 중 {current}편",
-    "seriesPart": "{part}편"
+    "seriesPart": "{part}편",
+    "linkDirection": {
+      "outgoing": "이 글이 참조",
+      "incoming": "이 글을 참조",
+      "bidirectional": "서로 참조"
+    }
   },
   "tags": {
     "title": "블로그 태그",

@@ -56,6 +56,7 @@ const baseNote: NoteMeta = {
   created: '2024-01-01',
   status: 'seedling',
   outgoingLinks: [],
+  outgoingHrefs: [],
   readingTime: 3,
 };
 

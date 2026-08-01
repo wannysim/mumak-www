@@ -10,6 +10,7 @@ const posts: PostMeta[] = [
     category: 'articles',
     tags: ['react', 'nextjs'],
     readingTime: 5,
+    outgoingHrefs: [],
   },
   {
     slug: 'two-shared-tags',
@@ -19,6 +20,7 @@ const posts: PostMeta[] = [
     category: 'essay',
     tags: ['react', 'nextjs', 'other'],
     readingTime: 5,
+    outgoingHrefs: [],
   },
   {
     slug: 'one-shared-tag',
@@ -28,6 +30,7 @@ const posts: PostMeta[] = [
     category: 'articles',
     tags: ['react'],
     readingTime: 5,
+    outgoingHrefs: [],
   },
   {
     slug: 'no-shared-tag-same-category',
@@ -37,6 +40,7 @@ const posts: PostMeta[] = [
     category: 'articles',
     tags: ['unrelated'],
     readingTime: 5,
+    outgoingHrefs: [],
   },
   {
     slug: 'no-shared-tag-other-category-recent',
@@ -45,6 +49,7 @@ const posts: PostMeta[] = [
     description: '',
     category: 'notes',
     readingTime: 5,
+    outgoingHrefs: [],
   },
   {
     slug: 'current',
@@ -54,6 +59,7 @@ const posts: PostMeta[] = [
     category: 'notes',
     tags: ['react'],
     readingTime: 5,
+    outgoingHrefs: [],
   },
 ];
 

@@ -333,6 +333,7 @@ describe('getMergedLinkedNotes', () => {
     status: 'seedling',
     outgoingLinks: [],
     readingTime: 1,
+    outgoingHrefs: [],
     ...overrides,
   });
 
@@ -437,6 +438,7 @@ describe('buildNoteTree', () => {
     status: 'seedling',
     outgoingLinks: [],
     readingTime: 1,
+    outgoingHrefs: [],
     ...overrides,
   });
 

@@ -12,6 +12,7 @@ const createNote = (overrides: Partial<NoteMeta> = {}): NoteMeta => ({
   status: overrides.status ?? 'seedling',
   tags: overrides.tags ?? [],
   outgoingLinks: overrides.outgoingLinks ?? [],
+  outgoingHrefs: overrides.outgoingHrefs ?? [],
   readingTime: overrides.readingTime ?? 1,
 });
 
@@ -22,6 +23,7 @@ const createPost = (overrides: Partial<PostMeta> = {}): PostMeta => ({
   description: 'A test post',
   category: 'articles',
   tags: [],
+  outgoingHrefs: [],
   readingTime: 5,
   ...overrides,
 });

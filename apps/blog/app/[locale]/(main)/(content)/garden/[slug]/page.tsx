@@ -22,13 +22,13 @@ import {
   PARA_LABELS,
   type NoteStatus,
 } from '@/src/entities/note';
-import { calculateWordCount } from '@/src/entities/post';
+import { calculateWordCount, getPostsLinkingTo, toPostHref } from '@/src/entities/post';
 import { Link, locales, type Locale } from '@/src/shared/config/i18n';
 import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
 import { createGardenResolver, transformWikilinks } from '@/src/shared/lib/wikilink';
 import { Breadcrumbs } from '@/src/shared/ui';
-import { LinkedNotesSection } from '@/src/widgets/linked-notes-section';
+import { LinkedNotesSection, type LinkedItem } from '@/src/widgets/linked-notes-section';
 import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 
@@ -112,6 +112,19 @@ export default async function NotePage({ params }: NotePageProps) {
   const backlinks = getBacklinks(locale as Locale, slug);
   const outgoingNotes = getOutgoingNotes(locale as Locale, note.meta.outgoingLinks);
   const linkedNotes = getMergedLinkedNotes(outgoingNotes, backlinks);
+
+  // 노트↔노트는 위키링크로 이어지지만, 블로그 글은 가든 밖이라 위키링크로 가리킬 수
+  // 없다. 저자는 표준 마크다운 링크로 인용하는데 지금까지 그 방향이 노트 쪽에서
+  // 보이지 않았다. 같은 목록에 incoming으로 합쳐 양방향을 완성한다.
+  const citingPosts = getPostsLinkingTo(locale as Locale, `/garden/${slug}`);
+  const linkedItems: LinkedItem[] = [
+    ...linkedNotes.map(linked => ({
+      href: `/garden/${linked.slug}`,
+      title: linked.title,
+      direction: linked.direction,
+    })),
+    ...citingPosts.map(post => ({ href: toPostHref(post), title: post.title, direction: 'incoming' as const })),
+  ];
   const existingSlugs = getExistingNoteSlugs(locale as Locale);
   const resolver = createGardenResolver({
     existingSlugs,
@@ -206,7 +219,7 @@ export default async function NotePage({ params }: NotePageProps) {
       </article>
 
       <LinkedNotesSection
-        linkedNotes={linkedNotes}
+        linkedItems={linkedItems}
         linkedNotesLabel={tGarden('linkedNotes')}
         linkDirectionLabels={{
           outgoing: tGarden('linkDirection.outgoing'),

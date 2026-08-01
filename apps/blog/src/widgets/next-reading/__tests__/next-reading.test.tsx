@@ -34,6 +34,7 @@ const posts: PostMeta[] = [
     category: 'articles',
     tags: ['react'],
     readingTime: 7,
+    outgoingHrefs: [],
   },
   {
     slug: 'second',
@@ -42,6 +43,7 @@ const posts: PostMeta[] = [
     description: '설명 2',
     category: 'essay',
     readingTime: 3,
+    outgoingHrefs: [],
   },
 ];
 

@@ -11,6 +11,7 @@ const post: Post = {
     description: 'A short description',
     category: 'essay',
     readingTime: 3,
+    outgoingHrefs: [],
   },
   content: '## Heading\n\nBody paragraph linking [[some-note|a note]].',
 };
