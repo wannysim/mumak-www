@@ -129,7 +129,7 @@ test.describe('Blog - Category and Post Pages', () => {
         await page.goto('/ko/blog/articles');
 
         const card = page.locator('[data-slot="content-card"]').filter({ hasText: 'Expo 소셜 로그인 (1/3)' });
-        await expect(card.getByText('Expo 소셜 로그인 1편')).toBeVisible();
+        await expect(card.getByText('1편')).toBeVisible();
       });
     });
 

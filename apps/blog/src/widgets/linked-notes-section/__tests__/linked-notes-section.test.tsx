@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { LinkedNotesSection, type LinkedItem } from '../ui/linked-notes-section';
+import type { LinkedItem } from '../lib/merge-linked-items';
+import { LinkedNotesSection } from '../ui/linked-notes-section';
 
 import '@testing-library/jest-dom';
 

@@ -6,7 +6,6 @@ export interface SeriesContext {
   /** 시리즈 전체를 part 오름차순으로. 현재 글도 포함한다. */
   parts: PostMeta[];
   current: PostMeta;
-  previous?: PostMeta;
   next?: PostMeta;
 }
 
@@ -38,7 +37,6 @@ export function getSeriesContext(locale: Locale, post: PostMeta): SeriesContext 
   return {
     parts,
     current: post,
-    previous: parts[index - 1],
     next: parts[index + 1],
   };
 }

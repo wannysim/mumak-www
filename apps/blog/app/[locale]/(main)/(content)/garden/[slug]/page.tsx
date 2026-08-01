@@ -15,20 +15,19 @@ import {
   getExistingNoteSlugs,
   hasBlockAnchor,
   hasHeadingAnchor,
-  getMergedLinkedNotes,
   getNote,
   getOutgoingNotes,
   isValidParaCategory,
   PARA_LABELS,
   type NoteStatus,
 } from '@/src/entities/note';
-import { calculateWordCount, getPostsLinkingTo, toPostHref } from '@/src/entities/post';
+import { calculateWordCount, getPostsByHrefs, getPostsLinkingTo, toPostHref, type PostMeta } from '@/src/entities/post';
 import { Link, locales, type Locale } from '@/src/shared/config/i18n';
 import { mdxOptions } from '@/src/shared/config/mdx';
 import { formatDateForLocale } from '@/src/shared/lib/date';
 import { createGardenResolver, transformWikilinks } from '@/src/shared/lib/wikilink';
 import { Breadcrumbs } from '@/src/shared/ui';
-import { LinkedNotesSection, type LinkedItem } from '@/src/widgets/linked-notes-section';
+import { LinkedNotesSection, mergeLinkedItems, type LinkedItem } from '@/src/widgets/linked-notes-section';
 import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
 
@@ -111,20 +110,21 @@ export default async function NotePage({ params }: NotePageProps) {
   ]);
   const backlinks = getBacklinks(locale as Locale, slug);
   const outgoingNotes = getOutgoingNotes(locale as Locale, note.meta.outgoingLinks);
-  const linkedNotes = getMergedLinkedNotes(outgoingNotes, backlinks);
 
   // 노트↔노트는 위키링크로 이어지지만, 블로그 글은 가든 밖이라 위키링크로 가리킬 수
-  // 없다. 저자는 표준 마크다운 링크로 인용하는데 지금까지 그 방향이 노트 쪽에서
-  // 보이지 않았다. 같은 목록에 incoming으로 합쳐 양방향을 완성한다.
-  const citingPosts = getPostsLinkingTo(locale as Locale, `/garden/${slug}`);
-  const linkedItems: LinkedItem[] = [
-    ...linkedNotes.map(linked => ({
-      href: `/garden/${linked.slug}`,
-      title: linked.title,
-      direction: linked.direction,
-    })),
-    ...citingPosts.map(post => ({ href: toPostHref(post), title: post.title, direction: 'incoming' as const })),
-  ];
+  // 없다. 저자는 표준 마크다운 링크로 인용하고, 그 관계를 양방향으로 되짚어 같은
+  // 목록에 합친다. 병합·방향 판정은 글 상세와 같은 mergeLinkedItems를 쓴다 —
+  // 두 페이지가 따로 계산하면 같은 상호 참조 쌍이 서로 다른 방향으로 표시된다.
+  const toNoteItem = (target: { slug: string; title: string }) => ({
+    href: `/garden/${target.slug}`,
+    title: target.title,
+  });
+  const toPostItem = (post: PostMeta) => ({ href: toPostHref(post), title: post.title });
+
+  const linkedItems: LinkedItem[] = mergeLinkedItems(
+    [...outgoingNotes.map(toNoteItem), ...getPostsByHrefs(locale as Locale, note.meta.outgoingHrefs).map(toPostItem)],
+    [...backlinks.map(toNoteItem), ...getPostsLinkingTo(locale as Locale, `/garden/${slug}`).map(toPostItem)]
+  );
   const existingSlugs = getExistingNoteSlugs(locale as Locale);
   const resolver = createGardenResolver({
     existingSlugs,

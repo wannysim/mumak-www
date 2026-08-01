@@ -12,6 +12,7 @@ jest.mock('next-intl/server', () => ({
       nextReading: '다음 읽을거리',
       readingTimeUnit: '분',
       moreInCategory: `${values?.category ?? ''} 더 보기`,
+      nextInSeries: '다음 편',
     };
     return translations[key] ?? key;
   }),
@@ -108,5 +109,44 @@ describe('NextReading', () => {
     const element = await NextReading({ posts: [], locale: 'ko', category: 'articles' });
 
     expect(element).toBeNull();
+  });
+
+  describe('시리즈 다음 편', () => {
+    const seriesNext: PostMeta = {
+      slug: 'part-3',
+      title: '3부 제목',
+      date: '2026-02-01',
+      description: '',
+      category: 'articles',
+      readingTime: 9,
+      outgoingHrefs: [],
+      series: 'Expo 소셜 로그인',
+      part: 3,
+    };
+
+    // 태그 겹침보다 훨씬 강한 신호라 목록 맨 위여야 한다.
+    it('배지를 달고 목록 맨 위에 온다', async () => {
+      const { container } = await renderNextReading({ seriesNext });
+      const rows = container.querySelectorAll('li');
+
+      expect(rows[0]).toHaveTextContent('다음 편');
+      expect(rows[0]).toHaveTextContent('3부 제목');
+      expect(rows).toHaveLength(3);
+    });
+
+    it('태그 기반 제안이 하나도 없어도 다음 편만으로 블록을 남긴다', async () => {
+      const element = await NextReading({ posts: [], locale: 'ko', category: 'articles', seriesNext });
+
+      expect(element).not.toBeNull();
+
+      render(element);
+      expect(screen.getByRole('link', { name: /3부 제목/ })).toHaveAttribute('href', '/blog/articles/part-3');
+    });
+
+    it('다음 편이 없으면 배지도 없다', async () => {
+      await renderNextReading();
+
+      expect(screen.queryByText('다음 편')).not.toBeInTheDocument();
+    });
   });
 });

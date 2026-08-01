@@ -5,23 +5,13 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@m
 import type { LinkDirection } from '@/src/entities/note';
 import { Link } from '@/src/shared/config/i18n';
 
+import type { LinkedItem } from '../lib/merge-linked-items';
+
 const directionIcons: Record<LinkDirection, string> = {
   bidirectional: '↔',
   outgoing: '→',
   incoming: '←',
 };
-
-/**
- * 목록 한 줄.
- *
- * 항목이 자기 href를 들고 오기 때문에 가든 노트와 블로그 글을 한 목록에 섞을 수 있다.
- * 위키링크는 가든 안에서만 통하는 주소라, 노트와 글을 잇는 링크는 경로로만 표현된다.
- */
-export interface LinkedItem {
-  href: string;
-  title: string;
-  direction: LinkDirection;
-}
 
 interface LinkedNotesSectionProps {
   linkedItems: LinkedItem[];

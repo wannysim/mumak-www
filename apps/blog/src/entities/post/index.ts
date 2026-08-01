@@ -9,7 +9,7 @@ export {
   isValidCategory,
 } from './api/posts';
 export { getRelatedPosts } from './api/related';
-export { getSeriesContext, getSeriesPosts, type SeriesContext } from './api/series';
-export { getPostsLinkingTo, toPostHref } from './api/cross-links';
+export { getSeriesContext, type SeriesContext } from './api/series';
+export { getPostsByHrefs, getPostsLinkingTo, toPostHref } from './api/cross-links';
 export { toPostDocumentMarkdown, toPostContentHtml } from './api/markdown';
 export { CATEGORY_LABELS, getCategoryLabel } from './api/category-labels';

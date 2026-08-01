@@ -1,7 +1,8 @@
 import { normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
 
 const HEADING_RE = /^(#{1,6})\s+(.+)$/;
-const FENCE_RE = /^\s*(```|~~~)/;
+/** 코드펜스 시작·끝 줄. 링크 추출(links.ts)도 같은 규칙으로 펜스를 건너뛴다. */
+export const FENCE_RE = /^\s*(```|~~~)/;
 
 export interface ContentHeading {
   /** 원문에서의 줄 번호. 섹션 구간을 잘라낼 때 쓴다. */

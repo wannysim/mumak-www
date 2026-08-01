@@ -17,3 +17,10 @@ export function toPostHref(post: Pick<PostMeta, 'category' | 'slug'>): string {
 export function getPostsLinkingTo(locale: Locale, href: string): PostMeta[] {
   return getPosts(locale).filter(post => post.outgoingHrefs.includes(href));
 }
+
+/** 경로 목록을 글로 되돌린다. 블로그 글을 가리키지 않는 경로는 조용히 버린다. */
+export function getPostsByHrefs(locale: Locale, hrefs: string[]): PostMeta[] {
+  const byHref = new Map(getPosts(locale).map(post => [toPostHref(post), post]));
+
+  return hrefs.map(href => byHref.get(href)).filter((post): post is PostMeta => post !== undefined);
+}

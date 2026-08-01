@@ -4,9 +4,11 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
+import { cn } from '@mumak/ui/lib/utils';
+
 import { mdxComponents } from '@/mdx-components';
 import { buildAlternates, generateBlogPostingJsonLd, generateBreadcrumbJsonLd, JsonLdScript } from '@/src/app/seo';
-import { getMergedLinkedNotes, getNotesByHrefs, getNotesLinkingTo } from '@/src/entities/note';
+import { getNotesByHrefs, getNotesLinkingTo } from '@/src/entities/note';
 import {
   calculateWordCount,
   getAllPostSlugs,
@@ -22,11 +24,11 @@ import { mdxOptions } from '@/src/shared/config/mdx';
 import { extractHeadings } from '@/src/shared/lib/content';
 import { formatDateForLocale } from '@/src/shared/lib/date';
 import { Breadcrumbs } from '@/src/shared/ui';
-import { LinkedNotesSection, type LinkedItem } from '@/src/widgets/linked-notes-section';
+import { LinkedNotesSection, mergeLinkedItems, type LinkedItem } from '@/src/widgets/linked-notes-section';
 import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
 import { NextReading } from '@/src/widgets/next-reading';
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
-import { PostToc } from '@/src/widgets/post-toc';
+import { PostToc, shouldShowToc } from '@/src/widgets/post-toc';
 import { SeriesNav } from '@/src/widgets/series-nav';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
@@ -109,17 +111,16 @@ export default async function PostPage({ params }: PostPageProps) {
 
   const series = getSeriesContext(locale as Locale, post.meta);
   const headings = extractHeadings(post.content);
+  const withToc = shouldShowToc(headings, post.meta.readingTime);
 
   // 가든 노트는 백링크로 이어지는데 블로그 글은 그렇지 않았다. 글이 인용한 노트와
   // 글을 인용한 노트를 가든 상세와 같은 목록·같은 방향 표기로 보여준다.
   const postHref = toPostHref(post.meta);
-  const citedNotes = getNotesByHrefs(locale as Locale, post.meta.outgoingHrefs);
-  const citingNotes = getNotesLinkingTo(locale as Locale, postHref);
-  const linkedItems: LinkedItem[] = getMergedLinkedNotes(citedNotes, citingNotes).map(linked => ({
-    href: `/garden/${linked.slug}`,
-    title: linked.title,
-    direction: linked.direction,
-  }));
+  const toNoteItem = (note: { slug: string; title: string }) => ({ href: `/garden/${note.slug}`, title: note.title });
+  const linkedItems: LinkedItem[] = mergeLinkedItems(
+    getNotesByHrefs(locale as Locale, post.meta.outgoingHrefs).map(toNoteItem),
+    getNotesLinkingTo(locale as Locale, postHref).map(toNoteItem)
+  );
 
   const blogPostingJsonLd = generateBlogPostingJsonLd({
     post: post.meta,
@@ -138,9 +139,10 @@ export default async function PostPage({ params }: PostPageProps) {
   });
 
   return (
-    // xl에서만 2단이 된다: 본문 48rem 고정 + 목차 레일 18rem. 그 아래에서는
-    // grid가 꺼져서 기존 max-w-3xl 단일 컬럼 그대로다.
-    <div className="max-w-3xl mx-auto xl:grid xl:max-w-none xl:grid-cols-[48rem_18rem] xl:justify-center xl:gap-8">
+    // 목차가 붙는 글에서만 xl 2단이 된다: 본문 48rem + 레일 18rem.
+    // 명시적 트랙은 자식이 없어도 자리를 차지하므로, 조건 없이 걸면 목차가 없는
+    // 대다수 글에서 320px 빈 레일이 남아 본문이 왼쪽으로 밀린다.
+    <div className={cn('max-w-3xl mx-auto', withToc && 'xl:grid xl:max-w-none xl:grid-cols-[48rem_18rem] xl:gap-8')}>
       <div className="min-w-0">
         <JsonLdScript data={blogPostingJsonLd} />
         <JsonLdScript data={breadcrumbJsonLd} />

@@ -1,9 +1,10 @@
 import { normalizeMdxInAppHref } from '@/src/shared/lib/url';
 
+import { FENCE_RE } from './headings';
+
 // 이미지(`![alt](...)`)는 앞의 `!`로 걸러낸다. 링크 텍스트에 대괄호가 중첩되는
 // 경우는 이 저장소 콘텐츠에 없어서 다루지 않는다.
 const MARKDOWN_LINK_RE = /(!?)\[[^\]]*\]\(([^)\s]+)\)/g;
-const FENCE_RE = /^\s*(```|~~~)/;
 
 /** 코드블록 안의 예시 링크가 실제 링크로 잡히지 않게 펜스 구간을 걷어낸다. */
 function stripFencedCode(content: string): string {
@@ -33,7 +34,9 @@ function stripFencedCode(content: string): string {
 export function extractInAppLinks(content: string): string[] {
   const hrefs = [...stripFencedCode(content).matchAll(MARKDOWN_LINK_RE)]
     .filter(([, bang, href]) => bang === '' && href?.startsWith('/'))
-    .map(([, , href]) => normalizeMdxInAppHref(href as string));
+    // 앵커·쿼리는 떼어낸다. 이 값은 렌더용이 아니라 두 문서를 잇는 키로만 쓰이므로,
+    // 남겨두면 `/garden/x#섹션`이 `/garden/x`와 다른 문서로 잡혀 연결이 조용히 끊긴다.
+    .map(([, , href]) => normalizeMdxInAppHref(href as string).replace(/[?#].*$/, ''));
 
   return [...new Set(hrefs)];
 }

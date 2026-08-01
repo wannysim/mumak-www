@@ -57,26 +57,19 @@ describe('getSeriesPosts', () => {
 });
 
 describe('getSeriesContext', () => {
-  it('가운데 편은 앞뒤가 모두 있다', () => {
+  it('가운데 편의 다음은 뒤 편이고 전체 목록을 함께 준다', () => {
     const context = getSeriesContext('ko', find('part-2'));
 
-    expect(context?.previous?.slug).toBe('part-1');
     expect(context?.next?.slug).toBe('part-3');
-    expect(context?.parts).toHaveLength(3);
+    expect(context?.parts.map(p => p.slug)).toEqual(['part-1', 'part-2', 'part-3']);
   });
 
-  it('첫 편에는 이전이 없다', () => {
-    const context = getSeriesContext('ko', find('part-1'));
-
-    expect(context?.previous).toBeUndefined();
-    expect(context?.next?.slug).toBe('part-2');
+  it('첫 편의 다음은 두 번째 편이다', () => {
+    expect(getSeriesContext('ko', find('part-1'))?.next?.slug).toBe('part-2');
   });
 
   it('마지막 편에는 다음이 없다', () => {
-    const context = getSeriesContext('ko', find('part-3'));
-
-    expect(context?.previous?.slug).toBe('part-2');
-    expect(context?.next).toBeUndefined();
+    expect(getSeriesContext('ko', find('part-3'))?.next).toBeUndefined();
   });
 
   it('시리즈가 아닌 글은 null이다', () => {

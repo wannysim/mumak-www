@@ -40,7 +40,7 @@ const parts = [part(1), part(2), part(3)];
 function contextFor(index: number): SeriesContext {
   const current = parts[index];
   if (!current) throw new Error('fixture missing');
-  return { parts, current, previous: parts[index - 1], next: parts[index + 1] };
+  return { parts, current, next: parts[index + 1] };
 }
 
 async function renderSeriesNav(index = 1) {

@@ -343,5 +343,25 @@ outro paragraph here`;
         expect(typeof post.part).toBe('number');
       }
     });
+
+    // part가 겹치면 정렬이 stable이라 조용히 어긋난다 — 실제 편 번호는 그대로인데
+    // 앞뒤 편이 뒤바뀌고 한 편은 "다음 편"을 잃는다. en 2부에 3이 들어간 적이 있다.
+    it.each(['ko', 'en'] as const)('%s: 한 시리즈 안에서 part는 1..n으로 중복 없이 이어진다', locale => {
+      const bySeries = new Map<string, number[]>();
+
+      for (const post of getPosts(locale)) {
+        if (post.series === undefined || post.part === undefined) continue;
+        bySeries.set(post.series, [...(bySeries.get(post.series) ?? []), post.part]);
+      }
+
+      expect(bySeries.size).toBeGreaterThan(0);
+
+      for (const [series, parts] of bySeries) {
+        expect({ series, parts: parts.toSorted((a, b) => a - b) }).toEqual({
+          series,
+          parts: Array.from({ length: parts.length }, (_, i) => i + 1),
+        });
+      }
+    });
   });
 });

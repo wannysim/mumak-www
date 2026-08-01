@@ -47,6 +47,19 @@ describe('extractInAppLinks', () => {
     expect(extractInAppLinks('[여기](#section)')).toEqual([]);
   });
 
+  // 이 값은 렌더용이 아니라 두 문서를 잇는 키다. 앵커가 남으면 같은 문서를 가리키는
+  // 링크가 서로 다른 키가 되어 연결이 조용히 끊긴다.
+  it('앵커와 쿼리를 떼어 문서 단위 키로 만든다', () => {
+    expect(extractInAppLinks('[섹션](/ko/garden/x#어떤-섹션) [쿼리](/ko/blog/articles/y?ref=z)')).toEqual([
+      '/garden/x',
+      '/blog/articles/y',
+    ]);
+  });
+
+  it('같은 문서의 다른 앵커는 한 번만 센다', () => {
+    expect(extractInAppLinks('[a](/ko/garden/x#one) [b](/ko/garden/x#two)')).toEqual(['/garden/x']);
+  });
+
   it('링크가 없으면 빈 배열이다', () => {
     expect(extractInAppLinks('링크 없는 문단')).toEqual([]);
   });
