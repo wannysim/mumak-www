@@ -23,10 +23,16 @@ const posts: PostMeta[] = [
   post({ slug: 'standalone' }),
 ];
 
+const getPostsMock = jest.fn(() => posts);
+
 jest.mock('../api/posts', () => ({
   ...jest.requireActual('../api/posts'),
-  getPosts: jest.fn(() => posts),
+  getPosts: (...args: unknown[]) => getPostsMock(...(args as [])),
 }));
+
+beforeEach(() => {
+  getPostsMock.mockClear();
+});
 
 function find(slug: string): PostMeta {
   const found = posts.find(candidate => candidate.slug === slug);
@@ -41,6 +47,12 @@ describe('getSeriesPosts', () => {
 
   it('없는 시리즈는 빈 배열이다', () => {
     expect(getSeriesPosts('ko', 'Nope')).toEqual([]);
+  });
+
+  it('넘겨받은 locale로 글을 찾는다', () => {
+    getSeriesPosts('en', 'Expo');
+
+    expect(getPostsMock).toHaveBeenCalledWith('en');
   });
 });
 

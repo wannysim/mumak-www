@@ -160,6 +160,45 @@ test.describe('Blog - Category and Post Pages', () => {
       });
     });
 
+    test.describe('Table of contents', () => {
+      // rt=9분 / 헤딩 14개. 임계값(8분 · 헤딩 3개)을 넉넉히 넘는다.
+      const LONG_POST = '/ko/blog/articles/react-native-os-native-viewer';
+
+      test('shows a right rail on xl for long posts', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.goto(LONG_POST);
+
+        await expect(page.getByRole('navigation', { name: '목차' })).toBeVisible();
+      });
+
+      test('jumps to the section and keeps it in view', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.goto(LONG_POST);
+
+        const toc = page.getByRole('navigation', { name: '목차' });
+        const first = toc.getByRole('link').first();
+        const href = await first.getAttribute('href');
+        await first.click();
+
+        expect(page.url()).toContain(href ?? '#');
+        await expect(page.locator(`[id="${decodeURIComponent((href ?? '#').slice(1))}"]`)).toBeInViewport();
+      });
+
+      test('is hidden below xl', async ({ page }) => {
+        await page.setViewportSize({ width: 1024, height: 900 });
+        await page.goto(LONG_POST);
+
+        await expect(page.locator('[data-slot="post-toc"]')).toBeHidden();
+      });
+
+      test('is absent on short posts even on a wide screen', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.goto('/ko/blog/essay/first');
+
+        await expect(page.locator('[data-slot="post-toc"]')).toHaveCount(0);
+      });
+    });
+
     test('should end with a next-reading block instead of a bare back link', async ({ page }) => {
       await page.goto('/ko/blog/essay/first');
 

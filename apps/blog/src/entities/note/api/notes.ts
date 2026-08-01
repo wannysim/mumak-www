@@ -3,6 +3,8 @@ import { cache } from 'react';
 
 import type { Locale } from '@/src/shared/config/i18n';
 import {
+  cleanupInlineMarkdown,
+  extractHeadings,
   extractInAppLinks,
   isPublishable,
   listMdxFiles,
@@ -58,44 +60,7 @@ function getGardenPath(locale: Locale): string {
   return path.join(CONTENT_DIR, locale, GARDEN_DIR);
 }
 
-function cleanupInlineMarkdown(text: string): string {
-  return (
-    text
-      .replace(/`([^`]+)`/g, '$1')
-      .replace(/\*\*([^*]+)\*\*/g, '$1')
-      .replace(/\*([^*]+)\*/g, '$1')
-      // 위키링크는 excerpt/heading 텍스트에서 표시 텍스트만 남긴다. 렌더된 본문에서는 rehype가
-      // 링크로 바꾸지만, 발췌는 원문에서 뽑기 때문에 여기서 걷지 않으면 카드에 [[slug|label]]이
-      // 그대로 노출된다.
-      .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, slug: string, label?: string) => label ?? slug)
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .trim()
-  );
-}
-
 const BLOCK_MARKER_REGEX = /(?:^|\s)\^([A-Za-z0-9][\w-]*)\s*$/;
-
-function extractHeadingLines(content: string): Array<{ index: number; level: number; text: string; anchor: string }> {
-  return content
-    .split('\n')
-    .map((line, index) => ({ line, index }))
-    .map(({ line, index }) => {
-      const match = line.match(/^(#{1,6})\s+(.+)$/);
-      if (!match) {
-        return null;
-      }
-
-      const level = match[1]?.length ?? 1;
-      const text = cleanupInlineMarkdown(match[2] ?? '');
-      return {
-        index,
-        level,
-        text,
-        anchor: normalizeHeadingToAnchor(text),
-      };
-    })
-    .filter((value): value is { index: number; level: number; text: string; anchor: string } => value !== null);
-}
 
 function extractBlockIds(content: string): Set<string> {
   return new Set(
@@ -140,7 +105,7 @@ function extractFirstParagraph(content: string): string {
 
 function extractHeadingSectionExcerpt(content: string, heading: string): string | null {
   const lines = content.split('\n');
-  const headings = extractHeadingLines(content);
+  const headings = extractHeadings(content);
   const targetAnchor = normalizeHeadingToAnchor(heading);
   const currentIndex = headings.findIndex(item => item.anchor === targetAnchor);
 
@@ -229,7 +194,7 @@ export function getNoteAnchorIndex(locale: Locale, slug: string): NoteAnchorInde
     return null;
   }
 
-  const headingLines = extractHeadingLines(note.content);
+  const headingLines = extractHeadings(note.content);
   return {
     headings: new Set(headingLines.flatMap(item => (item.anchor ? [item.anchor] : []))),
     blocks: extractBlockIds(note.content),

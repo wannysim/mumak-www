@@ -63,10 +63,16 @@ const posts: PostMeta[] = [
   },
 ];
 
+const getPostsMock = jest.fn(() => posts);
+
 jest.mock('../api/posts', () => ({
   ...jest.requireActual('../api/posts'),
-  getPosts: jest.fn(() => posts),
+  getPosts: (...args: unknown[]) => getPostsMock(...(args as [])),
 }));
+
+beforeEach(() => {
+  getPostsMock.mockClear();
+});
 
 function currentPost(): PostMeta {
   const post = posts[0];
@@ -123,5 +129,34 @@ describe('getRelatedPosts', () => {
 
   it('기본 limit은 3이다', () => {
     expect(getRelatedPosts('ko', currentPost())).toHaveLength(3);
+  });
+
+  it('넘겨받은 locale로 글을 찾는다', () => {
+    getRelatedPosts('en', currentPost());
+
+    expect(getPostsMock).toHaveBeenCalledWith('en');
+  });
+
+  // 같은 시리즈의 다른 편은 상단 시리즈 목차와 "다음 편" 행이 담당한다.
+  // 여기서 빼지 않으면 방금 읽은 편이 "다음 읽을거리"에 다시 올라온다.
+  it('같은 시리즈의 다른 편은 제외한다', () => {
+    const seriesPosts: PostMeta[] = [
+      { ...currentPost(), slug: 'part-1', series: 'Expo', part: 1 },
+      { ...currentPost(), slug: 'part-2', series: 'Expo', part: 2 },
+      { ...currentPost(), slug: 'other', series: undefined, tags: ['react', 'nextjs'] },
+    ];
+    getPostsMock.mockReturnValueOnce(seriesPosts);
+
+    const related = getRelatedPosts('ko', seriesPosts[0] as PostMeta, 10);
+
+    expect(slugsOf(related)).toEqual(['articles/other']);
+  });
+
+  it('시리즈가 아닌 글에는 시리즈 제외 규칙이 걸리지 않는다', () => {
+    // post.series가 undefined일 때 candidate.series === post.series로 비교하면
+    // 시리즈 없는 글이 전부 사라진다.
+    const related = getRelatedPosts('ko', currentPost(), 10);
+
+    expect(related.length).toBeGreaterThan(0);
   });
 });

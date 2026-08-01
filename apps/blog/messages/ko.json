@@ -74,7 +74,8 @@
       "outgoing": "이 글이 참조",
       "incoming": "이 글을 참조",
       "bidirectional": "서로 참조"
-    }
+    },
+    "tableOfContents": "목차"
   },
   "tags": {
     "title": "블로그 태그",

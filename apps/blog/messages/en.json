@@ -74,7 +74,8 @@
       "outgoing": "This post references",
       "incoming": "References this post",
       "bidirectional": "Mutual reference"
-    }
+    },
+    "tableOfContents": "On this page"
   },
   "tags": {
     "title": "Blog Tags",
