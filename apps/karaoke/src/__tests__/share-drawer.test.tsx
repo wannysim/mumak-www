@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -134,7 +134,16 @@ describe('ShareDrawer', () => {
     expect(screen.getByText('재생목록과 가사를 옮깁니다')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /보내기/ }));
 
+    // 뷰 전환 직후의 focus는 우리 effect와 radix focus scope가 한 프레임 안에서 다투므로
+    // 정착한 상태를 기다린다(song-drawer.test.tsx와 같은 패턴).
+    await waitFor(() => expect(screen.getByRole('button', { name: '이전 화면' })).toHaveFocus());
+
+    // focus scope가 언제 컨테이너로 focus를 되돌려도 뒤로 버튼이 이긴다.
+    // share-header.tsx의 focusin 바운스는 동기라서 컨테이너는 focus를 한 순간도 유지하지 못한다.
+    // 바운스를 지우면 이 단정이 실패한다(그게 CI에서 간헐적으로 터졌던 회귀다).
+    screen.getByRole('dialog').focus();
     expect(screen.getByRole('button', { name: '이전 화면' })).toHaveFocus();
+
     expect(screen.getByRole('radio', { name: /현재 재생목록/ })).toBeChecked();
     await userEvent.click(screen.getByRole('radio', { name: /전체 보관함/ }));
     expect(screen.getByRole('radio', { name: /전체 보관함/ })).toBeChecked();
@@ -168,7 +177,7 @@ describe('ShareDrawer', () => {
     // turbo가 네이티브 디코더에서만 빠르다는 사실을 감추면 더 느린 선택지를 빠른 줄 알고 고른다.
     // 문구는 실측이 지지하는 만큼만 말한다 — jsQR 경로에서 turbo는 fast와 사실상 같으므로 "느리다"가 아니다.
     expect(screen.getByRole('radio', { name: /^고속/ })).toHaveAccessibleName(/빠르게보다 빠르지 않습니다/);
-    expect(screen.getByRole('radio', { name: /^최대/ })).toHaveAccessibleName(/큰 화면과 밝은 조명/);
+    expect(screen.getByRole('radio', { name: /^최대/ })).toHaveAccessibleName(/폰 화면에는 2장이 함께 들어가지 않아/);
     expect(screen.getByText(/QR 한 장이 초당 20회 바뀝니다/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('radio', { name: /^안정/ }));
@@ -283,7 +292,7 @@ describe('ShareDrawer', () => {
     await scanBundle(incoming);
 
     expect(await screen.findByText('가져오기 확인')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '이전 화면' })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole('button', { name: '이전 화면' })).toHaveFocus());
     expect(screen.getByText('QR 수신이 끝났습니다. 가져올 내용을 확인해 주세요.')).toBeInTheDocument();
     expect(scanLoop.stop).toHaveBeenCalled();
     expect(cameraTrack.stop).toHaveBeenCalled();
