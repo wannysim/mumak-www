@@ -177,11 +177,12 @@ test.describe('Blog - Category and Post Pages', () => {
 
         const toc = page.getByRole('navigation', { name: '목차' });
         const first = toc.getByRole('link').first();
-        const href = await first.getAttribute('href');
+        const anchor = ((await first.getAttribute('href')) ?? '#').slice(1);
         await first.click();
 
-        expect(page.url()).toContain(href ?? '#');
-        await expect(page.locator(`[id="${decodeURIComponent((href ?? '#').slice(1))}"]`)).toBeInViewport();
+        // 한글 앵커는 주소창에서 퍼센트 인코딩되므로 디코딩해서 비교한다.
+        expect(decodeURIComponent(page.url())).toContain(`#${anchor}`);
+        await expect(page.locator(`[id="${anchor}"]`)).toBeInViewport();
       });
 
       test('is hidden below xl', async ({ page }) => {
