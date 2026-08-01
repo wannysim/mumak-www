@@ -6,11 +6,18 @@
     "all": "전체",
     "essay": "에세이",
     "articles": "아티클",
-    "notes": "노트",
-    "language": "언어",
+    "notes": "단상",
+    "changeLanguage": "언어 변경",
+    "changeTheme": "테마 변경",
+    "close": "닫기",
     "tags": "태그",
     "graph": "그래프",
-    "viewGraph": "그래프로 탐색"
+    "viewGraph": "그래프로 탐색",
+    "skipToContent": "본문으로 건너뛰기",
+    "openNavigation": "내비게이션 열기",
+    "navigation": "내비게이션",
+    "readingProgress": "읽기 진행률",
+    "pageTransitionProgress": "페이지 이동 진행률"
   },
   "footer": {
     "about": "소개",
@@ -18,11 +25,15 @@
   },
   "home": {
     "title": "Wan Sim",
+    "metaTitle": "Wan Sim — 생각과 기록을 담는 공간",
     "description": "생각과 기록을 담는 공간",
     "intro": "글을 써보고 싶어서 만든 블로그입니다.\n웹 기술과 사용자 경험에 관심이 많습니다.\n사사로운 일상부터 개발자로서 고민한 흔적들을 기록하고자 합니다.",
     "latestPosts": "최신 글",
     "listeningTo": "Spotify에서 재생 중",
     "lastPlayed": "Spotify에서 최근 재생",
+    "vinylToggle": "바이닐 플레이어 열고 닫기",
+    "explicitContent": "청소년 이용 불가",
+    "trackProgress": "재생 진행률",
     "aboutCta": "소개 더 보기",
     "blogCta": "글 {count}개 전체 보기",
     "gardenTitle": "최신 노트",
@@ -34,7 +45,8 @@
     "title": "블로그",
     "description": "생각과 기록을 담는 공간",
     "allPosts": "전체 글",
-    "postsCount": "{count}개의 글"
+    "postsCount": "{count}개의 글",
+    "empty": "아직 글이 없습니다"
   },
   "category": {
     "essay": {
@@ -46,8 +58,8 @@
       "description": "깊은 탐구"
     },
     "notes": {
-      "title": "노트",
-      "description": "짧은 메모"
+      "title": "단상",
+      "description": "짧은 생각"
     }
   },
   "post": {
@@ -156,11 +168,18 @@
     },
     "sidebar": {
       "title": "PARA 가든",
+      "notesNav": "가든 노트",
       "openTree": "둘러보기",
       "collapse": "사이드바 접기",
-      "expand": "사이드바 펼치기"
+      "collapseChildNotes": "{title}의 하위 노트 접기",
+      "expand": "사이드바 펼치기",
+      "expandChildNotes": "{title}의 하위 노트 펼치기"
     },
-    "linkCount": "링크 {count}개"
+    "linkCount": "링크 {count}개",
+    "wikilink": {
+      "missingNote": "아직 없는 노트입니다",
+      "missingEmbed": "아직 없는 노트라 미리보기를 표시할 수 없습니다: {slug}"
+    }
   },
   "graph": {
     "title": "그래프",
@@ -170,6 +189,7 @@
       "blog": "블로그"
     },
     "controls": {
+      "back": "뒤로 가기",
       "search": "노드 검색...",
       "filter": "필터",
       "clearFilters": "초기화",
@@ -179,6 +199,8 @@
       "categories": "카테고리"
     },
     "panel": {
+      "description": "노드 상세 패널",
+      "close": "닫기",
       "viewDetail": "자세히 보기",
       "connections": "개의 연결",
       "type": {
@@ -193,9 +215,20 @@
         "evergreen": "상록수"
       }
     },
+    "legend": {
+      "title": "범례",
+      "hint": "노드를 클릭하면 자세히 볼 수 있습니다",
+      "dismissHint": "힌트 닫기",
+      "sizeNote": "노트·글 크기는 연결 수에 비례합니다"
+    },
+    "a11y": {
+      "summary": "이 3D 그래프는 스크린 리더로 읽을 수 없습니다. 같은 노트와 글을 목록으로 보려면 아래 링크를 이용해 주세요.",
+      "listAlternative": "가든 노트 목록 보기",
+      "listAlternativeBlog": "블로그 글 목록 보기"
+    },
     "unsupported": {
       "title": "이 기기에서 3D 그래프를 볼 수 없습니다",
-      "description": "WebGPU를 지원하는 데스크톱 브라우저에서 확인해 주세요."
+      "description": "WebGL을 지원하는 데스크톱 브라우저에서 확인해 주세요."
     },
     "error": {
       "title": "그래프를 렌더링할 수 없습니다",

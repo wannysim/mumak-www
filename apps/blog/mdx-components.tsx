@@ -8,7 +8,10 @@ import { normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
 import { BrokenWikiEmbed, BrokenWikiLink, WikiEmbed, WikiLink } from '@/src/shared/ui';
 import { SocialLinks } from '@/src/widgets/footer';
 
-const MDX_LINK_CLASS = 'text-primary underline underline-offset-4 hover:text-primary/80';
+// text-primary는 라이트에서 흰 배경 대비 3.48:1로 AA(4.5:1) 미달이다. 같은 hue 계열의
+// accent-foreground가 7.92:1(라이트)/11.58:1(다크)이라 본문 링크는 이쪽을 쓴다.
+// WikiLink/WikiEmbed/연결된 노트도 같은 토큰을 쓴다 — 한 페이지에서 링크 색이 갈리면 안 된다.
+const MDX_LINK_CLASS = 'text-accent-foreground underline underline-offset-4 hover:text-accent-foreground/80';
 
 function extractText(node: ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') {
@@ -85,8 +88,12 @@ export const mdxComponents: MDXComponents = {
   ul: ({ children }) => <ul className="my-4 ml-6 list-disc space-y-2">{children}</ul>,
   ol: ({ children }) => <ol className="my-4 ml-6 list-decimal space-y-2">{children}</ol>,
   li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  // 이탤릭은 한글 장문에서 합성 oblique로 렌더돼 가독성을 해친다. 구분은 룰 + muted 박스가 담당한다.
+  // text-muted-foreground는 bg-muted 위에서 4.35:1로 4.5:1을 못 넘겨 본문색을 foreground/90으로 올렸다.
   blockquote: ({ children }) => (
-    <blockquote className="my-4 border-l-4 border-muted pl-4 italic text-muted-foreground">{children}</blockquote>
+    <blockquote className="my-6 rounded-r-lg border-l-2 border-muted-foreground/40 bg-muted px-4 py-3 text-foreground/90 [&>p]:my-0 [&>p+p]:mt-3">
+      {children}
+    </blockquote>
   ),
   // 인라인 코드만 스타일 적용 (코드 블럭은 Prism이 처리)
   code: ({ children, className }) =>

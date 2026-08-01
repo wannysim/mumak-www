@@ -5,6 +5,10 @@ import { SpotifyProgressBar } from '../ui/spotify-progress-bar';
 
 import '@testing-library/jest-dom';
 
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 describe('formatTime', () => {
   it('returns "0:00" for negative input', () => {
     expect(formatTime(-1)).toBe('0:00');
@@ -44,6 +48,13 @@ describe('SpotifyProgressBar', () => {
     durationMs: 180_000,
     isPlaying: true,
   };
+
+  it('names the progressbar from a message key (label sits on the progress element, not the wrapper div)', () => {
+    render(<SpotifyProgressBar {...baseProps} />);
+
+    // mock 번역은 key를 그대로 반환한다.
+    expect(screen.getByRole('progressbar', { name: 'trackProgress' })).toBeInTheDocument();
+  });
 
   it('renders the progressbar role with rounded second-level aria values', () => {
     render(<SpotifyProgressBar {...baseProps} />);
@@ -90,6 +101,12 @@ describe('SpotifyProgressBar', () => {
     render(<SpotifyProgressBar {...baseProps} isPlaying />);
 
     expect(screen.getByRole('progressbar').className).not.toContain('opacity-60');
+  });
+
+  it('renders the time row at the 11px legibility floor', () => {
+    render(<SpotifyProgressBar {...baseProps} />);
+
+    expect(screen.getByText('0:30').parentElement).toHaveClass('text-[11px]');
   });
 
   it('merges a custom className onto the wrapper', () => {

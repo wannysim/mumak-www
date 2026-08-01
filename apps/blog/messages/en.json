@@ -6,11 +6,18 @@
     "all": "All",
     "essay": "Essay",
     "articles": "Articles",
-    "notes": "Notes",
-    "language": "Language",
+    "notes": "Thoughts",
+    "changeLanguage": "Change language",
+    "changeTheme": "Change theme",
+    "close": "Close",
     "tags": "Tags",
     "graph": "Graph",
-    "viewGraph": "Explore the graph"
+    "viewGraph": "Explore the graph",
+    "skipToContent": "Skip to content",
+    "openNavigation": "Open navigation",
+    "navigation": "Navigation",
+    "readingProgress": "Reading progress",
+    "pageTransitionProgress": "Page transition progress"
   },
   "footer": {
     "about": "About",
@@ -18,11 +25,15 @@
   },
   "home": {
     "title": "Wan Sim",
+    "metaTitle": "Wan Sim — A space for thoughts and records",
     "description": "A space for thoughts and records",
     "intro": "Created this blog to write anything I want.\nI'm interested in web technologies and user experience.\nGonna write about anything from daily life to developer's thoughts.",
     "latestPosts": "Latest posts",
     "listeningTo": "Listening to Spotify",
     "lastPlayed": "Last Played on Spotify",
+    "vinylToggle": "Toggle vinyl player",
+    "explicitContent": "Explicit content",
+    "trackProgress": "Track progress",
     "aboutCta": "More about me",
     "blogCta": "Browse all {count} posts",
     "gardenTitle": "Latest notes",
@@ -34,7 +45,8 @@
     "title": "Blog",
     "description": "A space for thoughts and records",
     "allPosts": "All Posts",
-    "postsCount": "{count} posts"
+    "postsCount": "{count} posts",
+    "empty": "No posts yet"
   },
   "category": {
     "essay": {
@@ -46,8 +58,8 @@
       "description": "Deep research"
     },
     "notes": {
-      "title": "Notes",
-      "description": "Short memos"
+      "title": "Thoughts",
+      "description": "Short thoughts"
     }
   },
   "post": {
@@ -156,11 +168,18 @@
     },
     "sidebar": {
       "title": "PARA Garden",
+      "notesNav": "Garden notes",
       "openTree": "Browse",
       "collapse": "Collapse sidebar",
-      "expand": "Expand sidebar"
+      "collapseChildNotes": "Collapse child notes of {title}",
+      "expand": "Expand sidebar",
+      "expandChildNotes": "Expand child notes of {title}"
     },
-    "linkCount": "{count} links"
+    "linkCount": "{count} links",
+    "wikilink": {
+      "missingNote": "This note doesn't exist yet",
+      "missingEmbed": "This note doesn't exist yet, so there's no preview: {slug}"
+    }
   },
   "graph": {
     "title": "Graph",
@@ -170,6 +189,7 @@
       "blog": "Blog"
     },
     "controls": {
+      "back": "Back",
       "search": "Search nodes...",
       "filter": "Filter",
       "clearFilters": "Clear",
@@ -179,6 +199,8 @@
       "categories": "Categories"
     },
     "panel": {
+      "description": "Node detail panel",
+      "close": "Close",
       "viewDetail": "View detail",
       "connections": "connections",
       "type": {
@@ -193,9 +215,20 @@
         "evergreen": "Evergreen"
       }
     },
+    "legend": {
+      "title": "Legend",
+      "hint": "Click a node to see its details",
+      "dismissHint": "Dismiss hint",
+      "sizeNote": "Note and post size scales with connections"
+    },
+    "a11y": {
+      "summary": "This 3D graph cannot be read by a screen reader. Use the links below to browse the same notes and posts as a list.",
+      "listAlternative": "Browse the note list",
+      "listAlternativeBlog": "Browse the post list"
+    },
     "unsupported": {
       "title": "3D graph is not available on this device",
-      "description": "WebGPU is required. Please use a desktop browser."
+      "description": "WebGL is required. Please use a desktop browser."
     },
     "error": {
       "title": "Failed to render the graph",

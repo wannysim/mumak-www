@@ -4,6 +4,10 @@ import { ReadingProgress } from '../ui/reading-progress';
 
 import '@testing-library/jest-dom';
 
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 const mockUseScrollProgress = jest.fn(() => 0);
 
 jest.mock('@/src/shared/hooks', () => ({
@@ -18,7 +22,7 @@ describe('ReadingProgress', () => {
   it('renders a progressbar with min/max range', () => {
     render(<ReadingProgress />);
 
-    const bar = screen.getByRole('progressbar', { name: 'Reading progress' });
+    const bar = screen.getByRole('progressbar', { name: 'readingProgress' });
     expect(bar).toHaveAttribute('aria-valuemin', '0');
     expect(bar).toHaveAttribute('aria-valuemax', '100');
   });

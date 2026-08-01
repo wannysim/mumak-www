@@ -28,6 +28,13 @@ const defaultLabels = {
   categories: 'Categories',
 };
 
+// 범례와 공유하는 필터 키 → 표시 문구 맵. 태그 키는 사용자 콘텐츠라 여기 없다.
+const defaultOptionLabels = {
+  'status:seedling': 'Seedling',
+  'status:evergreen': 'Evergreen',
+  'category:essay': 'Essay',
+};
+
 describe('GraphControls', () => {
   it('검색 입력 필드를 렌더링한다', () => {
     render(
@@ -40,6 +47,7 @@ describe('GraphControls', () => {
         onFilterToggle={jest.fn()}
         onClearFilters={jest.fn()}
         labels={defaultLabels}
+        optionLabels={defaultOptionLabels}
       />
     );
 
@@ -60,6 +68,7 @@ describe('GraphControls', () => {
         onFilterToggle={jest.fn()}
         onClearFilters={jest.fn()}
         labels={defaultLabels}
+        optionLabels={defaultOptionLabels}
       />
     );
 
@@ -80,6 +89,7 @@ describe('GraphControls', () => {
         onFilterToggle={jest.fn()}
         onClearFilters={jest.fn()}
         labels={defaultLabels}
+        optionLabels={defaultOptionLabels}
       />
     );
 
@@ -98,10 +108,12 @@ describe('GraphControls', () => {
         onFilterToggle={jest.fn()}
         onClearFilters={jest.fn()}
         labels={defaultLabels}
+        optionLabels={defaultOptionLabels}
       />
     );
 
-    expect(screen.getByText('seedling')).toBeInTheDocument();
+    // 분류는 지역화 문구로, 사용자 태그는 원문 그대로 나온다.
+    expect(screen.getByText('Seedling')).toBeInTheDocument();
     expect(screen.getByText('react')).toBeInTheDocument();
   });
 
@@ -119,10 +131,11 @@ describe('GraphControls', () => {
         onFilterToggle={handleToggle}
         onClearFilters={jest.fn()}
         labels={defaultLabels}
+        optionLabels={defaultOptionLabels}
       />
     );
 
-    await user.click(screen.getByText('seedling'));
+    await user.click(screen.getByText('Seedling'));
     expect(handleToggle).toHaveBeenCalledWith('status:seedling');
   });
 
@@ -140,6 +153,7 @@ describe('GraphControls', () => {
         onFilterToggle={jest.fn()}
         onClearFilters={handleClear}
         labels={defaultLabels}
+        optionLabels={defaultOptionLabels}
       />
     );
 
@@ -155,6 +169,7 @@ describe('GraphControls', () => {
         onFilterToggle={jest.fn()}
         onClearFilters={handleClear}
         labels={defaultLabels}
+        optionLabels={defaultOptionLabels}
       />
     );
 
@@ -167,13 +182,18 @@ describe('GraphControls', () => {
   });
 
   it('blog 탭에서는 categories 필터 그룹이 노출된다', async () => {
+    // 카테고리 노드의 name은 캔버스 표시용 지역화 문구다. 필터 옵션은 글 노드의
+    // 원문 category에서 나와야 raw slug 필터 키가 유지된다.
     const blogData: GraphData = {
       nodes: [
-        { id: 'cat:essay', name: 'essay', type: 'category', linkCount: 0, url: '' },
-        { id: 'cat:articles', name: 'articles', type: 'category', linkCount: 0, url: '' },
+        { id: 'post:p1', name: 'Post 1', type: 'post', category: 'essay', linkCount: 1, url: '/blog/essay/p1' },
+        { id: 'post:p2', name: 'Post 2', type: 'post', category: 'articles', linkCount: 1, url: '/blog/articles/p2' },
+        { id: 'category:essay', name: 'Essay', type: 'category', linkCount: 1, url: '' },
+        { id: 'category:articles', name: 'Articles', type: 'category', linkCount: 1, url: '' },
       ],
       links: [],
     };
+    const handleToggle = jest.fn();
     const user = userEvent.setup();
 
     render(
@@ -183,16 +203,23 @@ describe('GraphControls', () => {
         searchQuery=""
         onSearchChange={jest.fn()}
         activeFilters={[]}
-        onFilterToggle={jest.fn()}
+        onFilterToggle={handleToggle}
         onClearFilters={jest.fn()}
         labels={defaultLabels}
+        optionLabels={defaultOptionLabels}
       />
     );
 
-    await user.click(screen.getByRole('button', { expanded: false }));
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
 
     expect(screen.getByText('Categories')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'essay' })).toBeInTheDocument();
+    // 캔버스 범례와 같은 라벨 맵을 쓰므로 raw slug가 아니라 지역화 문구가 나와야 한다.
+    expect(screen.getByRole('option', { name: 'Essay' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'essay' })).not.toBeInTheDocument();
+
+    // 표시 문구는 지역화돼도 필터 키는 원문 슬러그를 유지해야 post 노드와 매칭된다.
+    await user.click(screen.getByRole('option', { name: 'Essay' }));
+    expect(handleToggle).toHaveBeenCalledWith('category:essay');
   });
 
   it('필터 옵션 선택 시 onFilterToggle을 호출한다', async () => {
@@ -209,6 +236,7 @@ describe('GraphControls', () => {
         onFilterToggle={handleToggle}
         onClearFilters={jest.fn()}
         labels={defaultLabels}
+        optionLabels={defaultOptionLabels}
       />
     );
 
@@ -231,6 +259,7 @@ describe('GraphControls', () => {
         onFilterToggle={jest.fn()}
         onClearFilters={jest.fn()}
         labels={defaultLabels}
+        optionLabels={defaultOptionLabels}
       />
     );
 

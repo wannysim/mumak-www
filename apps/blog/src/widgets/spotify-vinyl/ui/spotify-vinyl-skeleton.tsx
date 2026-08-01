@@ -2,7 +2,8 @@ import { Skeleton } from '@mumak/ui/components/skeleton';
 
 export function SpotifyVinylSkeleton() {
   return (
-    <div className="w-full max-w-md p-4">
+    // 루트 패딩은 spotify-vinyl.tsx와 항상 같아야 한다(로딩→로드 전환 CLS 방지).
+    <div className="w-full max-w-md md:p-4">
       <div className="relative flex items-center">
         {/* LP Disc Skeleton */}
         <div className="absolute left-0 top-1/2 -translate-y-1/2 size-24 sm:size-32 rounded-full bg-neutral-900/50 border-4 border-neutral-800/50" />

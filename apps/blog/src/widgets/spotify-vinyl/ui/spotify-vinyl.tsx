@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { memo, useState } from 'react';
 
@@ -27,6 +28,7 @@ export const SpotifyVinyl = memo(function SpotifyVinyl({
   interpolatedProgressMs = null,
 }: SpotifyVinylProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const t = useTranslations('home');
 
   const toggleOpen = () => setIsOpen(prev => !prev);
 
@@ -34,14 +36,15 @@ export const SpotifyVinyl = memo(function SpotifyVinyl({
   const canShowDevice = data.isPlaying && data.device != null;
 
   return (
-    <div className="w-full max-w-md p-4 select-none overflow-visible">
+    // 루트 패딩은 spotify-vinyl-skeleton.tsx와 항상 같아야 한다(로딩→로드 전환 CLS 방지).
+    <div className="w-full max-w-md md:p-4 select-none overflow-visible">
       <div className="group relative flex items-center">
         {/* Vinyl Toggle Button - LP Disc와 Album Sleeve를 포함 */}
         <button
           type="button"
           className="relative z-10 shrink-0 cursor-pointer transition-transform duration-300 active:scale-95"
           onClick={toggleOpen}
-          aria-label="Toggle vinyl player"
+          aria-label={t('vinylToggle')}
           aria-pressed={isOpen}
         >
           {/* LP Disc */}
@@ -51,9 +54,10 @@ export const SpotifyVinyl = memo(function SpotifyVinyl({
               'flex items-center justify-center',
               'bg-linear-to-br from-neutral-800 via-neutral-900 to-black',
               'shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)]',
-              'transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]',
+              // LP는 슬리브에서 미끄러져 나와 마찰로 멈추는 강체다. 오버슛 없이 감속만 한다(ease-out-quart).
+              'transition-transform duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:transition-none',
               isOpen ? 'translate-x-8 sm:translate-x-14 rotate-180' : 'translate-x-0 rotate-0',
-              data.isPlaying && isOpen && 'animate-[spin_4s_linear_infinite]'
+              data.isPlaying && isOpen && 'animate-[spin_4s_linear_infinite] motion-reduce:animate-none'
             )}
             aria-hidden="true"
           >
@@ -85,7 +89,7 @@ export const SpotifyVinyl = memo(function SpotifyVinyl({
             className={cn(
               'size-24 sm:size-32 rounded lg:rounded-lg shadow-2xl overflow-hidden bg-neutral-800 border border-neutral-200 dark:border-white/10 relative',
               'transition-opacity duration-300',
-              isTransitioning && 'animate-[fadeInScale_0.4s_ease-out]'
+              isTransitioning && 'animate-[fadeInScale_0.4s_ease-out] motion-reduce:animate-none'
             )}
           >
             <Image
@@ -103,7 +107,7 @@ export const SpotifyVinyl = memo(function SpotifyVinyl({
         <div
           className={cn(
             'flex-1 min-w-0 ml-8 sm:ml-14 flex flex-col justify-center z-20 pl-2',
-            isTransitioning && 'animate-[fadeInSlide_0.4s_ease-out]'
+            isTransitioning && 'animate-[fadeInSlide_0.4s_ease-out] motion-reduce:animate-none'
           )}
         >
           <div className="flex items-center justify-between gap-2 mb-1 whitespace-nowrap">
@@ -117,7 +121,9 @@ export const SpotifyVinyl = memo(function SpotifyVinyl({
               >
                 <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" />
               </svg>
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground truncate">
+              {/* 11px 가독성 플로어. uppercase+tracking은 이 위젯의 타이포그래피 서명이라 유지한다 —
+                  375px에서도 텍스트 컬럼이 ~303px라 넉넉하고, 넘치면 truncate가 받아낸다. */}
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground truncate">
                 {statusLabel}
               </span>
               {data.isPlaying && (
@@ -143,8 +149,8 @@ export const SpotifyVinyl = memo(function SpotifyVinyl({
               {data.isExplicit && (
                 <span
                   className="shrink-0 inline-grid place-items-center size-4 rounded-full border border-red-600 bg-white dark:bg-red-600 text-red-600 dark:text-white text-[9px] font-bold leading-none pt-px"
-                  title="Explicit content"
-                  aria-label="Explicit content"
+                  title={t('explicitContent')}
+                  aria-label={t('explicitContent')}
                 >
                   19
                 </span>

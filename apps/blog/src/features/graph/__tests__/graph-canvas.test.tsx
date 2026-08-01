@@ -59,14 +59,15 @@ const mockData: GraphData = {
     { id: 'note:b', name: 'Note B', type: 'note', status: 'evergreen', linkCount: 2, url: '/garden/b' },
     { id: 'post:hello', name: 'Hello', type: 'post', category: 'essay', linkCount: 0, url: '/blog/essay/hello' },
     { id: 'tag:react', name: 'react', type: 'tag', linkCount: 1, url: '' },
-    { id: 'cat:essay', name: 'essay', type: 'category', linkCount: 1, url: '' },
+    // 카테고리 노드의 name은 서버에서 지역화된 표시 문구다(캔버스 라벨의 유일한 소스).
+    { id: 'category:essay', name: '에세이', type: 'category', linkCount: 1, url: '' },
   ],
   links: [{ source: 'note:a', target: 'tag:react', type: 'tag' }],
 };
 
 const unsupportedLabels = {
   title: '이 기기에서 3D 그래프를 볼 수 없습니다',
-  description: 'WebGPU를 지원하는 데스크톱 브라우저에서 확인해 주세요.',
+  description: 'WebGL을 지원하는 데스크톱 브라우저에서 확인해 주세요.',
 };
 
 describe('GraphCanvas — fallback paths (WebGL unavailable)', () => {
@@ -312,10 +313,13 @@ describe('GraphCanvas — ForceGraph integration (WebGL available)', () => {
 
     const noteSprite = nodeThreeObject(mockData.nodes[0]!);
     const tagSprite = nodeThreeObject(mockData.nodes[3]!);
+    const categorySprite = nodeThreeObject(mockData.nodes[4]!);
 
     expect(noteSprite.text).toBe('Note A');
     expect(noteSprite.textHeight).toBe(3);
     // tag/category는 secondary 노드라 text height가 더 작음.
     expect(tagSprite.textHeight).toBe(2);
+    // 캔버스 라벨은 node.name 그대로다. 카테고리는 슬러그가 아니라 지역화 문구가 그려져야 한다.
+    expect(categorySprite.text).toBe('에세이');
   });
 });

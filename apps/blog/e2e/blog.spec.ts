@@ -15,7 +15,7 @@ test.describe('Blog - Category and Post Pages', () => {
       await expect(page.getByRole('link', { name: '전체' })).toBeVisible();
       await expect(page.getByRole('link', { name: '에세이' })).toBeVisible();
       await expect(page.getByRole('link', { name: '아티클' })).toBeVisible();
-      await expect(page.getByRole('link', { name: '노트' })).toBeVisible();
+      await expect(page.getByRole('link', { name: '단상' })).toBeVisible();
     });
   });
 
@@ -37,8 +37,8 @@ test.describe('Blog - Category and Post Pages', () => {
     test('should display notes category page', async ({ page }) => {
       await page.goto('/ko/blog/notes');
 
-      await expect(page.getByRole('heading', { level: 1, name: '노트' })).toBeVisible();
-      await expect(page.getByText('짧은 메모')).toBeVisible();
+      await expect(page.getByRole('heading', { level: 1, name: '단상' })).toBeVisible();
+      await expect(page.getByText('짧은 생각')).toBeVisible();
     });
 
     test('should display posts list on category page', async ({ page }) => {
@@ -60,8 +60,8 @@ test.describe('Blog - Category and Post Pages', () => {
       await expect(page.getByText('Deep research')).toBeVisible();
 
       await page.goto('/en/blog/notes');
-      await expect(page.getByRole('heading', { level: 1, name: 'Notes' })).toBeVisible();
-      await expect(page.getByText('Short memos')).toBeVisible();
+      await expect(page.getByRole('heading', { level: 1, name: 'Thoughts' })).toBeVisible();
+      await expect(page.getByText('Short thoughts')).toBeVisible();
     });
   });
 

@@ -39,7 +39,7 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     const sidebar = page.locator('aside').filter({ hasText: 'PARA 가든' });
     await expect(sidebar).toBeVisible();
 
-    const tree = sidebar.getByRole('navigation', { name: 'Garden notes' });
+    const tree = sidebar.locator('nav[data-slot="garden-note-tree"]');
     await expect(tree).toBeVisible();
 
     // Categories with content render as section headers (no expand toggle).
@@ -52,11 +52,12 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     await page.goto('/ko/garden');
 
     const sidebar = page.locator('aside').filter({ hasText: 'PARA 가든' });
-    const tree = sidebar.getByRole('navigation', { name: 'Garden notes' });
+    const tree = sidebar.locator('nav[data-slot="garden-note-tree"]');
 
     // The note lives under the "디지털 가든" parent node, collapsed by default; expand it first.
+    // The toggle's accessible name is localized, so select it by its collapsed state instead.
     const parentRow = tree.getByRole('link', { name: '디지털 가든', exact: true }).locator('xpath=..');
-    await parentRow.getByRole('button', { name: 'Expand' }).click();
+    await parentRow.getByRole('button', { expanded: false }).click();
 
     const noteLink = tree.getByRole('link', { name: '디지털 가든과 Second Brain' });
 
@@ -138,7 +139,7 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/ko/garden');
 
-    const tree = page.getByRole('navigation', { name: 'Garden notes' });
+    const tree = page.locator('nav[data-slot="garden-note-tree"]');
     await expect(tree).toBeVisible();
 
     await page.getByRole('button', { name: '사이드바 접기' }).click();
@@ -162,8 +163,9 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     await expect(drawer).toBeVisible();
 
     // The note lives under the "디지털 가든" parent node, collapsed by default; expand it first.
+    // The toggle's accessible name is localized, so select it by its collapsed state instead.
     const parentRow = drawer.getByRole('link', { name: '디지털 가든', exact: true }).locator('xpath=..');
-    await parentRow.getByRole('button', { name: 'Expand' }).click();
+    await parentRow.getByRole('button', { expanded: false }).click();
 
     const noteLink = drawer.getByRole('link', { name: '디지털 가든과 Second Brain' });
     await expect(noteLink).toBeVisible();
@@ -186,7 +188,7 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
     await expect(page.getByRole('dialog', { name: '검색' })).toBeVisible();
   });
 
-  test('should keep linked notes collapsed by default and expand on toggle', async ({ page }) => {
+  test('should show linked notes expanded by default and collapse on toggle', async ({ page }) => {
     await page.goto('/ko/garden/movie');
 
     const section = page.locator('[data-linked-notes-section]');
@@ -194,16 +196,15 @@ test.describe('Garden Page (PARA Sidebar Navigation)', () => {
 
     const trigger = section.getByRole('button', { name: /연결된 노트\s*\(\d+\)/ });
     await expect(trigger).toBeVisible();
-    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
 
-    const linkedList = section.locator('ul.space-y-2');
-    await expect(linkedList).not.toBeVisible();
+    const linkedNote = section.getByRole('link', { name: '시라트 (Sirât, 2025)' });
+    await expect(linkedNote).toBeVisible();
 
     await trigger.click();
 
-    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    await expect(linkedList).toBeVisible();
-    await expect(section.getByRole('link', { name: '시라트 (Sirât, 2025)' })).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(linkedNote).not.toBeVisible();
   });
 
   test('index: shows the PARA overview and navigates to a category page', async ({ page }) => {

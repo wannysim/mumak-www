@@ -16,40 +16,93 @@ describe('transformWikilinks', () => {
     getEmbedPreview: ({ slug }) => ({ title: `Title ${slug}`, excerpt: `Excerpt ${slug}` }),
   };
 
-  it('존재하는 노트 링크를 WikiLink 컴포넌트로 변환한다', () => {
-    const content = '이것은 [[existing-note]] 입니다.';
-    const result = transformWikilinks(content, { resolver: mockResolver, currentSlug: 'current-note' });
+  // 번역 파일에 결합하지 않도록 테스트 로컬 문구를 쓴다.
+  const brokenNotice = { link: 'MISSING', embed: (slug: string) => `MISSING_EMBED:${slug}` };
 
-    expect(result).toBe(
-      '이것은 <WikiLink href="/ko/garden/existing-note" slug="existing-note">existing-note</WikiLink> 입니다.'
+  const transform = (content: string, currentSlug = 'current-note') =>
+    transformWikilinks(content, { resolver: mockResolver, currentSlug, brokenNotice });
+
+  it('alias가 없는 링크는 대상 노트의 제목을 표시 텍스트로 쓴다', () => {
+    const content = '이것은 [[existing-note]] 입니다.';
+
+    expect(transform(content)).toBe(
+      '이것은 <WikiLink href="/ko/garden/existing-note" slug="existing-note">Title existing-note</WikiLink> 입니다.'
     );
   });
 
-  it('레이블이 있는 링크를 올바르게 변환한다', () => {
+  it('레이블이 있는 링크는 레이블이 제목보다 우선한다', () => {
     const content = '참고: [[existing-note|기존 노트]]';
-    const result = transformWikilinks(content, { resolver: mockResolver, currentSlug: 'current-note' });
 
-    expect(result).toBe('참고: <WikiLink href="/ko/garden/existing-note" slug="existing-note">기존 노트</WikiLink>');
+    expect(transform(content)).toBe(
+      '참고: <WikiLink href="/ko/garden/existing-note" slug="existing-note">기존 노트</WikiLink>'
+    );
   });
 
-  it('존재하지 않는 노트는 BrokenWikiLink 컴포넌트로 변환한다', () => {
-    const content = '없는 노트: [[non-existent]]';
-    const result = transformWikilinks(content, { resolver: mockResolver, currentSlug: 'current-note' });
+  it('헤딩 앵커 링크는 제목 뒤에 섹션을 덧붙여 목적지를 구분한다', () => {
+    const result = transform('헤딩 링크: [[existing-note#valid-heading]]');
 
-    expect(result).toBe('없는 노트: <BrokenWikiLink slug="non-existent">non-existent</BrokenWikiLink>');
+    expect(result).toContain('href="/ko/garden/existing-note#valid-heading"');
+    expect(result).toContain('>Title existing-note § valid-heading<');
+  });
+
+  it('같은 노트의 다른 섹션을 가리키는 두 링크는 링크 텍스트가 서로 다르다 (WCAG 2.4.4)', () => {
+    const headingResolver: LinkResolver = { ...mockResolver, exists: ({ slug }) => slug === 'existing-note' };
+    const result = transformWikilinks('[[existing-note#alpha]] / [[existing-note#beta]]', {
+      resolver: headingResolver,
+      currentSlug: 'current-note',
+      brokenNotice,
+    });
+
+    expect(result).toContain('>Title existing-note § alpha<');
+    expect(result).toContain('>Title existing-note § beta<');
+  });
+
+  it('블록 앵커는 사람이 읽을 문구가 아니라 제목만 남긴다', () => {
+    const result = transform('블록 링크: [[existing-note#^valid-block]]');
+
+    expect(result).toContain('>Title existing-note<');
+    expect(result).not.toContain('§');
+  });
+
+  it('문서 내부 앵커 [[#heading]]는 현재 노트 제목으로 바꾸지 않는다', () => {
+    const result = transform('내부 링크: [[#valid-heading]]', 'existing-note');
+
+    expect(result).toContain('href="/ko/garden/existing-note#valid-heading"');
+    expect(result).toContain('>#valid-heading<');
+  });
+
+  it('제목의 중괄호를 escape해 MDX expression으로 파싱되지 않게 한다', () => {
+    const bracedResolver: LinkResolver = {
+      ...mockResolver,
+      getEmbedPreview: () => ({ title: '{x}', excerpt: 'excerpt' }),
+    };
+    const result = transformWikilinks('[[existing-note]]', {
+      resolver: bracedResolver,
+      currentSlug: 'current-note',
+      brokenNotice,
+    });
+
+    expect(result).toContain('&#123;x&#125;');
+    expect(result).not.toContain('{');
+  });
+
+  it('존재하지 않는 노트는 BrokenWikiLink로 변환하고 slug를 그대로 남긴다', () => {
+    const content = '없는 노트: [[non-existent]]';
+
+    expect(transform(content)).toBe(
+      '없는 노트: <BrokenWikiLink slug="non-existent" notice="MISSING">non-existent</BrokenWikiLink>'
+    );
   });
 
   it('여러 링크를 동시에 변환한다', () => {
-    const content = '[[existing-note]]와 [[non-existent]]';
-    const result = transformWikilinks(content, { resolver: mockResolver, currentSlug: 'current-note' });
+    const result = transform('[[existing-note]]와 [[non-existent]]');
 
     expect(result).toContain('<WikiLink');
     expect(result).toContain('<BrokenWikiLink');
   });
 
   it('slug의 특수문자를 escape하여 attribute injection을 방지한다', () => {
-    const content = '[[test" onclick="alert(1)]]';
-    const result = transformWikilinks(content, { resolver: mockResolver, currentSlug: 'current-note' });
+    const result = transform('[[test" onclick="alert(1)]]');
 
     // " 문자가 &quot;로 escape되어 attribute를 닫을 수 없음
     expect(result).toContain('&quot;');
@@ -57,8 +110,7 @@ describe('transformWikilinks', () => {
   });
 
   it('label의 특수문자를 escape하여 HTML injection을 방지한다', () => {
-    const content = '[[existing-note|<script>alert(1)</script>]]';
-    const result = transformWikilinks(content, { resolver: mockResolver, currentSlug: 'current-note' });
+    const result = transform('[[existing-note|<script>alert(1)</script>]]');
 
     // < > 문자가 escape되어 HTML 태그로 해석되지 않음
     expect(result).not.toContain('<script>');
@@ -71,8 +123,11 @@ describe('transformWikilinks', () => {
       exists: () => true,
       getEmbedPreview: () => ({ title: 'title', excerpt: 'excerpt' }),
     };
-    const content = '[[test]]';
-    const result = transformWikilinks(content, { resolver: maliciousResolver, currentSlug: 'current-note' });
+    const result = transformWikilinks('[[test]]', {
+      resolver: maliciousResolver,
+      currentSlug: 'current-note',
+      brokenNotice,
+    });
 
     // " > < 문자가 escape되어 attribute를 닫거나 새 태그를 열 수 없음
     expect(result).toContain('&quot;');
@@ -80,29 +135,19 @@ describe('transformWikilinks', () => {
     expect(result).toContain('&lt;');
   });
 
-  it('note#heading 링크를 검증 후 변환한다', () => {
-    const content = '헤딩 링크: [[existing-note#valid-heading]]';
-    const result = transformWikilinks(content, { resolver: mockResolver, currentSlug: 'current-note' });
-    expect(result).toContain('href="/ko/garden/existing-note#valid-heading"');
-  });
-
-  it('현재 문서 내부 링크 [[#heading]]를 현재 slug 기준으로 변환한다', () => {
-    const content = '내부 링크: [[#valid-heading]]';
-    const result = transformWikilinks(content, { resolver: mockResolver, currentSlug: 'existing-note' });
-    expect(result).toContain('href="/ko/garden/existing-note#valid-heading"');
-  });
-
   it('임베드 문법은 WikiEmbed 컴포넌트로 변환한다', () => {
-    const content = '![[existing-note]]';
-    const result = transformWikilinks(content, { resolver: mockResolver, currentSlug: 'current-note' });
+    const result = transform('![[existing-note]]');
+
     expect(result).toContain('<WikiEmbed');
     expect(result).toContain('title="Title existing-note"');
   });
 
-  it('유효하지 않은 임베드는 BrokenWikiEmbed로 변환한다', () => {
-    const content = '![[existing-note#missing-heading]]';
-    const result = transformWikilinks(content, { resolver: mockResolver, currentSlug: 'current-note' });
-    expect(result).toContain('<BrokenWikiEmbed');
+  it('유효하지 않은 임베드는 notice를 실은 BrokenWikiEmbed로 변환한다', () => {
+    const result = transform('![[existing-note#missing-heading]]');
+
+    expect(result).toBe(
+      '<BrokenWikiEmbed slug="existing-note#missing-heading" notice="MISSING_EMBED:existing-note#missing-heading" />'
+    );
   });
 });
 
@@ -116,14 +161,26 @@ describe('transformWikilinksToMarkdown', () => {
     expect(result).toBe('See [note-a](https://example.com/garden/note-a) here');
   });
 
+  it('uses the target note title when a titleFor lookup is supplied', () => {
+    const result = transformWikilinksToMarkdown('See [[note-a]] here', {
+      hrefFor,
+      titleFor: ({ slug }) => `Title ${slug}`,
+    });
+
+    expect(result).toBe('See [Title note-a](https://example.com/garden/note-a) here');
+  });
+
   it('uses the explicit label when provided', () => {
-    const result = transformWikilinksToMarkdown('See [[note-a|Note A]]', { hrefFor });
+    const result = transformWikilinksToMarkdown('See [[note-a|Note A]]', {
+      hrefFor,
+      titleFor: ({ slug }) => `Title ${slug}`,
+    });
 
     expect(result).toBe('See [Note A](https://example.com/garden/note-a)');
   });
 
-  it('passes heading anchors through to hrefFor', () => {
-    const result = transformWikilinksToMarkdown('[[note-a#section]]', { hrefFor });
+  it('falls back to the target when the title lookup misses', () => {
+    const result = transformWikilinksToMarkdown('[[note-a#section]]', { hrefFor, titleFor: () => null });
 
     expect(result).toBe('[note-a#section](https://example.com/garden/note-a#section)');
   });
@@ -151,5 +208,17 @@ describe('createGardenResolver', () => {
     expect(resolver.exists({ slug: 'note-a', heading: 'known-heading' })).toBe(true);
     expect(resolver.exists({ slug: 'note-a', blockId: 'known-block' })).toBe(true);
     expect(resolver.exists({ slug: 'non-existent' })).toBe(false);
+  });
+
+  it('존재하지 않는 노트에는 embed preview를 주지 않는다 — 깨진 링크가 제목으로 위장하지 않게', () => {
+    const resolver = createGardenResolver({
+      existingSlugs: new Set(['note-a']),
+      hasHeadingAnchor: () => false,
+      hasBlockAnchor: () => false,
+      getEmbedPreview: input => ({ title: `Title ${input.slug}`, excerpt: 'preview' }),
+    });
+
+    expect(resolver.getEmbedPreview({ slug: 'note-a' })?.title).toBe('Title note-a');
+    expect(resolver.getEmbedPreview({ slug: 'non-existent' })).toBeNull();
   });
 });

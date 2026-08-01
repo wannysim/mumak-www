@@ -28,6 +28,7 @@ interface GardenSidebarProps {
 export function GardenSidebar({ categories }: GardenSidebarProps) {
   const pathname = usePathname();
   const t = useTranslations('garden.sidebar');
+  const tCommon = useTranslations('common');
 
   const visibleCategories = React.useMemo(() => categories.filter(c => c.noteCount > 0), [categories]);
 
@@ -86,7 +87,11 @@ export function GardenSidebar({ categories }: GardenSidebarProps) {
               <ChevronUp className="size-3.5" aria-hidden />
             </Button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="flex max-h-[80svh] flex-col gap-0 px-4 pt-4 pb-6">
+          <SheetContent
+            side="bottom"
+            closeLabel={tCommon('close')}
+            className="flex max-h-[80svh] flex-col gap-0 px-4 pt-4 pb-6"
+          >
             <SheetHeader className="px-0 pb-3">
               <SheetTitle className="flex items-center gap-2 text-base">
                 <FolderTree className="size-4 text-muted-foreground" />

@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import * as React from 'react';
 
 import { Badge } from '@mumak/ui/components/badge';
@@ -26,6 +27,7 @@ function NoteTreeItem({
   depth: number;
   onNavigate?: () => void;
 }) {
+  const t = useTranslations('garden.sidebar');
   const isActive = pathname === `/garden/${node.slug}`;
   const hasChildren = node.children.length > 0;
   const isAncestorOfActive = hasChildren && hasActiveDescendant(node, pathname);
@@ -57,13 +59,17 @@ function NoteTreeItem({
     </Link>
   );
 
+  // 컨트롤 목록으로 훑는 스크린리더 사용자에게 "펼치기"만 여러 개 들리지 않도록 노트 제목을
+  // 이름에 넣는다. 사이드바 전체를 여닫는 garden.sidebar.collapse/expand와는 다른 동작이라 키도 다르다.
+  const childNotesToggleLabel = t(open ? 'collapseChildNotes' : 'expandChildNotes', { title: node.title });
+
   const row = (
     <div className="flex items-center gap-0.5" style={{ paddingLeft: `${depth * 12}px` }}>
       {hasChildren ? (
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            aria-label={open ? 'Collapse' : 'Expand'}
+            aria-label={childNotesToggleLabel}
             className={cn(
               'inline-flex size-5 shrink-0 items-center justify-center rounded transition-colors',
               'text-sidebar-foreground/60',
@@ -116,8 +122,11 @@ export function TreeContent({
   pathname: string;
   onNavigate?: () => void;
 }) {
+  const t = useTranslations('garden.sidebar');
+
   return (
-    <nav aria-label="Garden notes" className="flex flex-col gap-4">
+    // 접근 가능한 이름이 로케일마다 달라지므로, 테스트는 data-slot을 앵커로 쓴다.
+    <nav data-slot="garden-note-tree" aria-label={t('notesNav')} className="flex flex-col gap-4">
       {visibleCategories.map(category => (
         <section key={category.key} className="flex flex-col gap-1">
           <header className="flex items-center justify-between gap-2 px-2">

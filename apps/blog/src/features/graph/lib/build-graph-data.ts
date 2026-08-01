@@ -30,9 +30,11 @@ const toTagNode = (tag: string): GraphNode => ({
   url: '',
 });
 
-const toCategoryNode = (category: string): GraphNode => ({
+// 캔버스 라벨은 node.name을 그대로 그린다. 카테고리 노드만 원문이 슬러그('essay')라
+// 지역화 문구를 받으면 그것을 표시 이름으로 쓴다. id는 그대로 둬서 링크·필터가 슬러그로 남는다.
+const toCategoryNode = (category: string, label?: string): GraphNode => ({
   id: `category:${category}`,
-  name: category,
+  name: label ?? category,
   type: 'category',
   linkCount: 0,
   url: '',
@@ -78,10 +80,10 @@ export function buildGardenGraphData(notes: NoteMeta[]): GraphData {
   });
 }
 
-export function buildBlogGraphData(posts: PostMeta[]): GraphData {
+export function buildBlogGraphData(posts: PostMeta[], categoryLabels: Record<string, string> = {}): GraphData {
   const postNodes = posts.map(toPostNode);
   const tagNodes = collectUniqueTags(posts).map(toTagNode);
-  const categoryNodes = [...new Set(posts.map(p => p.category))].map(toCategoryNode);
+  const categoryNodes = [...new Set(posts.map(p => p.category))].map(c => toCategoryNode(c, categoryLabels[c]));
 
   const categoryLinks: GraphLink[] = posts.map(post => ({
     source: `post:${post.slug}`,

@@ -24,9 +24,11 @@ export async function GardenHighlights({ notes, locale, totalCount }: GardenHigh
 
   return (
     <section data-slot="garden-highlights">
-      <h2 className="text-2xl font-semibold mb-6">{t('gardenTitle')}</h2>
+      {/* h2 클래스는 홈 page.tsx의 "최신 글" h2와 문자 그대로 같아야 한다(두 블록 대칭 계약). */}
+      <h2 className="text-2xl font-semibold mb-4 md:mb-6">{t('gardenTitle')}</h2>
 
-      <div className="space-y-6">
+      {/* 카드 간격은 홈 page.tsx의 "최신 글" 리스트와 문자 그대로 같아야 한다(두 블록 대칭 계약). */}
+      <div className="space-y-4 md:space-y-6">
         {notes.map(note => (
           <NoteCard key={note.slug} note={note} locale={locale} showStatus={false} />
         ))}

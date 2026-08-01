@@ -205,14 +205,51 @@ test.describe('SEO - Open Graph', () => {
 });
 
 test.describe('SEO - Basic Meta Tags', () => {
+  // 홈 제목은 정확히 비교한다. `toContain('Wan Sim')`은 "Wan Sim | Wan Sim"도 통과시켜서
+  // 템플릿 중복 버그가 그대로 배포됐다.
   test('should have proper title and description', async ({ page }) => {
     await page.goto('/ko');
 
-    const title = await page.title();
-    expect(title).toContain('Wan Sim');
+    expect(await page.title()).toBe('Wan Sim — 생각과 기록을 담는 공간');
 
     const description = await page.locator('meta[name="description"]').getAttribute('content');
     expect(description).toBeTruthy();
+  });
+
+  test('should have the English home title without the template suffix', async ({ page }) => {
+    await page.goto('/en');
+
+    expect(await page.title()).toBe('Wan Sim — A space for thoughts and records');
+  });
+
+  // 홈만 absolute이고, 나머지 페이지는 '%s | Wan Sim' 템플릿을 그대로 유지해야 한다.
+  test('should keep the "<page> | Wan Sim" template on non-home pages', async ({ page }) => {
+    await page.goto('/ko/blog');
+    expect(await page.title()).toBe('블로그 | Wan Sim');
+
+    await page.goto('/en/garden');
+    expect(await page.title()).toBe('Digital Garden | Wan Sim');
+  });
+
+  // 탭 제목과 링크 프리뷰 제목이 어긋나지 않아야 한다(layout의 하드코딩 'Wan Sim' 상속 방지).
+  // 홈만이 아니라 템플릿을 타는 하위 페이지에서도 성립해야 하는 불변식이다.
+  test('should match the OG and Twitter titles to the document title', async ({ page }) => {
+    for (const path of ['/ko', '/ko/blog', '/en/garden']) {
+      await page.goto(path);
+
+      const documentTitle = await page.title();
+      expect(await page.locator('meta[property="og:title"]').getAttribute('content')).toBe(documentTitle);
+      expect(await page.locator('meta[name="twitter:title"]').getAttribute('content')).toBe(documentTitle);
+    }
+  });
+
+  // 페이지 로케일과 og:locale이 어긋나면 LinkedIn 등이 en 문서를 ko 콘텐츠로 취급한다.
+  test('should advertise the page locale in og:locale', async ({ page }) => {
+    await page.goto('/ko/blog');
+    expect(await page.locator('meta[property="og:locale"]').getAttribute('content')).toBe('ko_KR');
+
+    await page.goto('/en/garden');
+    expect(await page.locator('meta[property="og:locale"]').getAttribute('content')).toBe('en_US');
   });
 
   test('should have robots meta tag', async ({ page }) => {

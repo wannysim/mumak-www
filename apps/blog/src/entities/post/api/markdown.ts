@@ -9,6 +9,11 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
 // 본문 내 wikilink를 절대 URL의 일반 마크다운 링크로 치환한다. 마크다운 원문(.md)과
 // RSS content:encoded 모두 사이트 밖에서 소비되므로 절대 URL을 쓴다. 현재 blog
 // 포스트에는 wikilink가 없지만, 추가되더라도 끊기지 않도록 방어적으로 변환한다.
+//
+// ponytail: `titleFor`를 넘기지 않아 alias 없는 링크는 slug를 표시 텍스트로 쓴다.
+// 노트 제목은 entities/note가 갖고 있고 entities끼리의 cross-import는 FSD상 금지다
+// (apps/blog/AGENTS.md). 제목이 필요해지면 app 레이어 라우트(blog/[category]/[slug]/raw,
+// feed.xml)가 조회 함수를 인자로 내려주는 게 올바른 방향이다.
 function bodyToMarkdown(locale: Locale, content: string): string {
   return transformWikilinksToMarkdown(content, {
     hrefFor: ({ slug, heading, blockId }) => {

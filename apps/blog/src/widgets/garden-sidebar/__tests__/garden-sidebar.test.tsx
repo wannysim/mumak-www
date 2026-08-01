@@ -37,8 +37,11 @@ jest.mock('@/src/shared/config/i18n', () => ({
   }),
 }));
 
+// 번역 mock은 키를 그대로 돌려주되, 값이 있으면 실제 t()처럼 함께 노출한다.
+// 덕분에 "번역 키에서 왔는지"와 "노트 제목이 라벨에 들어갔는지"를 둘 다 검증할 수 있다.
 jest.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => key,
+  useTranslations: () => (key: string, values?: Record<string, string>) =>
+    values ? `${key}:${Object.values(values).join(',')}` : key,
 }));
 
 // Mock Sheet to render children directly (avoid radix portal in jsdom).
@@ -125,10 +128,13 @@ describe('GardenSidebar', () => {
   it('renders categories that have notes and hides empty ones', () => {
     render(<GardenSidebar categories={categories} />);
 
-    const navs = screen.getAllByRole('navigation', { name: 'Garden notes' });
+    const navs = screen.getAllByRole('navigation');
     expect(navs.length).toBeGreaterThan(0);
 
     const nav = navs[0]!;
+    // 트리 landmark의 이름은 하드코딩 영어가 아니라 번역 키에서 온다 (mock 번역은 key를 그대로 반환).
+    expect(nav).toHaveAccessibleName('notesNav');
+    expect(nav).toHaveAttribute('data-slot', 'garden-note-tree');
     expect(within(nav).getByText('Projects')).toBeInTheDocument();
     expect(within(nav).getByText('Areas')).toBeInTheDocument();
     expect(within(nav).queryByText('Archives')).not.toBeInTheDocument();
@@ -137,7 +143,7 @@ describe('GardenSidebar', () => {
   it('renders top-level note links from each visible category', () => {
     render(<GardenSidebar categories={categories} />);
 
-    const navs = screen.getAllByRole('navigation', { name: 'Garden notes' });
+    const navs = screen.getAllByRole('navigation');
     const nav = navs[0]!;
 
     expect(within(nav).getAllByRole('link', { name: 'Active Project' })[0]).toHaveAttribute(
@@ -158,7 +164,7 @@ describe('GardenSidebar', () => {
     mockUsePathname.mockReturnValue('/garden/projects/standalone');
     render(<GardenSidebar categories={categories} />);
 
-    const nav = screen.getAllByRole('navigation', { name: 'Garden notes' })[0]!;
+    const nav = screen.getAllByRole('navigation')[0]!;
     const activeLink = within(nav).getAllByRole('link', { name: 'Standalone Project' })[0]!;
     expect(activeLink).toHaveAttribute('aria-current', 'page');
 
@@ -170,14 +176,14 @@ describe('GardenSidebar', () => {
     mockUsePathname.mockReturnValue('/garden/projects/active/first');
     render(<GardenSidebar categories={categories} />);
 
-    const nav = screen.getAllByRole('navigation', { name: 'Garden notes' })[0]!;
+    const nav = screen.getAllByRole('navigation')[0]!;
     expect(within(nav).getByRole('link', { name: 'First Subnote' })).toBeInTheDocument();
   });
 
   it('keeps non-active branches collapsed by default (children not rendered)', () => {
     render(<GardenSidebar categories={categories} />);
 
-    const nav = screen.getAllByRole('navigation', { name: 'Garden notes' })[0]!;
+    const nav = screen.getAllByRole('navigation')[0]!;
     expect(within(nav).queryByRole('link', { name: 'First Subnote' })).not.toBeInTheDocument();
     expect(within(nav).queryByRole('link', { name: 'Second Subnote' })).not.toBeInTheDocument();
   });
@@ -186,14 +192,38 @@ describe('GardenSidebar', () => {
     const user = userEvent.setup();
     render(<GardenSidebar categories={categories} />);
 
-    const nav = screen.getAllByRole('navigation', { name: 'Garden notes' })[0]!;
+    const nav = screen.getAllByRole('navigation')[0]!;
     expect(within(nav).queryByRole('link', { name: 'First Subnote' })).not.toBeInTheDocument();
 
-    const expandButton = within(nav).getAllByRole('button', { name: 'Expand' })[0]!;
+    const expandButton = within(nav).getAllByRole('button', { name: 'expandChildNotes:Active Project' })[0]!;
     await user.click(expandButton);
 
     expect(within(nav).getByRole('link', { name: 'First Subnote' })).toBeInTheDocument();
     expect(within(nav).getByRole('link', { name: 'Second Subnote' })).toBeInTheDocument();
+  });
+
+  it('names the per-note chevron from messages with the note title, not hardcoded English', async () => {
+    const user = userEvent.setup();
+    render(<GardenSidebar categories={categories} />);
+
+    const nav = screen.getAllByRole('navigation')[0]!;
+
+    // 닫힘 상태: 트리 행 전용 키(expandChildNotes) + 노트 제목.
+    expect(within(nav).getAllByRole('button', { name: 'expandChildNotes:Active Project' })[0]).toBeInTheDocument();
+    // 사이드바 전체를 여닫는 collapse/expand 키를 재사용하면 안 된다.
+    expect(within(nav).queryByRole('button', { name: 'expand' })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument();
+
+    // E2E는 로케일 무관하게 aria-expanded로 이 토글을 고른다.
+    const toggle = within(nav).getAllByRole('button', { name: 'expandChildNotes:Active Project' })[0]!;
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(toggle);
+
+    // 열림 상태: 라벨이 collapseChildNotes로 바뀐다.
+    expect(within(nav).getAllByRole('button', { name: 'collapseChildNotes:Active Project' })[0]).toBeInTheDocument();
+    expect(within(nav).queryByRole('button', { name: 'collapse' })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('button', { name: 'Collapse' })).not.toBeInTheDocument();
   });
 
   describe('desktop collapse', () => {
