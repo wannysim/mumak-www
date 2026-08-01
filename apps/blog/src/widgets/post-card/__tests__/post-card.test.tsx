@@ -8,10 +8,11 @@ import '@testing-library/jest-dom';
 
 // Mock next-intl/server
 jest.mock('next-intl/server', () => ({
-  getTranslations: jest.fn(async () => (key: string) => {
+  getTranslations: jest.fn(async () => (key: string, values?: Record<string, number>) => {
     const translations: Record<string, string> = {
       readingTimeUnit: '분',
       readMore: '더 읽기',
+      seriesPart: `${values?.part}편`,
     };
     return translations[key] ?? key;
   }),
@@ -117,6 +118,28 @@ describe('PostCard', () => {
       await renderPostCard();
 
       expect(screen.queryByTestId('badge')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('series badge', () => {
+    // 목록은 최신순이라 시리즈가 마지막 편부터 노출된다. 배지가 없으면 리스트로
+    // 들어온 독자가 결말부터 읽기 시작한다.
+    it('should render series name and part when the post belongs to a series', async () => {
+      await renderPostCard({ post: { ...mockPost, series: 'Expo 소셜 로그인', part: 2 } });
+
+      expect(screen.getByText(/Expo 소셜 로그인 2편/)).toBeInTheDocument();
+    });
+
+    it('should not render a series badge for a standalone post', async () => {
+      await renderPostCard();
+
+      expect(screen.queryByText(/편$/)).not.toBeInTheDocument();
+    });
+
+    it('should not render a partial badge when only one of series/part is set', async () => {
+      await renderPostCard({ post: { ...mockPost, series: 'Expo 소셜 로그인' } });
+
+      expect(screen.queryByText(/Expo 소셜 로그인/)).not.toBeInTheDocument();
     });
   });
 

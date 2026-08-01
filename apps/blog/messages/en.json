@@ -66,7 +66,10 @@
     "readMore": "Read more",
     "readingTimeUnit": " min",
     "nextReading": "What to read next",
-    "moreInCategory": "More in {category}"
+    "moreInCategory": "More in {category}",
+    "nextInSeries": "Next in series",
+    "seriesProgress": "Part {current} of {total}",
+    "seriesPart": "Part {part}"
   },
   "tags": {
     "title": "Blog Tags",

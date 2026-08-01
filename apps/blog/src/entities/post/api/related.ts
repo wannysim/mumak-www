@@ -12,6 +12,12 @@ function isSamePost(a: PostMeta, b: PostMeta): boolean {
   return a.category === b.category && a.slug === b.slug;
 }
 
+// 같은 시리즈의 다른 편은 "관련 글"이 아니라 시리즈 내비게이션이다. 상단 시리즈
+// 목차와 하단 "다음 편"이 이미 담당하므로 여기서 빼야 목록이 중복되지 않는다.
+function isSeriesSibling(candidate: PostMeta, post: PostMeta): boolean {
+  return post.series !== undefined && candidate.series === post.series;
+}
+
 /**
  * 글 끝에서 이어 읽을 글을 고른다.
  *
@@ -26,7 +32,7 @@ export function getRelatedPosts(locale: Locale, post: PostMeta, limit: number = 
   const tags = post.tags ?? [];
 
   return getPosts(locale)
-    .filter(candidate => !isSamePost(candidate, post))
+    .filter(candidate => !isSamePost(candidate, post) && !isSeriesSibling(candidate, post))
     .map(candidate => ({ candidate, sharedTags: countSharedTags(tags, candidate) }))
     .toSorted(
       (a, b) =>

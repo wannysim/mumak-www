@@ -12,6 +12,7 @@ import {
   getCategoryLabel,
   getPost,
   getRelatedPosts,
+  getSeriesContext,
   isValidCategory,
 } from '@/src/entities/post';
 import { locales, type Locale } from '@/src/shared/config/i18n';
@@ -21,6 +22,7 @@ import { Breadcrumbs } from '@/src/shared/ui';
 import { MDXContent, MDXContentSkeleton } from '@/src/widgets/mdx-content';
 import { NextReading } from '@/src/widgets/next-reading';
 import { PostTags } from '@/src/widgets/post-card/ui/post-tags';
+import { SeriesNav } from '@/src/widgets/series-nav';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://wannysim.com';
 
@@ -97,6 +99,8 @@ export default async function PostPage({ params }: PostPageProps) {
   const tPost = await getTranslations({ locale, namespace: 'post' });
   const categoryTitle = getCategoryLabel(category, locale as Locale);
 
+  const series = getSeriesContext(locale as Locale, post.meta);
+
   const blogPostingJsonLd = generateBlogPostingJsonLd({
     post: post.meta,
     locale,
@@ -147,6 +151,8 @@ export default async function PostPage({ params }: PostPageProps) {
           )}
         </header>
 
+        {series && <SeriesNav series={series} />}
+
         <div className="prose prose-neutral dark:prose-invert max-w-none">
           <Suspense fallback={<MDXContentSkeleton />}>
             <MDXContent source={post.content} components={mdxComponents} options={mdxOptions} />
@@ -154,7 +160,12 @@ export default async function PostPage({ params }: PostPageProps) {
         </div>
       </article>
 
-      <NextReading posts={getRelatedPosts(locale as Locale, post.meta)} locale={locale as Locale} category={category} />
+      <NextReading
+        posts={getRelatedPosts(locale as Locale, post.meta)}
+        locale={locale as Locale}
+        category={category}
+        seriesNext={series?.next}
+      />
     </div>
   );
 }

@@ -84,6 +84,55 @@ test.describe('Blog - Category and Post Pages', () => {
       await expect(page.getByRole('heading', { name: '나는 글 쓰는 걸 좋아한다' })).toBeVisible();
     });
 
+    test.describe('Series', () => {
+      const PART_2 = '/ko/blog/articles/expo-social-login-build';
+
+      test('shows every part of the series, with the current one marked', async ({ page }) => {
+        await page.goto(PART_2);
+
+        const seriesNav = page.getByRole('navigation', { name: 'Expo 소셜 로그인' });
+        await expect(seriesNav).toBeVisible();
+        await expect(seriesNav.getByText('3편 중 2편')).toBeVisible();
+
+        // 다른 편은 링크, 현재 편은 aria-current.
+        await expect(seriesNav.getByRole('link')).toHaveCount(2);
+        await expect(seriesNav.locator('[aria-current="page"]')).toHaveCount(1);
+      });
+
+      test('navigates to the previous part from the series nav', async ({ page }) => {
+        await page.goto(PART_2);
+
+        await page.getByRole('navigation', { name: 'Expo 소셜 로그인' }).getByRole('link').first().click();
+        await page.waitForURL(/\/ko\/blog\/articles\/expo-social-login$/);
+      });
+
+      test('offers the next part first in the next-reading block', async ({ page }) => {
+        await page.goto(PART_2);
+
+        const firstSuggestion = page.locator('[data-slot="next-reading"] li').first();
+        await expect(firstSuggestion.getByText('다음 편')).toBeVisible();
+        await expect(firstSuggestion.getByRole('link')).toHaveAttribute(
+          'href',
+          '/ko/blog/articles/expo-social-login-backend'
+        );
+      });
+
+      test('does not repeat series siblings among the tag-based suggestions', async ({ page }) => {
+        await page.goto(PART_2);
+
+        // 다음 편(3부) 한 줄만 시리즈 링크여야 한다. 1부는 상단 시리즈 목차가 담당한다.
+        const suggestions = page.locator('[data-slot="next-reading"] a[href*="expo-social-login"]');
+        await expect(suggestions).toHaveCount(1);
+      });
+
+      test('marks the series on list cards so the newest-first order is readable', async ({ page }) => {
+        await page.goto('/ko/blog/articles');
+
+        const card = page.locator('[data-slot="content-card"]').filter({ hasText: 'Expo 소셜 로그인 (1/3)' });
+        await expect(card.getByText('Expo 소셜 로그인 1편')).toBeVisible();
+      });
+    });
+
     test('should end with a next-reading block instead of a bare back link', async ({ page }) => {
       await page.goto('/ko/blog/essay/first');
 

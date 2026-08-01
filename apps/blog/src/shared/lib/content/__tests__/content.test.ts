@@ -16,6 +16,35 @@ describe('content frontmatter schemas', () => {
     expect(frontmatter.draft).toBe(false);
   });
 
+  describe('series / part', () => {
+    const base = { title: 'Post title', date: '2026-06-12', description: 'Description', tags: ['test'] };
+
+    it('accepts a post with neither series nor part', () => {
+      const frontmatter = PostFrontmatterSchema.parse(base);
+
+      expect(frontmatter.series).toBeUndefined();
+      expect(frontmatter.part).toBeUndefined();
+    });
+
+    it('accepts a post with both', () => {
+      const frontmatter = PostFrontmatterSchema.parse({ ...base, series: 'Expo', part: 2 });
+
+      expect(frontmatter).toMatchObject({ series: 'Expo', part: 2 });
+    });
+
+    // 한쪽만 쓴 글은 시리즈 UI가 조용히 빠지는 대신 빌드 타임에 걸려야 한다.
+    it.each([
+      ['series without part', { series: 'Expo' }],
+      ['part without series', { part: 2 }],
+    ])('rejects %s', (_label, extra) => {
+      expect(PostFrontmatterSchema.safeParse({ ...base, ...extra }).success).toBe(false);
+    });
+
+    it('rejects a non-positive part', () => {
+      expect(PostFrontmatterSchema.safeParse({ ...base, series: 'Expo', part: 0 }).success).toBe(false);
+    });
+  });
+
   it('rejects post tags that are not an array', () => {
     expect(
       PostFrontmatterSchema.safeParse({

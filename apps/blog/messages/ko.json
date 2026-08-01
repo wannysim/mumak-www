@@ -66,7 +66,10 @@
     "readMore": "더 읽기",
     "readingTimeUnit": "분",
     "nextReading": "다음 읽을거리",
-    "moreInCategory": "{category} 더 보기"
+    "moreInCategory": "{category} 더 보기",
+    "nextInSeries": "다음 편",
+    "seriesProgress": "{total}편 중 {current}편",
+    "seriesPart": "{part}편"
   },
   "tags": {
     "title": "블로그 태그",

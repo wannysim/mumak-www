@@ -3,6 +3,8 @@ title: 'Expo 소셜 로그인 (2/3) — 빌드와 디바이스, 토큰을 얻기
 date: '2026-06-14'
 description: '카카오 취소 코드를 실측하고, Apple 시뮬레이터에서 크게 막히고, capability 재빌드까지 — Phase A를 끝내며 겪은 디바이스 삽질'
 tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
+series: 'Expo 소셜 로그인'
+part: 2
 draft: false
 ---
 
@@ -10,10 +12,6 @@ draft: false
 
 이제 dev client를 실제로 빌드해 디바이스에서 토큰을 받아볼 차례다.
 여기서부터는 코드가 아니라 빌드와 디바이스가 상대였다.
-
-- [1부 — 설계: 패키지 선택부터 provider-agnostic 골격까지](/ko/blog/articles/expo-social-login)
-- **2부 (이 글)** — 빌드와 디바이스, 토큰을 얻기까지
-- [3부 — 백엔드 연동: OIDC, nonce, 그리고 Apple Code 1000](/ko/blog/articles/expo-social-login-backend)
 
 ## 7. 카카오 성공 — 시뮬레이터에서 토큰 획득
 

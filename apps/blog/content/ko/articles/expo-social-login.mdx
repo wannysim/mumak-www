@@ -3,6 +3,8 @@ title: 'Expo 소셜 로그인 (1/3) — 설계: 패키지 선택부터 provider-
 date: '2026-06-13'
 description: 'New Architecture가 강제된 Expo SDK 56 앱에 카카오·Apple 로그인을 붙이며, 코드보다 코드 바깥에서 더 많이 헤맨 기록의 첫 편'
 tags: ['react-native', 'expo', 'auth', 'mobile', 'troubleshooting']
+series: 'Expo 소셜 로그인'
+part: 1
 draft: false
 ---
 
@@ -12,10 +14,6 @@ draft: false
 코드보다 코드 바깥에서 더 많이 헤맸다.
 
 이 글은 모노레포 안의 Expo 앱에 카카오와 Apple 로그인을 붙인 기록이다. 양이 많아 세 편으로 나눴다.
-
-- **1부 (이 글)** — 설계: 패키지 선택, Apple의 함정, provider-agnostic 골격
-- [2부 — 빌드와 디바이스, 토큰을 얻기까지](/ko/blog/articles/expo-social-login-build)
-- [3부 — 백엔드 연동: OIDC, nonce, 그리고 Apple Code 1000](/ko/blog/articles/expo-social-login-backend)
 
 먼저 환경을 적어둔다.
 

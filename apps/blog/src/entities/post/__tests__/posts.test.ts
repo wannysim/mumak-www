@@ -321,4 +321,27 @@ outro paragraph here`;
       expect(calculateWordCount('   \n\n   \t  ')).toBe(0);
     });
   });
+
+  // PostMeta는 목록(getPosts)과 상세(getPost)가 같은 매핑을 거쳐야 한다. 예전에는 두
+  // 곳에 리터럴이 나뉘어 있어서, 새 frontmatter 필드를 한쪽에만 넣으면 목록엔 값이
+  // 있고 상세엔 undefined인 상태가 조용히 만들어졌다. 이 단언이 그 갈림을 잡는다.
+  describe('list/detail meta parity', () => {
+    it.each(['ko', 'en'] as const)('%s: getPosts와 getPost().meta가 같은 PostMeta를 만든다', locale => {
+      const listed = getPosts(locale);
+      expect(listed.length).toBeGreaterThan(0);
+
+      for (const meta of listed) {
+        expect(getPost(locale, meta.category, meta.slug)?.meta).toEqual(meta);
+      }
+    });
+
+    it.each(['ko', 'en'] as const)('%s: 시리즈 글은 목록에서도 series/part를 들고 있다', locale => {
+      const seriesPosts = getPosts(locale).filter(post => post.series !== undefined);
+      expect(seriesPosts.length).toBeGreaterThan(0);
+
+      for (const post of seriesPosts) {
+        expect(typeof post.part).toBe('number');
+      }
+    });
+  });
 });
