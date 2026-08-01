@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ShareDrawer } from '../components/share-drawer';
 import { LOCAL_STORAGE_KEYS } from '../lib/client-storage';
-import { createKaraokeShareBundle, encodeKaraokeShareFrames, serializeKaraokeShareBundle } from '../lib/share-transfer';
+import { createKaraokeShareBundle, serializeKaraokeShareBundle } from '../lib/share/bundle';
+import { createShareFrameStream, shareProfile } from '../lib/share/frames';
+import type { ScanLoopOptions } from '../lib/share/scan-loop';
 import { createDefaultSongLibrary, SONG_LIBRARY_SCHEMA_VERSION } from '../lib/song-library';
 
 const storage = vi.hoisted(() => ({
@@ -13,31 +15,41 @@ const storage = vi.hoisted(() => ({
   withLyricsLibraryWriteLock: vi.fn((operation: () => Promise<unknown>) => operation()),
 }));
 
-const scanner = vi.hoisted(() => ({
-  callback: null as ((result: { data: string }) => void) | null,
-  start: vi.fn(),
-  destroy: vi.fn(),
+/**
+ * 사전 인코딩 훅은 rAF 루프를 돌린다. 드로어 테스트에서 그대로 두면 act() 밖 상태 갱신이 쏟아지므로
+ * 여기서는 준비 완료 상태로 고정하고, 훅 자체는 use-share-frame-stream.test.ts가 검증한다.
+ */
+const frameStream = vi.hoisted(() => ({
+  state: {
+    lanes: [{ moduleCount: 1, bits: new Uint8Array(1) }] as readonly ({
+      moduleCount: number;
+      bits: Uint8Array;
+    } | null)[],
+    preparedRatio: 1,
+    ready: true,
+    error: null as string | null,
+    stats: {
+      symbolIndex: 0,
+      displayedSymbols: 0,
+      displayFps: 60,
+      symbolsPerSecond: 0,
+      bytesPerSecond: 0,
+      elapsedMs: 0,
+    },
+  },
+}));
+
+const scanLoop = vi.hoisted(() => ({
+  options: null as ScanLoopOptions | null,
+  stop: vi.fn(),
 }));
 
 vi.mock('@/lib/lyrics-storage', () => storage);
-vi.mock('qrcode.react', () => ({
-  QRCodeSVG: ({ value, title }: { value: string; title: string }) => (
-    <div aria-label={title} data-testid="share-qr" data-value={value} />
-  ),
-}));
-vi.mock('qr-scanner', () => ({
-  default: class MockQrScanner {
-    constructor(_video: HTMLVideoElement, callback: (result: { data: string }) => void) {
-      scanner.callback = callback;
-    }
-
-    start() {
-      return scanner.start();
-    }
-
-    destroy() {
-      scanner.destroy();
-    }
+vi.mock('@/hooks/use-share-frame-stream', () => ({ useShareFrameStream: () => frameStream.state }));
+vi.mock('@/lib/share/scan-loop', () => ({
+  startScanLoop: (options: ScanLoopOptions) => {
+    scanLoop.options = options;
+    return { stop: scanLoop.stop };
   },
 }));
 
@@ -48,6 +60,10 @@ const lyrics = [
   },
 ];
 
+const cameraTrack = { stop: vi.fn() };
+const cameraStream = { getTracks: () => [cameraTrack] } as unknown as MediaStream;
+const getUserMedia = vi.fn<() => Promise<MediaStream>>();
+
 function renderShareDrawer(onImport = vi.fn()) {
   const library = createDefaultSongLibrary();
   render(
@@ -56,15 +72,48 @@ function renderShareDrawer(onImport = vi.fn()) {
   return { library, onImport };
 }
 
+async function openSendPanel() {
+  await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
+  await userEvent.click(screen.getByRole('button', { name: /보내기/ }));
+}
+
+async function openScanner() {
+  await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
+  await userEvent.click(screen.getByRole('button', { name: /받기/ }));
+  await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
+}
+
+/** systematic 심볼 K개면 랭크가 가득 찬다. 손실 없는 이상적인 스캔을 흉내낸다. */
+async function scanBundle(bundle: Parameters<typeof createShareFrameStream>[0]) {
+  const stream = await createShareFrameStream(bundle, shareProfile('safe'));
+  for (let index = 0; index < stream.blockCount; index += 1) {
+    const frame = stream.frameAt(index);
+    await act(async () => {
+      scanLoop.options?.onSymbol(frame);
+      scanLoop.options?.onScanTick(1);
+      await Promise.resolve();
+    });
+  }
+}
+
 describe('ShareDrawer', () => {
   beforeEach(() => {
     localStorage.clear();
     storage.readStoredLyricsLibrary.mockReset().mockResolvedValue({ entries: lyrics, skippedRecordCount: 0 });
     storage.saveStoredLyricsBatch.mockReset().mockResolvedValue(undefined);
     storage.withLyricsLibraryWriteLock.mockClear();
-    scanner.callback = null;
-    scanner.start.mockReset().mockResolvedValue(undefined);
-    scanner.destroy.mockReset();
+    scanLoop.options = null;
+    scanLoop.stop.mockReset();
+    cameraTrack.stop.mockReset();
+    getUserMedia.mockReset().mockResolvedValue(cameraStream);
+    frameStream.state.ready = true;
+    frameStream.state.preparedRatio = 1;
+    frameStream.state.error = null;
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
+    HTMLMediaElement.prototype.play = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    // jsdom에는 2D 컨텍스트가 없다. 대역 없이 두면 blit이 부를 때마다 "Not implemented" 경고가 뜬다.
+    // 실제 픽셀 검증은 qr-blit.test.ts가 가짜 컨텍스트로 한다.
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => null);
   });
 
   afterEach(() => {
@@ -72,10 +121,10 @@ describe('ShareDrawer', () => {
     vi.unstubAllGlobals();
     Reflect.deleteProperty(navigator, 'share');
     Reflect.deleteProperty(navigator, 'canShare');
+    Reflect.deleteProperty(navigator, 'mediaDevices');
   });
 
   it('creates a looping QR for the current playlist and offers the same data as a file', async () => {
-    const interval = vi.spyOn(window, 'setInterval');
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:share');
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
@@ -96,15 +145,75 @@ describe('ShareDrawer', () => {
     expect(await screen.findByText('1곡 포함')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'QR 만들기' }));
 
-    const qr = await screen.findByLabelText('노래 데이터 공유 QR');
-    expect(qr).toHaveAttribute('data-value', expect.stringMatching(/^MK2:/));
+    expect(await screen.findByLabelText('노래 데이터 공유 QR')).toBeInTheDocument();
     expect(screen.getByText(/반복 표시/)).toBeInTheDocument();
-    expect(interval).toHaveBeenCalledWith(expect.any(Function), 500);
+    expect(screen.getByText(/QR이 초당 20회 바뀝니다/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: '이전 화면' }));
     await userEvent.click(screen.getByRole('button', { name: '공유 파일 저장' }));
     expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
     expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce();
+  });
+
+  it('labels all four speed profiles with a theoretical ceiling and the flash rate they imply', async () => {
+    renderShareDrawer();
+    await openSendPanel();
+
+    expect(screen.getByRole('radio', { name: /^빠르게/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /^안정/ })).toHaveAccessibleName(/이론 최대 4\.1 KB\/s · 초당 10장/);
+    expect(screen.getByRole('radio', { name: /^빠르게/ })).toHaveAccessibleName(/이론 최대 23\.7 KB\/s · 초당 20장/);
+    expect(screen.getByRole('radio', { name: /^고속/ })).toHaveAccessibleName(/이론 최대 48\.6 KB\/s · 초당 30장/);
+    expect(screen.getByRole('radio', { name: /^최대/ })).toHaveAccessibleName(/이론 최대 166\.5 KB\/s · 초당 60장/);
+    expect(screen.getAllByRole('radio', { name: /이론 최대/ })).toHaveLength(4);
+    // turbo가 네이티브 디코더에서만 빠르다는 사실을 감추면 더 느린 선택지를 빠른 줄 알고 고른다.
+    // 문구는 실측이 지지하는 만큼만 말한다 — jsQR 경로에서 turbo는 fast와 사실상 같으므로 "느리다"가 아니다.
+    expect(screen.getByRole('radio', { name: /^고속/ })).toHaveAccessibleName(/빠르게보다 빠르지 않습니다/);
+    expect(screen.getByRole('radio', { name: /^최대/ })).toHaveAccessibleName(/큰 화면과 밝은 조명/);
+    expect(screen.getByText(/QR 한 장이 초당 20회 바뀝니다/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('radio', { name: /^안정/ }));
+    expect(screen.getByText(/QR 한 장이 초당 10회 바뀝니다/)).toBeInTheDocument();
+    // 2레인은 합산 60장이지만 한 장이 바뀌는 속도는 그 절반이다. 섬광 안내는 눈이 보는 값이어야 한다.
+    await userEvent.click(screen.getByRole('radio', { name: /^최대/ }));
+    expect(screen.getByText(/QR 한 장이 초당 30회 바뀝니다/)).toBeInTheDocument();
+  });
+
+  it('blocks the two fastest profiles outright when the user asked for reduced motion', async () => {
+    // 유일한 섬광(WCAG 2.3.1) 안전장치다. 테스트가 없으면 지워져도 아무도 모른다.
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query.includes('prefers-reduced-motion'),
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }))
+    );
+    renderShareDrawer();
+    await openSendPanel();
+
+    expect(screen.getByRole('radio', { name: /^안정/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /^빠르게/ })).toBeEnabled();
+    // 기본값 강등만으로는 부족하다. 초당 20회를 넘는 선택지는 고를 수 없어야 한다.
+    expect(screen.getByRole('radio', { name: /^고속/ })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: /^최대/ })).toBeDisabled();
+    expect(screen.getAllByText('모션 줄이기를 켠 기기에서는 선택할 수 없습니다.')).toHaveLength(2);
+  });
+
+  it('shows pre-encoding progress and reports an encoder failure instead of an empty screen', async () => {
+    frameStream.state.ready = false;
+    frameStream.state.preparedRatio = 0.5;
+    renderShareDrawer();
+    await openSendPanel();
+    await userEvent.click(screen.getByRole('button', { name: 'QR 만들기' }));
+
+    expect(await screen.findByText('QR 미리 만드는 중 50%')).toBeInTheDocument();
+    expect(screen.getByText(/준비가 끝나면 QR이 초당 20회 바뀝니다/)).toBeInTheDocument();
+
+    frameStream.state.error = 'QR 이미지를 만들지 못했습니다. 더 느린 속도를 선택해 주세요.';
+    await userEvent.click(screen.getByRole('button', { name: '이전 화면' }));
+    await userEvent.click(screen.getByRole('button', { name: 'QR 만들기' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('더 느린 속도를 선택해 주세요');
   });
 
   it('always shares a .txt file even when canShare accepts every format, like Chrome', async () => {
@@ -122,9 +231,7 @@ describe('ShareDrawer', () => {
       canShare: { configurable: true, value: canShare },
     });
     renderShareDrawer();
-
-    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
-    await userEvent.click(screen.getByRole('button', { name: /보내기/ }));
+    await openSendPanel();
     const button = screen.getByRole('button', { name: '기기로 바로 공유' });
 
     await userEvent.click(button);
@@ -169,25 +276,17 @@ describe('ShareDrawer', () => {
         },
       ],
     });
-    const frames = await encodeKaraokeShareFrames(incoming);
 
-    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
-    await userEvent.click(screen.getByRole('button', { name: /받기/ }));
-    expect(screen.getByLabelText('QR 스캔 카메라')).not.toHaveClass('invisible');
-    await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
-    expect(scanner.start).toHaveBeenCalledOnce();
-
-    for (const frame of frames) {
-      await act(async () => {
-        scanner.callback?.({ data: frame });
-        await Promise.resolve();
-      });
-    }
+    await openScanner();
+    expect(screen.getByLabelText('QR 스캔 카메라')).toBeInTheDocument();
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    await scanBundle(incoming);
 
     expect(await screen.findByText('가져오기 확인')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '이전 화면' })).toHaveFocus();
     expect(screen.getByText('QR 수신이 끝났습니다. 가져올 내용을 확인해 주세요.')).toBeInTheDocument();
-    expect(scanner.destroy).toHaveBeenCalled();
+    expect(scanLoop.stop).toHaveBeenCalled();
+    expect(cameraTrack.stop).toHaveBeenCalled();
     expect(screen.getAllByText('1', { selector: 'strong' })).toHaveLength(2);
     await userEvent.click(screen.getByRole('button', { name: '이 곡 가져오기' }));
 
@@ -270,12 +369,10 @@ describe('ShareDrawer', () => {
   });
 
   it('explains a denied camera permission and rejects an invalid share file', async () => {
-    scanner.start.mockRejectedValueOnce(new DOMException('denied', 'NotAllowedError'));
+    getUserMedia.mockRejectedValueOnce(new DOMException('denied', 'NotAllowedError'));
     renderShareDrawer();
 
-    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
-    await userEvent.click(screen.getByRole('button', { name: /받기/ }));
-    await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
+    await openScanner();
     expect(await screen.findByRole('alert')).toHaveTextContent('카메라 권한이 필요합니다');
 
     fireEvent.change(screen.getByLabelText('공유 파일 선택'), {
@@ -287,26 +384,25 @@ describe('ShareDrawer', () => {
   });
 
   it('keeps the camera stopped when a pending start finishes after leaving the scanner', async () => {
-    let finishStarting = () => {};
-    scanner.start.mockImplementationOnce(
+    let finishStarting = (_stream: MediaStream) => {};
+    getUserMedia.mockImplementationOnce(
       () =>
-        new Promise<void>(resolve => {
+        new Promise<MediaStream>(resolve => {
           finishStarting = resolve;
         })
     );
     renderShareDrawer();
 
-    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
-    await userEvent.click(screen.getByRole('button', { name: /받기/ }));
-    await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
-    expect(scanner.start).toHaveBeenCalledOnce();
+    await openScanner();
+    expect(getUserMedia).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole('button', { name: '이전 화면' }));
 
     await act(async () => {
-      finishStarting();
+      finishStarting(cameraStream);
       await Promise.resolve();
     });
-    expect(scanner.destroy).toHaveBeenCalled();
+    expect(cameraTrack.stop).toHaveBeenCalled();
+    expect(scanLoop.options).toBeNull();
 
     await userEvent.click(screen.getByRole('button', { name: /받기/ }));
     expect(screen.getByRole('button', { name: '카메라 켜기' })).toBeVisible();
@@ -314,31 +410,27 @@ describe('ShareDrawer', () => {
 
   it('reports scanner failures, stops a hidden camera, and opens the file picker fallback', async () => {
     renderShareDrawer();
-
-    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
-    await userEvent.click(screen.getByRole('button', { name: /받기/ }));
-    await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
+    await openScanner();
 
     await act(async () => {
-      scanner.callback?.({ data: 'MK1|broken' });
+      scanLoop.options?.onSymbol('MK2:0123456789ABCDEF01234567:0:1:0');
       await Promise.resolve();
     });
-    expect(await screen.findByRole('alert')).toHaveTextContent('이 앱에서 만든 공유 QR이 아닙니다');
+    expect(await screen.findByRole('alert')).toHaveTextContent('오래된 버전입니다');
 
-    scanner.start.mockRejectedValueOnce(new Error('카메라를 사용할 수 없습니다.'));
+    getUserMedia.mockRejectedValueOnce(new Error('카메라를 사용할 수 없습니다.'));
     await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('카메라를 사용할 수 없습니다');
 
-    scanner.start.mockRejectedValueOnce('unknown failure');
+    getUserMedia.mockRejectedValueOnce('unknown failure');
     await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('카메라를 시작하지 못했습니다');
 
-    scanner.start.mockResolvedValueOnce(undefined);
     await userEvent.click(screen.getByRole('button', { name: '카메라 켜기' }));
-    scanner.destroy.mockClear();
+    cameraTrack.stop.mockClear();
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
     fireEvent(document, new Event('visibilitychange'));
-    expect(scanner.destroy).toHaveBeenCalledOnce();
+    expect(cameraTrack.stop).toHaveBeenCalledOnce();
 
     const openPicker = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {});
     await userEvent.click(screen.getByRole('button', { name: '카메라 대신 공유 파일 불러오기' }));
@@ -355,8 +447,7 @@ describe('ShareDrawer', () => {
     );
     renderShareDrawer();
 
-    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
-    await userEvent.click(screen.getByRole('button', { name: /보내기/ }));
+    await openSendPanel();
     expect(screen.getByText('가사 확인 중')).toBeInTheDocument();
     await act(async () => {
       rejectLyricsRead(new Error('가사를 읽지 못했습니다.'));

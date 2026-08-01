@@ -36,7 +36,7 @@
     "driver.js": "1.8.0",
     "lucide-react": "^1.27.0",
     "qr-scanner": "1.4.2",
-    "qrcode.react": "4.2.0",
+    "qrcode-generator": "^2.0.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

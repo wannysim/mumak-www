@@ -148,6 +148,7 @@
       "dependsOn": ["build"],
       "inputs": ["$TURBO_DEFAULT$", "**/*.{ts,tsx,js,jsx}", "e2e/**/*", "playwright.config.*"],
       "outputs": ["test-results/**", "playwright-report/**"],
+      "env": ["QR_LOOPBACK_FORCE_JSQR"],
       "passThroughEnv": ["PLAYWRIGHT_*", "CI", "SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"]
     },
     "validate:content": {
