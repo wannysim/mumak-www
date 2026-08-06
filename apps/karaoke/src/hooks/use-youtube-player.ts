@@ -52,7 +52,8 @@ function loadYouTubeApi(): Promise<YouTubeApi> {
   return apiPromise;
 }
 
-const POLL_INTERVAL_MS = 250;
+// 폴링 간격만큼 줄 전환이 늦어 보이므로, 체감 지연이 무시할 수준이 되는 값으로 유지한다.
+const POLL_INTERVAL_MS = 100;
 
 /**
  * YouTube IFrame Player를 마운트하고 재생 시간을 폴링하는 훅.
