@@ -355,54 +355,68 @@ IP 재할당 시 Cloudflare A 레코드가 stale — DDNS 갱신 없음, 재발 
 
 - **로그**: Loki 스택 추가 → 기존 grafana에 datasource만 연결.
 
-## Phase 4 — 이미지 업로드 시스템 (설계 확정 · 2026-08-08)
+## Phase 4 — 이미지 업로드 시스템 (아키텍처 재검토 · 2026-08-08)
 
-엔드게임. blog + 추후 photo app(사진 포트폴리오)이 공용으로 쓰는 이미지 저장·서빙 인프라.
-요구사항 해석·결정 근거 전문은 [image-upload-design.md](image-upload-design.md).
+blog와 추후 photo app이 함께 쓰는 이미지 저장·서빙 인프라. 검토 근거와 운영 계약 전문은
+[image-upload-design.md](image-upload-design.md).
 
-### 확정 결정 (2026-08-08)
+### 검토 반영 결정
 
-| 항목      | 결정                                                     | 이유                                                                                                                                          |
-| --------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| 규모      | **전시용 고화질 JPEG만, 수 GB**                          | RAW/원본은 기존 보관처 유지. 홈서버 부담 최소                                                                                                 |
-| 저장소    | **홈서버 MinIO** (S3 호환)                               | 엔드게임 정신(데이터 주권) + LAN 속도. 버킷 = 앱별(`blog`/`photo`)                                                                            |
-| admin     | **MinIO Console, LAN/WireGuard 전용**                    | 기존 admin 결정 유지. 업로드·브라우징·삭제가 내장 UI로 해결 — 커스텀 admin은 photo app이 앨범/태그/EXIF 메타데이터를 요구할 때(postgres) 그때 |
-| 변환·서빙 | **imgproxy** (on-the-fly 리사이즈·webp/avif)             | 서빙 전용 공개 진입점. MinIO는 인터넷에 아예 미노출                                                                                           |
-| 도메인    | `img.wannysim.com` = Cloudflare(orange) → NPM → imgproxy | glitchtip과 동일 패턴. 와일드카드 Origin CA 재사용                                                                                            |
+| 항목      | 결정                                                       | 이유                                                             |
+| --------- | ---------------------------------------------------------- | ---------------------------------------------------------------- |
+| 저장소    | host bind directory `/srv/mumak-images`                    | 단일 운영자·홈서버·100GB 이하에는 S3보다 단순하고 복구가 쉬움    |
+| admin     | Dufs, LAN/WireGuard 전용                                   | 파일 업로드·이동·삭제 UI만 재사용하고 커스텀 admin은 만들지 않음 |
+| 변환      | imgproxy, media mount read-only                            | 제한된 preset만 변환하고 원본 저장소는 공개하지 않음             |
+| 공개 경로 | Cloudflare → NPM allowlist/rewrite → imgproxy              | 공개 URL과 내부 storage/imgproxy 문법을 분리                     |
+| URL       | `img.wannysim.com/<variant>/<key>@<format>`                | key·variant·format을 명시해 캐시와 저장소 이전을 안정화          |
+| 백업      | 이미지 key 트리와 설정의 일일 versioned backup + 복구 시험 | 원본이 있어도 발행된 key와 export 결과는 자동 복구되지 않음      |
 
 ### 아키텍처
 
 ```
-업로드(LAN):  MinIO Console(:9101) ← 나
-저장:         MinIO(:9100 S3) — 버킷 blog/photo, 인터넷 미노출, imgproxy 전용 readonly 자격증명
-서빙(공개):   방문자 → Cloudflare(캐시) → NPM → imgproxy(:8061) → s3://버킷/키
-참조:         MDX·photo app은 https://img.wannysim.com/<preset>/... URL만
+업로드(LAN):  브라우저 → Dufs(:9101) → /srv/mumak-images (RW)
+변환(내부):   imgproxy → /srv/mumak-images (RO)
+서빙(공개):   방문자 → Cloudflare → NPM의 고정 경로 → imgproxy
+참조:         blog MDX는 공개 URL, photo DB는 논리 key와 원본 크기만 저장
 ```
 
-- **재빌드 종말**: 이미지가 이미지 레이어(`content/`·`public/`)에서 빠지므로, 사진 추가 = Console 업로드 + URL 붙여넣기. promote 불필요.
-- **imgproxy는 서명 대신 presets-only** (`IMGPROXY_ONLY_PRESETS=true` + 프리셋 2~3개: `content`, `thumb`, `full`) — MDX에 서명 URL을 손으로 못 쓰므로, 프리셋 제한으로 리사이즈 증폭 DoS를 막고 URL은 사람이 쓸 수 있게 유지. `IMGPROXY_AUTO_WEBP/AVIF`로 포맷 협상.
-- **Cloudflare가 대역폭 방패**: imgproxy 응답 장기 캐시(immutable 키 규칙: 파일명에 날짜/버전 포함, 덮어쓰기 대신 새 키) → 가정용 업로드 회선 보호.
-- **blog 코드 변경은 소폭**: `next.config.mjs` `images.remotePatterns`에 `img.wannysim.com` 추가. imgproxy가 이미 최적화한 이미지를 next/image 옵티마이저가 이중 최적화하지 않도록 mdx `img` 오버라이드에서 이 호스트는 우회(unoptimized) 처리 — 구현 시 결정.
-- **RAM 예산**: MinIO ~200MB + imgproxy ~100MB. 배포 전 `free -m` 실측 필수(GlitchTip 이후 여유 재확인). 부족하면 GLITCHTIP 512m 상한과 재조정.
-- **백업(후속)**: 전시용 JPEG은 원본에서 재생성 가능하므로 치명적이진 않음. 규모가 ~~100GB면 R2 무료(10GB) 초과 — 유료(~~$1.5/월) 또는 백업 생략하고 "원본에서 재업로드 가능"을 복구 전략으로. MinIO 가동 후 결정.
-- **photo app(후속)**: `apps/photo` 신설 시 같은 MinIO의 `photo` 버킷 + 큐레이션 메타데이터(postgres). 그때 admin 필요성 재평가.
+- MinIO Community의 유지보수 전제가 사라져 기본안에서 제외했다. S3는 두 번째 writer,
+  presigned upload, 앱별 IAM, lifecycle/event, off-host/multi-node 복제가 필요해질 때 재검토한다.
+- 공개 source는 `mumak://` alias로 표현하고 imgproxy에서 현재 `local:///`로 치환한다. 나중에
+  storage를 바꿔도 key를 유지하면 MDX/photo record를 다시 쓰지 않는다. S3 이전 시에는 파일
+  복사와 함께 imgproxy endpoint/credential/allowlist/replacement 설정을 바꿔야 한다.
+- `content-v1` 같은 불변 variant와 URL의 `@jpg`/`@webp`로 크기·포맷을 고정한다.
+  `Accept` 기반 자동 WebP/AVIF 협상은 Free plan cache key가 안전하게 분리되지 않아 쓰지 않는다.
+- 초기 후보는 `content-v1=resize:fit:1600:1600:false`, quality는 `jpeg=82,webp=79`다.
+  실제 JPEG로 확정한 뒤 cache를 열며, 변경은 `content-v2`를 추가한다.
+- 발행 key는 `<scope>/<yyyy>/<mm>/<slug>-<hash12>.jpg` 하나로 정의한다. backend 없는
+  same-origin local publish helper가 hash/크기/collision/no-overwrite를 검증하고 URL·snippet을
+  만든다.
+- Dufs는 인터넷에 노출하지 않고, 공개 origin은 Cloudflare 우회 접근을 firewall 또는
+  Authenticated Origin Pull로 막는다. imgproxy는 host port 없이 NPM과 internal network로만
+  연결하고 Bearer secret, worker·queue·source 크기·해상도도 제한한다.
+- imgproxy `max-age`/browser cache는 1일, Cloudflare edge TTL은 1년으로 분리한다. purge해도
+  browser·RSS·download·archive 복사본까지 회수된다고 보지 않는다.
+- 이미지 bytes는 blog build에서 분리되지만 새 이미지 참조를 MDX에 넣으면 commit/deploy는
+  여전히 필요하다. RSS와 web이 함께 읽도록 소문자 `<img>`와 절대 공개 URL을 authoring
+  contract로 쓴다.
+- photo DB에는 완성 URL이나 storage scheme 대신 immutable asset key, width, height,
+  alt/caption, 촬영·정렬·발행 메타데이터를 저장한다.
 
-### 구축 런북 (사용자 실행, 순서대로)
+### 구축 런북 (사용자 실행)
 
-1. **사전 실측**: 홈서버에서 `free -m`, `df -h` — RAM 여유·디스크 여유 확인 후 진행.
-2. **MinIO 스택** (Portainer): image `minio/minio`(RELEASE 태그 고정), `server /data --console-address ":9001"`,
-   ports `9100:9000`(S3)·`9101:9001`(Console) — LAN 전용, NPM/Cloudflare 미등록. volume `minio_data:/data`,
-   `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`(Vaultwarden), `mem_limit 512m`, 로그 로테이션.
-3. **버킷·자격증명**: Console(`http://10.0.0.105:9101`)에서 버킷 `blog`·`photo` 생성(비공개 유지) →
-   Access Key 신설: imgproxy용 **readonly** 정책.
-4. **imgproxy 스택**: image `darthsim/imgproxy`, port `8061:8080`, env: `IMGPROXY_USE_S3=true`,
-   S3 endpoint `http://10.0.0.105:9100` + readonly 키, `IMGPROXY_ONLY_PRESETS=true` + 프리셋 정의,
-   `IMGPROXY_AUTO_WEBP=true`/`IMGPROXY_AUTO_AVIF=true`, `mem_limit 256m`.
-5. **공개 경로**: Cloudflare A `img` → `1.228.10.189`(orange) → NPM Proxy Host `img.wannysim.com` →
-   `10.0.0.105:8061`(와일드카드 Origin CA + Force SSL).
-6. **검증**: Console에 테스트 JPEG 업로드 → `https://img.wannysim.com/<preset>/plain/s3://blog/test.jpg` 200 +
-   webp 협상 + 두 번째 요청 `cf-cache-status: HIT`.
-7. **blog 코드 PR**(에이전트): remotePatterns + mdx img 우회 + (필요시) 업로드 규약 문서화(`apps/blog/AGENTS.md`).
+1. `/srv/mumak-images/{_incoming,blog,photo}`와 별도 backup target을 준비한다.
+2. host quota 지원을 확인하고 hard quota 또는 disk/free-space alert를 고른다.
+3. Dufs를 검증된 version/digest로 고정해 RW mount, hashed auth, hash 기능, LAN bind/firewall로
+   배포한다.
+4. same-origin local publish helper를 배포하고 hash/collision/no-overwrite와 30초 사용성을 시험한다.
+5. imgproxy를 RO mount, no host port, internal network, secret/preset/source/resource limit로
+   배포하고 최악 JPEG로 RAM을 실측한다.
+6. preset quality·RAM·queue를 실측해 `content-v1` 값을 동결한다.
+7. NPM의 anchored URL allowlist/rewrite와 Bearer 주입, Cloudflare cache rule/origin lock을 적용한다.
+8. 업로드·변환·캐시·장애·삭제·복구 acceptance test를 통과한다.
+9. 그 뒤 blog의 고정 `800×400` MDX image override를 intrinsic ratio/RSS 계약에 맞춰 별도 PR로
+   수정한다.
 
 ## 놓치기 쉬운 것 / 리스크
 
