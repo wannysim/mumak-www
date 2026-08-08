@@ -484,3 +484,216 @@ blog와 추후 photo app이 함께 쓰는 이미지 저장·서빙 인프라. �
 - [x] GHCR PAT 발급·docker login·push (`write:packages`)
 - [x] Portainer GHCR 레지스트리 등록 + `blog` 스택 배포 (healthy, 2026-07-09)
 - [x] 홈서버 내부망 접근 검증 (`http://10.0.0.105:3100/ko/blog` 200)
+
+---
+
+## Phase 4 실행 가이드 (작업 순서 · 2026-08-09)
+
+설계 근거는 [image-upload-design.md](image-upload-design.md), 그 설계의 장단점 감사 결과는
+[image-upload-design-review.md](image-upload-design-review.md)에 있다. 이 절은 **무엇을 어떤
+순서로 하는지**만 다룬다. 표기: `[코드]` = 저장소 작업, `[사용자 실행]` = Portainer·NPM·
+Cloudflare UI 또는 홈서버 셸([[feedback_no_infra_api_mutations]]).
+
+전제: 리뷰 §4-1(현재 이미지 인스턴스 0건이므로 착수를 미루자)은 **기각하고 진행**한다. 리뷰의
+나머지 지적은 아래 각 단계에 반영돼 있다.
+
+### 0단계 — 착수 전 (건너뛰면 나중에 되돌아옴)
+
+1. **[코드] 브랜치 동기화.** `docs/blog-homeserver-plan`은 `origin/develop`보다 48커밋 뒤이고
+   `apps/blog/docker-compose.yml`이 **PR #534 이전 상태(38줄 낡음)**다. 이 상태에서 compose를
+   만지면 autoheal·mem_limit·로그 로테이션이 통째로 되돌아간다.
+
+   ```bash
+   git fetch origin && git merge origin/develop   # 현재 브랜치를 develop 위로 (rebase도 가능)
+   ```
+
+2. **[사용자 실행] 홈서버 실측 4줄.** **MumAk-Docker에 SSH로** 접속해 실행한다. 컨테이너 콘솔은
+   안 된다 — `df`가 overlayfs를 보여주고 `docker` CLI도 없다.
+
+   ```bash
+   free -m                                              # 실여유 RAM (mem_limit 합계의 상한)
+   df -h /srv 2>/dev/null || df -h /                    # /srv를 만들 파티션 여유 (critical 임계값 근거)
+   docker ps --format '{{.Names}}\t{{.Ports}}'          # 후보 포트 공백 확인
+   docker inspect nginx-proxy-manager --format '{{json .NetworkSettings.Networks}}'  # NPM 네트워크 이름
+   ```
+
+   **실측 전에 mem_limit·critical 임계값을 확정하지 않는다.** plan.md의 "여유 ~1GB"는 GlitchTip
+   배포 _이전_ 수치라 현재는 더 작다. 네트워크 이름은 결정 C에 필요하다.
+
+3. **[사용자 실행] 사전 결정 3개.** 코드를 한 줄도 쓰기 전에 정한다.
+
+   | 결정                 | 설계문서 기준 (a)                            | 대안 (b)                    | 판단 재료                                                                                                                                                                          |
+   | -------------------- | -------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | A. 업로드 입구       | Dufs staging + publish guard                 | guard가 multipart 직접 수신 | (b)를 고르면 컨테이너·버전핀·auth·claim 프로토콜·복구 UI·acceptance 4~6개가 사라지고 설계문서 §8-1의 photo 경로와 코드가 같아진다. 교환은 재개·폴더 업로드 포기. 리뷰 §4-2         |
+   | B. guard/helper 자리 | 미정 (설계문서 §11-5가 배포 대상까지만 규정) | `apps/admin` 첫 라우트      | plan.md가 이미 예약해 둔 자리(352행). 비워두면 monorepo CI·promote·watchtower 밖의 네 번째 배포 절차가 생긴다. **정해지기 전에는 4단계를 시작할 수 없다**                          |
+   | C. imgproxy 연결     | NPM과 같은 internal network, host port 없음  | host port + LAN IP forward  | (a)가 설계 의도이고 더 안전하다. 0단계 2번에서 NPM 네트워크 이름이 확인되면 (a). 이 저장소는 external network 선례가 0이라 못 붙이면 (b) + 방화벽으로 시작하고 그 결정을 여기 기록 |
+
+   아래 1~3단계는 **A·C 모두 (a) 기준**으로 쓰여 있다. (b)를 고르면 해당 항목에 붙은 대안 문단을
+   따른다. B는 정해질 때까지 4단계가 비어 있다.
+
+### 1단계 — 호스트 준비 [사용자 실행]
+
+1. 디렉터리 생성. (A가 (b)여도 `_incoming`은 필요하다 — 설계문서 §8-1의 photo 경로도
+   `_incoming/<upload-id>.part`로 stream한다.)
+
+   ```bash
+   sudo mkdir -p /srv/mumak-images/{blog,photo}/{_incoming,_work,published}
+   df -h /srv/mumak-images
+   ```
+
+   소유자(uid/gid)는 컨테이너 이미지가 확정된 뒤 2단계에서 맞춘다.
+
+2. swapfile 2GB. 실측 중 메모리 스파이크가 postgres를 죽이는 대신 스왑으로 흡수된다.
+
+   ```bash
+   sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+   sudo mkswap /swapfile && sudo swapon /swapfile
+   echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+   ```
+
+3. free-space warning/critical 값을 위 `df` 결과로 확정한다(설계문서 초기 후보 critical 20GiB).
+4. **백업 결정**: 대상·도구·보관처를 지금 정한다. 미루면 라이브 이후로 밀린다. 후보는 `restic` →
+   Cloudflare R2(설계문서 §9-3 기준 월 약 $1.35). heartbeat 서비스도 함께 고른다(healthchecks.io
+   무료 등 — 기존 텔레그램 uptime 모니터에는 dead-man's switch 기능이 없다). 스크립트 작성은
+   `[코드]` 몫이고, 여기서 정하는 것은 **어디에·무엇으로·어느 계정으로**다.
+
+### 2단계 — 변환·업로드 스택 [코드: yml → 사용자 실행: 배포]
+
+0단계 실측값이 확정되면 스택 yml을 작성한다. A가 (a)면 Dufs 스택이 함께 들어간다 — pinned
+version/digest, hashed auth, staging만 RW, 포트는 `<LAN-IP>:9101:5000` 형태로 **명시 바인드**한다
+(`9101:5000`으로 쓰면 Docker가 0.0.0.0에 붙고 ufw INPUT 규칙이 우회된다).
+
+imgproxy 확정 사항:
+
+- **`mem_limit`은 768m이 아니라 384m + `IMGPROXY_WORKERS=1`로 시작한다.** 6단계 실측(50MP/32MiB
+  최악 fixture)을 이 조합으로 먼저 통과시킨다. 통과 후 여유가 확인되면 WORKERS를 2~3으로 올린다
+  (요청당 vips 스레드는 1로 고정이라 8 vCPU에서 1은 CPU를 과하게 아끼는 값). **실측에서 OOM이면
+  WORKERS → ingest 상한 순으로 낮추고 mem_limit 상향은 마지막 수단이다**(설계문서 §5 규칙).
+- `IMGPROXY_ENABLE_INFO_ENDPOINT=false` 명시(기본값이지만 잠재 경로를 닫는다).
+- `restart: unless-stopped` + json-file 로그 로테이션 + healthcheck + `labels: autoheal: 'true'`.
+  기존 `mumak-blog-autoheal`은 `AUTOHEAL_CONTAINER_LABEL: autoheal`로 **데몬 전역을 감시**하므로
+  라벨만 달면 잡힌다. 새 사이드카를 띄우지 않는다.
+- watchtower 스코프에는 넣지 않는다(설계문서가 pinned digest + 수동 업데이트를 요구). 대신 갱신
+  알림 채널로 스택 compose를 git에 두고 `.github/dependabot.yml`에 `package-ecosystem: docker`를
+  추가하는 것을 고려한다.
+
+배포 후 확인 (C=(a) 기준): NPM 컨테이너 콘솔에서 `curl -sI http://<imgproxy 컨테이너명>:8080/health` 200. C=(b)라면 `curl -sI http://10.0.0.105:<host port>/health`.
+
+### 3단계 — 공개 경로 [사용자 실행]
+
+1. **Cloudflare DNS**: A `img` → 현재 `blog.wannysim.com` grey 레코드와 **같은 IP**(작성 시점
+   `1.228.10.189`), **orange(proxied)**. 와일드카드가 없으므로 수동 추가다. 자동 스캔 결과는
+   재사용 금지. 가정용 회선이라 IP가 바뀌면 이 레코드도 함께 갱신해야 한다(DDNS 없음).
+2. **NPM Proxy Host** `img.wannysim.com`.
+   - forward 대상: C=(a)면 **컨테이너 이름 / 8080**(Scheme http). C=(b)면 `10.0.0.105:<host port>`.
+   - SSL은 **기존 `*.wannysim.com` Origin CA 인증서를 선택만** 한다(신규 발급 불필요). 다만 그
+     인증서에 와일드카드 SAN이 실제로 들어갔는지 NPM에서 먼저 확인할 것.
+   - **Custom locations 탭**의 location 블록 안에 넣을 것 (Advanced 탭은 nginx 상속 규칙상 무시됨 —
+     Phase 1에서 겪은 함정과 동일):
+     - anchored location(`^~ /content-v1/`)과 key 문법 정규식
+     - URL rewrite `/content-v1/... → /unsafe/content-v1/plain/mumak://...`
+     - Bearer 헤더 주입(`IMGPROXY_SECRET`)
+     - `limit_except GET HEAD { deny all; }`
+     - query string 거부, encoded slash·dot segment·이중 encoding 거부
+     - Cloudflare 대역 `allow` + `deny all` (아래 5번)
+   - **그 외 모든 경로는 default 404.** raw `/unsafe`, `/info`, 임의 preset/source가 통과하면
+     설계문서 §4-2의 보안 경계가 통째로 없는 것과 같다.
+   - `proxy_cache`를 함께 붙인다. `proxy_cache_path`는 http 컨텍스트 지시어라 Advanced 탭이 아니라
+     NPM의 `/data/nginx/custom/http.conf`에 넣어야 한다. location에는 `proxy_cache_lock on`을 둬서
+     동시 중복 miss를 upstream 1회로 접는다 — **컨테이너 0개 추가로 429 클래스가 크게 준다.**
+3. **Cloudflare Cache Rule**: **Cache eligibility = Eligible for cache를 먼저 켠다**(공개 URL이
+   `...jpg@jpg`로 끝나 기본 확장자 목록에 안 걸리므로 이걸 안 켜면 5단계의 `CF-Cache-Status: HIT`
+   검증이 실패한다). 그 위에 edge TTL 1년, 200만 장기 cache, 404/429/5xx 제외를 얹는다.
+   **단 이 규칙은 5단계 acceptance(overwrite 거절)를 통과한 뒤에 켠다.** 1년 캐시는 잘못 열면
+   1년간 되돌릴 수 없다.
+4. **Tiered Cache** 켜기(Generic Global Topology, Free 포함). POP 단위 cold miss를 상위 티어 한
+   곳으로 접는다. 토글 1개.
+5. **origin lock**: Cloudflare IP allowlist를 1차 통제로 둔다(Authenticated Origin Pull의 기본
+   인증서는 "Cloudflare 어딘가"만 증명하지 "내 zone"을 증명하지 않으므로 단독으로는 origin lock이
+   아니다 — 리뷰 §5-3). **allowlist는 반드시 img proxy host의 location 단위로 건다.** 호스트
+   방화벽 80/443에 걸면 grey 레코드로 살아 있는 `blog.wannysim.com` DR 비상문(상단 상태 블록 참조)이
+   Cloudflare 장애와 동시에 함께 닫힌다. nginx `default_server`에 `return 444` 한 줄을 함께.
+
+### 4단계 — publish guard + helper [코드: 구현 → 사용자 실행: 배포]
+
+결정 B가 정해지면 착수한다.
+
+**구현 시 반영할 항목**:
+
+- 검증은 **열린 fd 하나를 유일한 근거로** 삼는다. 경로 문자열 재검사 금지, `O_NOFOLLOW` 사용.
+- promote는 same-mount hard link 기반 **no-clobber**. 같은 full hash면 idempotent 재사용.
+- temp 단계에서 `exiftool -gps:all= -thumbnailimage=` 적용 후 **그 바이트로 SHA-256을 계산**한다
+  (순서 중요). 진짜 원본은 기존 RAW 체계에 남으므로 손실 없음. 단 guard 이미지에 exiftool을
+  **버전 핀으로 포함**하고, exiftool 버전 변경은 key 계약 변경으로 취급한다(기존 key는 재계산하지
+  않는다 — 같은 원본이 다른 hash를 낳으면 설계문서 §9-1의 idempotent 재시도가 조용히 깨진다).
+- canonical preflight에서 **429/502/504는 재시도 가능**으로 분류(지수 백오프 3회). rollback은 실제
+  디코드 거절(4xx)에서만.
+- 발행 성공 직후 공개 URL(jpg/webp)을 Cloudflare 경유로 1회씩 `curl`해 캐시를 데운다(한 줄).
+- helper의 복사 버튼은 `document.execCommand('copy')` fallback을 함께 둔다(평문 http 사설 IP
+  origin에서는 `navigator.clipboard`가 아예 없다).
+- 검증 로직은 I/O 경계가 얇은 순수 함수로 써서 **jest에서 직접 테스트**한다.
+
+**배포 정의** (이게 없으면 `[사용자 실행]`이 할 일이 없다):
+
+- 이미지: 기존 blog와 같은 경로 — CI에서 `--platform linux/amd64` 빌드 → GHCR
+  `:latest` + `:<sha>` push. **새 GHCR 패키지에는 Manage Actions access → Write를 수동 부여**해야
+  `GITHUB_TOKEN` push가 통과한다(150~152행 참조).
+- **함정 2개**: (i) `promote.yml`은 workflow_run이라 **main 정의로 실행**되므로 develop에 빌드
+  스텝을 추가해도 다음 release가 main에 닿기 전까지 무효다. (ii) watchtower command는
+  `--cleanup mumak-blog`로 컨테이너 이름 하나만 감시하므로 새 컨테이너는 Portainer에서 스택을
+  고쳐야 따라온다. 즉 B를 `apps/admin`으로 골라도 **새 운영 절차는 0개가 아니라 3건**이다
+  (Actions access + promote 활성화 + watchtower 스코프).
+- Portainer 스택: `/srv/mumak-images/blog:rw` **단일 bind mount**(EXDEV 방지 — 하위 디렉터리를
+  각각 mount하면 컨테이너 안에서 rename이 깨진다), `mem_limit 128m`, healthcheck +
+  `labels: autoheal: 'true'`, 포트는 `<LAN-IP>:<port>:<port>` 명시 바인드.
+- 접근: LAN/WireGuard 전용. Cloudflare에 노출하지 않는다. NPM proxy host를 붙일 경우에도 위
+  3단계 5번의 allowlist 대상이 아니라 LAN 한정 규칙을 쓴다.
+- E2E 포트가 필요하면 **3006**이다. 3000~3005는 next/react/blog/native/lattice/karaoke가 점유
+  중이다(AGENTS.md 배정표에 karaoke 3005가 누락돼 있으므로 함께 갱신한다).
+
+### 5단계 — 검증 [코드 + 사용자 실행]
+
+설계문서 §12의 34개를 **두 목록으로 태그해 옮긴다.** 아래는 분류 기준과 대표 예시이고, 실제
+체크리스트는 34개 전체를 옮겨야 한다. **게이트는 (1)에만 건다.**
+
+| 구분                | 기준                                           | 대표 항목                                                                                                                                                                                                                                                                                 |
+| ------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (1) CI 자동화       | 홈서버 없이 순수 함수/빌드 산출물로 검증 가능  | 경계 파일 거부, 같은 hash 재시도 idempotent, 충돌 destination 거부, absolute/`..`/symlink·비허용 scope 거부, RSS `content:encoded`의 소문자 `<img>`, alt 누락 검증                                                                                                                        |
+| (2) 1회성 수동 드릴 | 홈서버·Cloudflare 실물 응답이 있어야 검증 가능 | **접근·보안 5개 전부**, EXIF/ICC strip, jpg/webp 포맷 고정, 50MP OOM 실측, crash 후 상태, EXDEV 부재, free-space critical 거절, canonical rollback, `CF-Cache-Status`/`Age`, warm cache 동작, 전체 variant purge, backup restore + checksum, restore 후 동일 key 재제공, CLS, 30초 사용성 |
+
+- **EXIF strip과 포맷 고정은 CI에 넣지 않는다.** imgproxy가 LAN 전용이라 GitHub 러너에서 도달할 수
+  없다(plan.md가 about/now DB 전환을 기각한 것과 같은 이유 — 345행).
+- 최악 fixture(32MiB)는 저장소에 넣을 수 없으니 **홈서버 고정 경로**에 두고 그 경로를 여기에 적는다.
+- 미실행 항목은 빈칸으로 정직하게 남긴다 — 검증 안 된 체크리스트가 검증된 것처럼 보이는 게
+  체크리스트가 없는 것보다 나쁘다.
+- 추가 확인: `ufw`를 **정지한 상태에서도** 업로드 입구가 외부에서 닫혀 있는가(Docker publish 포트는
+  ufw INPUT 규칙을 우회한다).
+
+### 6단계 — blog 코드 PR [코드]
+
+**1~5단계와 독립적으로 지금 할 수 있는 것**: `apps/blog/mdx-components.tsx`의 `img` override에 박힌
+고정 `width={800} height={400}`은 어떤 경로로 가든 버그다. 실제로 렌더된 적이 한 번도 없어서
+(=content 전체에 마크다운 이미지 0건) 회귀 위험도 0이다. 먼저 처리해도 된다.
+
+인프라가 서면 진행할 것:
+
+- `next.config.mjs` `images.remotePatterns`에 `img.wannysim.com` 추가 (현재 `i.scdn.co` 하나뿐이라
+  없으면 런타임 400).
+- `mdxComponents.img`: `img.wannysim.com` 호스트는 이미 최적화된 CDN 이미지로 취급해 `/_next/image`를
+  거치지 않게 한다. intrinsic ratio 보존.
+- RSS 경로 점검: `apps/blog/src/entities/post/api/markdown.ts`의 `bodyToMarkdown`이 RSS와 `.md` raw
+  엔드포인트 **양쪽의 유일한 choke point**다. 설계문서 §7-2의 authoring contract가 절대 URL이므로
+  변환 코드 자체는 불필요할 수 있다 — **테스트로 고정**하고, 상대경로/`_next/image` URL이 들어온
+  경우의 방어 변환이 필요한지만 판단한다.
+- alt/URL 검증 규칙: `apps/blog/scripts/validate-content.mjs`는 현재 frontmatter만 파싱하므로 본문을
+  읽는 `validateBody` 패스를 새로 추가한다. CI 배선 변경은 불필요(기존 Validate 스텝이 그대로 실행).
+  **코드펜스와 인라인 코드를 먼저 제거한 뒤 검사할 것** — `core-web-vitals.mdx` 105·108행에 alt 없는
+  `<img src="hero.jpg" />` 예제가 이미 있어서, 그대로 걸면 기존 콘텐츠가 즉시 error가 된다.
+- 주의: 콘솔 에러 0을 단언하는 E2E가 있으므로 **CI에서 접근 못 하는 원격 이미지를 기존 데모 노트에
+  넣지 말 것**(`/_next/image` 502가 console error로 잡혀 ko/en × 3브라우저가 동시에 붉어진다).
+
+### 참고 — 이 순서를 지키는 이유
+
+되돌릴 수 없는 것을 되돌릴 수 있는 것 뒤에 둔다. 1년 edge cache(3단계 3번)는 overwrite 거절
+검증(5단계) 뒤, 공개 URL 발행은 `content-v1` 값 동결 뒤, blog PR(6단계)은 복구 시험 뒤다.
+순서를 바꾸면 잘못을 1년간 되돌릴 수 없다.
