@@ -354,7 +354,54 @@ IP 재할당 시 Cloudflare A 레코드가 stale — DDNS 갱신 없음, 재발 
 ## Phase 3+ — 점진 확장 (잔여)
 
 - **로그**: Loki 스택 추가 → 기존 grafana에 datasource만 연결.
-- **이미지 업로드**: 전용 볼륨 or MinIO. `content/`·`public/`에 쓰지 말 것(이미지 레이어는 사실상 read-only). (후순위로 미룸 · 2026-07-12)
+
+## Phase 4 — 이미지 업로드 시스템 (설계 확정 · 2026-08-08)
+
+엔드게임. blog + 추후 photo app(사진 포트폴리오)이 공용으로 쓰는 이미지 저장·서빙 인프라.
+
+### 확정 결정 (2026-08-08)
+
+| 항목      | 결정                                                     | 이유                                                                                                                                          |
+| --------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 규모      | **전시용 고화질 JPEG만, 수 GB**                          | RAW/원본은 기존 보관처 유지. 홈서버 부담 최소                                                                                                 |
+| 저장소    | **홈서버 MinIO** (S3 호환)                               | 엔드게임 정신(데이터 주권) + LAN 속도. 버킷 = 앱별(`blog`/`photo`)                                                                            |
+| admin     | **MinIO Console, LAN/WireGuard 전용**                    | 기존 admin 결정 유지. 업로드·브라우징·삭제가 내장 UI로 해결 — 커스텀 admin은 photo app이 앨범/태그/EXIF 메타데이터를 요구할 때(postgres) 그때 |
+| 변환·서빙 | **imgproxy** (on-the-fly 리사이즈·webp/avif)             | 서빙 전용 공개 진입점. MinIO는 인터넷에 아예 미노출                                                                                           |
+| 도메인    | `img.wannysim.com` = Cloudflare(orange) → NPM → imgproxy | glitchtip과 동일 패턴. 와일드카드 Origin CA 재사용                                                                                            |
+
+### 아키텍처
+
+```
+업로드(LAN):  MinIO Console(:9101) ← 나
+저장:         MinIO(:9100 S3) — 버킷 blog/photo, 인터넷 미노출, imgproxy 전용 readonly 자격증명
+서빙(공개):   방문자 → Cloudflare(캐시) → NPM → imgproxy(:8061) → s3://버킷/키
+참조:         MDX·photo app은 https://img.wannysim.com/<preset>/... URL만
+```
+
+- **재빌드 종말**: 이미지가 이미지 레이어(`content/`·`public/`)에서 빠지므로, 사진 추가 = Console 업로드 + URL 붙여넣기. promote 불필요.
+- **imgproxy는 서명 대신 presets-only** (`IMGPROXY_ONLY_PRESETS=true` + 프리셋 2~3개: `content`, `thumb`, `full`) — MDX에 서명 URL을 손으로 못 쓰므로, 프리셋 제한으로 리사이즈 증폭 DoS를 막고 URL은 사람이 쓸 수 있게 유지. `IMGPROXY_AUTO_WEBP/AVIF`로 포맷 협상.
+- **Cloudflare가 대역폭 방패**: imgproxy 응답 장기 캐시(immutable 키 규칙: 파일명에 날짜/버전 포함, 덮어쓰기 대신 새 키) → 가정용 업로드 회선 보호.
+- **blog 코드 변경은 소폭**: `next.config.mjs` `images.remotePatterns`에 `img.wannysim.com` 추가. imgproxy가 이미 최적화한 이미지를 next/image 옵티마이저가 이중 최적화하지 않도록 mdx `img` 오버라이드에서 이 호스트는 우회(unoptimized) 처리 — 구현 시 결정.
+- **RAM 예산**: MinIO ~200MB + imgproxy ~100MB. 배포 전 `free -m` 실측 필수(GlitchTip 이후 여유 재확인). 부족하면 GLITCHTIP 512m 상한과 재조정.
+- **백업(후속)**: 전시용 JPEG은 원본에서 재생성 가능하므로 치명적이진 않지만, 야간 rclone → Cloudflare R2(10GB 무료)가 저렴한 보험. MinIO 가동 후 별도 항목으로.
+- **photo app(후속)**: `apps/photo` 신설 시 같은 MinIO의 `photo` 버킷 + 큐레이션 메타데이터(postgres). 그때 admin 필요성 재평가.
+
+### 구축 런북 (사용자 실행, 순서대로)
+
+1. **사전 실측**: 홈서버에서 `free -m`, `df -h` — RAM 여유·디스크 여유 확인 후 진행.
+2. **MinIO 스택** (Portainer): image `minio/minio`(RELEASE 태그 고정), `server /data --console-address ":9001"`,
+   ports `9100:9000`(S3)·`9101:9001`(Console) — LAN 전용, NPM/Cloudflare 미등록. volume `minio_data:/data`,
+   `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`(Vaultwarden), `mem_limit 512m`, 로그 로테이션.
+3. **버킷·자격증명**: Console(`http://10.0.0.105:9101`)에서 버킷 `blog`·`photo` 생성(비공개 유지) →
+   Access Key 신설: imgproxy용 **readonly** 정책.
+4. **imgproxy 스택**: image `darthsim/imgproxy`, port `8061:8080`, env: `IMGPROXY_USE_S3=true`,
+   S3 endpoint `http://10.0.0.105:9100` + readonly 키, `IMGPROXY_ONLY_PRESETS=true` + 프리셋 정의,
+   `IMGPROXY_AUTO_WEBP=true`/`IMGPROXY_AUTO_AVIF=true`, `mem_limit 256m`.
+5. **공개 경로**: Cloudflare A `img` → `1.228.10.189`(orange) → NPM Proxy Host `img.wannysim.com` →
+   `10.0.0.105:8061`(와일드카드 Origin CA + Force SSL).
+6. **검증**: Console에 테스트 JPEG 업로드 → `https://img.wannysim.com/<preset>/plain/s3://blog/test.jpg` 200 +
+   webp 협상 + 두 번째 요청 `cf-cache-status: HIT`.
+7. **blog 코드 PR**(에이전트): remotePatterns + mdx img 우회 + (필요시) 업로드 규약 문서화(`apps/blog/AGENTS.md`).
 
 ## 놓치기 쉬운 것 / 리스크
 
