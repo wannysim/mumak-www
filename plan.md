@@ -358,6 +358,7 @@ IP 재할당 시 Cloudflare A 레코드가 stale — DDNS 갱신 없음, 재발 
 ## Phase 4 — 이미지 업로드 시스템 (설계 확정 · 2026-08-08)
 
 엔드게임. blog + 추후 photo app(사진 포트폴리오)이 공용으로 쓰는 이미지 저장·서빙 인프라.
+요구사항 해석·결정 근거 전문은 [image-upload-design.md](image-upload-design.md).
 
 ### 확정 결정 (2026-08-08)
 
