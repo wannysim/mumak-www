@@ -39,7 +39,11 @@ ARG NEXT_PUBLIC_BASE_URL
 ARG NEXT_PUBLIC_GA_ID
 ARG NEXT_PUBLIC_GSC_TOKEN
 ARG NEXT_PUBLIC_NAVER_TOKEN
-ARG NEXT_PUBLIC_SENTRY_DSN
+# Default here (not only in promote.yml) because workflow_run executes promote.yml
+# from MAIN — the build-arg added on develop is inert until the next release lands
+# there. A DSN is public-by-design (shipped in every visitor's bundle), not a secret.
+# Once main's promote.yml passes vars.NEXT_PUBLIC_SENTRY_DSN it overrides this.
+ARG NEXT_PUBLIC_SENTRY_DSN=https://dbb76f675b2145cabcfd7815000c5f44@glitchtip.wannysim.com/1
 ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL \
     NEXT_PUBLIC_GA_ID=$NEXT_PUBLIC_GA_ID \
     NEXT_PUBLIC_GSC_TOKEN=$NEXT_PUBLIC_GSC_TOKEN \
