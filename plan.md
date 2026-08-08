@@ -390,7 +390,7 @@ IP 재할당 시 Cloudflare A 레코드가 stale — DDNS 갱신 없음, 재발 
       함정 2개 기록: (1) promote.yml은 workflow_run이라 **main 정의로 실행** — develop의 build-arg 추가는
       다음 release 전까지 무효, DSN은 Dockerfile ARG 기본값으로 우회(main 도달 시 vars가 override).
       (2) Next 16.3의 sharp 0.35+는 package.json subpath export 제거 — Dockerfile 검증 스니펫 수정(#536).
-- [ ] GSC(Search Console)에서 색인·sitemap 상태 며칠 모니터링 (도메인 속성은 DNS TXT 기반이라 그대로 유효).
+- [x] GSC(Search Console) 색인·sitemap 상태 확인 — 완료(2026-08-08). sitemap "성공", 색인 페이지 증가 추세. 컷오버의 SEO 영향 없음 확정. (외부 검증: robots/sitemap 200, URL 600개, canonical 정상.)
 - [x] ~~미사용 Vercel 시크릿 삭제~~ → **의도적 보관 결정(2026-08-08)** — 나중에 Vercel로 돌아올 가능성 대비. 워크플로 참조 0이라 방치 리스크는 토큰 자체의 유효기간뿐.
 - [x] Phase 1에 노출된 GHCR write PAT·Portainer 토큰 rotate 최종 점검 — 완료(2026-08-08).
 - [x] Portainer에 `mumak-blog-watchtower` 스택 배포 (2026-07-10) — `GHCR_READ_PAT` env 주입. 감시 스코프 `mumak-blog` 컨테이너. **이미지는 `nickfedor/watchtower`** (containrrr는 아카이브+Docker 29 비호환). 로그 정상 — `Watchtower 1.19.0 using Docker API v1.52`, 5분 스케줄 확인. CI GHCR push는 main 반영 후라 그전까진 대기 상태(no-op).
