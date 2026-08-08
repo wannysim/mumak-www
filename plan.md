@@ -392,7 +392,7 @@ IP 재할당 시 Cloudflare A 레코드가 stale — DDNS 갱신 없음, 재발 
       (2) Next 16.3의 sharp 0.35+는 package.json subpath export 제거 — Dockerfile 검증 스니펫 수정(#536).
 - [ ] GSC(Search Console)에서 색인·sitemap 상태 며칠 모니터링 (도메인 속성은 DNS TXT 기반이라 그대로 유효).
 - [x] ~~미사용 Vercel 시크릿 삭제~~ → **의도적 보관 결정(2026-08-08)** — 나중에 Vercel로 돌아올 가능성 대비. 워크플로 참조 0이라 방치 리스크는 토큰 자체의 유효기간뿐.
-- [ ] Phase 1에 노출된 GHCR write PAT·Portainer 토큰 rotate 최종 점검(공용 read는 이미 정리).
+- [x] Phase 1에 노출된 GHCR write PAT·Portainer 토큰 rotate 최종 점검 — 완료(2026-08-08).
 - [x] Portainer에 `mumak-blog-watchtower` 스택 배포 (2026-07-10) — `GHCR_READ_PAT` env 주입. 감시 스코프 `mumak-blog` 컨테이너. **이미지는 `nickfedor/watchtower`** (containrrr는 아카이브+Docker 29 비호환). 로그 정상 — `Watchtower 1.19.0 using Docker API v1.52`, 5분 스케줄 확인. CI GHCR push는 main 반영 후라 그전까진 대기 상태(no-op).
 - [x] Spotify 시크릿 — Portainer `blog` 스택 env에 3종 등록(런타임 주입이라 재빌드 불필요), `/api/spotify/now-playing` 정상 응답 확인 (2026-07-09)
 - [x] `home.wannysim.com` DNS — A 레코드를 사설 IP → 공인 IP `1.228.10.189`로 교정, **외부망 http 접근 확인 완료 (2026-07-10)**. TLS는 Phase 2 Cloudflare 이관 시.
