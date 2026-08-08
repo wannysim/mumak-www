@@ -382,9 +382,14 @@ IP 재할당 시 Cloudflare A 레코드가 stale — DDNS 갱신 없음, 재발 
 - [x] **`home` → `blog.wannysim.com` 전환 (2026-07-11)** — 새 LE 인증서(토큰 Roll 재발급, Vaultwarden 보관) + Proxy Host 단일 운용(Advanced `return 301`). 301 경로보존·인증서·http 진입 검증 완료. 상세는 상단 상태 블록.
 - [x] `home` 잔재 정리 (2026-07-11) — Cloudflare A `home` 레코드 삭제 + NPM 옛 `home.wannysim.com` LE 인증서 삭제.
 - [x] 집 LAN DNS flip-flop 해소 (2026-07-11) — DNS 캐시 정리로 해결. (재발 시: NS 위임 캐시 문제, AdGuard 컨테이너 재시작.)
-- [ ] **간헐 다운 대응 (2026-08-08 착수)** — PR #534(자가복구·리소스 상한) + PR #535(GlitchTip SDK) 머지
-      → Portainer 스택 반영 → 외부 uptime 모니터 → GlitchTip 스택 배포 + DSN var + promote 재빌드.
-      런북은 위 "간헐 다운 대응" / "GlitchTip 배포 런북" 섹션.
+- [x] **간헐 다운 대응 + GlitchTip 가동 (2026-08-08 완료)** — PR #534(자가복구·리소스 상한, 스택 반영됨) + #535(SDK) + #536(sharp exports 픽스) + #537(DSN Dockerfile ARG 기본값) 전부 머지·배포.
+      GlitchTip 스택 가동(`glitchtip.wannysim.com`, 호스트 8060, EMBED_WORKER + PG 겸임, 가입 잠금),
+      클라이언트 테스트 이벤트 수신 실증. 외부 uptime 모니터(텔레그램 알림)도 가동.
+      **근본 원인 판명: 다운 = watchtower 이미지 교체 순간의 ~10초 공백** (모니터 Down 20:04 = watchtower
+      updated 11:04Z 일치). 배포당 짧은 blip은 수용 결정. 무중단이 필요해지면 블루-그린 검토.
+      함정 2개 기록: (1) promote.yml은 workflow_run이라 **main 정의로 실행** — develop의 build-arg 추가는
+      다음 release 전까지 무효, DSN은 Dockerfile ARG 기본값으로 우회(main 도달 시 vars가 override).
+      (2) Next 16.3의 sharp 0.35+는 package.json subpath export 제거 — Dockerfile 검증 스니펫 수정(#536).
 - [ ] GSC(Search Console)에서 색인·sitemap 상태 며칠 모니터링 (도메인 속성은 DNS TXT 기반이라 그대로 유효).
 - [ ] 미사용 Vercel 시크릿 삭제 (나중에) — repo Settings → Secrets에 `VERCEL_TOKEN`/`VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` 잔존. 워크플로 참조 0 확인됨(2026-07-11). `gh secret delete` 3번이면 끝, VERCEL_TOKEN은 Vercel 쪽(Account Settings → Tokens)에서 revoke까지 하면 완벽.
 - [ ] Phase 1에 노출된 GHCR write PAT·Portainer 토큰 rotate 최종 점검(공용 read는 이미 정리).
