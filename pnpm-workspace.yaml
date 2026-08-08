@@ -12,6 +12,8 @@ overrides:
   react-native-worklets: 0.10.0
 allowBuilds:
   '@parcel/watcher': false
+  # sentry-cli 바이너리는 소스맵 업로드용 — 안 쓰므로 다운로드 자체를 막는다.
+  '@sentry/cli': false
   '@swc/core': false
   esbuild: false
   msgpackr-extract: false

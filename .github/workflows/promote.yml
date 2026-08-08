@@ -182,6 +182,7 @@ jobs:
             --build-arg NEXT_PUBLIC_GA_ID="${{ vars.NEXT_PUBLIC_GA_ID }}" \
             --build-arg NEXT_PUBLIC_GSC_TOKEN="${{ vars.NEXT_PUBLIC_GSC_TOKEN }}" \
             --build-arg NEXT_PUBLIC_NAVER_TOKEN="${{ vars.NEXT_PUBLIC_NAVER_TOKEN }}" \
+            --build-arg NEXT_PUBLIC_SENTRY_DSN="${{ vars.NEXT_PUBLIC_SENTRY_DSN }}" \
             -t "ghcr.io/wannysim/mumak-blog:latest" \
             -t "ghcr.io/wannysim/mumak-blog:${{ steps.target.outputs.sha }}" \
             .
