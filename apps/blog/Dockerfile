@@ -79,7 +79,9 @@ WORKDIR /app/apps/blog
 # target platform so this validates the binary the home server will actually run).
 # pnpm keeps sharp under .pnpm (no top-level node_modules/sharp symlink), so resolve
 # it from next's own require context — the same path the running server uses.
-RUN node -e "const{createRequire}=require('module');const r=createRequire(require.resolve('next/package.json'));console.log('sharp',r('sharp/package.json').version,'loaded:',!!r('sharp'))"
+# Loading the module IS the arch check (it dlopens the native binary). Don't touch
+# sharp/package.json — sharp 0.35+ (via Next 16.3) no longer exports that subpath.
+RUN node -e "const{createRequire}=require('module');const r=createRequire(require.resolve('next/package.json'));const s=r('sharp');console.log('sharp',s.versions&&s.versions.sharp,'loaded:',!!s)"
 EXPOSE 3000
 # cwd MUST be the standalone app dir — content loaders and OG fonts read from cwd.
 CMD ["node", "server.js"]
