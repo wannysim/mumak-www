@@ -350,12 +350,14 @@ IP 재할당 시 Cloudflare A 레코드가 stale — DDNS 갱신 없음, 재발 
 
 - about/now가 MDX/git에 남는 한 admin이 관리할 대상이 없음. view count/reactions도 admin 불필요.
 - 실제 필요가 생기면: `apps/admin`을 **Cloudflare에 노출하지 않고 LAN/wireguard 전용**으로 배포(공개 repo여도 코드 노출은 무해, 시크릿은 env). 그 전까지 스캐폴딩 금지.
+- photo 전용 admin은 이미지·caption·정렬·발행이라는 실제 runtime 대상이 생길 때 별도 ADR로
+  설계한다. 아래 media 저장·URL 계약은 그 admin을 막지 않지만 지금 앱을 미리 만들지는 않는다.
 
 ## Phase 3+ — 점진 확장 (잔여)
 
 - **로그**: Loki 스택 추가 → 기존 grafana에 datasource만 연결.
 
-## Phase 4 — 이미지 업로드 시스템 (아키텍처 재검토 · 2026-08-08)
+## Phase 4 — 이미지 업로드 시스템 (아키텍처 재검토 · 2026-08-08, 08-09 보강)
 
 blog와 추후 photo app이 함께 쓰는 이미지 저장·서빙 인프라. 검토 근거와 운영 계약 전문은
 [image-upload-design.md](image-upload-design.md).
@@ -364,8 +366,8 @@ blog와 추후 photo app이 함께 쓰는 이미지 저장·서빙 인프라. �
 
 | 항목      | 결정                                                       | 이유                                                             |
 | --------- | ---------------------------------------------------------- | ---------------------------------------------------------------- |
-| 저장소    | host bind directory `/srv/mumak-images`                    | 단일 운영자·홈서버·100GB 이하에는 S3보다 단순하고 복구가 쉬움    |
-| admin     | Dufs, LAN/WireGuard 전용                                   | 파일 업로드·이동·삭제 UI만 재사용하고 커스텀 admin은 만들지 않음 |
+| 저장소    | host bind directory `/srv/mumak-images`                    | 단일 운영자·홈서버·약 100GB 여유에는 S3보다 단순하고 복구가 쉬움 |
+| admin     | Dufs staging UI + 작은 server-side publish guard           | 업로더를 재사용하되 검증·불변 key 발행은 서버에서 강제           |
 | 변환      | imgproxy, media mount read-only                            | 제한된 preset만 변환하고 원본 저장소는 공개하지 않음             |
 | 공개 경로 | Cloudflare → NPM allowlist/rewrite → imgproxy              | 공개 URL과 내부 storage/imgproxy 문법을 분리                     |
 | URL       | `img.wannysim.com/<variant>/<key>@<format>`                | key·variant·format을 명시해 캐시와 저장소 이전을 안정화          |
@@ -374,24 +376,36 @@ blog와 추후 photo app이 함께 쓰는 이미지 저장·서빙 인프라. �
 ### 아키텍처
 
 ```
-업로드(LAN):  브라우저 → Dufs(:9101) → /srv/mumak-images (RW)
-변환(내부):   imgproxy → /srv/mumak-images (RO)
-서빙(공개):   방문자 → Cloudflare → NPM의 고정 경로 → imgproxy
-참조:         blog MDX는 공개 URL, photo DB는 논리 key와 원본 크기만 저장
+현재 blog:     브라우저 → Dufs → blog/_incoming → publish guard → blog/published
+향후 photo:    브라우저 → photo backend → photo/_incoming → photo/published + metadata DB
+변환(내부):    imgproxy → 각 scope의 published (RO)
+서빙(공개):    방문자 → Cloudflare → NPM의 고정 경로 → imgproxy
+참조:          blog MDX는 공개 URL, photo DB는 논리 key와 intrinsic metadata만 저장
 ```
 
-- MinIO Community의 유지보수 전제가 사라져 기본안에서 제외했다. S3는 두 번째 writer,
-  presigned upload, 앱별 IAM, lifecycle/event, off-host/multi-node 복제가 필요해질 때 재검토한다.
+- MinIO Community의 유지보수 전제가 사라져 기본안에서 제외했다. 같은 홈서버의 photo backend가
+  `photo/`의 유일한 writer가 되는 것은 S3 전환 조건이 아니다. writer를 한 host/namespace로
+  모을 수 없거나 presigned upload, 앱별 IAM, lifecycle/event, off-host/multi-node 복제가
+  필요해질 때 재검토한다.
 - 공개 source는 `mumak://` alias로 표현하고 imgproxy에서 현재 `local:///`로 치환한다. 나중에
   storage를 바꿔도 key를 유지하면 MDX/photo record를 다시 쓰지 않는다. S3 이전 시에는 파일
   복사와 함께 imgproxy endpoint/credential/allowlist/replacement 설정을 바꿔야 한다.
 - `content-v1` 같은 불변 variant와 URL의 `@jpg`/`@webp`로 크기·포맷을 고정한다.
   `Accept` 기반 자동 WebP/AVIF 협상은 Free plan cache key가 안전하게 분리되지 않아 쓰지 않는다.
-- 초기 후보는 `content-v1=resize:fit:1600:1600:false`, quality는 `jpeg=82,webp=79`다.
-  실제 JPEG로 확정한 뒤 cache를 열며, 변경은 `content-v2`를 추가한다.
-- 발행 key는 `<scope>/<yyyy>/<mm>/<slug>-<hash12>.jpg` 하나로 정의한다. backend 없는
-  same-origin local publish helper가 hash/크기/collision/no-overwrite를 검증하고 URL·snippet을
-  만든다.
+- 초기 `content-v1`은 resize뿐 아니라 format별 quality, auto-rotate, metadata/color-profile 제거를
+  preset 안에 고정한다. 실제 JPEG로 확정한 뒤 cache를 열며 의미 변경은 `content-v2`를 추가한다.
+- 발행 key는 `<scope>/<yyyy>/<mm>/<slug>-<hash12>.jpg`로 정의하고 초기 source는 JPEG만 허용한다.
+  업로드 파일명 확장자는 identity로 쓰지 않는다. Dufs는 staging만 RW, publish guard는 `blog/`
+  scope root의 유일한 writer가 되어 private claim/temp의 authoritative validation,
+  collision/no-clobber를 검증해 descriptor를 반환하고, blog helper가 URL·snippet을 만든다.
+- atomic rename/hard link가 container mount 경계에서 `EXDEV`로 깨지지 않도록 guard는
+  `blog/{_incoming,_work,published}`를 포함한 scope root 하나를 RW bind mount한다. Dufs는
+  `blog/_incoming`만, imgproxy는 각 `published`만 별도 최소 권한으로 mount한다.
+- 초기 media policy 후보는 6000px/20MiB authoring 안내, 50MP/32MiB 신규 발행 hard gate다.
+  값은 URL·DB에 넣지 않고 server config에서 전달한다. 상향은 최악 입력 부하 시험과 imgproxy
+  ceiling/memory를 먼저 바꾸고, 하향은 기존 source 서빙 상한을 유지한 채 신규 발행만 막는다.
+- `IMGPROXY_MAX_RESULT_DIMENSION=4096`은 source 제한이 아니라 output clamp다. worker 1, queue 8,
+  memory 768MiB 후보를 실제 50MP/32MiB 입력으로 검증한다.
 - Dufs는 인터넷에 노출하지 않고, 공개 origin은 Cloudflare 우회 접근을 firewall 또는
   Authenticated Origin Pull로 막는다. imgproxy는 host port 없이 NPM과 internal network로만
   연결하고 Bearer secret, worker·queue·source 크기·해상도도 제한한다.
@@ -400,21 +414,28 @@ blog와 추후 photo app이 함께 쓰는 이미지 저장·서빙 인프라. �
 - 이미지 bytes는 blog build에서 분리되지만 새 이미지 참조를 MDX에 넣으면 commit/deploy는
   여전히 필요하다. RSS와 web이 함께 읽도록 소문자 `<img>`와 절대 공개 URL을 authoring
   contract로 쓴다.
-- photo DB에는 완성 URL이나 storage scheme 대신 immutable asset key, width, height,
-  alt/caption, 촬영·정렬·발행 메타데이터를 저장한다.
+- photo DB에는 완성 URL이나 storage scheme 대신 immutable asset key, full SHA-256, mime/bytes,
+  width/height, alt/caption, 촬영·정렬·발행 메타데이터를 저장한다. photo admin은 upload를 staging에
+  stream하고 `photo/published` commit + internal no-cache transform 뒤 draft DB row를 만든다.
+  public URL 확인 뒤에만 publish하며 실패 파일과 드문 orphan만 정리한다.
+- public app/PR preview는 공개 이미지를 읽되 production publisher credential·RW mount·DB mutation은
+  받지 않는다. photo admin backend가 off-host/serverless여야 할 때 upload API/S3 ADR을 연다.
 
 ### 구축 런북 (사용자 실행)
 
-1. `/srv/mumak-images/{_incoming,blog,photo}`와 별도 backup target을 준비한다.
-2. host quota 지원을 확인하고 hard quota 또는 disk/free-space alert를 고른다.
-3. Dufs를 검증된 version/digest로 고정해 RW mount, hashed auth, hash 기능, LAN bind/firewall로
-   배포한다.
-4. same-origin local publish helper를 배포하고 hash/collision/no-overwrite와 30초 사용성을 시험한다.
-5. imgproxy를 RO mount, no host port, internal network, secret/preset/source/resource limit로
-   배포하고 최악 JPEG로 RAM을 실측한다.
-6. preset quality·RAM·queue를 실측해 `content-v1` 값을 동결한다.
-7. NPM의 anchored URL allowlist/rewrite와 Bearer 주입, Cloudflare cache rule/origin lock을 적용한다.
-8. 업로드·변환·캐시·장애·삭제·복구 acceptance test를 통과한다.
+1. `/srv/mumak-images/{blog,photo}/{_incoming,_work,published}`와 별도 backup target을 준비한다.
+2. media policy와 배포별 free-space warning/critical(critical 20GiB 초기 후보)을 설정하고
+   publish guard가 critical 아래에서 새 commit을 거절하게 한다.
+3. Dufs를 검증된 version/digest로 고정해 staging만 RW, 발행 scope RO/미mount, hashed auth,
+   LAN bind/firewall로 배포한다.
+4. imgproxy를 발행 scope만 RO mount, no host port, internal network, secret/preset/source/resource limit의
+   초기 후보로 배포한다.
+5. same-origin helper와 guard를 `blog/` scope root 하나의 RW mount로 배포하고
+   private no-replace claim/temp validation/no-clobber/internal transform을 시험한다.
+6. guard로 최악 fixture를 발행해 preset quality·RAM·queue를 실측하고 `content-v1` 값을 동결한다.
+7. NPM의 anchored URL allowlist/rewrite와 Bearer 주입 후 30초 전체 upload flow를 시험한다.
+8. Cloudflare cache rule/origin lock을 적용하고 업로드·변환·캐시·장애·삭제·복구 acceptance test를
+   통과한다.
 9. 그 뒤 blog의 고정 `800×400` MDX image override를 intrinsic ratio/RSS 계약에 맞춰 별도 PR로
    수정한다.
 
