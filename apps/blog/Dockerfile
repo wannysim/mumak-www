@@ -39,10 +39,16 @@ ARG NEXT_PUBLIC_BASE_URL
 ARG NEXT_PUBLIC_GA_ID
 ARG NEXT_PUBLIC_GSC_TOKEN
 ARG NEXT_PUBLIC_NAVER_TOKEN
+# Default here (not only in promote.yml) because workflow_run executes promote.yml
+# from MAIN — the build-arg added on develop is inert until the next release lands
+# there. A DSN is public-by-design (shipped in every visitor's bundle), not a secret.
+# Once main's promote.yml passes vars.NEXT_PUBLIC_SENTRY_DSN it overrides this.
+ARG NEXT_PUBLIC_SENTRY_DSN=https://dbb76f675b2145cabcfd7815000c5f44@glitchtip.wannysim.com/1
 ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL \
     NEXT_PUBLIC_GA_ID=$NEXT_PUBLIC_GA_ID \
     NEXT_PUBLIC_GSC_TOKEN=$NEXT_PUBLIC_GSC_TOKEN \
     NEXT_PUBLIC_NAVER_TOKEN=$NEXT_PUBLIC_NAVER_TOKEN \
+    NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN \
     NODE_ENV=production
 # E2E_INCLUDE_DRAFT MUST stay unset here or draft posts leak into the static output.
 
@@ -77,7 +83,9 @@ WORKDIR /app/apps/blog
 # target platform so this validates the binary the home server will actually run).
 # pnpm keeps sharp under .pnpm (no top-level node_modules/sharp symlink), so resolve
 # it from next's own require context — the same path the running server uses.
-RUN node -e "const{createRequire}=require('module');const r=createRequire(require.resolve('next/package.json'));console.log('sharp',r('sharp/package.json').version,'loaded:',!!r('sharp'))"
+# Loading the module IS the arch check (it dlopens the native binary). Don't touch
+# sharp/package.json — sharp 0.35+ (via Next 16.3) no longer exports that subpath.
+RUN node -e "const{createRequire}=require('module');const r=createRequire(require.resolve('next/package.json'));const s=r('sharp');console.log('sharp',s.versions&&s.versions.sharp,'loaded:',!!s)"
 EXPOSE 3000
 # cwd MUST be the standalone app dir — content loaders and OG fonts read from cwd.
 CMD ["node", "server.js"]

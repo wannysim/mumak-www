@@ -7,10 +7,29 @@ services:
     image: ghcr.io/wannysim/mumak-blog:latest # pin :<sha> for deterministic rollbacks
     container_name: mumak-blog
     restart: unless-stopped
+    # Cap memory so a leak/spike OOM-kills THIS container (restart policy revives it)
+    # instead of letting the kernel pick a random victim (NPM/adguard) on a ~1GB-free box.
+    # Steady-state RSS is a few hundred MB; 768m leaves headroom for sharp bursts.
+    mem_limit: 768m
+    # Rotate stdout logs — the default json-file driver grows unbounded and a full
+    # disk takes every container on the host down with it.
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    labels:
+      # Opt-in for the autoheal sidecar below: restart when the healthcheck flips
+      # to unhealthy. `restart: unless-stopped` only covers process EXIT — a hung
+      # Node (event-loop block, GC thrash) stays "running" forever without this.
+      autoheal: 'true'
     ports:
       - '3100:3000' # host:container — NPM proxies to the host's :3100 (host 3000 is taken by adguard's host-network web UI)
     environment:
       NODE_ENV: production
+      # Keep the V8 heap comfortably under mem_limit so GC kicks in before the
+      # kernel OOM-killer does — a GC pause is recoverable, a SIGKILL is not.
+      NODE_OPTIONS: --max-old-space-size=512
       # PORT / HOSTNAME are already baked into the image (3000 / 0.0.0.0).
       # Runtime-only server secrets — safe to change without a rebuild.
       # Leave unset and the now-playing widget just no-ops.
@@ -38,8 +57,26 @@ services:
       retries: 3
       start_period: 30s
     # Seams for later phases (do not build now):
-    # logging: {}            # log driver / shipper (-> Loki -> existing grafana)
     # depends_on: [postgres] # when a DB phase lands (reuse the existing postgres:16)
+
+  # Docker healthchecks only LABEL a container unhealthy — nothing acts on it.
+  # autoheal closes that loop: it watches containers carrying the autoheal label
+  # and restarts them once they flip unhealthy (~90s with the check above).
+  # ponytail: restart-on-unhealthy is symptom relief; error tracking (GlitchTip)
+  # owns finding the root cause.
+  autoheal:
+    image: willfarrell/autoheal:1.2.0
+    container_name: mumak-blog-autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '2'
 
 volumes:
   blog_next_cache:
