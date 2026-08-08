@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { findSyncedLyrics, isTranslationValid, parseLrc } from './generate-lyrics.mjs';
+import { applyLeadTime, findSyncedLyrics, isTranslationValid, parseLrc } from './generate-lyrics.mjs';
 
 describe('lyrics generator', () => {
   it('parses, sorts, and deduplicates timestamped LRC lines', () => {
@@ -41,6 +41,16 @@ describe('lyrics generator', () => {
     await expect(
       findSyncedLyrics({ trackNames: ['怪獣の花唄'], artistNames: ['Vaundy'], duration: 225 }, fetchMock)
     ).resolves.toEqual([{ time: 1, jp: '思い出すのは', pron: '', ko: '' }]);
+  });
+
+  it('pulls every line earlier by the lead while keeping gaps and strict ordering', () => {
+    const lyrics = [
+      { time: 0.1, jp: 'A', pron: '', ko: '' },
+      { time: 0.2, jp: 'B', pron: '', ko: '' },
+      { time: 10, jp: 'C', pron: '', ko: '' },
+    ];
+
+    expect(applyLeadTime(lyrics, 0.3).map(line => line.time)).toEqual([0, 0.001, 9.7]);
   });
 
   it('rejects untranslated Japanese remnants but allows non-verbal cue lines', () => {

@@ -10,6 +10,9 @@ const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const REPOSITORY_ROOT = path.resolve(APP_ROOT, '../..');
 const LRCLIB_CLIENT = 'mumak-karaoke (https://github.com/wannysim/mumak-www)';
 const DEFAULT_OUTPUT = path.join(os.tmpdir(), 'mumak-karaoke-lyrics-backup.json');
+/** 노래방처럼 다음 줄을 미리 보여 주기 위해 앞당기는 초. 시선이 옮겨가기 전에 전환되어야 해서 반박자보다 넉넉하다. */
+const DEFAULT_LEAD = 0.9;
+const MINIMUM_GAP = 0.001;
 const LRCLIB_TITLE_OVERRIDES = new Map([['time-paradox', 'Time Paradox']]);
 const JAPANESE_CHARACTER = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 const HANGUL_CHARACTER = /\p{Script=Hangul}/u;
@@ -83,6 +86,19 @@ export function parseLrc(value) {
   return lines
     .toSorted((left, right) => left.time - right.time)
     .filter((line, index, sorted) => index === 0 || line.time !== sorted[index - 1].time);
+}
+
+/**
+ * 모든 줄을 같은 폭으로 앞당겨 다음 가사가 실제 발성보다 먼저 활성화되게 한다.
+ * 줄 사이 간격은 그대로 유지되고, 0초 부근에서 겹치면 최소 간격만큼만 벌린다.
+ */
+export function applyLeadTime(lyrics, lead = DEFAULT_LEAD) {
+  let previous = -Infinity;
+  return lyrics.map(line => {
+    const shifted = Math.max(0, Math.round((line.time - lead) * 1000) / 1000);
+    previous = shifted > previous ? shifted : previous + MINIMUM_GAP;
+    return { ...line, time: previous };
+  });
 }
 
 export async function findSyncedLyrics({ trackNames, artistNames, duration }, fetchImpl = fetch) {
@@ -245,7 +261,7 @@ ${JSON.stringify(invalidIndexes.map(index => ({ index, jp: uniqueLyrics[index] }
 }
 
 function parseArguments(argv) {
-  const options = { all: false, force: false, output: DEFAULT_OUTPUT };
+  const options = { all: false, force: false, output: DEFAULT_OUTPUT, lead: DEFAULT_LEAD };
   const positional = [];
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -253,7 +269,11 @@ function parseArguments(argv) {
     if (argument === '--') continue;
     if (argument === '--all') options.all = true;
     else if (argument === '--force') options.force = true;
-    else if (['--output', '--track', '--artist', '--slug'].includes(argument)) {
+    else if (argument === '--lead') {
+      const value = Number(argv[++index]);
+      if (!Number.isFinite(value) || value < 0) throw new Error('--lead 값은 0 이상의 초 단위 숫자여야 합니다.');
+      options.lead = value;
+    } else if (['--output', '--track', '--artist', '--slug'].includes(argument)) {
       const value = argv[++index];
       if (!value) throw new Error(`${argument} 값이 필요합니다.`);
       options[argument.slice(2)] = value;
@@ -271,10 +291,11 @@ function parseArguments(argv) {
 
 function usage() {
   return `사용법:
-  pnpm --filter karaoke lyrics:generate -- --all [--output /tmp/backup.json]
+  pnpm --filter karaoke lyrics:generate -- --all [--output /tmp/backup.json] [--lead 0.3]
   pnpm --filter karaoke lyrics:generate -- <youtube-url> [--track 곡명] [--artist 아티스트] [--slug slug] [--force]
 
-기존 출력 파일이 있으면 완료된 곡은 건너뛰고 이어서 생성합니다.`;
+기존 출력 파일이 있으면 완료된 곡은 건너뛰고 이어서 생성합니다.
+--lead는 모든 줄을 앞당길 초입니다(기본 ${DEFAULT_LEAD}초). 노래방처럼 다음 가사를 반박자 먼저 보여 줍니다.`;
 }
 
 async function writeBackup(outputPath, songs, parseLyricsImportFile) {
@@ -335,11 +356,14 @@ async function main() {
 
     console.log(`[${index + 1}/${targets.length}] ${target.slug}: 곡 정보 확인`);
     const metadata = await fetchYouTubeMetadata(target.videoId);
-    const lyrics = await findSyncedLyrics({
-      trackNames: [options.track, LRCLIB_TITLE_OVERRIDES.get(target.slug), target.titleJa, metadata.title],
-      artistNames: [options.artist, target.artist, metadata.artist],
-      duration: metadata.duration,
-    });
+    const lyrics = applyLeadTime(
+      await findSyncedLyrics({
+        trackNames: [options.track, LRCLIB_TITLE_OVERRIDES.get(target.slug), target.titleJa, metadata.title],
+        artistNames: [options.artist, target.artist, metadata.artist],
+        duration: metadata.duration,
+      }),
+      options.lead
+    );
     console.log(`[${index + 1}/${targets.length}] ${target.slug}: ${lyrics.length}줄 번역`);
     completed.push({ slug: target.slug, lyrics: await translateLyrics(lyrics) });
     completedSlugs.add(target.slug);
