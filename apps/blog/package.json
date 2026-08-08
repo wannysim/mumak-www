@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@mumak/ui": "workspace:*",
+    "@sentry/nextjs": "^10.69.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "gray-matter": "^4.0.3",
