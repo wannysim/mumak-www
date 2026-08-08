@@ -391,7 +391,7 @@ IP 재할당 시 Cloudflare A 레코드가 stale — DDNS 갱신 없음, 재발 
       다음 release 전까지 무효, DSN은 Dockerfile ARG 기본값으로 우회(main 도달 시 vars가 override).
       (2) Next 16.3의 sharp 0.35+는 package.json subpath export 제거 — Dockerfile 검증 스니펫 수정(#536).
 - [ ] GSC(Search Console)에서 색인·sitemap 상태 며칠 모니터링 (도메인 속성은 DNS TXT 기반이라 그대로 유효).
-- [ ] 미사용 Vercel 시크릿 삭제 (나중에) — repo Settings → Secrets에 `VERCEL_TOKEN`/`VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` 잔존. 워크플로 참조 0 확인됨(2026-07-11). `gh secret delete` 3번이면 끝, VERCEL_TOKEN은 Vercel 쪽(Account Settings → Tokens)에서 revoke까지 하면 완벽.
+- [x] ~~미사용 Vercel 시크릿 삭제~~ → **의도적 보관 결정(2026-08-08)** — 나중에 Vercel로 돌아올 가능성 대비. 워크플로 참조 0이라 방치 리스크는 토큰 자체의 유효기간뿐.
 - [ ] Phase 1에 노출된 GHCR write PAT·Portainer 토큰 rotate 최종 점검(공용 read는 이미 정리).
 - [x] Portainer에 `mumak-blog-watchtower` 스택 배포 (2026-07-10) — `GHCR_READ_PAT` env 주입. 감시 스코프 `mumak-blog` 컨테이너. **이미지는 `nickfedor/watchtower`** (containrrr는 아카이브+Docker 29 비호환). 로그 정상 — `Watchtower 1.19.0 using Docker API v1.52`, 5분 스케줄 확인. CI GHCR push는 main 반영 후라 그전까진 대기 상태(no-op).
 - [x] Spotify 시크릿 — Portainer `blog` 스택 env에 3종 등록(런타임 주입이라 재빌드 불필요), `/api/spotify/now-playing` 정상 응답 확인 (2026-07-09)
