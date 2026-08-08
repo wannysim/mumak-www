@@ -265,6 +265,37 @@ https가 막힌 원인은 단 하나: wannysim.com DNS가 Vercel 관리인데 **
 postgres:16 재사용, ~50MB) 또는 PostHog self-host(Cloud01, ARM64/11.7GB — replay·에러추적 올인원). 개인 블로그엔
 현재 GA4로 충분.
 
+## 간헐 다운 대응 (진행 중 · 2026-08-08)
+
+컷오버 후 blog가 간헐적으로 내려가는데 자동 복구·감지가 모두 없던 상태. 구조적 구멍:
+**Docker healthcheck는 unhealthy 표시만 하고 아무 조치도 안 하며**, `restart: unless-stopped`는
+프로세스 종료에만 반응한다 → 행(hang) 상태 Node는 수동 재시작 전까지 영구 다운.
+
+- **PR #534** (`fix(blog): 프로덕션 컨테이너 자가복구·리소스 상한 추가`): autoheal 사이드카
+  (unhealthy → 자동 재시작, ~90초) + `mem_limit 768m` + `NODE_OPTIONS=--max-old-space-size=512`
+  (OOM 시 이웃 컨테이너 대신 blog가 지목·부활) + json-file 로그 로테이션(디스크 포화 예방).
+- **PR #535** (`feat(blog): GlitchTip 에러 트래킹 통합`): 아래 Phase 3 실행 런북 참조.
+
+### 진단 런북 (다음 다운 시 홈서버에서)
+
+```bash
+docker inspect mumak-blog --format 'restarts={{.RestartCount}} status={{.State.Status}} health={{.State.Health.Status}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}} finished={{.State.FinishedAt}}'
+free -m; df -h; dmesg -T | grep -iE 'oom|killed' | tail
+docker logs mumak-blog --since 1h 2>&1 | tail -50
+```
+
+판정: `oom=true` → 메모리(상한·힙 조정 검토) / `running`+`unhealthy` → 행(autoheal이 잡아야 정상) /
+`restarts=0`+`healthy`인데 외부에서 안 열림 → 컨테이너 밖(NPM·Cloudflare·공인 IP 변동. 가정용 회선이라
+IP 재할당 시 Cloudflare A 레코드가 stale — DDNS 갱신 없음, 재발 시 도입 검토).
+
+### 적용 런북 (사용자 실행, [[feedback_no_infra_api_mutations]])
+
+1. **PR #534 머지 후**: Portainer `blog` 스택 에디터에 develop의 `apps/blog/docker-compose.yml`
+   변경분 반영 → Update the stack. autoheal은 `/var/run/docker.sock` 마운트 필요(watchtower와 동일 패턴).
+2. **외부 uptime 모니터** (설치 0, 5분): UptimeRobot 등에서 `https://wannysim.com/ko/blog` 3~5분 간격
+   - 알림 채널 연결. 감시자는 홈서버 **밖**에 있어야 홈서버가 죽었을 때 알려줄 수 있다.
+     Cloudflare Analytics의 521/522/523(origin 불달) vs 5xx(앱 에러) 구분도 즉시 쓸 수 있는 무료 데이터.
+
 ## Phase 3 — 에러 트래킹 + DB (조사 완료 · 2026-07-12)
 
 ### 에러 트래킹 / 유저 플로우 툴 조사 (여유 RAM ~1GB 제약)
@@ -284,6 +315,23 @@ postgres:16 재사용, ~50MB) 또는 PostHog self-host(Cloud01, ARM64/11.7GB —
 
 - **에러 트래킹: GlitchTip** — `@sentry/nextjs` DSN만 교체, sentry-cli 소스맵 업로드 그대로. 5.2+부터 Valkey/Redis 선택사항(`VALKEY_URL` 비우면 Postgres가 캐시/celery 겸임) → **컨테이너 1개 + 기존 postgres:16 재사용**. 2026-03에 6.1 릴리즈, 활발.
 - **유저 플로우**: GA4의 경로 탐색으로 일단 충분. 더 원하면 Umami 추가(journeys/funnels/retention, 기존 PG 재사용, 합계 ~1GB 예산 내). **세션 리플레이는 현 RAM에선 현실 후보 없음**(유일 후보 Rybbit도 CH ~2GB) → RAM 증설 시 재검토.
+
+### GlitchTip 배포 런북 (사용자 실행 · 코드 절반은 PR #535로 완료)
+
+앱 코드는 PR #535에 들어감: `instrumentation.ts`(서버, `onRequestError`) + `instrumentation-client.ts`
+(브라우저) + 에러 바운더리 `captureException`. DSN 미설정이면 전부 no-op이라 먼저 머지해도 안전.
+
+1. postgres 컨테이너 콘솔: `CREATE ROLE glitchtip LOGIN PASSWORD '<pw>'; CREATE DATABASE glitchtip OWNER glitchtip;`
+2. Portainer에 `glitchtip` 스택 — 공식 문서 확인 결과(2026-08-08) 단일 컨테이너 공식 지원:
+   - `GLITCHTIP_EMBED_WORKER=true` (= `SERVER_ROLE=all_in_one`, 웹+celery worker 한 프로세스)
+   - `VALKEY_URL=""` (빈 문자열 → Postgres가 task queue/cache/session 겸임, 5.2+)
+   - 필수 env: `DATABASE_URL=postgres://glitchtip:<pw>@postgres:5432/glitchtip`, `SECRET_KEY`(랜덤),
+     `GLITCHTIP_DOMAIN`, `EMAIL_URL`(콘솔 출력이면 `consolemail://`), `DEFAULT_FROM_EMAIL`
+   - 마이그레이션은 자동 실행. 이미지 `glitchtip/glitchtip`
+3. NPM 프록시 호스트(LAN 전용이면 Cloudflare 미경유) → 웹 UI에서 조직/프로젝트 생성 → DSN 복사
+4. `gh variable set NEXT_PUBLIC_SENTRY_DSN --body "<dsn>"` → promote 재빌드(다음 그린 커밋 또는
+   `gh workflow run promote.yml`) — [[project_next_public_env_requires_promote_rebuild]]
+5. 검증: 사이트에서 강제 에러(존재하는 위젯 콘솔) 또는 `Sentry.captureMessage` 임시 호출로 이벤트 수신 확인
 
 ### DB 구축 (GlitchTip이 첫 소비자)
 
@@ -334,6 +382,9 @@ postgres:16 재사용, ~50MB) 또는 PostHog self-host(Cloud01, ARM64/11.7GB —
 - [x] **`home` → `blog.wannysim.com` 전환 (2026-07-11)** — 새 LE 인증서(토큰 Roll 재발급, Vaultwarden 보관) + Proxy Host 단일 운용(Advanced `return 301`). 301 경로보존·인증서·http 진입 검증 완료. 상세는 상단 상태 블록.
 - [x] `home` 잔재 정리 (2026-07-11) — Cloudflare A `home` 레코드 삭제 + NPM 옛 `home.wannysim.com` LE 인증서 삭제.
 - [x] 집 LAN DNS flip-flop 해소 (2026-07-11) — DNS 캐시 정리로 해결. (재발 시: NS 위임 캐시 문제, AdGuard 컨테이너 재시작.)
+- [ ] **간헐 다운 대응 (2026-08-08 착수)** — PR #534(자가복구·리소스 상한) + PR #535(GlitchTip SDK) 머지
+      → Portainer 스택 반영 → 외부 uptime 모니터 → GlitchTip 스택 배포 + DSN var + promote 재빌드.
+      런북은 위 "간헐 다운 대응" / "GlitchTip 배포 런북" 섹션.
 - [ ] GSC(Search Console)에서 색인·sitemap 상태 며칠 모니터링 (도메인 속성은 DNS TXT 기반이라 그대로 유효).
 - [ ] 미사용 Vercel 시크릿 삭제 (나중에) — repo Settings → Secrets에 `VERCEL_TOKEN`/`VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` 잔존. 워크플로 참조 0 확인됨(2026-07-11). `gh secret delete` 3번이면 끝, VERCEL_TOKEN은 Vercel 쪽(Account Settings → Tokens)에서 revoke까지 하면 완벽.
 - [ ] Phase 1에 노출된 GHCR write PAT·Portainer 토큰 rotate 최종 점검(공용 read는 이미 정리).
