@@ -383,7 +383,7 @@ IP 재할당 시 Cloudflare A 레코드가 stale — DDNS 갱신 없음, 재발 
 - **Cloudflare가 대역폭 방패**: imgproxy 응답 장기 캐시(immutable 키 규칙: 파일명에 날짜/버전 포함, 덮어쓰기 대신 새 키) → 가정용 업로드 회선 보호.
 - **blog 코드 변경은 소폭**: `next.config.mjs` `images.remotePatterns`에 `img.wannysim.com` 추가. imgproxy가 이미 최적화한 이미지를 next/image 옵티마이저가 이중 최적화하지 않도록 mdx `img` 오버라이드에서 이 호스트는 우회(unoptimized) 처리 — 구현 시 결정.
 - **RAM 예산**: MinIO ~200MB + imgproxy ~100MB. 배포 전 `free -m` 실측 필수(GlitchTip 이후 여유 재확인). 부족하면 GLITCHTIP 512m 상한과 재조정.
-- **백업(후속)**: 전시용 JPEG은 원본에서 재생성 가능하므로 치명적이진 않지만, 야간 rclone → Cloudflare R2(10GB 무료)가 저렴한 보험. MinIO 가동 후 별도 항목으로.
+- **백업(후속)**: 전시용 JPEG은 원본에서 재생성 가능하므로 치명적이진 않음. 규모가 ~~100GB면 R2 무료(10GB) 초과 — 유료(~~$1.5/월) 또는 백업 생략하고 "원본에서 재업로드 가능"을 복구 전략으로. MinIO 가동 후 결정.
 - **photo app(후속)**: `apps/photo` 신설 시 같은 MinIO의 `photo` 버킷 + 큐레이션 메타데이터(postgres). 그때 admin 필요성 재평가.
 
 ### 구축 런북 (사용자 실행, 순서대로)
