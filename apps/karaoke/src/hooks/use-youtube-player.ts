@@ -140,10 +140,13 @@ export function useYouTubePlayer(videoId: string, onEnded?: () => void) {
   }, []);
 
   // 모바일 자동재생 제한 때문에 반드시 사용자 탭 핸들러 안에서 호출되어야 한다.
+  // OS 미디어 키는 play/pause를 각각 따로 보내므로 토글과 별개로 노출한다.
+  const play = React.useCallback(() => playerRef.current?.playVideo(), []);
+  const pause = React.useCallback(() => playerRef.current?.pauseVideo(), []);
   const togglePlay = React.useCallback(() => {
-    if (isPlaying) playerRef.current?.pauseVideo();
-    else playerRef.current?.playVideo();
-  }, [isPlaying]);
+    if (isPlaying) pause();
+    else play();
+  }, [isPlaying, pause, play]);
 
-  return { containerRef, time, duration, isPlaying, seekTo, togglePlay };
+  return { containerRef, time, duration, isPlaying, seekTo, play, pause, togglePlay };
 }

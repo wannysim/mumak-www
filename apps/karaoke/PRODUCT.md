@@ -118,15 +118,14 @@ web
 
 ### 열린 결정
 
-- `index.html`의 `<title>`("Vaundy 노래방")과 `meta description`, `manifest.webmanifest`의
-  `name`·`description`이 "Vaundy 곡"으로 한정돼 있어 아티스트 무관 정체성과 어긋난다.
-  고쳐야 할 잔재로 확인됐고, 대체할 제품명은 아직 정하지 않았다.
 - `README.md`가 Fujii Kaze를 10곡으로 적고 있으나 실제로는 11곡이다.
 
 ## Brand Commitments
 
-- 이름은 현재 short_name과 `apple-mobile-web-app-title` 기준으로 "노래방"이다. 정식 명칭
-  "Vaundy 노래방"은 위 열린 결정에 따라 재정의가 필요하다.
+- **이름은 "노래방"이다.** `index.html`의 `<title>`·`apple-mobile-web-app-title`,
+  `manifest.webmanifest`의 `name`·`short_name`이 모두 이 값으로 일치한다. 제품명과
+  `meta description`에 특정 아티스트를 넣지 않는다 — 기본 재생목록은 예시일 뿐이고,
+  앱 정체성은 아티스트 무관이다.
 - **비공식 도구 고지를 유지한다.** 각 아티스트·YouTube·Google·음반사·권리자와 제휴·후원·승인
   관계가 없음을 앱 안에서 밝힌다.
 - 권리 침해 신고와 문의 창구를 유지한다: `wannysim@gmail.com`.
