@@ -1,0 +1,163 @@
+---
+title: 'Who Thinks First?'
+date: '2026-08-10'
+description: 'Reflections on the cost of delegating to AI, expertise, and what writing this blog has taught me'
+tags: ['ai', 'thought', 'writing', 'career']
+draft: false
+---
+
+It has been six months since I started writing on this blog.
+At first, I used AI to organize my thoughts. At some point, though, I realized I had handed over the thinking itself.
+
+## The writing I did not write
+
+To be honest, I began by writing every sentence myself as I worked through my thoughts.
+Over time, however, it became a chore.
+So I started giving AI all my ideas and source material at once and asking it to write the post.
+The result carried roughly the meaning and tone I wanted, but because I had not formed the sentences myself, they did not stay with me.
+I began to wonder whether I could properly explain one of those posts if someone asked me about it.
+
+## Reading my own code
+
+Development work was worse.
+As my workload grew, I would hand all the context to AI without reading it myself and tell it to implement the feature.
+When the result arrived, I checked only whether it behaved as expected.
+I skimmed the diff and opened a PR.
+I could not explain why it had been designed that way or what side effects it might have.
+
+I went through the same thing again today.
+Some code I had previously asked AI to implement looked overly complicated, so I was about to ask it to redesign the code.
+But to decide what needed to change, I first had to understand the existing design.
+I finally sat down and read the code carefully from the beginning. Only then did I realize, "Oh, that is why it was implemented this way."
+
+At first, I felt relieved.
+The code was not beyond my understanding.
+Then I felt ashamed.
+The problem was not that I had failed to understand it. I had never tried.
+
+> It was not code I could not understand. It was code I had not read.
+
+Perhaps AI had not saved me time so much as deferred the time I needed to spend understanding.
+AI was most dangerous not when it wrote incorrect code, but when it wrote correct code without requiring me to think.
+
+## Working is not the same as learning
+
+Entrusting part of our memory and judgment to external tools is known as cognitive offloading.
+Like alarms, notes, and search, cognitive offloading is not inherently bad.
+It is closer to a trade-off: it helps us perform the task in front of us, but gives us fewer opportunities to remember and practice for ourselves.
+([Risko &amp; Gilbert, _Cognitive Offloading_](https://doi.org/10.1016/j.tics.2016.07.002))
+
+What I had confused while using AI was performance with learning.
+A feature working and a PR being merged are outcomes of performance.
+Being able to explain why something was implemented that way and respond to the next change on my own are outcomes of learning.
+The two can happen together, but one does not automatically produce the other.
+
+One study found that students performed better on practice problems with generative AI but did worse on a later exam once the AI was taken away.
+The study covered mathematics classes at a single school, so its findings cannot be extended to long-term skill loss among developers. Even so, it offers a useful warning: better performance in the moment does not necessarily mean the knowledge has become your own.
+It was also interesting that this loss largely disappeared when the AI was constrained to offer hints instead of answers.
+([Bastani et al., _Generative AI without Guardrails Can Harm Learning_](https://doi.org/10.1073/pnas.2422633122))
+
+## The first judgment and the final explanation
+
+The answer is probably not to go back to writing every line of code by hand.
+I needed a way to keep the speed AI brings to implementation without handing over the judgments I need to own.
+
+[Addy Osmani starts with a specification and a plan](https://addyosmani.com/blog/ai-coding-workflow/), breaks the work into small units, and does not merge code he does not understand.
+[Kent C. Dodds gives agents tests and output comparisons they can verify themselves](https://kentcdodds.com/blog/how-i-used-cursor-to-migrate-frameworks), using [loop engineering](https://kentcdodds.com/calls/01/05/pragmatic-loop-engineering-for-ai-coding-agents) to repeat execution and observation until the loop reaches a stopping condition and hands control back to the human.
+Linus Torvalds worked directly with the DSP he wanted to learn while delegating much of a lower-stakes [Python visualization tool to AI](https://github.com/torvalds/AudioNoise/blob/main/README.md).
+
+What the three approaches had in common was that they did not spend the same review effort on every piece of code.
+They first drew a boundary around what a person needed to learn and remain responsible for, then left the execution and repetition outside that boundary to AI and automation.
+
+So I changed the personal skill I use to plan Jira ticket implementations to follow this structure:
+
+1. **First Thought Gate**: If I provide only a Jira ticket and ask for an implementation, the process stops. Before it can continue, I have to write down the user problem, my understanding of the current structure, my initial implementation hypothesis, and what I am still uncertain about.
+2. **Ownership Brief**: I define the constraints that must hold, how I will verify success, and what I want to learn from the work.
+3. **Design Choice**: AI can propose alternatives and trade-offs, but I make the final choice and record why.
+4. **Implementation Loop**: Each small unit of work is implemented, tested, and observed in the actual product. If a risk or a new assumption appears, the loop hands control back to me.
+5. **Explanation Gate**: Before opening a PR, I explain in my own words the reason for the design, the alternatives I rejected, the most likely side effect, and the test that prevents it.
+
+Instead of putting all of this into one long prompt, I split it into three entry points: `plan`, `execute`, and `review`.
+I call `/implement-jira:plan medium AP-1234` while planning, `/implement-jira:execute high` while implementing, and `/implement-jira:review medium` before a PR to check my understanding.
+I can still deliberately delegate repetitive work that is not a learning target, as long as I state why.
+The point is not to prohibit delegation. It is to avoid unconsciously giving away judgment simply because thinking feels tedious.
+
+Repetitive work and tasks in well-tested areas can be delegated to AI aggressively.
+But design, state, security, and data are areas I will be responsible for later, so they need to pass through these gates.
+If my hypothesis is weak, I do not let AI immediately replace it with a ready-made answer.
+I first ask for hints about where to look in the relevant code and tests, then revise the hypothesis myself.
+If I still cannot find the answer, I ask for an explanation. At the end, I restate the reasoning behind my revised judgment in my own words.
+
+I do not need to write every line of code myself.
+But the first judgment and the final explanation need to be mine.
+
+## Expertise
+
+As I built these rules, I realized that the problem was not simply how I used AI.
+It was ultimately a question of what kind of developer I wanted to become.
+
+I often hear that generalists will have the advantage in the age of AI.
+If tools can handle much of the implementation, people who connect multiple domains and produce results quickly will be able to do more.
+So what kind of person am I, and what kind of person do I secretly want to become?
+
+The truth is that I wanted to be a specialist.
+I wanted to be someone who could stay with one thing for a long time and understand it deeply.
+But when I ask whether my actions have actually taken me in that direction, I cannot confidently say yes.
+I enjoy the quick satisfaction of visible results.
+Even when I seem to be digging patiently into something, I take the easier path as soon as it appears.
+As a result, I have often felt like someone who can do many things reasonably well but knows none of them deeply, leaving me stuck at an intermediate level in almost everything.
+AI has merely made a tendency I have known since childhood easier to see.
+
+AI is extraordinarily well suited to this tendency.
+It shows me a result before my thinking has time to deepen and carries me to the next step before I have to endure being stuck.
+That speed is undeniably useful, but it can also make me mistake what I have produced for what I know.
+
+In the end, the more important question was not whether generalists or specialists would have the advantage.
+Do I have enough expertise to distinguish what AI does well from what I still need to own?
+And will I use the time AI saves only to produce more, or reinvest it in the areas where I have chosen to go deeper?
+
+In one study, BCG consultants working on a task designed to fall outside AI's capability frontier were 19% less likely to reach the correct answer when they used AI than when they did not.
+That result points in the opposite direction from the claim that expertise no longer matters in the age of AI.
+We need people who can recognize when an AI answer is plausible but wrong, who can decide where to delegate and where to stop.
+([Dell'Acqua et al., _Navigating the Jagged Technological Frontier_](https://doi.org/10.1287/orsc.2025.21838))
+
+## The minimum rules I want to keep
+
+It would be unrealistic to promise that I will understand every task from now on and write every line of code by hand.
+When work piles up, that promise would be the first thing to break.
+What matters is not a grand principle but a minimum process I can still follow on a busy day.
+
+Before handing a Jira ticket directly to AI, I plan to do three things:
+
+1. Read Jira, Confluence, and Figma, then describe the user problem and the expected result in one sentence.
+2. Find the entry point in the code where the behavior begins.
+3. Write down a short implementation hypothesis, in my own words, about what should change and how.
+
+My hypothesis may be worse than AI's answer.
+I still need to form it first.
+Only then can I compare AI's proposal with my own thinking and see what evidence changed my mind.
+If I accept AI's answer from the beginning, it becomes difficult to distinguish between understanding its design and making the judgment myself.
+
+Nor do I want to ask AI for the answer right away.
+If my hypothesis has missed something, I will first ask for hints about where to look in the relevant code and tests, then follow the evidence and revise it myself.
+If I still cannot reach the answer, I will ask for an explanation.
+Finally, I will restate in my own words why my thinking changed and what side effects I considered.
+
+> My initial hypothesis → AI's hints and counterarguments → my revised understanding → my explanation in my own words
+
+Of course, not every task needs to be learned at the same depth.
+The work I need to learn is not simply the work that is difficult. It is the work I will continue to make judgments about and remain responsible for.
+Knowledge that shapes the next decision—the user problem and business rules, state and data flow, authentication and authorization, architectural boundaries—needs to remain with me.
+By contrast, I can actively delegate work that repeats an established pattern or whose result can be judged clearly by tests.
+
+It is also important not to spend all the time AI saves on processing more work.
+I need to reinvest that time in the areas where I have chosen to go deeper.
+AI should not be a tool that replaces expertise. It should compress the surrounding work so I can stay with the important problems longer.
+
+A few months from now, I will be able to judge whether these principles worked by the explanations I leave behind, not by the number of things I produced.
+Before opening a PR, I will check whether I can explain the reason for the design, the alternatives I rejected, the side effects I anticipated, and the tests that guard against them.
+I will also look back at whether I have stopped having to reread AI-written code from the beginning just to understand it after the fact.
+Even if my initial hypothesis was wrong, if I can explain what changed my mind, then the work did not end as mere delegation.
+
+I do not need to know every answer first.
+But I want the thinking to begin with me.
