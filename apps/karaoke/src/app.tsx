@@ -16,6 +16,7 @@ import { SyncEditor } from '@/components/sync-editor';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useLyrics } from '@/hooks/use-lyrics';
+import { useMediaSession } from '@/hooks/use-media-session';
 import { useYouTubePlayer } from '@/hooks/use-youtube-player';
 import { LOCAL_STORAGE_KEYS } from '@/lib/client-storage';
 import { DEFAULT_DISPLAY } from '@/lib/display-settings';
@@ -229,12 +230,27 @@ function KaraokeApp({ onInstall }: { onInstall?: () => void }) {
     else if (playbackMode === 'all') setSongSlug(songAt(orderedSongs, song, 1).slug);
   }, [orderedSongs, playbackMode, song, setSongSlug]);
 
-  const { containerRef, time, duration, isPlaying, seekTo, togglePlay } = useYouTubePlayer(song.videoId, handleEnded);
+  const { containerRef, time, duration, isPlaying, seekTo, play, pause, togglePlay } = useYouTubePlayer(
+    song.videoId,
+    handleEnded
+  );
   React.useEffect(() => {
     seekRef.current = seekTo;
   }, [seekTo]);
 
   const step = (offset: number) => setSongSlug(songAt(orderedSongs, song, offset).slug);
+
+  // 맥북 F7·F8·F9, 헤드셋 버튼, 잠금화면 컨트롤이 헤더의 이전/다음과 재생 버튼을 그대로 누른 것처럼 동작한다.
+  useMediaSession({
+    title: song.titleJa,
+    artist: playlist.name,
+    isPlaying,
+    onPlay: play,
+    onPause: pause,
+    onPreviousTrack: () => step(-1),
+    onNextTrack: () => step(1),
+  });
+
   const replayGuide = () => {
     setAboutOpen(false);
     window.setTimeout(() => setGuideReplay(current => current + 1), 300);
