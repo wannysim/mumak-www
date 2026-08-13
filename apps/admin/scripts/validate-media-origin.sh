@@ -18,6 +18,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 mkdir -p "$test_root/$asset_path"
+chmod 0755 "$test_root"
 printf 'jpeg-contract-fixture' >"$test_root/$asset_path/image.jpg"
 printf 'webp-contract-fixture' >"$test_root/$asset_path/image.webp"
 
