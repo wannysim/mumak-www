@@ -1,6 +1,6 @@
 {
   "name": "mumak-www",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "private": true,
   "scripts": {
     "build": "turbo run build",
@@ -40,7 +40,7 @@
     "knip": "^6.29.0",
     "lint-staged": "^17.2.0",
     "oxfmt": "^0.60.0",
-    "oxlint": "^1.75.0",
+    "oxlint": "^1.76.0",
     "portless": "^0.15.4",
     "turbo": "^2.10.7",
     "typescript": "^7.0.2",

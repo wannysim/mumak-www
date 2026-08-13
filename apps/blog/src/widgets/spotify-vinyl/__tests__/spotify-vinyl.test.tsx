@@ -4,6 +4,10 @@ import type { NowPlaying } from '@/src/entities/spotify';
 
 import '@testing-library/jest-dom';
 
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 jest.mock('next/image', () => ({
   __esModule: true,
   default: ({ src, alt, priority, fill }: { src: string; alt: string; priority?: boolean; fill?: boolean }) => (
@@ -73,8 +77,8 @@ describe('SpotifyVinyl', () => {
 
     render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" />);
 
-    const button = screen.getByRole('button', { name: 'Toggle vinyl player' });
-    expect(button).toHaveAttribute('aria-label', 'Toggle vinyl player');
+    const button = screen.getByRole('button', { name: 'vinylToggle' });
+    expect(button).toHaveAttribute('aria-label', 'vinylToggle');
     expect(button).toHaveAttribute('aria-pressed', 'false');
     expect(button).toHaveAttribute('type', 'button');
   });
@@ -84,7 +88,7 @@ describe('SpotifyVinyl', () => {
 
     render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" />);
 
-    const button = screen.getByRole('button', { name: 'Toggle vinyl player' });
+    const button = screen.getByRole('button', { name: 'vinylToggle' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(button);
@@ -99,7 +103,7 @@ describe('SpotifyVinyl', () => {
 
     render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" />);
 
-    const button = screen.getByRole('button', { name: 'Toggle vinyl player' });
+    const button = screen.getByRole('button', { name: 'vinylToggle' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
 
     // Native button handles Enter key automatically
@@ -114,7 +118,7 @@ describe('SpotifyVinyl', () => {
 
     render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" />);
 
-    const button = screen.getByRole('button', { name: 'Toggle vinyl player' });
+    const button = screen.getByRole('button', { name: 'vinylToggle' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
 
     // Native button handles Space key automatically
@@ -140,7 +144,7 @@ describe('SpotifyVinyl', () => {
 
     render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" />);
 
-    const button = screen.getByRole('button', { name: 'Toggle vinyl player' });
+    const button = screen.getByRole('button', { name: 'vinylToggle' });
     const link = screen.getByRole('link');
 
     // Click link - should not toggle LP (link is outside button)
@@ -176,7 +180,7 @@ describe('SpotifyVinyl', () => {
     const explicitData = { ...mockSongData, isExplicit: true };
     render(<SpotifyVinyl data={explicitData} statusLabel="Listening to" />);
 
-    const explicitBadge = screen.getByLabelText('Explicit content');
+    const explicitBadge = screen.getByLabelText('explicitContent');
     expect(explicitBadge).toBeInTheDocument();
     expect(explicitBadge).toHaveTextContent('19');
   });
@@ -186,7 +190,7 @@ describe('SpotifyVinyl', () => {
 
     render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" />);
 
-    const explicitBadge = screen.queryByLabelText('Explicit content');
+    const explicitBadge = screen.queryByLabelText('explicitContent');
     expect(explicitBadge).not.toBeInTheDocument();
   });
 
@@ -206,6 +210,14 @@ describe('SpotifyVinyl', () => {
 
     expect(title).toHaveClass('truncate');
     expect(artist).toHaveClass('truncate');
+  });
+
+  it('renders the status caption at the 11px legibility floor', async () => {
+    const { SpotifyVinyl } = await import('../ui/spotify-vinyl');
+
+    render(<SpotifyVinyl data={mockSongData} statusLabel="Listening to" />);
+
+    expect(screen.getByText('Listening to')).toHaveClass('text-[11px]');
   });
 
   it('should render Spotify brand color logo', async () => {

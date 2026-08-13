@@ -11,9 +11,10 @@ import { ThemeSwitcher } from '@/src/features/switch-theme';
 
 interface GraphToolbarProps {
   locale: string;
+  backLabel: string;
 }
 
-function GraphToolbar({ locale }: GraphToolbarProps) {
+function GraphToolbar({ locale, backLabel }: GraphToolbarProps) {
   const router = useRouter();
 
   const handleBack = useCallback(() => {
@@ -32,7 +33,7 @@ function GraphToolbar({ locale }: GraphToolbarProps) {
         size="icon"
         className="h-9 w-9 pointer-events-auto bg-background/60 backdrop-blur-sm hover:bg-background/80"
         onClick={handleBack}
-        aria-label="Back"
+        aria-label={backLabel}
       >
         <ArrowLeftIcon className="h-4 w-4" />
       </Button>

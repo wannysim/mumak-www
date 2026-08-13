@@ -45,23 +45,44 @@ describe('WikiLink', () => {
 
     const link = screen.getByRole('link', { name: 'X' });
     expect(link).toHaveClass('custom-class');
-    expect(link).toHaveClass('text-primary');
+    // 본문 MDX 링크·연결된 노트와 같은 토큰. text-primary는 라이트에서 AA 미달이다.
+    expect(link).toHaveClass('text-accent-foreground');
   });
 });
 
 describe('BrokenWikiLink', () => {
-  it('renders a span with broken markers and slug-aware title', () => {
-    render(<BrokenWikiLink slug="missing-note">missing-note</BrokenWikiLink>);
+  it('renders a span with broken markers and no duplicate title tooltip', () => {
+    render(
+      <BrokenWikiLink slug="missing-note" notice="NOTICE">
+        missing-note
+      </BrokenWikiLink>
+    );
 
     const span = screen.getByText('missing-note');
     expect(span.tagName).toBe('SPAN');
     expect(span).toHaveAttribute('data-wikilink-broken');
     expect(span).toHaveAttribute('data-slug', 'missing-note');
-    expect(span).toHaveAttribute('title', expect.stringContaining('missing-note'));
+    // title은 sr-only 문구와 같은 문장이라 NVDA 기본 설정에서 두 번 낭독된다. 하나만 남긴다.
+    expect(span).not.toHaveAttribute('title');
+  });
+
+  it('announces the broken state to screen readers, not only via strikethrough', () => {
+    render(
+      <BrokenWikiLink slug="missing-note" notice="NOTICE">
+        missing-note
+      </BrokenWikiLink>
+    );
+
+    expect(screen.getByText('(NOTICE)', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('missing-note').textContent).toContain('NOTICE');
   });
 
   it('does not render as a link', () => {
-    render(<BrokenWikiLink slug="x">label</BrokenWikiLink>);
+    render(
+      <BrokenWikiLink slug="x" notice="NOTICE">
+        label
+      </BrokenWikiLink>
+    );
 
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
@@ -87,12 +108,18 @@ describe('WikiEmbed', () => {
 });
 
 describe('BrokenWikiEmbed', () => {
-  it('renders broken embed marker and the missing slug', () => {
-    const { container } = render(<BrokenWikiEmbed slug="not-found" />);
+  it('renders broken embed marker and the reader-facing notice', () => {
+    const { container } = render(<BrokenWikiEmbed slug="not-found" notice="No preview for not-found" />);
 
     const aside = container.querySelector('aside[data-wiki-embed-broken]');
     expect(aside).not.toBeNull();
     expect(aside).toHaveAttribute('data-slug', 'not-found');
-    expect(aside?.textContent).toContain('not-found');
+    expect(aside?.textContent).toContain('No preview for not-found');
+  });
+
+  it('does not strike through the notice — it is a status sentence, not deleted text', () => {
+    render(<BrokenWikiEmbed slug="not-found" notice="No preview for not-found" />);
+
+    expect(screen.getByText('No preview for not-found')).not.toHaveClass('line-through');
   });
 });

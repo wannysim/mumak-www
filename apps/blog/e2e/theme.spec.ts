@@ -1,6 +1,14 @@
 import { expect, Locator, Page, test } from '@playwright/test';
 
 /**
+ * 테마 트리거의 접근 가능한 이름은 로케일마다 다르다(ko: 테마 변경 / en: Change theme).
+ * 이 스펙은 한 테스트 안에서 로케일을 바꾸기도 하므로 두 이름을 모두 받는 locator를 쓴다.
+ */
+function themeTriggerButton(page: Page) {
+  return page.getByRole('button', { name: /테마 변경|Change theme/ });
+}
+
+/**
  * 버튼 클릭 후 드롭다운 메뉴가 열릴 때까지 대기
  * webkit에서 hydration이 느려서 클릭이 무시될 수 있음
  */
@@ -28,7 +36,7 @@ test.describe('Theme switcher', () => {
   test('changes theme via dropdown', async ({ page }) => {
     await page.goto('/ko');
 
-    const trigger = page.getByRole('button', { name: 'Change theme' });
+    const trigger = themeTriggerButton(page);
 
     await clickAndWaitForMenu(trigger, page);
     await selectThemeOption(page, 'Dark');
@@ -46,13 +54,13 @@ test.describe('Theme persistence across locale changes', () => {
     await page.goto('/ko');
 
     // 1. 테마를 Light로 변경
-    const themeTrigger = page.getByRole('button', { name: 'Change theme' });
+    const themeTrigger = themeTriggerButton(page);
     await clickAndWaitForMenu(themeTrigger, page);
     await selectThemeOption(page, 'Light');
     await expect(page.locator('html')).toHaveClass(/light/);
 
     // 2. 언어를 English로 변경
-    const localeTrigger = page.getByRole('button', { name: 'Change language' });
+    const localeTrigger = page.getByRole('button', { name: /언어 변경|Change language/ });
     await localeTrigger.click();
     await page.getByRole('menuitemradio', { name: 'English' }).click();
     await page.waitForURL(/\/en/);
@@ -75,13 +83,13 @@ test.describe('Theme persistence across locale changes', () => {
     await page.goto('/en');
 
     // Dark 테마로 설정
-    const themeTrigger = page.getByRole('button', { name: 'Change theme' });
+    const themeTrigger = themeTriggerButton(page);
     await clickAndWaitForMenu(themeTrigger, page);
     await selectThemeOption(page, 'Dark');
     await expect(page.locator('html')).toHaveClass(/dark/);
 
     // Korean으로 변경
-    const localeTrigger = page.getByRole('button', { name: 'Change language' });
+    const localeTrigger = page.getByRole('button', { name: /언어 변경|Change language/ });
     await localeTrigger.click();
     await page.getByRole('menuitemradio', { name: '한국어' }).click();
     await page.waitForURL(/\/ko/);
@@ -102,12 +110,12 @@ test.describe('Theme persistence across locale changes', () => {
     await page.goto('/ko');
 
     // System 테마로 설정 (기본값이지만 명시적으로 설정)
-    const themeTrigger = page.getByRole('button', { name: 'Change theme' });
+    const themeTrigger = themeTriggerButton(page);
     await clickAndWaitForMenu(themeTrigger, page);
     await selectThemeOption(page, 'System');
 
     // 언어 변경
-    const localeTrigger = page.getByRole('button', { name: 'Change language' });
+    const localeTrigger = page.getByRole('button', { name: /언어 변경|Change language/ });
     await localeTrigger.click();
     await page.getByRole('menuitemradio', { name: 'English' }).click();
     await page.waitForURL(/\/en/);
@@ -124,7 +132,7 @@ test.describe('Theme color meta tag sync', () => {
     await page.goto('/ko');
 
     // Switch to dark theme
-    const trigger = page.getByRole('button', { name: 'Change theme' });
+    const trigger = themeTriggerButton(page);
     await clickAndWaitForMenu(trigger, page);
     await selectThemeOption(page, 'Dark');
 
@@ -143,7 +151,7 @@ test.describe('Theme color meta tag sync', () => {
     await page.goto('/ko');
 
     // Switch to dark first, then to light to ensure we're testing the sync
-    const trigger = page.getByRole('button', { name: 'Change theme' });
+    const trigger = themeTriggerButton(page);
     await clickAndWaitForMenu(trigger, page);
     await selectThemeOption(page, 'Dark');
     await expect(page.locator('html')).toHaveClass(/dark/);

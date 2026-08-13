@@ -10,7 +10,7 @@ jest.mock('next-intl', () => ({
   useLocale: () => 'ko',
   useTranslations: () => (key: string) => {
     const translations: Record<string, string> = {
-      language: '언어',
+      changeLanguage: '언어 변경',
     };
     return translations[key] || key;
   },
@@ -31,14 +31,14 @@ describe('LocaleSwitcher', () => {
   it('should render trigger button', () => {
     render(<LocaleSwitcher />);
 
-    expect(screen.getByRole('button', { name: 'Change language' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '언어 변경' })).toBeInTheDocument();
   });
 
   it('should render language options when opened', async () => {
     const user = userEvent.setup();
     render(<LocaleSwitcher />);
 
-    await user.click(screen.getByRole('button', { name: 'Change language' }));
+    await user.click(screen.getByRole('button', { name: '언어 변경' }));
 
     expect(screen.getByRole('menuitemradio', { name: /한국어/ })).toBeInTheDocument();
     expect(screen.getByRole('menuitemradio', { name: /English/ })).toBeInTheDocument();
@@ -48,7 +48,7 @@ describe('LocaleSwitcher', () => {
     const user = userEvent.setup();
     render(<LocaleSwitcher />);
 
-    await user.click(screen.getByRole('button', { name: 'Change language' }));
+    await user.click(screen.getByRole('button', { name: '언어 변경' }));
 
     const koItem = screen.getByRole('menuitemradio', { name: /한국어/ });
     const enItem = screen.getByRole('menuitemradio', { name: /English/ });

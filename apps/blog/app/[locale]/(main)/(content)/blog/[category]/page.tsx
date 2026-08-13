@@ -43,7 +43,11 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
 
   setRequestLocale(locale);
 
-  const [t, tCommon] = await Promise.all([getTranslations('category'), getTranslations('common')]);
+  const [t, tCommon, tBlog] = await Promise.all([
+    getTranslations('category'),
+    getTranslations('common'),
+    getTranslations('blog'),
+  ]);
 
   const posts = getPosts(locale as Locale, category as Category);
   const categories = getCategories();
@@ -69,7 +73,7 @@ export default async function BlogCategoryPage({ params }: BlogCategoryPageProps
 
       <section className="space-y-6">
         {posts.length === 0 ? (
-          <p className="text-muted-foreground">No posts yet.</p>
+          <p className="text-muted-foreground">{tBlog('empty')}</p>
         ) : (
           posts.map(post => <PostCard key={post.slug} post={post} locale={locale} />)
         )}

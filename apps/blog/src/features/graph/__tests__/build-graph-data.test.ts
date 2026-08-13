@@ -12,6 +12,7 @@ const createNote = (overrides: Partial<NoteMeta> = {}): NoteMeta => ({
   status: overrides.status ?? 'seedling',
   tags: overrides.tags ?? [],
   outgoingLinks: overrides.outgoingLinks ?? [],
+  outgoingHrefs: overrides.outgoingHrefs ?? [],
   readingTime: overrides.readingTime ?? 1,
 });
 
@@ -22,6 +23,7 @@ const createPost = (overrides: Partial<PostMeta> = {}): PostMeta => ({
   description: 'A test post',
   category: 'articles',
   tags: [],
+  outgoingHrefs: [],
   readingTime: 5,
   ...overrides,
 });
@@ -144,6 +146,23 @@ describe('buildBlogGraphData', () => {
     expect(result.links).toHaveLength(3);
     expect(result.links.filter(l => l.type === 'category')).toHaveLength(1);
     expect(result.links.filter(l => l.type === 'tag')).toHaveLength(2);
+  });
+
+  it('카테고리 노드 이름을 전달된 지역화 문구로 표시하되 id는 슬러그로 유지한다', () => {
+    const posts = [createPost({ slug: 'p1', category: 'essay' })];
+    const result = buildBlogGraphData(posts, { essay: '에세이' });
+
+    const categoryNode = result.nodes.find(n => n.type === 'category');
+    expect(categoryNode?.id).toBe('category:essay');
+    expect(categoryNode?.name).toBe('에세이');
+    // 링크는 id 기준이라 지역화와 무관하게 붙어 있어야 한다.
+    expect(result.links).toContainEqual({ source: 'post:p1', target: 'category:essay', type: 'category' });
+  });
+
+  it('지역화 문구가 없는 카테고리는 슬러그를 그대로 이름으로 쓴다', () => {
+    const result = buildBlogGraphData([createPost({ slug: 'p1', category: 'essay' })], { articles: '아티클' });
+
+    expect(result.nodes.find(n => n.type === 'category')?.name).toBe('essay');
   });
 
   it('같은 카테고리의 여러 포스트는 하나의 카테고리 노드를 공유한다', () => {

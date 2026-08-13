@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { getMessages, setRequestLocale } from 'next-intl/server';
+import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import localFont from 'next/font/local';
 import { notFound } from 'next/navigation';
 
@@ -42,50 +42,56 @@ const ENABLE_VERCEL_ANALYTICS = process.env.VERCEL_ENV === 'production';
 const GSC_TOKEN = process.env.NEXT_PUBLIC_GSC_TOKEN;
 const NAVER_TOKEN = process.env.NEXT_PUBLIC_NAVER_TOKEN;
 
-export const metadata: Metadata = {
-  title: {
-    template: '%s | Wan Sim',
-    default: 'Wan Sim',
-  },
-  description: 'A space for thoughts and records',
-  metadataBase: new URL(BASE_URL),
-  openGraph: {
-    type: 'website',
-    locale: 'ko_KR',
-    alternateLocale: ['en_US'],
-    siteName: 'Wan Sim',
-    title: 'Wan Sim',
-    description: 'A space for thoughts and records',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Wan Sim',
-    description: 'A space for thoughts and records',
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
-    },
-  },
-  ...(GSC_TOKEN || NAVER_TOKEN
-    ? {
-        verification: {
-          ...(GSC_TOKEN ? { google: GSC_TOKEN } : {}),
-          ...(NAVER_TOKEN ? { other: { 'naver-site-verification': NAVER_TOKEN } } : {}),
-        },
-      }
-    : {}),
-};
-
 interface LocaleLayoutProps {
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
+}
+
+// openGraph/twitter에 title·description을 적지 않는다. 적으면 그 값이 모든 하위 페이지로
+// 상속돼 탭 제목('블로그 | Wan Sim')과 링크 프리뷰 제목('Wan Sim')이 갈린다. 비워 두면
+// Next가 각 페이지의 resolved title/description을 그대로 물려준다.
+// 같은 이유로 페이지 쪽에서도 openGraph를 통째로 교체하지 않는다 — 교체하면 이 레이아웃
+// 세그먼트에 붙은 opengraph-image.tsx(콘텐츠 해시 쿼리 포함)까지 함께 날아간다.
+export async function generateMetadata({ params }: Pick<LocaleLayoutProps, 'params'>): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'home' });
+
+  return {
+    title: {
+      template: '%s | Wan Sim',
+      default: 'Wan Sim',
+    },
+    description: t('description'),
+    metadataBase: new URL(BASE_URL),
+    openGraph: {
+      type: 'website',
+      locale: locale === 'ko' ? 'ko_KR' : 'en_US',
+      alternateLocale: [locale === 'ko' ? 'en_US' : 'ko_KR'],
+      siteName: 'Wan Sim',
+    },
+    twitter: {
+      card: 'summary_large_image',
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
+    },
+    ...(GSC_TOKEN || NAVER_TOKEN
+      ? {
+          verification: {
+            ...(GSC_TOKEN ? { google: GSC_TOKEN } : {}),
+            ...(NAVER_TOKEN ? { other: { 'naver-site-verification': NAVER_TOKEN } } : {}),
+          },
+        }
+      : {}),
+  };
 }
 
 // <html>/<body>는 async 레이아웃 최상단에서 렌더한다. children을 Suspense로 감싸지

@@ -11,8 +11,10 @@ import {
   getNoteEmbedPreview,
   getNotes,
   getNotesByCategory,
+  getNotesByHrefs,
   getNotesByStatus,
   getNotesByTag,
+  getNotesLinkingTo,
   getOutgoingNotes,
   hasBlockAnchor,
   hasHeadingAnchor,
@@ -333,6 +335,7 @@ describe('getMergedLinkedNotes', () => {
     status: 'seedling',
     outgoingLinks: [],
     readingTime: 1,
+    outgoingHrefs: [],
     ...overrides,
   });
 
@@ -437,6 +440,7 @@ describe('buildNoteTree', () => {
     status: 'seedling',
     outgoingLinks: [],
     readingTime: 1,
+    outgoingHrefs: [],
     ...overrides,
   });
 
@@ -597,5 +601,49 @@ describe('advanced anchor utilities', () => {
 
   it('존재하지 않는 노트의 hasBlockAnchor는 false', () => {
     expect(hasBlockAnchor('ko', 'totally-missing-note', 'any-block')).toBe(false);
+  });
+});
+
+// 블로그 글과 노트를 잇는 방향. 실제 콘텐츠로 검증한다 — 이 관계의 값어치는
+// "저자가 이미 손으로 쓴 링크"에서 나오므로 mock으로 확인하면 파싱이 어긋나도 초록이 된다.
+describe('cross-type links', () => {
+  describe('getNotesLinkingTo', () => {
+    it('블로그 글을 인용한 노트를 찾아낸다', () => {
+      const citing = getNotesLinkingTo('ko', '/blog/articles/typescript-7-nextjs-migration');
+
+      expect(citing.map(note => note.slug)).toContain('typescript-compiler-as-a-library');
+    });
+
+    it('아무도 가리키지 않는 경로는 빈 배열이다', () => {
+      expect(getNotesLinkingTo('ko', '/blog/articles/nobody-links-here')).toEqual([]);
+    });
+  });
+
+  describe('getNotesByHrefs', () => {
+    it('가든 경로만 노트로 되돌리고 나머지는 버린다', () => {
+      const notes = getNotesByHrefs('ko', [
+        '/garden/keep-alive-timeout-ordering',
+        '/blog/articles/silent-502-keepalive-race',
+        '/garden/does-not-exist',
+      ]);
+
+      expect(notes.map(note => note.slug)).toEqual(['keep-alive-timeout-ordering']);
+    });
+
+    it('넘긴 순서를 유지한다', () => {
+      const notes = getNotesByHrefs('ko', [
+        '/garden/tcp-retransmission-timeout',
+        '/garden/keep-alive-timeout-ordering',
+      ]);
+
+      expect(notes.map(note => note.slug)).toEqual(['tcp-retransmission-timeout', 'keep-alive-timeout-ordering']);
+    });
+  });
+
+  it('모든 노트가 outgoingHrefs 배열을 갖는다 (undefined 분기가 없다)', () => {
+    const notes = getNotes('ko');
+
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes.every(note => Array.isArray(note.outgoingHrefs))).toBe(true);
   });
 });

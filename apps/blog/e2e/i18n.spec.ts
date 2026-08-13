@@ -37,7 +37,7 @@ test.describe('i18n - Internationalization', () => {
     await expect(page.getByText('최신 글')).toBeVisible();
 
     // Click English link (uses DropdownMenuRadioItem -> menuitemradio role)
-    await page.getByRole('button', { name: 'Change language' }).click();
+    await page.getByRole('button', { name: '언어 변경' }).click();
     const englishOption = page.getByRole('menuitemradio', { name: 'English' });
     await expect(englishOption).toBeVisible();
     await englishOption.click();
@@ -52,7 +52,7 @@ test.describe('i18n - Internationalization', () => {
     await page.goto('/ko');
 
     // Click English
-    await page.getByRole('button', { name: 'Change language' }).click();
+    await page.getByRole('button', { name: '언어 변경' }).click();
     const englishOption = page.getByRole('menuitemradio', { name: 'English' });
     await expect(englishOption).toBeVisible();
     await englishOption.click();

@@ -5,6 +5,10 @@ import { ThemeSwitcher } from '../ui/theme-switcher';
 
 import '@testing-library/jest-dom';
 
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 const setTheme = jest.fn();
 const mockThemeState = {
   theme: 'system',
@@ -25,14 +29,14 @@ describe('ThemeSwitcher', () => {
   it('should render trigger button', () => {
     render(<ThemeSwitcher />);
 
-    expect(screen.getByRole('button', { name: 'Change theme' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'changeTheme' })).toBeInTheDocument();
   });
 
   it('should open menu and change theme', async () => {
     const user = userEvent.setup();
     render(<ThemeSwitcher />);
 
-    await user.click(screen.getByRole('button', { name: 'Change theme' }));
+    await user.click(screen.getByRole('button', { name: 'changeTheme' }));
 
     expect(screen.getByRole('menuitemradio', { name: 'Light' })).toBeInTheDocument();
     expect(screen.getByRole('menuitemradio', { name: 'Dark' })).toBeInTheDocument();

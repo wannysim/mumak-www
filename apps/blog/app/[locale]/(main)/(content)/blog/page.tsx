@@ -60,7 +60,7 @@ export default async function BlogPage({ params }: BlogPageProps) {
 
       <section className="space-y-6">
         {posts.length === 0 ? (
-          <p className="text-muted-foreground">No posts yet.</p>
+          <p className="text-muted-foreground">{t('empty')}</p>
         ) : (
           posts.map(post => (
             <PostCard

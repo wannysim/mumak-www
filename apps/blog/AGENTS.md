@@ -176,8 +176,11 @@ Blog와 Garden은 같은 사이트의 sibling 섹션이다. 두 섹션의 대응
 | 분류 진입점   | BlogNav 카테고리 → `/blog/[category]` | PARA overview 카드 → `/garden/category/[key]`   | "분류 클릭 → 필터된 카드 리스트"  |
 | 카드          | `PostCard`                            | `NoteCard` (excerpt 포함)                       | `ContentCard` shell (`shared/ui`) |
 | 상세 페이지   | `max-w-3xl` + `prose` + MDX           | `max-w-3xl` + `prose` + MDX                     | 동일 레이아웃 패턴 유지           |
+| 상세 하단     | `LinkedNotesSection` + `NextReading`  | `LinkedNotesSection`                            | `LinkedNotesSection` (`widgets/`) |
 | 검색          | 헤더 전역 팔레트 (섹션 검색창 없음)   | 헤더 전역 팔레트 (섹션 검색창 없음)             | `features/site-search`            |
 
+- 상세 하단의 `LinkedNotesSection`은 blog/garden이 공유한다. 항목이 자기 `href`를 들고 오므로 한 목록에 가든 노트와 블로그 글을 섞을 수 있다. 위키링크는 가든 안에서만 통하는 주소라 두 섹션을 잇는 링크는 본문의 표준 마크다운 링크로만 표현되고, 그 방향을 양쪽에서 되짚은 결과가 이 목록이다. 섹션 라벨은 `garden.linkedNotes`를 공유하고, 방향 라벨만 주어가 달라서 갈린다(`garden.linkDirection.*` / `post.linkDirection.*`).
+- `NextReading`(태그 겹침 기반 이어 읽기)은 블로그에만 있다. 가든은 노트 그래프 자체가 그 역할을 하고, 노트에는 카테고리 목록으로 내려가는 대응 동선도 이미 있다. 의도된 비대칭이다.
 - 검색은 섹션별 진입점이 아니라 헤더의 단일 전역 팔레트(`features/site-search`)가 담당한다. 글과 노트를 한 인덱스(`/{locale}/search-index.json`의 `posts` + `notes`)에서 함께 찾고, `/blog`·`/garden` 안에서 열면 해당 섹션으로 프리필터된 뒤 "전체에서 검색"으로 넓힌다. 헤더는 모든 페이지에 있으므로 가든 레이아웃 payload에 의존할 수 없어서 노트도 정적 인덱스에 실린다. 섹션 화면에 검색창을 다시 추가하지 않는다.
 - 홈은 "최신 글"과 "최신 노트"(`widgets/garden-highlights`)를 같은 `h2` 위계의 대응 블록으로 유지한다. 홈에서 가든이 빠지면 콘텐츠 대부분이 내비게이션 라벨 하나 뒤에 숨는다.
 - 두 블록의 헤딩은 같은 축("최신 + 대상")으로 맞춘다. 한쪽만 장소("가든에서")나 다른 축으로 이름을 붙이면 똑같이 생긴 두 블록이 왜 갈렸는지 읽히지 않는다.

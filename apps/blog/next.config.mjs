@@ -8,13 +8,17 @@ const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
 });
 
+const isVercelBuild = process.env.VERCEL === '1';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // portless는 git 브랜치 prefix가 붙은 `{branch}.blog.mumak.localhost`로 서빙한다.
   // 누락되면 dev-only endpoint가 cross-origin 차단돼 hydration 이후 클라이언트
   // 인터랙션(spotify, 테마/언어 버튼 등)이 통째로 깨진다.
   allowedDevOrigins: ['blog.mumak.localhost', '*.blog.mumak.localhost'],
-  output: 'standalone',
+  // Vercel은 Next.js 16.3 build adapter가 배포 산출물을 생성한다. standalone은
+  // Docker/로컬/CI E2E 서버에만 필요하며 adapter와 함께 쓰면 trace 생성이 충돌한다.
+  ...(!isVercelBuild && { output: 'standalone' }),
   outputFileTracingRoot: path.join(import.meta.dirname, '../../'),
   outputFileTracingIncludes: {
     // OG 이미지 라우트가 런타임(on-demand)에 Satori용 woff 폰트를 fs로 읽으므로

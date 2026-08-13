@@ -13,7 +13,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@mumak/ui/components/drawer';
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@mumak/ui/components/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@mumak/ui/components/sheet';
 
 import type { GraphNode } from '../model/types';
 
@@ -23,10 +23,13 @@ interface GraphDetailPanelProps {
   onClose: () => void;
   locale: string;
   labels: {
+    description: string;
+    close: string;
     viewDetail: string;
     connections: string;
     type: Record<string, string>;
     status: Record<string, string>;
+    category: Record<string, string>;
   };
 }
 
@@ -55,7 +58,8 @@ function NodeDetail({ node, locale, labels }: Omit<GraphDetailPanelProps, 'open'
       <div className="flex flex-wrap gap-2">
         <Badge variant="outline">{labels.type[node.type] ?? node.type}</Badge>
         {node.status && <Badge variant={statusVariant}>{labels.status[node.status] ?? node.status}</Badge>}
-        {node.category && <Badge variant="secondary">{node.category}</Badge>}
+        {/* 캔버스 라벨·필터 옵션·범례가 모두 지역화된 분류 문구를 쓰므로 배지도 같은 어휘를 쓴다. */}
+        {node.category && <Badge variant="secondary">{labels.category[node.category] ?? node.category}</Badge>}
       </div>
 
       {node.description && <p className="text-sm text-muted-foreground">{node.description}</p>}
@@ -85,15 +89,16 @@ function GraphDetailPanel({ node, open, onClose, locale, labels }: GraphDetailPa
   if (isDesktop) {
     return (
       <Sheet open={open} onOpenChange={isOpen => !isOpen && onClose()}>
-        <SheetContent side="right" className="w-80">
+        {/* SheetContent가 이미 닫기 버튼을 그린다. 별도 SheetClose를 더하면 같은 동작의 컨트롤이
+            두 개가 되므로 이름만 지역화해서 넘긴다. */}
+        <SheetContent side="right" className="w-80" closeLabel={labels.close}>
           <SheetHeader>
             <SheetTitle>{node?.name ?? ''}</SheetTitle>
-            <SheetDescription className="sr-only">Node detail panel</SheetDescription>
+            <SheetDescription className="sr-only">{labels.description}</SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-4">
             <NodeDetail node={node} locale={locale} labels={labels} />
           </div>
-          <SheetClose className="sr-only">Close</SheetClose>
         </SheetContent>
       </Sheet>
     );
@@ -104,12 +109,12 @@ function GraphDetailPanel({ node, open, onClose, locale, labels }: GraphDetailPa
       <DrawerContent>
         <DrawerHeader className="text-left">
           <DrawerTitle>{node?.name ?? ''}</DrawerTitle>
-          <DrawerDescription className="sr-only">Node detail panel</DrawerDescription>
+          <DrawerDescription className="sr-only">{labels.description}</DrawerDescription>
         </DrawerHeader>
         <div className="px-4 pb-6">
           <NodeDetail node={node} locale={locale} labels={labels} />
         </div>
-        <DrawerClose className="sr-only">Close</DrawerClose>
+        <DrawerClose className="sr-only">{labels.close}</DrawerClose>
       </DrawerContent>
     </Drawer>
   );

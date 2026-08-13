@@ -86,6 +86,7 @@ describe('json-ld', () => {
       slug: 'test-post',
       category: 'articles',
       readingTime: 5,
+      outgoingHrefs: [],
     };
 
     it('should generate BlogPosting schema', () => {
@@ -197,6 +198,7 @@ describe('json-ld', () => {
       tags: ['philosophy', 'ai'],
       outgoingLinks: ['phenomenology', 'free-will'],
       readingTime: 5,
+      outgoingHrefs: [],
     };
 
     it('should generate Article schema with description, dates and language', () => {

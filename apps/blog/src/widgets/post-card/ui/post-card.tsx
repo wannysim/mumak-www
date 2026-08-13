@@ -28,6 +28,10 @@ export async function PostCard({ post, locale, categoryLabel, readMoreLabel }: P
       meta={
         <>
           {categoryLabel && <Badge variant="secondary">{categoryLabel}</Badge>}
+          {/* 목록은 최신순이라 시리즈가 마지막 편부터 노출된다. 배지가 없으면
+              리스트로 들어온 독자가 결말부터 읽기 시작한다. 시리즈 이름은 제목이
+              이미 달고 있어서 편 번호만 보여준다. */}
+          {post.series && post.part && <Badge variant="outline">{t('seriesPart', { part: post.part })}</Badge>}
           <time dateTime={dateTime}>{text}</time>
           <span>·</span>
           <span className="inline-flex items-center gap-1">

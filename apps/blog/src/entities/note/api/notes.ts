@@ -2,7 +2,15 @@ import path from 'path';
 import { cache } from 'react';
 
 import type { Locale } from '@/src/shared/config/i18n';
-import { isPublishable, listMdxFiles, NoteFrontmatterSchema, parseMdxFile } from '@/src/shared/lib/content';
+import {
+  cleanupInlineMarkdown,
+  extractHeadings,
+  extractInAppLinks,
+  isPublishable,
+  listMdxFiles,
+  NoteFrontmatterSchema,
+  parseMdxFile,
+} from '@/src/shared/lib/content';
 import { calculateReadingTime } from '@/src/shared/lib/reading-time';
 import { extractWikilinkSlugs, normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
 
@@ -18,7 +26,10 @@ export interface NoteMeta {
   tags?: string[];
   draft?: boolean;
   parent?: string;
+  /** 위키링크(`[[slug]]`)가 가리키는 노트 slug. 가든 안쪽 그래프의 정의다. */
   outgoingLinks: string[];
+  /** 본문의 표준 마크다운 링크가 가리키는 사이트 내부 경로(정규화됨). 블로그 글과의 연결에 쓴다. */
+  outgoingHrefs: string[];
   excerpt?: string;
   readingTime: number;
 }
@@ -49,44 +60,7 @@ function getGardenPath(locale: Locale): string {
   return path.join(CONTENT_DIR, locale, GARDEN_DIR);
 }
 
-function cleanupInlineMarkdown(text: string): string {
-  return (
-    text
-      .replace(/`([^`]+)`/g, '$1')
-      .replace(/\*\*([^*]+)\*\*/g, '$1')
-      .replace(/\*([^*]+)\*/g, '$1')
-      // 위키링크는 excerpt/heading 텍스트에서 표시 텍스트만 남긴다. 렌더된 본문에서는 rehype가
-      // 링크로 바꾸지만, 발췌는 원문에서 뽑기 때문에 여기서 걷지 않으면 카드에 [[slug|label]]이
-      // 그대로 노출된다.
-      .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, slug: string, label?: string) => label ?? slug)
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .trim()
-  );
-}
-
 const BLOCK_MARKER_REGEX = /(?:^|\s)\^([A-Za-z0-9][\w-]*)\s*$/;
-
-function extractHeadingLines(content: string): Array<{ index: number; level: number; text: string; anchor: string }> {
-  return content
-    .split('\n')
-    .map((line, index) => ({ line, index }))
-    .map(({ line, index }) => {
-      const match = line.match(/^(#{1,6})\s+(.+)$/);
-      if (!match) {
-        return null;
-      }
-
-      const level = match[1]?.length ?? 1;
-      const text = cleanupInlineMarkdown(match[2] ?? '');
-      return {
-        index,
-        level,
-        text,
-        anchor: normalizeHeadingToAnchor(text),
-      };
-    })
-    .filter((value): value is { index: number; level: number; text: string; anchor: string } => value !== null);
-}
 
 function extractBlockIds(content: string): Set<string> {
   return new Set(
@@ -131,7 +105,7 @@ function extractFirstParagraph(content: string): string {
 
 function extractHeadingSectionExcerpt(content: string, heading: string): string | null {
   const lines = content.split('\n');
-  const headings = extractHeadingLines(content);
+  const headings = extractHeadings(content);
   const targetAnchor = normalizeHeadingToAnchor(heading);
   const currentIndex = headings.findIndex(item => item.anchor === targetAnchor);
 
@@ -169,6 +143,7 @@ function parseNoteMdx(filePath: string, slug: string, category: string = 'garden
       draft: frontmatter.draft,
       parent: frontmatter.parent,
       outgoingLinks: extractWikilinkSlugs(content),
+      outgoingHrefs: extractInAppLinks(content),
       excerpt: extractFirstParagraph(content) || undefined,
       readingTime: calculateReadingTime(content),
     },
@@ -219,7 +194,7 @@ export function getNoteAnchorIndex(locale: Locale, slug: string): NoteAnchorInde
     return null;
   }
 
-  const headingLines = extractHeadingLines(note.content);
+  const headingLines = extractHeadings(note.content);
   return {
     headings: new Set(headingLines.flatMap(item => (item.anchor ? [item.anchor] : []))),
     blocks: extractBlockIds(note.content),
@@ -293,6 +268,25 @@ export function getBacklinks(locale: Locale, targetSlug: string): NoteMeta[] {
   const linksToTarget = (note: NoteMeta) => note.outgoingLinks.includes(targetSlug) && note.slug !== targetSlug;
 
   return getNotes(locale).filter(linksToTarget);
+}
+
+/**
+ * 주어진 경로를 본문에서 가리키는 노트들. getBacklinks의 href 버전이다.
+ *
+ * 위키링크는 가든 안에서만 통하는 주소라 블로그 글을 가리킬 수 없어서, 저자는
+ * 블로그 글을 인용할 때 표준 마크다운 링크를 쓴다. 그 방향을 여기서 되짚는다.
+ * entities/note가 entities/post를 import하지 않아도 되도록(같은 레이어 cross-import
+ * 금지) "어떤 경로를 가리키는가"라는 구조적 질문만 받는다.
+ */
+export function getNotesLinkingTo(locale: Locale, href: string): NoteMeta[] {
+  return getNotes(locale).filter(note => note.outgoingHrefs.includes(href));
+}
+
+/** 경로 목록을 노트로 되돌린다. 가든 노트를 가리키지 않는 경로는 조용히 버린다. */
+export function getNotesByHrefs(locale: Locale, hrefs: string[]): NoteMeta[] {
+  const bySlug = new Map(getNotes(locale).map(note => [`/garden/${note.slug}`, note]));
+
+  return hrefs.map(href => bySlug.get(href)).filter((note): note is NoteMeta => note !== undefined);
 }
 
 export function getNotesByTag(locale: Locale, tag: string): NoteMeta[] {

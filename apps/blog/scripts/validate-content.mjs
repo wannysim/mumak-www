@@ -173,6 +173,19 @@ function validateFrontmatter(file, secondaryLangs) {
     if (primaryFm.draft !== secondaryFm.draft) {
       warnings.push(`[${file}] draft 불일치: [${PRIMARY_LANG}]=${primaryFm.draft} vs [${lang}]=${secondaryFm.draft}`);
     }
+
+    // series 이름은 로케일마다 다른 게 의도지만(표시 이름 그 자체다), 편 번호가
+    // 갈리면 한쪽 로케일의 시리즈 순서가 통째로 어긋난다. 실제로 en 2부에 3이
+    // 들어간 적이 있고 스키마·테스트 어느 쪽도 잡지 못했다.
+    if (primaryFm.part !== secondaryFm.part) {
+      errors.push(`[${file}] part 불일치: [${PRIMARY_LANG}]=${primaryFm.part} vs [${lang}]=${secondaryFm.part}`);
+    }
+
+    if ((primaryFm.series === undefined) !== (secondaryFm.series === undefined)) {
+      errors.push(
+        `[${file}] series 유무 불일치: [${PRIMARY_LANG}]=${primaryFm.series} vs [${lang}]=${secondaryFm.series}`
+      );
+    }
   }
 
   return { errors, warnings };

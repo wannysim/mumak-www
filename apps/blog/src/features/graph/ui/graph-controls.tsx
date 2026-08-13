@@ -35,6 +35,10 @@ interface GraphControlsProps {
     tags: string;
     categories: string;
   };
+  // 필터 키(`status:seedling`, `category:essay`) → 표시 문구. 범례와 같은 맵을 받는다.
+  // 같은 화면에서 한쪽은 '씨앗', 다른 쪽은 'seedling'으로 갈리지 않게 하는 단일 소스다.
+  // 태그 키는 이 맵에 없고 사용자 콘텐츠라 원문 그대로 떨어진다.
+  optionLabels: Record<string, string>;
 }
 
 function extractFilterOptions(data: GraphData, activeTab: GraphTab) {
@@ -44,7 +48,9 @@ function extractFilterOptions(data: GraphData, activeTab: GraphTab) {
 
   for (const node of data.nodes) {
     if (node.type === 'tag') tags.add(node.name);
-    if (node.type === 'category') categories.add(node.name);
+    // 분류는 글 노드의 category(원문 슬러그)에서 모은다. 카테고리 노드의 name은
+    // 캔버스 표시용 지역화 문구라 필터 키(`category:essay`)로 쓸 수 없다.
+    if (node.type === 'post' && node.category) categories.add(node.category);
     if (node.type === 'note' && node.status) statuses.add(node.status);
   }
 
@@ -60,12 +66,14 @@ function GraphControls({
   onFilterToggle,
   onClearFilters,
   labels,
+  optionLabels,
 }: GraphControlsProps) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const options = extractFilterOptions(data, activeTab);
 
   const handleSelect = useCallback(onFilterToggle, [onFilterToggle]);
+  const labelFor = (key: string) => optionLabels[key] ?? (key.split(':').slice(1).join(':') || key);
 
   return (
     <div className="absolute top-14 left-3 z-10 flex flex-col gap-2">
@@ -108,7 +116,12 @@ function GraphControls({
       <div className="flex items-center gap-2">
         <Popover open={filterOpen} onOpenChange={setFilterOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="icon" className="relative h-9 w-9 bg-background/80 backdrop-blur-sm">
+            <Button
+              variant="outline"
+              size="icon"
+              className="relative h-9 w-9 bg-background/80 backdrop-blur-sm"
+              aria-label={labels.filter}
+            >
               <FilterIcon className="h-4 w-4" />
               {activeFilters.length > 0 && (
                 <Badge
@@ -130,7 +143,7 @@ function GraphControls({
                     {options.statuses.map(status => (
                       <CommandItem key={`status:${status}`} onSelect={() => handleSelect(`status:${status}`)}>
                         <span className={activeFilters.includes(`status:${status}`) ? 'font-semibold' : ''}>
-                          {status}
+                          {labelFor(`status:${status}`)}
                         </span>
                       </CommandItem>
                     ))}
@@ -140,7 +153,9 @@ function GraphControls({
                   <CommandGroup heading={labels.categories}>
                     {options.categories.map(cat => (
                       <CommandItem key={`category:${cat}`} onSelect={() => handleSelect(`category:${cat}`)}>
-                        <span className={activeFilters.includes(`category:${cat}`) ? 'font-semibold' : ''}>{cat}</span>
+                        <span className={activeFilters.includes(`category:${cat}`) ? 'font-semibold' : ''}>
+                          {labelFor(`category:${cat}`)}
+                        </span>
                       </CommandItem>
                     ))}
                   </CommandGroup>
@@ -160,7 +175,13 @@ function GraphControls({
         </Popover>
 
         {activeFilters.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={onClearFilters} className="h-8 px-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearFilters}
+            className="h-8 px-2"
+            aria-label={labels.clearFilters}
+          >
             <XIcon className="h-3 w-3" />
           </Button>
         )}
@@ -175,7 +196,7 @@ function GraphControls({
               className="cursor-pointer bg-background/80 backdrop-blur-sm text-xs"
               onClick={() => onFilterToggle(filter)}
             >
-              {filter.split(':')[1]}
+              {labelFor(filter)}
               <XIcon className="h-3 w-3 ml-1" />
             </Badge>
           ))}

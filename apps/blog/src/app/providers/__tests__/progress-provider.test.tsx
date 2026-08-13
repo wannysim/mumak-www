@@ -4,6 +4,10 @@ import { ProgressProvider } from '../progress-provider';
 
 import '@testing-library/jest-dom';
 
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 type MatchMediaListener = (event: MediaQueryListEvent) => void;
 
 let mockPathname = '/ko/garden';
@@ -207,6 +211,8 @@ describe('ProgressProvider', () => {
       const bar = screen.getByTestId('page-transition-progress');
       expect(bar).toHaveAttribute('aria-hidden', 'false');
       expect(bar.tagName).toBe('PROGRESS');
+      // 라벨은 하드코딩 영어가 아니라 번역 키에서 온다 (mock 번역은 key를 그대로 반환).
+      expect(bar).toHaveAttribute('aria-label', 'pageTransitionProgress');
     });
 
     it('should NOT preventDefault on the observed click (real navigation must proceed)', () => {

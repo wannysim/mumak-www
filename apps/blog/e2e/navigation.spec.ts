@@ -208,7 +208,7 @@ test.describe('Navigation', () => {
 
       await page.keyboard.press('Tab');
 
-      const skipLink = page.getByRole('link', { name: 'Skip to content' });
+      const skipLink = page.getByRole('link', { name: '본문으로 건너뛰기' });
       await expect(skipLink).toBeVisible();
       await expect(skipLink).toBeFocused();
     });
@@ -264,7 +264,7 @@ test.describe('Navigation', () => {
       await page.setViewportSize({ width: 480, height: 900 });
       await page.goto('/ko');
 
-      const trigger = page.getByRole('button', { name: 'Open navigation' });
+      const trigger = page.getByRole('button', { name: '내비게이션 열기' });
       await trigger.click();
 
       // Sheet opens as dialog
@@ -282,10 +282,10 @@ test.describe('Navigation', () => {
       await page.setViewportSize({ width: 480, height: 900 });
       await page.goto('/ko');
 
-      await expect(page.getByRole('button', { name: 'Change theme' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Change language' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '테마 변경' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '언어 변경' })).toBeVisible();
 
-      const trigger = page.getByRole('button', { name: 'Open navigation' });
+      const trigger = page.getByRole('button', { name: '내비게이션 열기' });
       await trigger.click();
       await expect(page.getByRole('dialog')).toBeVisible();
 
@@ -306,7 +306,7 @@ test.describe('Navigation', () => {
       const logoHandle = await logo.elementHandle();
       const before = (await logoHandle!.boundingBox())?.x;
 
-      await page.getByRole('button', { name: 'Change theme' }).click();
+      await page.getByRole('button', { name: '테마 변경' }).click();
       await expect(page.getByRole('menu')).toBeVisible();
 
       const after = (await logoHandle!.boundingBox())?.x;
@@ -317,7 +317,7 @@ test.describe('Navigation', () => {
       await page.setViewportSize({ width: 480, height: 900 });
       await page.goto('/ko');
 
-      const trigger = page.getByRole('button', { name: 'Open navigation' });
+      const trigger = page.getByRole('button', { name: '내비게이션 열기' });
       await trigger.click();
 
       const sheet = page.getByRole('dialog');
@@ -344,8 +344,19 @@ test.describe('Navigation', () => {
     test('should navigate back to list from post detail', async ({ page }) => {
       await page.goto('/ko/blog/essay/first');
 
-      await page.getByRole('link', { name: '목록으로 돌아가기' }).click();
+      await page.getByRole('link', { name: /에세이 더 보기/ }).click();
       await page.waitForURL(/\/ko\/blog\/essay$/);
+    });
+
+    test('should navigate to a suggested post from the next-reading block', async ({ page }) => {
+      await page.goto('/ko/blog/essay/first');
+
+      // 제안 행은 카드가 아니라 목록 링크다 (본문 <article>과 landmark가 겹치지 않도록).
+      const suggestion = page.locator('[data-slot="next-reading"] li a').first();
+      await expect(suggestion).toBeVisible();
+      await Promise.all([page.waitForURL(/\/ko\/blog\/.+\/.+/), suggestion.click()]);
+
+      await expect(page.getByRole('article')).toBeVisible();
     });
   });
 

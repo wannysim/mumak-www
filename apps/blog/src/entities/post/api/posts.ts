@@ -3,10 +3,12 @@ import { cache } from 'react';
 
 import type { Locale } from '@/src/shared/config/i18n';
 import {
+  extractInAppLinks,
   isPublishable,
   listMdxFiles,
   PageFrontmatterSchema,
   parseMdxFile,
+  type PostFrontmatter,
   PostFrontmatterSchema,
 } from '@/src/shared/lib/content';
 import { calculateReadingTime } from '@/src/shared/lib/reading-time';
@@ -17,10 +19,20 @@ export interface PostMeta {
   date: string;
   updated?: string;
   description: string;
-  category: string;
+  category: Category;
   tags?: string[];
   draft?: boolean;
   readingTime: number;
+  /**
+   * 시리즈 이름. 같은 값을 가진 글끼리 한 시리즈로 묶이고, 값이 곧 표시 이름이다.
+   * 묶임은 늘 같은 locale 안에서만 일어나므로 키와 라벨을 나눌 이유가 없다
+   * (ko는 'Expo 소셜 로그인', en은 'Expo Social Login').
+   */
+  series?: string;
+  /** 시리즈 안에서의 순번(1부터). series 없이 단독으로 쓰지 않는다. */
+  part?: number;
+  /** 본문이 가리키는 사이트 내부 경로(정규화됨). 가든 노트와의 연결에 쓴다. */
+  outgoingHrefs: string[];
 }
 
 export interface Post {
@@ -64,9 +76,13 @@ export function calculateWordCount(content: string): number {
   return koreanChars + words;
 }
 
-function toPostMeta(filePath: string, slug: string, category: string): PostMeta {
-  const { frontmatter, content } = parseMdxFile(filePath, PostFrontmatterSchema);
-
+// 목록(getPosts)과 상세(getPost)가 같은 매핑을 쓰게 하는 단일 지점.
+// 두 곳에 리터럴을 늘어놓으면 새 frontmatter 필드를 한쪽에만 넣었을 때
+// 목록엔 값이 있고 상세엔 undefined인 상태가 조용히 만들어진다.
+function toPostMeta(
+  frontmatter: PostFrontmatter,
+  { slug, category, content }: { slug: string; category: Category; content: string }
+): PostMeta {
   return {
     slug,
     title: frontmatter.title,
@@ -77,7 +93,15 @@ function toPostMeta(filePath: string, slug: string, category: string): PostMeta 
     tags: frontmatter.tags,
     draft: frontmatter.draft,
     readingTime: calculateReadingTime(content),
+    series: frontmatter.series,
+    part: frontmatter.part,
+    outgoingHrefs: extractInAppLinks(content),
   };
+}
+
+function readPostMeta(filePath: string, slug: string, category: Category): PostMeta {
+  const { frontmatter, content } = parseMdxFile(filePath, PostFrontmatterSchema);
+  return toPostMeta(frontmatter, { slug, category, content });
 }
 
 function getPostsUncached(locale: Locale, category?: string): PostMeta[] {
@@ -90,7 +114,7 @@ function getPostsUncached(locale: Locale, category?: string): PostMeta[] {
 
     for (const filePath of files) {
       const slug = path.basename(filePath, '.mdx');
-      const post = toPostMeta(filePath, slug, cat);
+      const post = readPostMeta(filePath, slug, cat);
 
       if (isPublishable(post)) {
         posts.push(post);
@@ -117,23 +141,13 @@ function getPostUncached(locale: Locale, category: string, slug: string): Post |
   }
 
   const { frontmatter, content } = parseMdxFile(filePath, PostFrontmatterSchema);
-  const meta: PostMeta = {
-    slug,
-    title: frontmatter.title,
-    date: frontmatter.date,
-    updated: frontmatter.updated,
-    description: frontmatter.description,
-    category,
-    tags: frontmatter.tags,
-    draft: frontmatter.draft,
-    readingTime: calculateReadingTime(content),
-  };
+  const meta = toPostMeta(frontmatter, { slug, category, content });
 
   return isPublishable(meta) ? { meta, content } : null;
 }
 
 function getAllPostSlugsUncached(locale: Locale): Array<{
-  category: string;
+  category: Category;
   slug: string;
 }> {
   return getPosts(locale).map(({ category, slug }) => ({ category, slug }));

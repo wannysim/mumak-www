@@ -52,7 +52,8 @@ function loadYouTubeApi(): Promise<YouTubeApi> {
   return apiPromise;
 }
 
-const POLL_INTERVAL_MS = 250;
+// 폴링 간격만큼 줄 전환이 늦어 보이므로, 체감 지연이 무시할 수준이 되는 값으로 유지한다.
+const POLL_INTERVAL_MS = 100;
 
 /**
  * YouTube IFrame Player를 마운트하고 재생 시간을 폴링하는 훅.
@@ -139,10 +140,13 @@ export function useYouTubePlayer(videoId: string, onEnded?: () => void) {
   }, []);
 
   // 모바일 자동재생 제한 때문에 반드시 사용자 탭 핸들러 안에서 호출되어야 한다.
+  // OS 미디어 키는 play/pause를 각각 따로 보내므로 토글과 별개로 노출한다.
+  const play = React.useCallback(() => playerRef.current?.playVideo(), []);
+  const pause = React.useCallback(() => playerRef.current?.pauseVideo(), []);
   const togglePlay = React.useCallback(() => {
-    if (isPlaying) playerRef.current?.pauseVideo();
-    else playerRef.current?.playVideo();
-  }, [isPlaying]);
+    if (isPlaying) pause();
+    else play();
+  }, [isPlaying, pause, play]);
 
-  return { containerRef, time, duration, isPlaying, seekTo, togglePlay };
+  return { containerRef, time, duration, isPlaying, seekTo, play, pause, togglePlay };
 }

@@ -17,14 +17,23 @@ const isoDateSchema = z.string().refine(isIsoDate, {
 
 const tagsSchema = z.array(z.string().min(1));
 
-export const PostFrontmatterSchema = z.object({
-  title: z.string().min(1),
-  date: isoDateSchema,
-  updated: isoDateSchema.optional(),
-  description: z.string(),
-  tags: tagsSchema,
-  draft: z.boolean().default(false),
-});
+// series/part는 함께 있을 때만 의미가 있다. 한쪽만 쓴 글은 시리즈 UI가 조용히
+// 빠지는 대신 여기서 빌드 타임에 걸리게 한다.
+export const PostFrontmatterSchema = z
+  .object({
+    title: z.string().min(1),
+    date: isoDateSchema,
+    updated: isoDateSchema.optional(),
+    description: z.string(),
+    tags: tagsSchema,
+    draft: z.boolean().default(false),
+    series: z.string().min(1).optional(),
+    part: z.number().int().positive().optional(),
+  })
+  .refine(value => (value.series === undefined) === (value.part === undefined), {
+    message: 'series and part must be set together',
+    path: ['part'],
+  });
 
 export const NoteFrontmatterSchema = z.object({
   title: z.string().min(1),

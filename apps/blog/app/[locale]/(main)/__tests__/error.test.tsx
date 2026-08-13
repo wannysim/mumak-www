@@ -8,6 +8,10 @@ jest.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
+jest.mock('@sentry/nextjs', () => ({
+  captureException: jest.fn(),
+}));
+
 jest.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => <a {...props}>{children}</a>,
 }));
@@ -46,5 +50,13 @@ describe('Error boundary (main)', () => {
     render(<RouteError error={error} reset={jest.fn()} />);
 
     expect(console.error).toHaveBeenCalledWith(error);
+  });
+
+  it('reports the error to the error tracker', () => {
+    const { captureException } = jest.requireMock('@sentry/nextjs');
+    const error = makeError();
+    render(<RouteError error={error} reset={jest.fn()} />);
+
+    expect(captureException).toHaveBeenCalledWith(error);
   });
 });

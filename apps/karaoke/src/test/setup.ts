@@ -1,4 +1,10 @@
+import { configure } from '@testing-library/react';
+
 import '@testing-library/jest-dom';
+
+// QR 풀 사전 인코딩처럼 실제 계산을 기다리는 waitFor가 있다. 기본 1초는 부하가 걸린 CI 러너에서
+// 모자라 use-share-frame-stream 테스트가 간헐적으로 터졌다. 폴링이라 통과 시엔 대기 비용이 없다.
+configure({ asyncUtilTimeout: 5000 });
 
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
