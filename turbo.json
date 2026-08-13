@@ -56,6 +56,20 @@
         "SPOTIFY_REFRESH_TOKEN"
       ]
     },
+    "admin#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "next-env.d.ts", "*.tsbuildinfo"],
+      "passThroughEnv": [
+        "NODE_ENV",
+        "DEPLOYMENT_ID",
+        "MEDIA_ADMIN_ORIGIN",
+        "MEDIA_ADMIN_TOKEN_SHA256",
+        "MEDIA_ROOT",
+        "MEDIA_MIN_FREE_BYTES",
+        "MEDIA_UPLOAD_TIMEOUT_MS"
+      ]
+    },
     "lint": {
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"],
       "outputs": []
@@ -144,6 +158,19 @@
       "env": ["GITHUB_ACTIONS"],
       "passThroughEnv": ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"]
     },
+    "admin#test:ci": {
+      "dependsOn": ["^build", "build"],
+      "inputs": ["$TURBO_DEFAULT$", "jest.config.*"],
+      "outputs": ["coverage/**"],
+      "env": ["GITHUB_ACTIONS"],
+      "passThroughEnv": [
+        "MEDIA_ADMIN_ORIGIN",
+        "MEDIA_ADMIN_TOKEN_SHA256",
+        "MEDIA_ROOT",
+        "MEDIA_MIN_FREE_BYTES",
+        "MEDIA_UPLOAD_TIMEOUT_MS"
+      ]
+    },
     "test:e2e": {
       "dependsOn": ["build"],
       "inputs": ["$TURBO_DEFAULT$", "**/*.{ts,tsx,js,jsx}", "e2e/**/*", "playwright.config.*"],
@@ -152,7 +179,7 @@
       "passThroughEnv": ["PLAYWRIGHT_*", "CI", "SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"]
     },
     "validate:content": {
-      "inputs": ["content/**/*.mdx", "scripts/validate-content.mjs"],
+      "inputs": ["content/**/*.mdx", "scripts/validate-content.mjs", "scripts/content-image-contract.js"],
       "outputs": []
     },
     "validate:garden": {

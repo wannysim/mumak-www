@@ -80,3 +80,34 @@ describe('mdxComponents.blockquote', () => {
     expect(quote).toHaveClass('border-l-2');
   });
 });
+
+const Img = mdxComponents.img as React.FC<React.ComponentProps<'img'>>;
+
+describe('mdxComponents.img', () => {
+  it('preserves validated native image props without Next.js re-optimization', () => {
+    const src = `https://img.wannysim.com/blog/${'a'.repeat(64)}/content-v1/image.jpg`;
+
+    render(
+      <Img
+        src={src}
+        alt="바닷가의 해 질 녘"
+        width="1600"
+        height="1067"
+        loading="eager"
+        decoding="async"
+        fetchPriority="high"
+        className="content-image"
+      />
+    );
+
+    const image = screen.getByRole('img', { name: '바닷가의 해 질 녘' });
+    expect(image).toHaveAttribute('src', src);
+    expect(image).toHaveAttribute('width', '1600');
+    expect(image).toHaveAttribute('height', '1067');
+    expect(image).toHaveAttribute('loading', 'eager');
+    expect(image).toHaveAttribute('decoding', 'async');
+    expect(image).toHaveAttribute('fetchpriority', 'high');
+    expect(image).toHaveClass('my-4', 'rounded-lg', 'content-image');
+    expect(image.getAttribute('src')).not.toContain('/_next/image');
+  });
+});

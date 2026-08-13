@@ -1,0 +1,84 @@
+# Portainer template. Copy into a private stack and supply secrets there; do not
+# commit deployed values. Neither service opens a host port: NPM reaches both via
+# the existing external Docker network.
+services:
+  admin:
+    image: ghcr.io/wannysim/mumak-admin:latest
+    container_name: mumak-admin
+    restart: unless-stopped
+    read_only: true
+    user: 1001:1001
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    pids_limit: 128
+    cpus: 1
+    mem_limit: ${MEDIA_ADMIN_MEMORY_LIMIT:?benchmark before deployment}
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=${MEDIA_ADMIN_HEAP_MB:?benchmark before deployment}
+      MEDIA_ADMIN_ORIGIN: ${MEDIA_ADMIN_ORIGIN:?required}
+      MEDIA_ADMIN_TOKEN_SHA256: ${MEDIA_ADMIN_TOKEN_SHA256:?required}
+      MEDIA_ROOT: /data/images
+      MEDIA_MIN_FREE_BYTES: ${MEDIA_MIN_FREE_BYTES:?confirm from host measurement}
+      MEDIA_UPLOAD_TIMEOUT_MS: 120000
+    volumes:
+      - type: bind
+        source: ${MEDIA_HOST_ROOT:?required}
+        target: /data/images
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /app/apps/admin/.next/cache:size=16m,noexec,nosuid,nodev
+      - /tmp:noexec,nosuid,nodev
+    networks: [mumak-proxy]
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/robots.txt').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
+
+  media-origin:
+    image: ghcr.io/wannysim/mumak-media-origin:latest
+    container_name: mumak-media-origin
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 64m
+    volumes:
+      - type: bind
+        source: ${MEDIA_HOST_ROOT:?required}/published
+        target: /srv/media/blog
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+      - /var/cache/nginx:size=16m,noexec,nosuid,nodev
+      - /var/run:size=1m,noexec,nosuid,nodev
+    networks: [mumak-proxy]
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q --spider http://127.0.0.1:8080/healthz']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
+
+networks:
+  mumak-proxy:
+    external: true
+    name: ${NPM_NETWORK_NAME:?required}

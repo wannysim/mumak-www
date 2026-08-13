@@ -1,0 +1,48 @@
+{
+  "name": "admin",
+  "version": "1.14.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name admin.mumak next dev",
+    "build": "next build",
+    "start": "next start --port 3006",
+    "start:e2e": "node scripts/start-e2e.mjs",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "check-types": "node ../../node_modules/typescript-go/bin/tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "test:e2e": "sh ../../scripts/playwright-e2e.sh",
+    "test:e2e:ui": "playwright test --ui",
+    "validate:media-origin": "sh ./scripts/validate-media-origin.sh",
+    "clean": "rm -rf .next .turbo coverage test-results playwright-report node_modules/.cache"
+  },
+  "dependencies": {
+    "@mumak/ui": "workspace:*",
+    "next": "^16.3.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "sharp": "0.35.3"
+  },
+  "devDependencies": {
+    "@mumak/playwright-config": "workspace:*",
+    "@mumak/typescript-config": "workspace:*",
+    "@playwright/test": "1.61.0",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "typescript": "^7.0.2"
+  }
+}

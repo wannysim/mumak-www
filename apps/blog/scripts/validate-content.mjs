@@ -5,6 +5,8 @@ import matter from 'gray-matter';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import { validateContentImages } from './content-image-contract.js';
+
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDirname = path.dirname(currentFilePath);
 
@@ -191,6 +193,21 @@ function validateFrontmatter(file, secondaryLangs) {
   return { errors, warnings };
 }
 
+function validateImages(filesByLang) {
+  return LANGUAGES.flatMap(lang =>
+    [...filesByLang[lang]].flatMap(file => {
+      const filePath = path.join(CONTENT_DIR, lang, file);
+
+      try {
+        const { content } = matter(fs.readFileSync(filePath, 'utf-8'));
+        return validateContentImages(content).map(error => `[${lang}/${file}] ${error}`);
+      } catch (error) {
+        return [`[${lang}/${file}] 본문 이미지 검증 실패: ${error.message}`];
+      }
+    })
+  );
+}
+
 function printResults(errors, warnings, commonFiles) {
   console.log('━'.repeat(50));
 
@@ -235,7 +252,7 @@ function validateContent() {
     { errors: [], warnings: [] }
   );
 
-  const errors = [...syncErrors, ...fmErrors];
+  const errors = [...syncErrors, ...fmErrors, ...validateImages(filesByLang)];
 
   if (OUTPUT_SUMMARY) {
     console.log(generateSummary(errors, warnings, commonFiles));
