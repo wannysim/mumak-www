@@ -3,6 +3,37 @@ import type { KnipConfig } from 'knip';
 const config: KnipConfig = {
   jest: false,
   workspaces: {
+    'apps/admin': {
+      entry: [
+        'app/**/*.{ts,tsx}',
+        'components/**/*.{ts,tsx}',
+        'src/**/*.{ts,tsx}',
+        'next.config.mjs',
+        'postcss.config.mjs',
+      ],
+      project: ['**/*.{ts,tsx}'],
+      ignore: [
+        '.next/**',
+        'out/**',
+        'node_modules/**',
+        '**/*.test.{ts,tsx}',
+        '**/*.spec.{ts,tsx}',
+        '__tests__/**',
+        'e2e/**',
+        'jest.config.*',
+        'jest.setup.*',
+        'playwright.config.*',
+      ],
+      ignoreDependencies: [
+        '@playwright/test',
+        '@testing-library/jest-dom',
+        '@testing-library/react',
+        '@testing-library/user-event',
+        '@types/jest',
+        'jest',
+        'jest-environment-jsdom',
+      ],
+    },
     'apps/mumak-next': {
       entry: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'next.config.mjs', 'postcss.config.mjs'],
       project: ['**/*.{ts,tsx}'],

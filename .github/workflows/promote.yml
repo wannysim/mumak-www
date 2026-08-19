@@ -2,7 +2,8 @@ name: Promote to Production
 
 # develop 또는 main 브랜치에서 CI / E2E 워크플로가 끝날 때마다 깨어나,
 # 같은 commit 기준으로 두 워크플로가 모두 success인지 재확인한 뒤 해당 커밋을
-# 프로덕션(홈서버)으로 배포한다: blog Docker 이미지 빌드 → GHCR push(:latest + :<sha>)
+# 프로덕션(홈서버)으로 배포한다: blog/admin/media-origin Docker 이미지 빌드
+# → GHCR push(:latest + :<sha>)
 # — 홈서버의 Watchtower가 :latest 를 폴링해 자동 반영, :<sha> 는 롤백용.
 #
 # 배포 소스가 두 브랜치인 이유:
@@ -62,7 +63,9 @@ jobs:
     # 수동 경로(workflow_dispatch): 항상 진입하되, 아래 gate에서 동일한 이중 검증을 거친다.
     if: >
       github.event_name == 'workflow_dispatch' ||
-      ((github.event.workflow_run.head_branch == 'develop' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       (github.event.workflow_run.head_branch == 'develop' ||
         github.event.workflow_run.head_branch == 'main') &&
        github.event.workflow_run.conclusion == 'success')
     env:
@@ -73,9 +76,11 @@ jobs:
       # 종료되는 흔한 경우에 checkout/setup/build 비용을 전혀 치르지 않는다.
       - name: Resolve target SHA
         id: target
+        env:
+          INPUT_REF: ${{ github.event.inputs.ref }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            ref="${{ github.event.inputs.ref }}"
+            ref="$INPUT_REF"
             ref="${ref:-develop}"
             sha=$(gh api "repos/${{ github.repository }}/commits/$ref" --jq '.sha')
           else
@@ -187,11 +192,37 @@ jobs:
             -t "ghcr.io/wannysim/mumak-blog:${{ steps.target.outputs.sha }}" \
             .
 
-      - name: Push blog image to GHCR
+      # admin은 영구 RW mount와 private ingress가 필요하므로 Vercel에 배포하지 않는다.
+      # GHCR image만 만들고, 홈서버의 Portainer/Watchtower가 pull한다.
+      - name: Build admin image (linux/amd64)
         if: steps.gate.outputs.proceed == 'true'
         run: |
-          docker push "ghcr.io/wannysim/mumak-blog:latest"
+          docker build -f apps/admin/Dockerfile --platform linux/amd64 \
+            --build-arg DEPLOYMENT_ID="${{ steps.target.outputs.sha }}" \
+            -t "ghcr.io/wannysim/mumak-admin:latest" \
+            -t "ghcr.io/wannysim/mumak-admin:${{ steps.target.outputs.sha }}" \
+            .
+
+      - name: Build media origin image (linux/amd64)
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          docker build -f apps/admin/media-origin.Dockerfile --platform linux/amd64 \
+            -t "ghcr.io/wannysim/mumak-media-origin:latest" \
+            -t "ghcr.io/wannysim/mumak-media-origin:${{ steps.target.outputs.sha }}" \
+            .
+
+      - name: Push production images to GHCR
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          # Publish every rollback tag before moving any Watchtower channel.
+          # latest updates are not transactional; contracts stay backward-compatible
+          # and admin returns failure if its matching public origin is not ready yet.
           docker push "ghcr.io/wannysim/mumak-blog:${{ steps.target.outputs.sha }}"
+          docker push "ghcr.io/wannysim/mumak-admin:${{ steps.target.outputs.sha }}"
+          docker push "ghcr.io/wannysim/mumak-media-origin:${{ steps.target.outputs.sha }}"
+          docker push "ghcr.io/wannysim/mumak-blog:latest"
+          docker push "ghcr.io/wannysim/mumak-admin:latest"
+          docker push "ghcr.io/wannysim/mumak-media-origin:latest"
 
       # 배포가 끝까지 성공한 경우에만 success status를 남긴다. 이 status가 위
       # idempotency guard의 기준이 되어, 같은 SHA의 두 번째 자동 promote를 차단한다.

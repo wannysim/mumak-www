@@ -1,5 +1,4 @@
 import type { MDXComponents } from 'mdx/types';
-import Image from 'next/image';
 import { isValidElement, type ReactNode } from 'react';
 
 import { Link } from '@/src/shared/config/i18n';
@@ -110,8 +109,9 @@ export const mdxComponents: MDXComponents = {
       {children}
     </pre>
   ),
-  img: ({ src, alt }) => (
-    <Image src={src || ''} alt={alt || ''} width={800} height={400} className="my-4 rounded-lg" loading="lazy" />
+  img: ({ className, alt, ...props }) => (
+    // oxlint-disable-next-line next/no-img-element -- immutable bytes/dimensions; validate:content enforces the native contract
+    <img {...props} alt={alt ?? ''} className={`my-4 rounded-lg ${className ?? ''}`.trim()} />
   ),
   hr: () => <hr className="my-8 border-border" />,
   table: ({ children }) => (

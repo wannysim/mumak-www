@@ -13,6 +13,13 @@
 #   - packageDependencies에 없는 package가 바뀌면 안전을 위해 전체 앱 검증을 고려한다.
 
 apps:
+  - app: admin
+    type: next
+    hasE2E: true
+    packageDependencies:
+      - ui
+      - typescript-config
+
   - app: blog
     type: next
     hasE2E: true
