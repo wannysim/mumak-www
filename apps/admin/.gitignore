@@ -1,0 +1,17 @@
+/node_modules
+/coverage
+/test-results
+/playwright-report
+*.lcov
+*.tsbuildinfo
+/.next/
+/out/
+/build
+.DS_Store
+*.pem
+*.key
+*.crt
+.env*
+!.env.example
+.vercel
+next-env.d.ts

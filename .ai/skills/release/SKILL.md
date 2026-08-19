@@ -99,7 +99,7 @@ main PR의 모든 CI, E2E, Codecov, Vercel 체크가 통과해야 한다. Codeco
 gh pr merge <main-release-pr-number> --merge
 
 git fetch origin main --tags
-git tag -a <version> origin/main -m "chore: release <version> <version>"
+git tag -a <version> origin/main -m "chore: release <version>"
 git push origin <version>
 ```
 

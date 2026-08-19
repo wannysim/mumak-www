@@ -189,6 +189,10 @@ jobs:
           pnpm turbo run validate:garden --filter=blog
           pnpm turbo run validate:design --filter=blog
 
+      - name: Validate media origin (admin only)
+        if: matrix.app == 'admin'
+        run: pnpm --filter admin validate:media-origin
+
       - name: Build
         run: pnpm turbo run build --filter=${{ matrix.app }} $TURBO_CACHE_ARG
 
@@ -252,6 +256,15 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-artifacts/coverage-blog/lcov.info
           flags: blog
+          fail_ci_if_error: false
+
+      - name: Upload admin coverage to Codecov
+        if: hashFiles('coverage-artifacts/coverage-admin/lcov.info') != ''
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-artifacts/coverage-admin/lcov.info
+          flags: admin
           fail_ci_if_error: false
 
       - name: Upload mumak-next coverage to Codecov
