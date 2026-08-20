@@ -30,9 +30,22 @@ admin/media-origin 자동 발행이 활성화된다. 그 전에는 임의 우회
 GitHub-hosted runner는 사설 홈 서버에 접속하지 않는다. Portainer/NPM/DNS/Cloudflare/restic 변경은
 운영자가 직접 한다.
 
+## 현재 인프라 핸드오프 (2026-08-20)
+
+- release `1.16.0`과 admin/media-origin 이미지 발행을 완료했다. first deploy에는
+  `528e5ed856a698f79f907c37862bda66fb4176fd` 태그를 사용한다.
+- production host의 free disk와 기존 container RSS에 충분한 여유가 있음을 확인했다. 실제 측정값은
+  저장소 밖 운영 기록에만 둔다.
+- NPM은 현재 Docker 기본 `bridge`에만 연결되어 있다. 기본 `bridge`는 이 구성에서 필요한 container
+  name DNS를 제공하지 않으므로 `NPM_NETWORK_NAME=bridge`로 배포하지 않는다.
+- 인프라 담당자가 NPM과 admin/media-origin이 공유할 user-defined bridge network를 결정한다. NPM
+  재생성 후에도 유지되도록 일회성 수동 연결이 아니라 NPM stack 정의에 반영한다.
+- network 이름이 확정되면 `NPM_NETWORK_NAME`을 채우고 아래 admin peak RSS 측정부터 재개한다.
+- 이 메모 작성 시점에는 Portainer/NPM/network 설정을 변경하지 않았다.
+
 ## 1. 배포 전 실측
 
-- [ ] production host에서 free disk와 현재 container RSS를 기록한다.
+- [x] production host에서 free disk와 현재 container RSS를 기록한다.
 - [ ] 32 MiB/50 MP landscape, portrait, panorama JPEG로 admin peak RSS와 처리 시간을 측정한다.
 - [ ] 측정값을 근거로 `MEDIA_ADMIN_MEMORY_LIMIT`, `MEDIA_ADMIN_HEAP_MB`, `MEDIA_MIN_FREE_BYTES`를 정한다.
 - [ ] upload transform 중 blog, NPM, Vaultwarden 등 기존 container health가 유지되는지 확인한다.
