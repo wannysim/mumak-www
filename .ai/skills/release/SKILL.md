@@ -1,27 +1,11 @@
 ---
 name: release
-description: Git Flow를 사용한 릴리즈 및 버전 관리 가이드입니다. 릴리즈 요청 시, 버전 업 요청 시, hotfix 필요 시 사용합니다.
+description: 보호 브랜치와 원격 ref를 기준으로 릴리즈 및 버전을 관리합니다. 릴리즈 요청, 버전 업, hotfix 작업 시 사용합니다.
 ---
 
 # Release 가이드
 
-Git Flow와 버전 동기화 스크립트를 사용한 릴리즈 워크플로우입니다.
-
-## Semantic Versioning
-
-버전 형식: `MAJOR.MINOR.PATCH`
-
-| 유형      | 언제 올림               | 예시          |
-| --------- | ----------------------- | ------------- |
-| **MAJOR** | 호환되지 않는 API 변경  | 1.0.0 → 2.0.0 |
-| **MINOR** | 하위 호환되는 기능 추가 | 1.0.0 → 1.1.0 |
-| **PATCH** | 하위 호환되는 버그 수정 | 1.0.0 → 1.0.1 |
-
-### 프리릴리즈 버전
-
-- `1.0.0-alpha.1` - 알파 (내부 테스트)
-- `1.0.0-beta.1` - 베타 (외부 테스트)
-- `1.0.0-rc.1` - 릴리즈 후보
+원격 보호 브랜치와 버전 동기화 스크립트를 기준으로 릴리즈하라.
 
 ## Release 워크플로우
 
@@ -32,42 +16,74 @@ Git Flow와 버전 동기화 스크립트를 사용한 릴리즈 워크플로우
 - `develop` ruleset은 일반 feature PR의 squash merge와 release back-sync PR의 merge commit을 모두 지원하기 위해 `squash`, `merge` 둘 다 허용한다.
 - `delete_branch_on_merge: true`라서 `release/<version>` PR이 `main`에 merge되면 원격 release 브랜치가 자동 삭제될 수 있다.
 - 따라서 **release 브랜치를 develop back-sync의 head로 쓰지 않는다**. main merge와 태그 생성 후 `origin/main`에서 별도 sync 브랜치를 만든다.
-- 보호 브랜치에 직접 push하거나 `git flow release finish`로 로컬에서 main/develop을 직접 머지하지 않는다.
+- 보호 브랜치에 직접 push하지 마라. 최신 원격 ref에서 작업 브랜치를 만들고 로컬 `main`이나 `develop` 상태에 의존하지 마라.
 
-### 1. 현재 버전 확인
+### 1. 작업 트리와 원격 확인
 
 ```bash
+test -z "$(git status --porcelain)" || {
+  echo "작업 트리를 먼저 정리하라." >&2
+  exit 1
+}
 git fetch origin --prune --tags
-git switch develop
-git merge --ff-only origin/develop
-node scripts/sync-versions.mjs --check
 ```
+
+fetch 후 원격 ref에서 버전 판정 근거를 수집하라.
+
+```bash
+root_version=$(git show origin/develop:package.json |
+  node -p "JSON.parse(require('node:fs').readFileSync(0, 'utf8')).version")
+stable_tag=$(git tag --merged origin/main --sort=-v:refname |
+  awk '/^[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')
+
+test -n "$root_version" || {
+  echo "origin/develop의 root package version을 읽지 못했다." >&2
+  exit 1
+}
+test -n "$stable_tag" || {
+  echo "origin/main에서 도달 가능한 stable tag가 없다." >&2
+  exit 1
+}
+printf 'root package version: %s\nlatest stable tag: %s\n' "$root_version" "$stable_tag"
+git log --oneline --decorate "${stable_tag}"..origin/develop
+git diff --stat "${stable_tag}"..origin/develop
+```
+
+log와 diff stat을 출발점으로 관련 diff와 PR 본문을 확인해 호환성 영향을 판정하라. 여러 유형이 섞이면 가장 높은 단계를 적용하라.
+
+| 판정  | 기준                                                                  | `1.16.0` 예시 |
+| ----- | --------------------------------------------------------------------- | ------------- |
+| MAJOR | 외부 API·저장 데이터·설정/배포 계약 등 공개 계약의 호환 불가능한 변경 | `2.0.0`       |
+| MINOR | 공개 계약을 유지하는 하위 호환 사용자 기능 추가                       | `1.17.0`      |
+| PATCH | 새 기능 없는 버그 수정·내부 리팩터링·의존성·운영 변경만               | `1.16.1`      |
+
+`alpha`, `beta`, `rc`는 사용자가 명시적으로 요청했거나 사용자와 단계 테스트 계획을 명시적으로 합의했을 때만 선택하라. 에이전트가 필요성을 임의 판단하지 마라. 먼저 위 기준으로 base bump를 정한 뒤 `<base>-alpha.1`, `<base>-beta.1`, `<base>-rc.1` 형태를 사용하라.
+
+root package version과 stable tag가 다르거나 공개 계약의 호환성 판단이 애매하면 자동 추정하지 마라. 확인한 version·tag·log·diff 근거와 추천 버전을 제시하고 사용자 확인을 받은 뒤에만 `node scripts/sync-versions.mjs <version>`을 실행하라.
 
 ### 2. Release 브랜치 생성
 
 ```bash
-git flow release start <version>
-
-# 예: 1.2.0 릴리즈
-git flow release start 1.2.0
+git switch -c release/<version> origin/develop
+node scripts/sync-versions.mjs --check
 ```
 
 ### 3. 버전 동기화
 
 ```bash
-# 모든 package.json 버전 업데이트
+# root package.json과 apps/*/package.json 버전 업데이트
 node scripts/sync-versions.mjs <version>
-
-# 예시
-node scripts/sync-versions.mjs 1.2.0
 ```
 
 ### 4. 변경사항 커밋
 
 ```bash
-git add -A
+git add -- package.json 'apps/*/package.json'
+git diff --cached --name-only
 git commit -m "chore: update version"
 ```
+
+staged 목록에 root `package.json`과 `apps/*/package.json` 외 파일이 있으면 중단하라.
 
 ### 5. 로컬 검증
 
@@ -91,21 +107,48 @@ gh pr create \
   --title "chore: release <version>"
 ```
 
-main PR의 모든 CI, E2E, Codecov, Vercel 체크가 통과해야 한다. Codecov project가 release aggregate 비교 때문에 실패하면 threshold를 완화하지 말고, 가능한 경우 실제 테스트를 추가해 복구한다.
+merge 전에 현재 branch ruleset의 required checks만 조회하고 통과시켜라.
+
+```bash
+gh pr checks <main-release-pr-number> --required --watch
+```
+
+Codecov와 Vercel을 자동으로 required로 간주하지 마라. live ruleset이 요구하면 따르고, 현재 workflow와 ruleset이 production 요구로 명시하지 않으면 Vercel을 dev/PR preview로만 취급하라. Production artifact promotion 경로는 `.github/workflows/promote.yml`로 판정하라.
 
 ### 7. main PR merge 및 태그 생성
 
 ```bash
 gh pr merge <main-release-pr-number> --merge
 
-git fetch origin main --tags
-git tag -a <version> origin/main -m "chore: release <version>"
+release_sha=$(gh pr view <main-release-pr-number> --json mergeCommit --jq '.mergeCommit.oid')
+git fetch origin --prune --tags
+test "$(git rev-parse origin/main)" = "$release_sha" || {
+  echo "origin/main이 PR merge commit과 다르다." >&2
+  exit 1
+}
+git tag -a <version> "$release_sha" -m "chore: release <version>"
 git push origin <version>
 ```
 
-태그는 main의 merge commit에 붙인다. 기존 태그가 있으면 덮어쓰지 말고 원인을 먼저 확인한다.
+`origin/main`이 PR의 `mergeCommit.oid`와 다르면 중단하라. 태그는 검증한 `release_sha`에 붙이고 기존 태그를 덮어쓰지 마라.
 
-### 8. develop back-sync PR 생성
+### 8. Production artifact promotion 확인
+
+main PR의 merge commit SHA를 기준으로 현재 `Promote to Production` workflow를 확인하라.
+
+```bash
+release_sha=$(gh pr view <main-release-pr-number> --json mergeCommit --jq '.mergeCommit.oid')
+
+gh run list --workflow promote.yml --commit "$release_sha" \
+  --json databaseId,headSha,status,conclusion,url
+gh run view <promote-run-id> --json headSha,conclusion,jobs,url
+```
+
+`headSha`가 `release_sha`와 같고 `Push production images to GHCR`와 `Report successful promote (commit status)`가 성공한 run만 production artifact promotion 성공 근거로 삼아라. run 전체가 `success`여도 두 step이 skipped면 새 promotion으로 간주하지 마라.
+
+이 workflow에는 Watchtower pull, container restart, health acknowledgement가 없으므로 실제 serving 성공을 주장하지 마라. 별도로 관측하지 않았다면 serving 상태를 `unverified`로 기록하라. Vercel preview도 production serving 근거로 사용하지 마라.
+
+### 9. develop back-sync PR 생성
 
 main PR merge와 태그 push 후, 태그가 붙은 `origin/main` 커밋에서 sync 브랜치를 만든다. 이 브랜치를 develop에 merge commit으로 머지해야 release 태그 커밋이 develop의 조상으로 남는다.
 
@@ -122,25 +165,21 @@ gh pr create \
   --title "chore: sync release <version> to develop"
 ```
 
-### 9. develop back-sync PR merge
+### 10. develop back-sync PR merge
 
 ```bash
-gh pr checks <develop-sync-pr-number> --watch
+gh pr checks <develop-sync-pr-number> --required --watch
 gh pr merge <develop-sync-pr-number> --merge --delete-branch
+git fetch origin develop --tags
+git merge-base --is-ancestor <version> origin/develop
 ```
 
-develop sync PR도 required checks가 모두 통과한 뒤 merge한다. merge 후 `git merge-base --is-ancestor <version> origin/develop`가 성공해야 한다.
+develop sync PR도 required checks가 모두 통과한 뒤 merge하라. fetch 후 태그 커밋이 `origin/develop`의 조상인지 확인하라.
 
-### 10. 로컬 정리 및 최종 확인
+### 11. 로컬 정리 및 최종 확인
 
 ```bash
 git fetch origin --prune --tags
-git switch develop
-git merge --ff-only origin/develop
-git switch main
-git merge --ff-only origin/main
-git switch develop
-
 node scripts/sync-versions.mjs --check
 git tag --sort=-v:refname | head
 git status --short --branch
@@ -153,79 +192,48 @@ git status --short --branch
 ### 1. Hotfix 브랜치 생성
 
 ```bash
-git flow hotfix start <version>
-
-# 예: 1.2.0에서 버그 발견 → 1.2.1
-git flow hotfix start 1.2.1
+test -z "$(git status --porcelain)" || {
+  echo "작업 트리를 먼저 정리하라." >&2
+  exit 1
+}
+git fetch origin --prune --tags
+git switch -c hotfix/<version> origin/main
 ```
 
 ### 2. 버그 수정 후 버전 동기화
 
 ```bash
-# 수정 작업 완료 후
+# 버그 수정을 먼저 커밋하고 root package.json과 apps/*/package.json만 stage
 node scripts/sync-versions.mjs <version>
-git add -A
+git add -- package.json 'apps/*/package.json'
+git diff --cached --name-only
 git commit -m "chore: update version"
 ```
 
 ### 3. Hotfix 완료
 
-```bash
-# main PR과 develop back-sync PR을 release 워크플로우와 같은 방식으로 진행한다.
-# hotfix/<version> 원격 브랜치도 main merge 후 자동 삭제될 수 있으므로
-# main merge 전에 chore/sync-hotfix-<version> 브랜치를 미리 만든다.
-```
-
-## sync-versions.mjs 사용법
-
-### 명령어
+main PR, merge, 명시적 SHA 태그, artifact promotion을 release 단계와 같은 방식으로 진행하라. main merge와 태그 push를 완료한 뒤에만 검증한 `origin/main`에서 sync 브랜치를 만들어라.
 
 ```bash
-# 버전 동기화 상태 확인
-node scripts/sync-versions.mjs --check
-
-# root 버전으로 동기화
-node scripts/sync-versions.mjs
-
-# 특정 버전으로 동기화
-node scripts/sync-versions.mjs 1.2.0
-node scripts/sync-versions.mjs 2.0.0-beta.1
+git fetch origin --prune --tags
+git switch -c chore/sync-hotfix-<version> origin/main
 ```
 
-### 동작
+이후 release의 back-sync 단계를 따르되 head를 `chore/sync-hotfix-<version>`으로 사용하라.
 
-- `package.json` (root)
-- `apps/*/package.json` (모든 앱)
+## 완료 조건
 
-모든 package.json의 version 필드를 동일하게 맞춥니다.
-
-## 체크리스트
-
-### Release 전
-
-- [ ] develop 브랜치 최신 상태
-- [ ] 버전 동기화 확인 (`node scripts/sync-versions.mjs --check`)
-- [ ] 버전 번호 결정 (semver 기준)
-- [ ] release 브랜치 생성 및 version bump 커밋
-- [ ] 로컬 검증 통과 (`sync-versions --check`, `format:check`, `quality`, 관련 `test:ci`)
-
-### Release 후
-
-- [ ] main release PR merge commit으로 merge 완료
-- [ ] `1.x.x` 태그가 main merge commit을 가리킴
+- [ ] main release/hotfix PR merge commit으로 merge 완료
+- [ ] 태그가 검증한 `mergeCommit.oid`를 가리킴
+- [ ] 같은 merge commit SHA의 production artifact promotion step 성공
+- [ ] 실제 serving을 별도로 관측했거나 `unverified`로 기록
 - [ ] develop back-sync PR merge commit으로 merge 완료
-- [ ] `git merge-base --is-ancestor 1.x.x origin/develop` 성공
-- [ ] 원격 임시 브랜치 정리 확인
-- [ ] 로컬 main/develop fast-forward 완료
+- [ ] 태그 커밋이 fetch한 `origin/develop`의 조상임
 - [ ] 버전 동기화 확인 (`node scripts/sync-versions.mjs --check`)
 
 ## 문제 해결
 
-| 문제                      | 해결                                                                                                                                                      |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| git flow 미설치           | macOS: `brew install git-flow` / Linux: `sudo apt install git-flow`                                                                                       |
-| 버전 불일치               | `node scripts/sync-versions.mjs`                                                                                                                          |
-| 태그 충돌                 | `git tag -d <tag>` 후 재시도                                                                                                                              |
-| release 브랜치 자동 삭제  | repo의 `delete_branch_on_merge`가 켜져 있으면 정상 동작. main merge 후 `origin/main`에서 `chore/sync-release-<version>` 브랜치를 만들어 develop sync 진행 |
-| develop sync PR 생성 실패 | `git fetch origin --prune --tags` 후 `git switch -c chore/sync-release-<version> origin/main`으로 별도 브랜치 생성                                        |
-| 머지 충돌                 | release 브랜치에서 해결 후 main PR을 갱신하고, sync 브랜치는 release-only 커밋 범위를 다시 cherry-pick                                                    |
+| 문제      | 해결                                                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------ |
+| 태그 충돌 | 중단하고 기존 태그가 가리키는 SHA와 PR의 `mergeCommit.oid`를 비교하라.                                             |
+| 머지 충돌 | 충돌과 merge base를 조사하고, sync 브랜치가 검증한 `origin/main` merge commit을 조상으로 유지한 상태에서 해결하라. |
