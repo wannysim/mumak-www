@@ -18,8 +18,50 @@
 
 토큰 생성 패키지, Storybook, MCP, codemod, 독립 배포는 목표가 아니라 **반복 비용이 확인됐을 때 선택하는 수단**이다. 실제 소비자와 유지 이득을 증명하지 못하면 도입하지 않는다.
 
+## 진행 현황
+
+> 이 절은 작업 보드다. 단계가 끝날 때마다 여기서 체크하고 PR 번호를 적는다. 상세 체크리스트는 §8·§9에 있다.
+> 산출물은 `docs/design-system/`에 있다.
+
+| 단계                                            | 기간       | 상태        | 산출물                                                 |
+| ----------------------------------------------- | ---------- | ----------- | ------------------------------------------------------ |
+| 단계 0 — 기준선과 문제 정의                     | 1주차      | **진행 중** | `docs/design-system/` 5개 문서 + baselines 36장        |
+| 단계 1 — 최소 수직 절편                         | 2주차      | 대기        | token schema, Figma Variables, Button/ContentCard 절편 |
+| 단계 2 — 시각·interaction 기준과 component 계약 | 3\~6주차   | 대기        | 지원 6개 계약과 테스트                                 |
+| 단계 3 — 접근성·visual regression·migration     | 7\~10주차  | 대기        | visual baseline 6\~10개, 대표 화면 4개 migration       |
+| 단계 4 — 문서, 외부 리뷰, 사례 연구 v1          | 11\~12주차 | 대기        | 사례 연구, evidence matrix, 5분 발표                   |
+| 단계 5 — token 운영과 두 번째 소비자            | 4\~6개월   | 대기        | 진입 조건 미충족                                       |
+| 단계 6 — 선택적 확장과 채용 대응                | 7\~12개월  | 대기        | 진입 조건 미충족                                       |
+
+### 단계 0 남은 일
+
+기계적으로 끝낼 수 있는 항목은 모두 닫혔다. 남은 것은 전부 본인 판단이 필요한 항목이다.
+
+- [ ] **`docs/design-system/principles.md`를 본인 언어로 다시 쓴다.** 지금은 저장소의 기존 결정에서 뽑아낸 초안이고, 각 원칙이 답하는 사용자 문제가 비어 있다.
+- [ ] "왜 이 시스템이 필요한가"를 사용자 문제 중심 한 문단으로 쓴다.
+- [ ] 원칙 3개가 맞는지 검토한다. P-3이 정직성 원칙이라 시각·인터랙션 크래프트 원칙이 하나 비었을 수 있다.
+- [ ] 5분 문제 설명을 녹화하고, 기술 이름만 나열한 부분을 고친다.
+- [ ] 열린 질문 3건에 답을 정한다 (`decision-log.md` Q-001 \~ Q-003).
+
+### 완료 기록
+
+- [x] **PR 1 — audit와 기준선** (단계 0 기계적 항목): `docs/design-system/{README,audit,principles,support-matrix,exceptions,decision-log}.md` + `baselines/` 36장 + `apps/blog/scripts/capture-baselines.mjs`. 부수 수정: `plan.md` 물결표 escape(format:check 깨져 있었음), `apps/blog/AGENTS.md`의 axe 미도입 문구 정정.
+
+### 단계 0에서 나온 것 중 다음 단계로 넘어간 항목
+
+| 항목                                               | 성격                    | 갈 곳     |
+| -------------------------------------------------- | ----------------------- | --------- |
+| light `--ring` 2.82:1                              | WCAG 2.1 SC 1.4.11 미달 | 단계 1    |
+| 본문 표면에 `motion-reduce` 없음                   | 반응 축소 미대응        | 단계 1\~2 |
+| easing 4종 하드코딩, 공유 token 0개                | motion token 후보       | 단계 1    |
+| `note-card` → `post-card/ui/post-tags` 깊은 import | FSD 규칙 위반           | 단계 2    |
+| sticky max-height `dvh`/`svh`/`vh` 혼용            | 근거 없는 3가지 답      | 단계 2    |
+| `min-h-[50vh]` 3곳, 목록 empty 문구 2곳 복제       | 미추출 recipe           | 단계 2    |
+| `SwitcherDropdown` 커버리지 33.33%                 | 테스트 공백             | 단계 2    |
+
 ## 목차
 
+- [진행 현황](#진행-현황)
 - [1. 계획의 목표와 운영 원칙](#1-계획의-목표와-운영-원칙)
 - [2. Design Engineer 역량 목표](#2-design-engineer-역량-목표)
 - [3. 당근 채용공고에서 확인한 증거](#3-당근-채용공고에서-확인한-증거)
@@ -196,7 +238,7 @@ SEED는 UI component 모음이 아니라 디자인 결정을 Figma, Rootage 원�
 - blog의 axe 스캔은 `.prose` MDX 본문을 제외하므로 콘텐츠 접근성 전체를 보증하지 않는다.
 - Figma 파일과 현재 디자인 작업 방식은 저장소에서 확인할 수 없다.
 - 사용자의 Figma 숙련도, 시각 디자인 훈련 이력, 주당 가용 시간은 확인되지 않았다.
-- 3·6·12개월 기간은 주 6~8시간 투입을 가정한 **추정**이다. 주 3~4시간이면 기간을 약 1.5~2배로 조정한다.
+- 3·6·12개월 기간은 주 6\~8시간 투입을 가정한 **추정**이다. 주 3\~4시간이면 기간을 약 1.5\~2배로 조정한다.
 
 ## 6. MVP 범위와 과투자 방지 기준
 
@@ -333,13 +375,13 @@ MVP는 다음 한 흐름으로 제한한다.
 
 작업:
 
-- [ ] 대표 화면 4개를 light/dark × mobile/desktop으로 캡처한다.
-- [ ] hover, pressed, focus-visible, disabled, loading, empty, error 상태를 inventory한다.
-- [ ] `packages/ui/src/styles/globals.css`, `apps/karaoke/src/index.css`, `apps/mumak-native/constants/theme.ts`의 의미·이름·값 차이를 표로 만든다.
-- [ ] `packages/ui/src/components/`의 설치 목록과 최초 지원 목록을 분리한다.
-- [ ] blog product recipe와 Spotify·graph·OG 등 예외를 분류한다.
+- [x] 대표 화면 4개를 light/dark × mobile/desktop으로 캡처한다.
+- [x] hover, pressed, focus-visible, disabled, loading, empty, error 상태를 inventory한다.
+- [x] `packages/ui/src/styles/globals.css`, `apps/karaoke/src/index.css`, `apps/mumak-native/constants/theme.ts`의 의미·이름·값 차이를 표로 만든다.
+- [x] `packages/ui/src/components/`의 설치 목록과 최초 지원 목록을 분리한다.
+- [x] blog product recipe와 Spotify·graph·OG 등 예외를 분류한다.
 - [ ] 사용자 경험 원칙 3개와 각 원칙의 좋은 예·나쁜 예를 2개씩 작성한다.
-- [ ] 기존 axe, unit, design validator, E2E 범위와 빈틈을 기록한다.
+- [x] 기존 axe, unit, design validator, E2E 범위와 빈틈을 기록한다.
 - [ ] 5분 문제 설명을 녹화하고 기술 이름만 나열한 부분을 수정한다.
 
 제안 산출물:
@@ -361,9 +403,9 @@ MVP는 다음 한 흐름으로 제한한다.
 완료 조건:
 
 - [ ] “왜 이 시스템이 필요한가”를 사용자 문제 중심 한 문단으로 설명한다.
-- [ ] 지원 후보 6~12개와 비지원 목록이 분리돼 있다.
-- [ ] 다음 단계 범위가 `Button`, `ContentCard`, 최소 token으로 제한돼 있다.
-- [ ] 새 코드 추상화는 아직 추가하지 않았다.
+- [x] 지원 후보 6~12개와 비지원 목록이 분리돼 있다.
+- [x] 다음 단계 범위가 `Button`, `ContentCard`, 최소 token으로 제한돼 있다.
+- [x] 새 코드 추상화는 아직 추가하지 않았다.
 
 ### 단계 1 — 최소 수직 절편
 
@@ -597,15 +639,15 @@ visual baseline 후보:
 
 월:
 
-- [ ] 홈, blog 목록, garden 목록, 상세, 모바일 navigation 후보를 확정한다.
-- [ ] light/dark × mobile/desktop 화면을 캡처한다.
-- [ ] 캡처 환경의 viewport, locale, route, commit을 기록한다.
+- [x] 홈, blog 목록, garden 목록, 상세, 모바일 navigation 후보를 확정한다.
+- [x] light/dark × mobile/desktop 화면을 캡처한다.
+- [x] 캡처 환경의 viewport, locale, route, commit을 기록한다.
 
 화:
 
-- [ ] `packages/ui/src/styles/globals.css`의 CSS 변수를 inventory한다.
-- [ ] `apps/karaoke/src/index.css`와 `apps/mumak-native/constants/theme.ts`의 대응값을 표로 만든다.
-- [ ] raw color, 임의 spacing/type/radius/motion 사용과 의도적 예외를 분리한다.
+- [x] `packages/ui/src/styles/globals.css`의 CSS 변수를 inventory한다.
+- [x] `apps/karaoke/src/index.css`와 `apps/mumak-native/constants/theme.ts`의 대응값을 표로 만든다.
+- [x] raw color, 임의 spacing/type/radius/motion 사용과 의도적 예외를 분리한다.
 
 수:
 
@@ -615,27 +657,27 @@ visual baseline 후보:
 
 목:
 
-- [ ] 설치 component와 지원 component를 구분한다.
-- [ ] 지원 후보 6~12개, blog recipe, product/시각화 예외를 분류한다.
-- [ ] `packages/ui`와 `apps/blog/src/shared/ui` 경계를 검토한다.
+- [x] 설치 component와 지원 component를 구분한다.
+- [x] 지원 후보 6~12개, blog recipe, product/시각화 예외를 분류한다.
+- [x] `packages/ui`와 `apps/blog/src/shared/ui` 경계를 검토한다.
 
 금:
 
-- [ ] keyboard, focus-visible, contrast, target size, reduced motion 기준선을 확인한다.
-- [ ] `apps/blog/e2e/a11y.spec.ts`와 `validate-design-system.mjs`가 잡는 것과 못 잡는 것을 기록한다.
-- [ ] 기존 blog preflight 결과를 baseline으로 남긴다.
+- [x] keyboard, focus-visible, contrast, target size, reduced motion 기준선을 확인한다.
+- [x] `apps/blog/e2e/a11y.spec.ts`와 `validate-design-system.mjs`가 잡는 것과 못 잡는 것을 기록한다.
+- [x] 기존 blog preflight 결과를 baseline으로 남긴다.
 
 주말:
 
 - [ ] 5분 문제 설명을 녹화한다.
 - [ ] 외부 리뷰 1회 또는 자기 비평을 진행한다.
-- [ ] 다음 주 범위를 `Button`, `ContentCard`, 최소 token으로 고정한다.
+- [x] 다음 주 범위를 `Button`, `ContentCard`, 최소 token으로 고정한다.
 
 1주차 종료 gate:
 
-- [ ] 대표 화면과 상태 기준선이 있다.
-- [ ] audit, principles, support matrix, exceptions 초안이 있다.
-- [ ] 다음 주에 만들지 않을 것을 명시했다.
+- [x] 대표 화면과 상태 기준선이 있다.
+- [x] audit, principles, support matrix, exceptions 초안이 있다.
+- [x] 다음 주에 만들지 않을 것을 명시했다.
 - [ ] 시스템 필요성을 사용자 경험 문제로 설명한다.
 
 ### 2주차 — 최소 수직 절편
