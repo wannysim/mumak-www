@@ -100,3 +100,10 @@ karaoke의 각진 톤이 의도라면 예외로 문서화한다. 아니면 단�
 ### Q-003. sticky 패널의 `dvh` / `svh` / `vh` 혼용이 의도인가
 
 `graph-legend`(dvh), `garden-sidebar`(svh), `post-toc`(vh)가 같은 문제에 다른 단위를 쓴다. 모바일 주소창 동작이 셋 다 다르다. 의도한 차이인지, 작성 시점이 달라 생긴 drift인지 확인이 필요하다.
+
+### Q-004. 포커스를 각 component가 그릴지, 전역 폴백에 맡길지
+
+`Button`, `Badge`, `ContentCard`는 자체 ring을 그린다. `ContentSegmentNav`, `ArrowLink`는 `globals.css`의 전역 `*:focus-visible { outline-2 outline-offset-2 outline-ring }`에 기댄다 (`audit.md` §7-1).
+
+둘 다 `--ring`을 쓰므로 Q-001과 같은 대비 문제를 공유하지만, 계약 관점에서는 별개 질문이다.
+선택지: (a) 전역 폴백을 기본으로 두고 자체 ring은 예외로 문서화 (b) 지원 component는 전부 자체로 그린다 (c) 지금처럼 두되 계약에 어느 쪽인지만 명시.
