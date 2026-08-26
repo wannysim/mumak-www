@@ -44,7 +44,7 @@ const VIEWPORTS = [
   { key: 'desktop', label: '1280x800', context: { viewport: { width: 1280, height: 800 } } },
   {
     key: 'mobile',
-    label: 'iPhone 13 (390x844, DPR 2)',
+    label: 'iPhone 13 viewport 390x664 / screen 390x844 (DPR 2)',
     context: { ...devices['iPhone 13'], deviceScaleFactor: 2 },
   },
 ];

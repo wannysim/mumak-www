@@ -82,12 +82,14 @@ cd apps/blog && node scripts/capture-baselines.mjs
 
 dark(7.07:1)는 통과한다. 즉 **라이트 모드에서만 키보드 사용자가 손해를 본다.** 기존 axe 스캔은 이걸 잡지 못한다(axe는 포커스 표시 대비를 평가하지 않는다). 7개 axe 시나리오가 전부 통과하는데도 남아 있는 결함이다.
 
-### 3-2. `ContentCard` hover 제목 (확인 필요)
+### 3-2. `ContentCard` hover 제목 (해결: D-007)
 
 `content-card.tsx`의 제목 링크는 `group-hover:text-primary`다. light에서 3.48:1이 된다.
 제목은 `text-xl font-semibold`(20px / 600)이라 WCAG "큰 텍스트"(24px, 또는 18.66px 이상 bold) 정의에 걸친다. 600을 bold로 볼지에 따라 3:1 통과인지 4.5:1 미달인지 갈린다.
 
-판단이 필요한 결정이지 자동으로 답이 나오는 항목이 아니다. `decision-log.md`에 열린 질문으로 올렸다.
+이 기준선 이후 D-007에서 large-scale 예외에 기대지 않기로 결정했다. 검토 중 같은 surface recipe의 `GardenOverview` 16px / 600 제목에도 `group-hover:text-primary`가 남은 것을 추가로 발견했다. 초기 audit이 한 소비처를 놓친 것이다.
+
+두 hover token을 `accent-foreground`로 바꾸고 실제 `bg-muted/40` hover 배경에서 다시 측정했다. 이전 `primary`는 light 3.37:1, 변경 후에는 light 7.66:1 / dark 10.70:1이다. 두 component의 colocated test가 `primary` 회귀를 막는다.
 
 ## 4. Motion
 
@@ -328,7 +330,6 @@ axe 스캔은 이미 `e2e/a11y.spec.ts`에 7개 시나리오로 들어와 있다
 
 **결정이 필요하다**
 
-- `ContentCard` hover 제목 대비 (§3-2)
 - `--radius` ui/karaoke 차이가 의도인지 (§2)
 - sticky 패널의 `dvh`/`svh`/`vh` 혼용이 의도인지 (§5-1)
 - 포커스를 각 component가 그릴지 전역 폴백에 맡길지 (§7-1)

@@ -46,6 +46,8 @@
 - **링크 색이 `--primary`가 아니라 `--accent-foreground`다.**
   `shared/ui/wikilink.tsx:17`, `widgets/linked-notes-section/ui/linked-notes-section.tsx:46` — "3.48:1로 AA 미달이라 같은 hue의 accent-foreground(7.92:1 / 11.58:1)를 쓴다."
   같은 색조를 유지하면서 명도만 내렸다. 브랜드를 버린 게 아니라 역할에 맞는 값을 골랐다.
+- **카드 제목도 hover에 `accent-foreground`를 쓴다.**
+  `ContentCard`의 20px / 600을 large-scale text 예외로 해석하지 않고 normal text 4.5:1 기준을 적용했다. 같은 surface recipe를 쓰는 `GardenOverview`의 16px / 600 제목도 함께 고쳤다. 실제 hover 대비는 light 7.66:1, dark 10.70:1이다 (`decision-log.md` D-007).
 - **그래프 budding 색을 앰버에서 어둡게 내렸다.**
   `features/graph/lib/graph-config.ts:18` — "라이트 앰버(#e8a317)는 흰 배경 대비 2.17:1이라 비텍스트 최소치(3:1)에 미달했다. 8px 스와치가 색-라벨 매핑의 유일한 전달 수단이므로 명도를 내려 3.82:1로 맞춘다."
   **"이 색이 유일한 전달 수단인가"**를 먼저 물은 게 핵심이다. 그 답에 따라 기준선이 달라진다.
@@ -54,14 +56,11 @@
 
 ### 기각시켜야 하는 것 (지금 살아 있음)
 
-- **`ContentCard` 제목의 hover 색이 `text-primary`다.** light에서 3.48:1이 된다.
-  20px / 600이라 WCAG "큰 텍스트" 경계에 걸쳐 있어 통과인지 미달인지가 해석에 달렸다 (`decision-log.md` Q-001).
-  이 원칙을 그대로 적용하면 답은 이미 나와 있다 — 사이트의 다른 링크는 전부 `accent-foreground`로 갔다.
 - **`--ring` 2.82:1** — P-1과 같은 항목이지만 원인은 이쪽이다. 색값 자체가 기준에 못 미친다.
 
 ### 이 원칙이 만드는 빈틈
 
-`--primary`를 텍스트에 쓰면 안 된다면, **"링크 텍스트 색"에 해당하는 semantic 이름이 없다는 게 문제다.** 지금은 모든 소비자가 "primary 말고 accent-foreground"를 기억해야 한다. 주석 두 곳이 같은 말을 반복하는 이유다.
+`--primary`를 텍스트에 쓰면 안 된다면, **"링크 텍스트 색"에 해당하는 semantic 이름이 없다는 게 문제다.** 지금은 여러 소비자가 "primary 말고 accent-foreground"를 직접 기억해야 한다.
 단계 1의 semantic token 후보: 값이 아니라 **역할 이름**이 빠져 있다.
 
 ---

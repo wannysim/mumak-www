@@ -2,7 +2,7 @@
 
 > "설치돼 있다"와 "지원한다"를 분리한다. 지원은 **계약 + 테스트 + 문서**가 있고, 깨지면 고칠 책임을 진다는 뜻이다.
 >
-> 기준: commit `03f7928`. 근거 수치는 `audit.md` §7.
+> inventory 기준선: commit `03f7928`. 소비처·감사 수치의 근거는 `audit.md` §7이고, `현재 테스트` 열은 D-007 같은 후속 결정을 반영해 계속 갱신한다.
 
 ## 원칙
 
@@ -19,7 +19,7 @@
 | ------------------- | ------------------------------------------------- | -------------------------- | ---------------------------------- | ------------------ |
 | `Button`            | `packages/ui/src/components/button.tsx`           | 검색·테마·언어·메뉴 트리거 | 5개 앱, blog 내 12곳               | 없음 (packages/ui) |
 | `Badge`             | `packages/ui/src/components/badge.tsx`            | 카테고리·성장단계·태그 칩  | 3개 앱, blog 내 12곳               | 없음 (packages/ui) |
-| `ContentCard`       | `apps/blog/src/shared/ui/content-card.tsx`        | 목록의 주 타깃             | `PostCard`, `NoteCard`             | 4 case / 100%      |
+| `ContentCard`       | `apps/blog/src/shared/ui/content-card.tsx`        | 목록의 주 타깃             | `PostCard`, `NoteCard`             | 5 case / 100%      |
 | `ContentSegmentNav` | `apps/blog/src/shared/ui/content-segment-nav.tsx` | 목록 필터                  | `BlogNav`, `GardenNav`             | 10 case / 100%     |
 | `PageHeader`        | `apps/blog/src/shared/ui/page-header.tsx`         | 화면 정체성 + h1           | blog·garden 인덱스, 태그, 카테고리 | 3 case / 100%      |
 | `ArrowLink`         | `apps/blog/src/shared/ui/arrow-link.tsx`          | 보조 이동 경로             | 인덱스 → 그래프, NextReading 하단  | 3 case / 100%      |

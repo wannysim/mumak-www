@@ -81,17 +81,28 @@
 - 근거: 1은 내용을 손상시킨다 — 렌더링하면 문장 일부가 취소선이 된다. 2는 문서 전체가 `~`를 범위 구분자로 쓰고 있어 한 줄만 규칙이 달라진다. 3은 GFM에서 `~`로 렌더되고 oxfmt를 통과한다(실측 확인).
 - 파급: 이 저장소의 다른 markdown에도 적용된다. 한 줄에 `~`가 하나면 안전, 2개 이상이면 escape. 알려진 `|` → `\|` 함정과 같은 계열이다.
 
+## D-007. 카드 hover 제목에 `accent-foreground`를 쓴다
+
+- 상태: 채택 (2026-08-26, 단계 0)
+- 문제: `ContentCard` 제목 링크가 hover 시 `text-primary`로 바뀐다. 기본 light 배경에서는 3.48:1이고 실제 `bg-muted/40` hover 배경에서는 3.37:1이다. 제목은 20px / 600이라 WCAG large-scale text의 3:1 예외를 적용할 수 있는지가 불명확하다. 같은 surface recipe를 쓰는 `GardenOverview`의 16px / 600 제목에도 같은 색이 있어 normal text 기준으로는 명확히 미달한다.
+- 대안
+  1. hover 색을 `accent-foreground`로 바꾼다.
+  2. 색은 `foreground`로 유지하고 underline을 추가한다.
+  3. large-scale text로 보고 `primary`를 유지한다.
+- 선택: 1
+- 근거
+  1. WCAG 2.2 SC 1.4.3은 hover 중 표시되는 텍스트에도 적용된다. normal text는 배경과 4.5:1 이상이어야 한다. ([Understanding SC 1.4.3](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum))
+  2. large-scale text는 18pt 또는 14pt bold 이상이다. 20px / 600을 이 예외로 볼지는 명세만으로 명확하지 않으므로 경계 해석에 의존하지 않는다. ([WCAG 2.2 large-scale 정의](https://www.w3.org/TR/WCAG22/#dfn-large-scale))
+  3. 실제 hover 상태를 Chromium에서 측정하면 `accent-foreground`는 light 7.66:1, dark 10.70:1이다. normal text 기준을 두 테마 모두 충분히 넘는다.
+  4. `WikiLink`와 `LinkedNotesSection`에서 이미 검증한 고대비 텍스트 색을 재사용한다. 전용 link token이 없는 현재의 최소 선택이다.
+  5. 카드 표면 자체가 hover 시 border, background, elevation으로 반응하므로 underline을 추가하지 않아도 색만이 유일한 상태 신호가 되지 않는다.
+- 적용: `ContentCard`와 `GardenOverview`의 hover token을 교체하고 각각의 colocated test에서 `primary` 회귀를 막는다. `ContentCard`를 공유하는 Blog `PostCard`와 Garden `NoteCard`에도 함께 적용된다.
+- 검증: headless Chromium에서 실제 hover transition이 끝난 뒤 computed text color와 투명한 surface background를 sRGB로 합성해 WCAG 상대휘도 공식을 적용했다. Blog/Garden 두 표면과 light/dark를 각각 측정했다.
+- 되돌리는 조건: 링크 역할을 나타내는 별도 semantic token이 생기고, 그 token이 실제 light/dark hover 배경에서 모두 normal text 4.5:1 이상을 만족하면 이름을 교체한다. `primary` 복귀도 모든 실제 상태에서 4.5:1 이상일 때만 검토한다.
+
 ## 열린 질문
 
 결정이 필요하지만 근거가 부족해 아직 못 정한 것. 단계 1 시작 전에 답을 정한다.
-
-### Q-001. `ContentCard` hover 제목 대비
-
-`content-card.tsx`의 제목 링크는 hover 시 `text-primary`가 되고, light에서 3.48:1이다.
-제목은 `text-xl font-semibold`(20px / 600)로 WCAG "큰 텍스트" 정의(24px, 또는 18.66px 이상 bold)의 경계에 있다. 600을 bold로 보면 3:1 통과, 아니면 4.5:1 미달이다.
-
-선택지: (a) hover 색을 `accent-foreground`(7.92:1)로 바꾼다 (b) hover에 색 대신 underline을 쓴다 (c) 큰 텍스트로 보고 유지한다.
-관련: 사이트의 다른 링크는 이미 (a)를 택했다 — `wikilink.tsx`와 `linked-notes-section.tsx`가 같은 이유로 `accent-foreground`를 쓴다.
 
 ### Q-002. `--radius`가 ui 0.625rem, karaoke 0.25rem인 것이 의도인가
 
@@ -105,5 +116,5 @@ karaoke의 각진 톤이 의도라면 예외로 문서화한다. 아니면 단�
 
 `Button`, `Badge`, `ContentCard`는 자체 ring을 그린다. `ContentSegmentNav`, `ArrowLink`는 `globals.css`의 전역 `*:focus-visible { outline-2 outline-offset-2 outline-ring }`에 기댄다 (`audit.md` §7-1).
 
-둘 다 `--ring`을 쓰므로 Q-001과 같은 대비 문제를 공유하지만, 계약 관점에서는 별개 질문이다.
+둘 다 `--ring`을 쓰므로 `audit.md` §3-1의 light 대비 문제를 공유하지만, 계약 관점에서는 별개 질문이다.
 선택지: (a) 전역 폴백을 기본으로 두고 자체 ring은 예외로 문서화 (b) 지원 component는 전부 자체로 그린다 (c) 지금처럼 두되 계약에 어느 쪽인지만 명시.

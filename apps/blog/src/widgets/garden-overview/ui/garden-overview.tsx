@@ -45,7 +45,7 @@ export function GardenOverview({ items }: GardenOverviewProps) {
             </span>
             <div className="min-w-0 space-y-1">
               <div className="flex items-center gap-2">
-                <span className="font-semibold tracking-tight transition-colors group-hover:text-primary">
+                <span className="font-semibold tracking-tight transition-colors group-hover:text-accent-foreground">
                   {item.label}
                 </span>
                 <Badge variant="secondary" className="h-5 rounded-sm px-1.5 py-0 font-normal">

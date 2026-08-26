@@ -34,6 +34,14 @@ describe('ContentCard', () => {
     expect(cardLink).not.toContainElement(tagSlot);
   });
 
+  it('keeps the title hover color readable as normal-sized text', () => {
+    render(<ContentCard href="/x" title="T" meta={null} />);
+
+    const cardLink = screen.getByRole('link', { name: 'T' });
+    expect(cardLink).toHaveClass('group-hover:text-accent-foreground');
+    expect(cardLink).not.toHaveClass('group-hover:text-primary');
+  });
+
   it('omits description, tags, and footer when not provided', () => {
     const { container } = render(<ContentCard href="/x" title="T" meta={null} />);
 

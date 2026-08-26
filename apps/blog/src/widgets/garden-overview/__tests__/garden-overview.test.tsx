@@ -42,6 +42,14 @@ describe('GardenOverview', () => {
     expect(screen.getByRole('link', { name: /Areas/ })).toHaveAttribute('href', '/garden/category/areas');
   });
 
+  it('keeps category title hover colors readable as normal-sized text', () => {
+    render(<GardenOverview items={items} />);
+
+    const title = screen.getByText('Projects');
+    expect(title).toHaveClass('group-hover:text-accent-foreground');
+    expect(title).not.toHaveClass('group-hover:text-primary');
+  });
+
   it('renders nothing when there are no items', () => {
     const { container } = render(<GardenOverview items={[]} />);
 

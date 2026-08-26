@@ -23,26 +23,27 @@
 > 이 절은 단계 단위 진행률 보드다. 단계가 끝날 때마다 여기서 체크하고 PR 번호를 적는다.
 > **지금 할 일은 `docs/design-system/NEXT.md`에 있다.** 상세 체크리스트는 §8·§9, 산출물은 `docs/design-system/`.
 
-| 단계                                            | 기간       | 상태        | 산출물                                                 |
-| ----------------------------------------------- | ---------- | ----------- | ------------------------------------------------------ |
-| 단계 0 — 기준선과 문제 정의                     | 1주차      | **진행 중** | `docs/design-system/` 6개 문서 + baselines 36장        |
-| 단계 1 — 최소 수직 절편                         | 2주차      | 대기        | token schema, Figma Variables, Button/ContentCard 절편 |
-| 단계 2 — 시각·interaction 기준과 component 계약 | 3\~6주차   | 대기        | 지원 6개 계약과 테스트                                 |
-| 단계 3 — 접근성·visual regression·migration     | 7\~10주차  | 대기        | visual baseline 6\~10개, 대표 화면 4개 migration       |
-| 단계 4 — 문서, 외부 리뷰, 사례 연구 v1          | 11\~12주차 | 대기        | 사례 연구, evidence matrix, 5분 발표                   |
-| 단계 5 — token 운영과 두 번째 소비자            | 4\~6개월   | 대기        | 진입 조건 미충족                                       |
-| 단계 6 — 선택적 확장과 채용 대응                | 7\~12개월  | 대기        | 진입 조건 미충족                                       |
+| 단계                                            | 기간       | 상태                     | 산출물                                                 |
+| ----------------------------------------------- | ---------- | ------------------------ | ------------------------------------------------------ |
+| 단계 0 — 기준선과 문제 정의                     | 1주차      | **진행 중 — Q-001 완료** | `docs/design-system/` 6개 문서 + baselines 36장        |
+| 단계 1 — 최소 수직 절편                         | 2주차      | 대기                     | token schema, Figma Variables, Button/ContentCard 절편 |
+| 단계 2 — 시각·interaction 기준과 component 계약 | 3\~6주차   | 대기                     | 지원 6개 계약과 테스트                                 |
+| 단계 3 — 접근성·visual regression·migration     | 7\~10주차  | 대기                     | visual baseline 6\~10개, 대표 화면 4개 migration       |
+| 단계 4 — 문서, 외부 리뷰, 사례 연구 v1          | 11\~12주차 | 대기                     | 사례 연구, evidence matrix, 5분 발표                   |
+| 단계 5 — token 운영과 두 번째 소비자            | 4\~6개월   | 대기                     | 진입 조건 미충족                                       |
+| 단계 6 — 선택적 확장과 채용 대응                | 7\~12개월  | 대기                     | 진입 조건 미충족                                       |
 
 ### 다음 액션 아이템
 
 **`docs/design-system/NEXT.md`를 본다.** 액션 아이템의 단일 소재지다.
 이 절은 단계 단위 진행률만 다루고, 오늘 할 일은 그쪽에서 관리한다.
 
-단계 0에서 기계적으로 끝낼 수 있는 항목은 모두 닫혔다. 남은 것은 전부 본인 판단이 필요한 항목이다.
+단계 0에서 기계적으로 끝낼 수 있는 항목과 Q-001의 조사·결정·구현·검증은 닫혔다. 남은 것은 Q-002 \~ Q-004, 원칙 재작성, 문제 설명, 자기 비평처럼 본인 판단이 필요한 항목이다.
 
 ### 완료 기록
 
 - [x] **PR 1 — audit와 기준선** (단계 0 기계적 항목): `docs/design-system/{README,audit,principles,support-matrix,exceptions,decision-log}.md` + `baselines/` 36장 + `apps/blog/scripts/capture-baselines.mjs`. 부수 수정: `plan.md` 물결표 escape(format:check 깨져 있었음), `apps/blog/AGENTS.md`의 axe 미도입 문구 정정.
+- [x] **Q-001 — 카드 hover 제목 대비**: large-scale text 예외에 기대지 않고 `accent-foreground`를 선택했다. 검토 중 발견한 `GardenOverview`의 같은 결함도 함께 닫았다. 결정 근거와 되돌리는 조건은 `decision-log.md` D-007.
 
 ### 단계 0에서 나온 것 중 다음 단계로 넘어간 항목
 
@@ -503,6 +504,7 @@ MVP는 다음 한 흐름으로 제한한다.
 
 - [ ] `apps/blog/e2e/a11y.spec.ts`의 현재 범위와 `.prose` 제외 영역을 명시한다.
 - [ ] keyboard focus order, dialog escape/focus trap, target size, contrast, reduced motion 수동 checklist를 추가한다.
+- [ ] D-007 카드 hover 대비를 token class 문자열이 아니라 실제 rendered state 기준의 자동·수동 contract로 고정한다.
 - [ ] 기존 blog Playwright에 `toHaveScreenshot`을 소수 도입한다.
 - [ ] light/dark, mobile/desktop, 긴 한국어·영어 title fixture를 포함한다.
 - [ ] blog/garden 목록을 먼저 migration한다.
