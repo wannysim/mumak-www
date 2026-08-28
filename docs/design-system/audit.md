@@ -55,7 +55,7 @@ cd apps/blog && node scripts/capture-baselines.mjs
 - **native는 웹과 사실상 무관하다.** `Colors.light.tint = '#0a7ea4'`(청록)는 Expo 스타터 기본값이고, 웹 브랜드색 `--primary: oklch(0.65 0.2 45)`(주황)와 아무 관계가 없다. 이름이 겹치는 건 `text`/`background` 둘뿐이다.
 - **blog는 자기 CSS 변수를 갖지 않는다.** 예외는 `apps/blog/app/prism.css`로, 코드 하이라이트 색 약 30개가 raw hex다(§5 참조).
 
-`--radius`: ui `0.625rem` vs karaoke `0.25rem`. 의도된 차이로 보인다(karaoke는 각진 유틸리티 톤). 확인 필요.
+`--radius`: ui `0.625rem` vs karaoke `0.25rem`. karaoke의 선형 모티브와 편집 도구·콘솔 같은 product theme를 위한 의도된 차이로 확인했다 (`decision-log.md` D-008).
 
 ## 3. 대비 실측
 
@@ -133,7 +133,7 @@ karaoke와 blog가 각자 "강한 ease-out"을 정의했고 곡선이 서로 다
 
 재현: `grep -rnoE '\b(?:[a-z-]+)-\[[^]]+\]' apps/blog/src apps/blog/app --include="*.tsx"`
 
-### 5-1. sticky 패널 최대 높이 — 같은 문제, 4가지 답
+### 5-1. sticky 패널 최대 높이 — 3개 파일, 4개 선언, 3가지 단위
 
 | 파일                                 | 값                          |
 | ------------------------------------ | --------------------------- |
@@ -330,6 +330,5 @@ axe 스캔은 이미 `e2e/a11y.spec.ts`에 7개 시나리오로 들어와 있다
 
 **결정이 필요하다**
 
-- `--radius` ui/karaoke 차이가 의도인지 (§2)
 - sticky 패널의 `dvh`/`svh`/`vh` 혼용이 의도인지 (§5-1)
 - 포커스를 각 component가 그릴지 전역 폴백에 맡길지 (§7-1)

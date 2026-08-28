@@ -19,13 +19,20 @@ raw 색 규칙에서 제외된다.
 
 ## 2. 문서로만 존재하는 예외
 
-`apps/blog/AGENTS.md`에 적혀 있지만 코드 검사가 없다.
+코드 allowlist로 강제하지 않고 `apps/blog/AGENTS.md` 또는 `decision-log.md`에서 근거를 관리한다.
 
 ### Garden sidebar의 PARA 라벨 하드코딩
 
 - `PARA_CATEGORIES` / `PARA_LABELS`의 Projects / Areas / Resources / Archives는 번역하지 않고 영어로 둔다.
 - 이유: PARA는 고유명사 체계다. 번역하면 원 출처와의 연결이 끊긴다.
 - 조건: 이 정책을 바꾸려면 먼저 문서를 고친다.
+
+### karaoke의 product-specific radius
+
+- `apps/karaoke/src/index.css`는 공유 ui의 `--radius: 0.625rem`을 `0.25rem`으로 재정의하고, 주요 control과 가사 표면은 `rounded-none`을 사용한다.
+- 이유: 활성 가사의 수평 시간선에서 시작한 선형 모티브를 divider와 각진 control로 확장해, 편집 도구·콘솔 같은 product-specific 시각 언어를 유지한다.
+- 경계: `@mumak/ui`의 component 구현·동작 기반은 계속 공유하고 접근성 요구사항은 공통 원칙으로 다룬다. 각진 형태가 전자책 같은 읽기 경험을 만든다는 검증되지 않은 효익은 이 예외의 근거가 아니다.
+- 재평가 조건: karaoke가 향후 여러 제품을 포괄하는 wannysim 브랜드 시스템에 편입될 때 전체 시각 언어 기준으로 다시 판단한다. 자세한 결정은 `decision-log.md` D-008.
 
 ### blog / garden의 의도된 비대칭
 

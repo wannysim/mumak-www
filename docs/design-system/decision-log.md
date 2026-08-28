@@ -100,13 +100,27 @@
 - 검증: headless Chromium에서 실제 hover transition이 끝난 뒤 computed text color와 투명한 surface background를 sRGB로 합성해 WCAG 상대휘도 공식을 적용했다. Blog/Garden 두 표면과 light/dark를 각각 측정했다.
 - 되돌리는 조건: 링크 역할을 나타내는 별도 semantic token이 생기고, 그 token이 실제 light/dark hover 배경에서 모두 normal text 4.5:1 이상을 만족하면 이름을 교체한다. `primary` 복귀도 모든 실제 상태에서 4.5:1 이상일 때만 검토한다.
 
+## D-008. karaoke의 radius 차이를 의도된 제품 테마로 유지한다
+
+- 상태: 채택 (2026-08-27, 단계 0)
+- 문제: `packages/ui`의 `--radius`는 `0.625rem`이고 karaoke는 `0.25rem`이다. 이 차이가 관리되지 않은 drift인지, 제품별 시각 언어인지 정해야 한다.
+- 대안
+  1. karaoke도 ui 기본값 `0.625rem`으로 통일한다.
+  2. 공통 component의 구현·동작 기반은 공유하고 접근성 요구사항은 공통 원칙으로 다루되, karaoke의 각진 radius 테마를 유지한다.
+  3. 지금 바로 공통 디자인시스템에 product별 semantic radius preset을 만든다.
+- 선택: 2
+- 근거
+  1. karaoke는 `@mumak/ui/globals.css`와 `Button`, `Drawer`, `Input` 같은 primitive를 사용하면서 자체 CSS에서 `--radius: 0.25rem`으로 재정의한다. 공통 component 구현·동작 기반을 버린 별도 시스템이 아니라, 공유 기반 위의 product theme다.
+  2. 활성 가사에는 시간 구간을 나타내는 1px 수평선과 timestamp가 있고, 이 선형 모티브가 divider, 각진 control, `rounded-none` 표면으로 이어진다. 편집 도구·콘솔 같은 인상은 의도한 시각적 취향이다.
+  3. karaoke는 현재 wannysim 브랜드가 포괄하는 제품으로 운영하지 않는다. 제품 성격보다 브랜드 통일을 우선할 근거가 아직 없다.
+  4. product별 preset은 두 번째로 같은 분기 구조를 요구하는 소비자가 생기기 전에는 추상화 비용을 정당화하지 못한다.
+- 근거에서 제외한 주장: 각진 radius가 전자책 같은 읽기 경험을 만든다는 인과관계는 관찰하거나 검증하지 않았다. 읽기 경험은 활자, 여백, 현재 가사 강조, 자동 스크롤로 별도 평가한다.
+- 수용한 비용: karaoke가 공유 component를 가져올 때 product theme override를 유지해야 하고, 명시적 `rounded-none`이 늘어나면 drift를 따로 점검해야 한다.
+- 되돌리는 조건: wannysim 디자인시스템이 여러 제품을 포괄하는 브랜드 시스템으로 확장되고 karaoke가 그 브랜드 범위에 편입되면 다시 판단한다. 그때 radius 통일을 미리 답으로 정하지 않고 색, 활자, 밀도, motion, layout을 포함한 전체 시각 언어에서 브랜드 일관성과 제품 고유성을 비교한다.
+
 ## 열린 질문
 
 결정이 필요하지만 근거가 부족해 아직 못 정한 것. 단계 1 시작 전에 답을 정한다.
-
-### Q-002. `--radius`가 ui 0.625rem, karaoke 0.25rem인 것이 의도인가
-
-karaoke의 각진 톤이 의도라면 예외로 문서화한다. 아니면 단계 5의 key mapping 대상이다.
 
 ### Q-003. sticky 패널의 `dvh` / `svh` / `vh` 혼용이 의도인가
 

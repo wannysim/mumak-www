@@ -13,7 +13,7 @@
 | [principles.md](principles.md)         | 제품 원칙 3개와 통과/기각 예                             | **초안. 본인이 다시 씀** |
 | [support-matrix.md](support-matrix.md) | 지원 6개 / 비지원 / 승격 후보                            | 단계 0 완료              |
 | [exceptions.md](exceptions.md)         | 시스템에 흡수하지 않기로 한 것                           | 단계 0 완료              |
-| [decision-log.md](decision-log.md)     | 결정 7건, 기각 1건, 열린 질문 3건                        | 계속 갱신                |
+| [decision-log.md](decision-log.md)     | 결정 8건, 기각 1건, 열린 질문 2건                        | 계속 갱신                |
 | [baselines/](baselines/)               | 대표 화면 36장 + manifest                                | 스크립트 생성            |
 
 ## 기준선 다시 뜨기
