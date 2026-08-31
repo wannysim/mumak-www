@@ -79,7 +79,7 @@ audit에서 반복이 확인됐지만 단계 1 범위에는 넣지 않는다.
 | ------------------------- | -------------------------------------------------------------------------------------------------- | -------------------- |
 | `PostTags` → `shared/ui`  | blog·garden 카드가 둘 다 쓰는데 `widgets/post-card` 내부에 있다. FSD 같은 레이어 cross-import 위반 | 반복 2곳 + 규칙 위반 |
 | motion token (`--ease-*`) | easing 4종이 손으로 쓰였고 karaoke/blog가 곡선까지 다르다                                          | 소비처 2곳 이상      |
-| sticky 패널 max-height    | 같은 문제에 `dvh`/`svh`/`vh` 3가지 답, 3개 파일의 4개 선언                                         | 반복 4곳             |
+| viewport surface 계약     | D-009에서 전체 화면은 `dvh`, 보조 panel은 `svh`로 정함. `post-toc`·그래프 범례 구현 대기           | 반복 4곳 + 결정 완료 |
 | 중앙 정렬 상태 페이지     | `min-h-[50vh]`가 error/not-found 3곳에 복제                                                        | 반복 3곳             |
 | 목록 empty 안내 문구      | blog/garden index가 같은 마크업을 인라인 복제                                                      | 반복 2곳             |
 | `SwitcherDropdown` 테스트 | 커버리지 33.33%. 대표 흐름의 theme/locale 전환에 쓰인다                                            | 위험 축소            |

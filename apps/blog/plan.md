@@ -25,7 +25,7 @@
 
 | 단계                                            | 기간       | 상태                     | 산출물                                                 |
 | ----------------------------------------------- | ---------- | ------------------------ | ------------------------------------------------------ |
-| 단계 0 — 기준선과 문제 정의                     | 1주차      | **진행 중 — Q-002 완료** | `docs/design-system/` 6개 문서 + baselines 36장        |
+| 단계 0 — 기준선과 문제 정의                     | 1주차      | **진행 중 — Q-003 완료** | `docs/design-system/` 6개 문서 + baselines 36장        |
 | 단계 1 — 최소 수직 절편                         | 2주차      | 대기                     | token schema, Figma Variables, Button/ContentCard 절편 |
 | 단계 2 — 시각·interaction 기준과 component 계약 | 3\~6주차   | 대기                     | 지원 6개 계약과 테스트                                 |
 | 단계 3 — 접근성·visual regression·migration     | 7\~10주차  | 대기                     | visual baseline 6\~10개, 대표 화면 4개 migration       |
@@ -38,13 +38,14 @@
 **`docs/design-system/NEXT.md`를 본다.** 액션 아이템의 단일 소재지다.
 이 절은 단계 단위 진행률만 다루고, 오늘 할 일은 그쪽에서 관리한다.
 
-단계 0에서 기계적으로 끝낼 수 있는 항목과 Q-001·Q-002의 조사·결정·검증은 닫혔다. 남은 것은 Q-003 \~ Q-004, 원칙 재작성, 문제 설명, 자기 비평처럼 본인 판단이 필요한 항목이다.
+단계 0에서 기계적으로 끝낼 수 있는 항목과 Q-001 \~ Q-003의 조사·결정·검증은 닫혔다. 남은 것은 Q-004, 원칙 재작성, 문제 설명, 자기 비평처럼 본인 판단이 필요한 항목이다.
 
 ### 완료 기록
 
 - [x] **PR 1 — audit와 기준선** (단계 0 기계적 항목): `docs/design-system/{README,audit,principles,support-matrix,exceptions,decision-log}.md` + `baselines/` 36장 + `apps/blog/scripts/capture-baselines.mjs`. 부수 수정: `plan.md` 물결표 escape(format:check 깨져 있었음), `apps/blog/AGENTS.md`의 axe 미도입 문구 정정.
 - [x] **Q-001 — 카드 hover 제목 대비**: large-scale text 예외에 기대지 않고 `accent-foreground`를 선택했다. 검토 중 발견한 `GardenOverview`의 같은 결함도 함께 닫았다. 결정 근거와 되돌리는 조건은 `decision-log.md` D-007.
 - [x] **Q-002 — karaoke radius 차이**: 공유 component의 구현·동작 기반은 유지하고 접근성 요구사항은 공통 원칙으로 다루면서, 선형 모티브와 편집 도구·콘솔 같은 product theme를 위해 별도 radius를 유지한다. 검증되지 않은 읽기 효익은 근거에서 제외했고, wannysim 브랜드 범위가 확장되면 전체 시각 언어 기준으로 재검토한다. 결정은 `decision-log.md` D-008.
+- [x] **Q-003 — viewport 단위 계약**: 전체 화면 surface는 `dvh`, 자체 스크롤하는 보조 panel의 최대 높이는 안정성을 우선해 `svh`를 기본으로 한다. `post-toc`의 `vh` 교체와 상시 그래프 범례를 정보 버튼의 popover/bottom sheet로 바꾸는 구현은 단계 2로 넘겼다. 결정은 `decision-log.md` D-009.
 
 ### 단계 0에서 나온 것 중 다음 단계로 넘어간 항목
 
@@ -54,7 +55,7 @@
 | 본문 표면에 `motion-reduce` 없음                   | 반응 축소 미대응        | 단계 1\~2 |
 | easing 4종 하드코딩, 공유 token 0개                | motion token 후보       | 단계 1    |
 | `note-card` → `post-card/ui/post-tags` 깊은 import | FSD 규칙 위반           | 단계 2    |
-| sticky max-height `dvh`/`svh`/`vh` 혼용            | 근거 없는 3가지 답      | 단계 2    |
+| viewport 단위 계약과 그래프 범례 노출 방식         | D-009 구현 대기         | 단계 2    |
 | `min-h-[50vh]` 3곳, 목록 empty 문구 2곳 복제       | 미추출 recipe           | 단계 2    |
 | `SwitcherDropdown` 커버리지 33.33%                 | 테스트 공백             | 단계 2    |
 
