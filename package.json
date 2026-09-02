@@ -35,14 +35,14 @@
   },
   "devDependencies": {
     "@playwright/test": "1.61.0",
-    "eslint-plugin-turbo": "^2.10.7",
+    "eslint-plugin-turbo": "^2.10.12",
     "husky": "^9.1.7",
     "knip": "^6.29.0",
     "lint-staged": "^17.2.0",
     "oxfmt": "^0.60.0",
     "oxlint": "^1.76.0",
     "portless": "^0.15.4",
-    "turbo": "^2.10.7",
+    "turbo": "^2.10.12",
     "typescript": "^7.0.2",
     "typescript-go": "npm:typescript@7.0.2"
   },
