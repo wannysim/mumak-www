@@ -34,7 +34,7 @@
     "@mumak/ui": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "driver.js": "1.8.0",
-    "lucide-react": "^1.27.0",
+    "lucide-react": "^1.38.0",
     "qr-scanner": "1.4.2",
     "qrcode-generator": "^2.0.4",
     "react": "^19.2.8",
