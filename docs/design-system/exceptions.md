@@ -73,7 +73,7 @@ raw 색 규칙에서 제외된다.
 | light `--ring` 2.82:1                              | WCAG 2.1 SC 1.4.11 미달 | 단계 1   |
 | 본문 표면에 `motion-reduce` 없음                   | 반응 축소 미대응        | 단계 1-2 |
 | `note-card` → `post-card/ui/post-tags` 깊은 import | FSD 규칙 위반           | 단계 2   |
-| sticky max-height의 `dvh`/`svh`/`vh` 혼용          | 근거 없는 3가지 답      | 단계 2   |
+| viewport 단위 계약과 그래프 범례 노출 방식         | D-009 구현 대기         | 단계 2   |
 | `min-h-[50vh]` 3곳 복제                            | 미추출 recipe           | 단계 2   |
 | `SwitcherDropdown` 커버리지 33.33%                 | 테스트 공백             | 단계 2   |
 | `AGENTS.md`가 axe를 "미도입"이라고 적음            | 문서 지연               | 이 PR    |

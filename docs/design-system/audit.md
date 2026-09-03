@@ -133,7 +133,7 @@ karaoke와 blog가 각자 "강한 ease-out"을 정의했고 곡선이 서로 다
 
 재현: `grep -rnoE '\b(?:[a-z-]+)-\[[^]]+\]' apps/blog/src apps/blog/app --include="*.tsx"`
 
-### 5-1. sticky 패널 최대 높이 — 3개 파일, 4개 선언, 3가지 단위
+### 5-1. viewport 기반 최대 높이 — 3개 파일, 4개 선언, 3가지 단위
 
 | 파일                                 | 값                          |
 | ------------------------------------ | --------------------------- |
@@ -143,6 +143,8 @@ karaoke와 blog가 각자 "강한 ease-out"을 정의했고 곡선이 서로 다
 | `widgets/post-toc`                   | `max-h-[calc(100vh-8rem)]`  |
 
 뷰포트 단위가 `dvh`/`svh`/`vh` 세 가지로 갈렸다. 모바일 주소창이 접히고 펴질 때 셋이 서로 다르게 동작한다. 의도된 차이라는 근거가 코드에 없다.
+
+후속 관찰(2026-08-31): `graph-legend`는 sticky panel이 아니라 캔버스 위의 absolute overlay다. 세 선언을 같은 종류로 묶은 이 audit의 분류를 바로잡고, 전체 화면과 보조 panel의 계약을 `decision-log.md` D-009로 정했다.
 
 ### 5-2. 중앙 정렬 상태 페이지 — 3곳 동일 복제
 
@@ -326,9 +328,9 @@ axe 스캔은 이미 `e2e/a11y.spec.ts`에 7개 시나리오로 들어와 있다
 
 - type / spacing token — 빈도가 이미 좁다 (§6)
 - `packages/ui`의 안 쓰이는 29개 — 지원 목록에 넣지 않는다 (§7)
-- `PostTags` 승격, sticky max-h 통일, 상태 페이지 recipe, 목록 empty 문구 — 실재하는 후보지만 단계 2로 미룬다
+- `PostTags` 승격, D-009 viewport 계약 구현, 상태 페이지 recipe, 목록 empty 문구 — 실재하는 후보지만 단계 2로 미룬다
 
-**결정이 필요하다**
+**결정 상태**
 
-- sticky 패널의 `dvh`/`svh`/`vh` 혼용이 의도인지 (§5-1)
-- 포커스를 각 component가 그릴지 전역 폴백에 맡길지 (§7-1)
+- viewport 단위 혼용: 전체 화면은 `dvh`, 보조 panel은 `svh`로 계약을 정했다 (`decision-log.md` D-009). 구현은 단계 2로 미룬다.
+- 포커스를 각 component가 그릴지 전역 폴백에 맡길지는 아직 결정이 필요하다 (§7-1).
