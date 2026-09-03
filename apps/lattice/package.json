@@ -27,7 +27,7 @@
     "clean": "rm -rf dist .turbo coverage test-results playwright-report node_modules/.cache"
   },
   "dependencies": {
-    "@mediapipe/tasks-vision": "^1.0.0",
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@mumak/ui": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "lucide-react": "^1.27.0",
