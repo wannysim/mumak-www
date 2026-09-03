@@ -57,7 +57,7 @@
     "@next/bundle-analyzer": "^16.3.3",
     "@playwright/test": "1.61.0",
     "@testing-library/jest-dom": "^7.0.0",
-    "@testing-library/react": "^16.3.2",
+    "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.1",
     "@types/jest": "^30.0.0",
     "@types/mdx": "^2.0.14",
