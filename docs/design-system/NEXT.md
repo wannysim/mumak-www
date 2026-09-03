@@ -5,7 +5,9 @@
 > 역할 분담: 이 파일은 **지금 할 일**, `apps/blog/plan.md`는 **왜 그 순서인지**, `decision-log.md`는 **정한 것과 정할 것**.
 > 액션 아이템을 끝내면 A에서 지우고 `plan.md` 진행 현황에 기록한다. 완료 사실은 아래 체크포인트에만 남기며, A에 남아 있는 건 전부 미완이다.
 
-마지막 갱신: 2026-08-31 · 현재 단계: **단계 0 (1주차)** · PR [#549](https://github.com/wannysim/mumak-www/pull/549) draft · [#547](https://github.com/wannysim/mumak-www/pull/547) 위에 stacked
+마지막 갱신: 2026-08-31 · 현재 단계: **단계 0 (1주차)** · PR [#551](https://github.com/wannysim/mumak-www/pull/551) draft · [#549](https://github.com/wannysim/mumak-www/pull/549) 위에 stacked · stack #550
+
+> **이 브랜치의 완료 조건:** Q-004를 `decision-log.md`의 D-010으로 승격하고, 바로 다음 액션을 A-2 원칙 재작성으로 넘긴다.
 
 > **바로 다음 액션:** Q-004에 대한 첫 생각 3줄 — component 자체 ring과 전역 focus-visible 폴백 중 무엇을 기본 계약으로 볼지 — 을 직접 쓴다. 결론과 코드는 그 뒤다.
 
