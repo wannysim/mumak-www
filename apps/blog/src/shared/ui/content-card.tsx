@@ -35,7 +35,7 @@ export function ContentCard({ href, title, meta, description, tags, footer }: Co
         <Link
           href={href}
           data-slot="content-card-link"
-          className="text-foreground transition-colors after:absolute after:inset-0 after:rounded-lg group-hover:text-primary focus-visible:outline-none"
+          className="text-foreground transition-colors after:absolute after:inset-0 after:rounded-lg group-hover:text-accent-foreground focus-visible:outline-none"
         >
           {title}
         </Link>
