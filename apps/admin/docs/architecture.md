@@ -95,8 +95,9 @@ mumak-www-public/blog/<asset-id>/content-v1/image.webp
 - 요청당 160 MiB를 먼저 예약하고 완료 시 입력·영구 파일 크기와 8 KiB로 정산한다.
   이 장부는 계정 전체 실제 사용량이나 결제 상한이 아니다.
 - 발행 단계에 들어가지 못한 예약은 staging lifecycle보다 넉넉한 72시간 유예 뒤 다음 admission에서
-  자동 회수한다. 영구 객체를 만들 수 있는 지점을 통과한 ticket은 회수 대상에서 제외하고 수동
-  대조까지 예약을 남긴다. processing ticket 재처리는 거절하며, 새 ticket으로 같은 파일을 올리면
+  자동 회수한다. ticket claim 직전에 회수 대상에서 먼저 제외하므로, 영구 객체를 만들 수 있는
+  지점을 통과한 예약은 수동 대조까지 남는다. 이 장부 쓰기가 실패하면 ticket은 아직 ready여서
+  같은 ticket으로 다시 시도할 수 있다. processing ticket 재처리는 거절하며, 새 ticket으로 같은 파일을 올리면
   checksum이 일치하는 누락 객체를 복구할 수 있다.
 - 발행 실패는 원인 코드를 유지해 응답한다. 저장소 상태 불일치(collision·corruption)는 재시도를
   권하지 않고, 공개 URL 검증 실패만 일시적 실패로 안내한다.

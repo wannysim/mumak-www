@@ -12,9 +12,12 @@ const STORAGE_LIMIT = 8_000_000_000;
 const DAILY_LIMIT = 20;
 const TICKET_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const LEDGER_KEY = 'blog/control/upload-budget.json';
-// staging 객체는 lifecycle이 하루 뒤에 지운다. 삭제와 사용량 집계 지연을 감안한 유예를 둔
-// 뒤에야 발행에 들어가지 못한 예약을 회수한다.
-const RECLAIM_DELAY_MS = 72 * 60 * 60_000;
+// private staging의 lifecycle 만료 주기. R2 콘솔의 `expire-blog-staging` 규칙과 같아야 한다.
+const STAGING_LIFECYCLE_MS = 24 * 60 * 60_000;
+// 예약 회수는 staging 바이트가 확실히 사라진 뒤여야 한다. lifecycle 삭제와 사용량 집계 지연을
+// 감안해 만료 주기의 세 배를 유예로 둔다. 이 값이 lifecycle보다 짧아지면 아직 남아 있는
+// 바이트를 회수해 예산을 초과 admission하게 된다.
+const RECLAIM_DELAY_MS = 3 * STAGING_LIFECYCLE_MS;
 type Allocation = { bytes: number; reclaimAt?: number };
 type Ledger = {
   version: 2;
@@ -102,17 +105,18 @@ export function createR2Uploader(
       return toResult(manifest, true);
     }
     if (ticket.state !== 'ready' || !object) throw new R2UploadError('upload_busy');
-    if (!(await putJson(ticketKey(ticketId), { ...ticket, state: 'processing' }, object.etag)))
-      throw new R2UploadError('upload_busy');
-    const input = await store.get('private', stagingKey(ticketId), 32 * MiB);
-    if (!input || input.body.length !== ticket.bytes) throw new R2UploadError('invalid_upload');
-    // 여기부터 영구 객체를 만들 수 있다. 중단되면 실제 사용량을 장부만으로 알 수 없으므로
-    // 자동 회수 대상에서 빼고, 운영자가 대조할 때까지 예약을 보수적으로 남긴다.
+    // ticket을 claim하면 영구 객체를 만들 수 있고, 중단되면 실제 사용량을 장부만으로 알 수 없다.
+    // 그래서 claim 전에 자동 회수 대상에서 먼저 뺀다. 이 순서라면 장부 경합으로 실패해도 ticket은
+    // 아직 ready여서 같은 ticket으로 다시 시도할 수 있다.
     await updateLedger(ledger => {
       const allocation = ledger.allocations[ticketId];
       if (!allocation) throw new ImageUploadError('corruption');
       delete allocation.reclaimAt;
     });
+    if (!(await putJson(ticketKey(ticketId), { ...ticket, state: 'processing' }, object.etag)))
+      throw new R2UploadError('upload_busy');
+    const input = await store.get('private', stagingKey(ticketId), 32 * MiB);
+    if (!input || input.body.length !== ticket.bytes) throw new R2UploadError('invalid_upload');
     const published = await withPreparedImage(input.body, async prepared => {
       try {
         return await commit(prepared);

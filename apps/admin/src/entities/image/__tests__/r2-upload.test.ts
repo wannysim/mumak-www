@@ -158,6 +158,35 @@ describe('R2 image publication', () => {
     }
   });
 
+  it('keeps a ticket retryable when the ledger is contended before the claim', async () => {
+    const ticket = await prepare();
+    const originalPut = memory.store.put;
+    memory.store.put = async (...args) => (args[1] === ledgerKey ? false : originalPut(...args));
+    await expect(uploader.publish(ticket.ticketId)).rejects.toMatchObject({ code: 'upload_busy' });
+    expect(memory.json(`blog/control/tickets/${ticket.ticketId}.json`).state).toBe('ready');
+    memory.store.put = originalPut;
+    await expect(uploader.publish(ticket.ticketId)).resolves.toMatchObject({ duplicate: false });
+  });
+
+  it('holds a reservation while the staging lifecycle could still be pending', async () => {
+    const abandoned = await prepare();
+    timestamp += 24 * 60 * 60_000;
+    await uploader.issue(1);
+    expect(memory.json(ledgerKey).allocations[abandoned.ticketId].bytes).toBe(160 * 1024 * 1024);
+  });
+
+  it('reopens admission once the grace period clears an exhausted budget', async () => {
+    for (let day = 0; day < 2; day++) {
+      for (let index = 0; index < 20; index++) await prepare();
+      timestamp += 86_400_000;
+    }
+    for (let index = 0; index < 7; index++) await prepare();
+    timestamp += 6_000;
+    await expect(uploader.issue(1)).rejects.toMatchObject({ code: 'storage_limit' });
+    timestamp += reclaimDelay;
+    await expect(uploader.issue(1)).resolves.toHaveProperty('ticketId');
+  });
+
   it('never reclaims a reservation whose publication could have written permanent objects', async () => {
     verify.mockRejectedValue(new Error('unreachable'));
     const ticket = await prepare();
@@ -257,6 +286,16 @@ describe('R2 image publication', () => {
       allocations: { [randomUUID()]: { bytes: 1, reclaimAt: -1 } },
     },
     { version: 2, day: '2026-09-09', attempts: 0, lastIssuedAt: 0, allocations: { 'not-a-ticket': { bytes: 1 } } },
+    { version: 2, day: '2026-09-09', attempts: 0, lastIssuedAt: 0, allocations: [] },
+    { version: 2, day: '2026-09-09', attempts: 0, lastIssuedAt: 0, allocations: { [randomUUID()]: null } },
+    {
+      version: 2,
+      day: '2026-09-09',
+      attempts: 0,
+      lastIssuedAt: 0,
+      allocations: { [randomUUID()]: { bytes: 160 * 1024 * 1024 + 1 } },
+    },
+    { day: '2026-09-09', attempts: 0, lastIssuedAt: 0, allocations: {} },
   ])('fails closed on a malformed ledger %#', async ledger => {
     memory.set(ledgerKey, ledger);
     await expect(uploader.issue(1)).rejects.toMatchObject({ code: 'corruption' });
