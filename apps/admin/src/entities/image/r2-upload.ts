@@ -12,7 +12,17 @@ const STORAGE_LIMIT = 8_000_000_000;
 const DAILY_LIMIT = 20;
 const TICKET_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const LEDGER_KEY = 'blog/control/upload-budget.json';
-type Ledger = { version: 1; day: string; attempts: number; lastIssuedAt: number; allocations: Record<string, number> };
+// staging 객체는 lifecycle이 하루 뒤에 지운다. 삭제와 사용량 집계 지연을 감안한 유예를 둔
+// 뒤에야 발행에 들어가지 못한 예약을 회수한다.
+const RECLAIM_DELAY_MS = 72 * 60 * 60_000;
+type Allocation = { bytes: number; reclaimAt?: number };
+type Ledger = {
+  version: 2;
+  day: string;
+  attempts: number;
+  lastIssuedAt: number;
+  allocations: Record<string, Allocation>;
+};
 type Ticket = {
   version: 1;
   bytes: number;
@@ -38,9 +48,8 @@ export function createR2Uploader(
   async function updateLedger(change: (ledger: Ledger) => void) {
     for (let attempt = 0; attempt < 5; attempt++) {
       const object = await store.get('private', LEDGER_KEY, MiB);
-      const ledger = object
-        ? parseLedger(object)
-        : { version: 1 as const, day: '', attempts: 0, lastIssuedAt: 0, allocations: {} };
+      const ledger = object ? parseLedger(object) : emptyLedger();
+      reclaimExpired(ledger, now());
       change(ledger);
       if (await putJson(LEDGER_KEY, ledger, object?.etag ?? '*')) return;
     }
@@ -63,13 +72,13 @@ export function createR2Uploader(
       }
       if (ledger.attempts >= DAILY_LIMIT) throw new R2UploadError('daily_limit');
       if (timestamp - ledger.lastIssuedAt < 5_000) throw new R2UploadError('upload_busy');
-      const reserved = Object.values(ledger.allocations).reduce((sum, value) => sum + value, MiB);
+      const reserved = Object.values(ledger.allocations).reduce((sum, value) => sum + value.bytes, MiB);
       if (reserved + RESERVATION_BYTES > STORAGE_LIMIT || Object.keys(ledger.allocations).length >= 5_000) {
         throw new R2UploadError('storage_limit');
       }
       ledger.attempts++;
       ledger.lastIssuedAt = timestamp;
-      ledger.allocations[ticketId] = RESERVATION_BYTES;
+      ledger.allocations[ticketId] = { bytes: RESERVATION_BYTES, reclaimAt: timestamp + RECLAIM_DELAY_MS };
     });
     const ticket: Ticket = { version: 1, bytes, expiresAt: timestamp + 15 * 60_000, state: 'ready' };
     if (!(await putJson(ticketKey(ticketId), ticket))) throw new R2UploadError('upload_busy');
@@ -97,17 +106,25 @@ export function createR2Uploader(
       throw new R2UploadError('upload_busy');
     const input = await store.get('private', stagingKey(ticketId), 32 * MiB);
     if (!input || input.body.length !== ticket.bytes) throw new R2UploadError('invalid_upload');
+    // 여기부터 영구 객체를 만들 수 있다. 중단되면 실제 사용량을 장부만으로 알 수 없으므로
+    // 자동 회수 대상에서 빼고, 운영자가 대조할 때까지 예약을 보수적으로 남긴다.
+    await updateLedger(ledger => {
+      const allocation = ledger.allocations[ticketId];
+      if (!allocation) throw new ImageUploadError('corruption');
+      delete allocation.reclaimAt;
+    });
     const published = await withPreparedImage(input.body, async prepared => {
       try {
         return await commit(prepared);
       } catch (error) {
-        throw new ImageUploadError('public_verification_failed', error);
+        // collision·corruption처럼 사람이 확인해야 하는 코드를 전송 실패로 뭉개지 않는다.
+        throw error instanceof ImageUploadError ? error : new ImageUploadError('storage_failure', error);
       }
     });
     const permanentBytes = Object.values(published.bytes).reduce((sum, bytes) => sum + bytes, 0);
     await updateLedger(ledger => {
       if (!(ticketId in ledger.allocations)) throw new ImageUploadError('corruption');
-      ledger.allocations[ticketId] = ticket.bytes + permanentBytes + 8192;
+      ledger.allocations[ticketId] = { bytes: ticket.bytes + permanentBytes + 8192 };
     });
     const claimed = await store.get('private', ticketKey(ticketId), 4096);
     if (
@@ -179,7 +196,11 @@ export function createR2Uploader(
   }
 
   async function verify(result: ImageUploadResult, manifest: ImageManifest) {
-    await (options.verifyPublic ? options.verifyPublic(result) : verifyPublicImages(result, manifest));
+    try {
+      await (options.verifyPublic ? options.verifyPublic(result) : verifyPublicImages(result, manifest));
+    } catch (error) {
+      throw error instanceof ImageUploadError ? error : new ImageUploadError('public_verification_failed', error);
+    }
   }
 
   return { issue, publish };
@@ -215,30 +236,56 @@ function parseTicket(object: StoredObject | undefined): Ticket {
   return value as Ticket;
 }
 
+function emptyLedger(): Ledger {
+  return { version: 2, day: '', attempts: 0, lastIssuedAt: 0, allocations: {} };
+}
+
+// 발행 단계에 들어가지 못한 예약만 회수한다. 그 ticket의 staging 객체는 lifecycle이 이미
+// 지웠고 영구 객체는 만들어진 적이 없으므로, 남은 예약은 실제 사용량과 무관하다.
+function reclaimExpired(ledger: Ledger, timestamp: number) {
+  for (const [id, allocation] of Object.entries(ledger.allocations)) {
+    if (allocation.reclaimAt !== undefined && allocation.reclaimAt <= timestamp) delete ledger.allocations[id];
+  }
+}
+
 function parseLedger(object: StoredObject): Ledger {
   const value: unknown = JSON.parse(object.body.toString('utf8'));
-  if (
-    !isRecord(value) ||
-    value.version !== 1 ||
-    typeof value.day !== 'string' ||
-    typeof value.attempts !== 'number' ||
-    !Number.isSafeInteger(value.attempts) ||
-    value.attempts < 0 ||
-    typeof value.lastIssuedAt !== 'number' ||
-    !Number.isSafeInteger(value.lastIssuedAt) ||
-    !isRecord(value.allocations) ||
-    Object.entries(value.allocations).some(
-      ([id, bytes]) =>
-        !TICKET_PATTERN.test(id) ||
-        typeof bytes !== 'number' ||
-        !Number.isSafeInteger(bytes) ||
-        bytes < 1 ||
-        bytes > RESERVATION_BYTES
-    )
-  ) {
+  if (!isRecord(value) || (value.version !== 1 && value.version !== 2)) throw new ImageUploadError('corruption');
+  const { day, attempts, lastIssuedAt, allocations } = value;
+  if (typeof day !== 'string' || !isCounter(attempts) || !isCounter(lastIssuedAt) || !isRecord(allocations)) {
     throw new ImageUploadError('corruption');
   }
-  return value as Ledger;
+  return {
+    version: 2,
+    day,
+    attempts,
+    lastIssuedAt,
+    allocations: Object.fromEntries(
+      Object.entries(allocations).map(([id, entry]) => {
+        if (!TICKET_PATTERN.test(id)) throw new ImageUploadError('corruption');
+        return [id, parseAllocation(entry)];
+      })
+    ),
+  };
+}
+
+// version 1 장부는 예약과 정산을 구분하지 못한다. 회수하지 않는 정산으로 읽어 기존 보수적
+// 회계를 유지한다.
+function parseAllocation(entry: unknown): Allocation {
+  if (isReservedBytes(entry)) return { bytes: entry };
+  if (!isRecord(entry) || !isReservedBytes(entry.bytes)) throw new ImageUploadError('corruption');
+  const { bytes, reclaimAt } = entry;
+  if (reclaimAt === undefined) return { bytes };
+  if (!isCounter(reclaimAt)) throw new ImageUploadError('corruption');
+  return { bytes, reclaimAt };
+}
+
+function isReservedBytes(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 && value <= RESERVATION_BYTES;
+}
+
+function isCounter(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

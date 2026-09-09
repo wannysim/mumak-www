@@ -63,7 +63,10 @@ export async function handleR2Upload(request: Request, operation: 'issue' | 'pub
       code
     )
       ? '32 MiB, 50 MP 이하의 올바른 JPEG 파일이 필요합니다.'
-      : '이미지 발행을 완료하지 못했습니다. 잠시 후 다시 업로드하세요.';
+      : // 재시도가 상태를 더 망가뜨리는 코드는 재시도를 권하지 않는다. runbook 대조가 필요하다.
+        ['collision', 'corruption'].includes(code)
+        ? '저장된 이미지와 일치하지 않는 상태를 발견했습니다. 다시 시도하지 말고 저장소를 확인해야 합니다.'
+        : '이미지 발행을 완료하지 못했습니다. 잠시 후 다시 업로드하세요.';
     const status =
       code === 'public_verification_failed'
         ? 503

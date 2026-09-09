@@ -41,6 +41,10 @@ mumak-www-private                   Standard / APAC
 ## 배포와 사용
 
 - 운영 URL: [Mumak Media Admin](https://admin.wannysim.com).
+- private 버킷 CORS는 `https://admin.wannysim.com` 한 origin만 허용한다. 로컬 dev에서
+  브라우저 직접 PUT까지 시험하려면 `wrangler r2 bucket cors set`으로 로컬 origin을 추가해야 한다.
+- `apps/admin/app/api/images/route.ts`의 `maxDuration = 300`이 현재 Vercel 플랜에서 실제로
+  적용되는지는 아직 확인하지 않았다. Fluid Compute 설정과 함께 점검 대상이다.
 - Vercel Hobby 프로젝트의 production 배포 상태는 READY다.
   배포 ID: `dpl_BY6AvCZUeQru1u7G5W55N8yVsvfS`.
 - 현재 운영 배포는 Vercel CLI 소스 snapshot이다. GitHub `wannysim/mumak-www` 연결을 완료했고,
@@ -67,17 +71,18 @@ mumak-www-private                   Standard / APAC
 
 ## 비용 방어와 한계
 
-| 항목             | 적용값                                                        |
-| ---------------- | ------------------------------------------------------------- |
-| R2 저장 등급     | Standard, Infrequent Access 전환 없음                         |
-| 미완료 multipart | 양쪽 버킷에 1일 정리 규칙; 기존 7일 기본 규칙도 유지          |
-| 입력 임시 객체   | private `blog/staging/` 1일 만료; 영구 이미지 만료 없음       |
-| rendition 캐시   | `public, max-age=31536000, immutable`                         |
-| 계정 예산 알림   | `mumak-www early spend warning`, USD 0.01, 계정 소유자 이메일 |
-| 기존 계정 알림   | 자동 생성된 USD 10 알림 유지                                  |
-| admission        | UTC 하루 20회, 최소 간격 5초                                  |
-| 저장량 예약      | blog writer의 보수적 예산 8,000,000,000 bytes                 |
-| 한 요청 예약     | 160 MiB; 완료 시 입력 크기 + 영구 객체 크기 + 8 KiB로 정산    |
+| 항목             | 적용값                                                         |
+| ---------------- | -------------------------------------------------------------- |
+| R2 저장 등급     | Standard, Infrequent Access 전환 없음                          |
+| 미완료 multipart | 양쪽 버킷에 1일 정리 규칙; 기존 7일 기본 규칙도 유지           |
+| 입력 임시 객체   | private `blog/staging/` 1일 만료; 영구 이미지 만료 없음        |
+| rendition 캐시   | `public, max-age=31536000, immutable`                          |
+| 계정 예산 알림   | `mumak-www early spend warning`, USD 0.01, 계정 소유자 이메일  |
+| 기존 계정 알림   | 자동 생성된 USD 10 알림 유지                                   |
+| admission        | UTC 하루 20회, 최소 간격 5초                                   |
+| 저장량 예약      | blog writer의 보수적 예산 8,000,000,000 bytes                  |
+| 한 요청 예약     | 160 MiB; 완료 시 입력 크기 + 영구 객체 크기 + 8 KiB로 정산     |
+| 예약 회수        | 발행 미진입 예약은 72시간 유예 뒤 다음 admission에서 자동 회수 |
 
 Lifecycle 삭제와 사용량 집계에는 지연이 있다. 무료량은 계정 전체에 합산되며 버킷별로
 늘어나지 않는다. Standard 무료량은 저장 공간 10 GB-month, Class A 월 100만 회,
@@ -104,18 +109,24 @@ full SHA-256 문법 전체를 검사하는 validator는 아니다. 공개 객체
 
 ## 실패와 복구
 
-- 실패·취소·만료 ticket의 예약은 자동 환급하지 않는다. 만료된 staging도 장부에서는
-  계속 보수적으로 계산한다. 새 업로드가 기존 부분 발행을 복구해도 이전 예약은 남는다.
+- 발행 단계에 들어가지 못한 ticket의 예약은 72시간 유예 뒤 다음 admission에서 회수한다.
+  staging lifecycle이 1일이므로 그 시점에는 해당 ticket이 차지한 바이트가 남아 있지 않다.
+  ticket claim 이후 실패한 예약은 부분 발행 가능성 때문에 회수하지 않는다. 새 업로드가 기존
+  부분 발행을 복구해도 이전 예약은 남는다.
 - processing 상태에서 실패하면 같은 ticket은 재처리하지 않는다. 새 ticket으로 같은
   사진을 올리면 저장된 manifest/checksum을 기준으로 누락 객체만 복구한다.
 - 저장된 바이트가 manifest와 다르거나 기존 encoder의 누락 바이트를 재현할 수 없으면
   overwrite 없이 멈춘다. 손상된 객체를 임의 삭제하거나 재인코딩해 덮어쓰지 않는다.
-- 실패·취소 admission만 누적하면 약 47회에서 8 GB 예산에 도달할 수 있다. 이는 실제 사용량을
-  조회하는 quota가 아니라 실패 시 추가 쓰기를 멈추는 정책이다.
+- 실패·취소 admission만 누적하면 약 47회에서 8 GB 예산에 도달할 수 있다. 하루 20회 제한이므로
+  3일 안에 연속 실패하면 여전히 `storage_limit`에 닿는다. 다만 72시간 유예가 지난 예약은
+  자동 회수되므로 잠금이 영구적이지는 않다. 이는 실제 사용량을 조회하는 quota가 아니라
+  실패 시 추가 쓰기를 멈추는 정책이다.
 - `storage_limit` 발생 시 먼저 업로드를 중단하고 모든 ticket과 실행 중인 함수가 종료됐는지
   확인한다. private 장부를 백업한 뒤 두 버킷 객체 inventory, 진행 중인 업로드, 다른 앱의
   사용량과 실제 결제 사용량을 대조한다. 그 근거 없이 장부를 삭제하거나 예약을 0으로 초기화하지 않는다.
   자동 회계 재조정 명령은 아직 제공하지 않는다. 영구 이미지를 자동 삭제해 용량을 맞추지 않는다.
+- 발행 실패 응답은 원인 코드를 유지한다. `collision`·`corruption`은 재시도를 권하지 않는
+  문구로 안내하고 500으로, 공개 URL 검증 실패는 503으로 응답한다. 서버 로그에도 같은 코드가 남는다.
 
 ## 검증 기록
 

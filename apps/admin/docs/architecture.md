@@ -94,8 +94,12 @@ mumak-www-public/blog/<asset-id>/content-v1/image.webp
 - admission은 UTC 하루 20회, 최소 간격 5초다. private CAS 장부로 8,000,000,000 bytes를 예약한다.
 - 요청당 160 MiB를 먼저 예약하고 완료 시 입력·영구 파일 크기와 8 KiB로 정산한다.
   이 장부는 계정 전체 실제 사용량이나 결제 상한이 아니다.
-- 실패·취소·만료 예약은 자동 환급하지 않는다. processing ticket 재처리는 거절하며,
-  새 ticket으로 같은 파일을 올리면 checksum이 일치하는 누락 객체를 복구할 수 있다.
+- 발행 단계에 들어가지 못한 예약은 staging lifecycle보다 넉넉한 72시간 유예 뒤 다음 admission에서
+  자동 회수한다. 영구 객체를 만들 수 있는 지점을 통과한 ticket은 회수 대상에서 제외하고 수동
+  대조까지 예약을 남긴다. processing ticket 재처리는 거절하며, 새 ticket으로 같은 파일을 올리면
+  checksum이 일치하는 누락 객체를 복구할 수 있다.
+- 발행 실패는 원인 코드를 유지해 응답한다. 저장소 상태 불일치(collision·corruption)는 재시도를
+  권하지 않고, 공개 URL 검증 실패만 일시적 실패로 안내한다.
 - staging은 1일 lifecycle로 삭제한다. 유효한 signed URL 재사용을 막기 위해 전송 직후 객체를
   삭제하지 않는다. 영구 이미지에는 만료 규칙을 적용하지 않는다.
 - 예산 알림과 WAF의 범위, 보수적 장부의 수동 정산 절차는 운영 기록을 따른다.

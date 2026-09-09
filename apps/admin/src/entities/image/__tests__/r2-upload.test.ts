@@ -41,6 +41,7 @@ describe('R2 image publication', () => {
   let verify: jest.Mock;
   let uploader: ReturnType<typeof createR2Uploader>;
   const ledgerKey = 'blog/control/upload-budget.json';
+  const reclaimDelay = 72 * 60 * 60_000;
 
   beforeAll(async () => {
     input = await sharp({ create: { width: 32, height: 18, channels: 3, background: '#305090' } })
@@ -75,9 +76,9 @@ describe('R2 image publication', () => {
     expect(createHash('sha256').update(source).digest('hex')).toBe(result.assetId);
     expect(memory.objects.has(`public/blog/${result.assetId}/source.jpg`)).toBe(false);
     expect(memory.objects.has(`private/blog/staging/${ticket.ticketId}`)).toBe(true);
-    expect(memory.json(ledgerKey).allocations[ticket.ticketId]).toBe(
-      input.length + Object.values(result.bytes).reduce((a, b) => a + b, 8192)
-    );
+    expect(memory.json(ledgerKey).allocations[ticket.ticketId]).toEqual({
+      bytes: input.length + Object.values(result.bytes).reduce((a, b) => a + b, 8192),
+    });
     const replay = await uploader.publish(ticket.ticketId);
     expect(replay.duplicate).toBe(true);
   });
@@ -101,9 +102,7 @@ describe('R2 image publication', () => {
       }
       return originalPut(...args);
     };
-    await expect(uploader.publish((await prepare()).ticketId)).rejects.toMatchObject({
-      code: 'public_verification_failed',
-    });
+    await expect(uploader.publish((await prepare()).ticketId)).rejects.toMatchObject({ code: 'storage_failure' });
     const original = [...memory.objects.entries()].find(([key]) => key.startsWith('public/'))!;
     const result = await uploader.publish((await prepare()).ticketId);
     expect(result.duplicate).toBe(true);
@@ -115,18 +114,14 @@ describe('R2 image publication', () => {
     const key = `public/blog/${result.assetId}/content-v1/image.jpg`;
     const bad = { body: Buffer.from('broken'), etag: 'bad' };
     memory.objects.set(key, bad);
-    await expect(uploader.publish((await prepare()).ticketId)).rejects.toMatchObject({
-      code: 'public_verification_failed',
-    });
+    await expect(uploader.publish((await prepare()).ticketId)).rejects.toMatchObject({ code: 'corruption' });
     expect(memory.objects.get(key)).toBe(bad);
   });
 
   it('refuses a mismatching canonical source', async () => {
     const result = await uploader.publish((await prepare()).ticketId);
     memory.objects.set(`private/blog/${result.assetId}/source.jpg`, { body: Buffer.from('collision'), etag: 'bad' });
-    await expect(uploader.publish((await prepare()).ticketId)).rejects.toMatchObject({
-      code: 'public_verification_failed',
-    });
+    await expect(uploader.publish((await prepare()).ticketId)).rejects.toMatchObject({ code: 'collision' });
   });
 
   it('claims one ticket once across two server instances', async () => {
@@ -148,7 +143,45 @@ describe('R2 image publication', () => {
     const ticket = await prepare(input.length + 1);
     await expect(uploader.publish(ticket.ticketId)).rejects.toMatchObject({ code: 'invalid_upload' });
     await expect(uploader.publish(ticket.ticketId)).rejects.toMatchObject({ code: 'upload_busy' });
-    expect(memory.json(ledgerKey).allocations[ticket.ticketId]).toBe(160 * 1024 * 1024);
+    expect(memory.json(ledgerKey).allocations[ticket.ticketId].bytes).toBe(160 * 1024 * 1024);
+  });
+
+  it('reclaims abandoned reservations once the staging lifecycle has removed their bytes', async () => {
+    const abandoned = [await prepare(), await prepare(), await prepare()];
+    timestamp += reclaimDelay;
+    const next = await uploader.issue(1);
+    const { allocations } = memory.json(ledgerKey);
+    expect(Object.keys(allocations)).toEqual([next.ticketId]);
+    expect(allocations[next.ticketId].bytes).toBe(160 * 1024 * 1024);
+    for (const ticket of abandoned) {
+      await expect(uploader.publish(ticket.ticketId)).rejects.toMatchObject({ code: 'invalid_ticket' });
+    }
+  });
+
+  it('never reclaims a reservation whose publication could have written permanent objects', async () => {
+    verify.mockRejectedValue(new Error('unreachable'));
+    const ticket = await prepare();
+    await expect(uploader.publish(ticket.ticketId)).rejects.toMatchObject({ code: 'public_verification_failed' });
+    timestamp += reclaimDelay;
+    await uploader.issue(1);
+    expect(memory.json(ledgerKey).allocations[ticket.ticketId].bytes).toBe(160 * 1024 * 1024);
+  });
+
+  it('keeps version 1 allocations as settled bytes that are never reclaimed', async () => {
+    const legacy = randomUUID();
+    memory.set(ledgerKey, {
+      version: 1,
+      day: '2026-09-09',
+      attempts: 1,
+      lastIssuedAt: 0,
+      allocations: { [legacy]: 4096 },
+    });
+    await uploader.issue(1);
+    timestamp += reclaimDelay;
+    await uploader.issue(1);
+    const ledger = memory.json(ledgerKey);
+    expect(ledger.version).toBe(2);
+    expect(ledger.allocations[legacy]).toEqual({ bytes: 4096 });
   });
 
   it('rejects missing staging, invalid images and failed public verification', async () => {
@@ -209,6 +242,24 @@ describe('R2 image publication', () => {
     const id = randomUUID();
     memory.set(`blog/control/tickets/${id}.json`, { state: 'ready' });
     await expect(uploader.publish(id)).rejects.toMatchObject({ code: 'invalid_ticket' });
+  });
+
+  it.each([
+    { version: 3, day: '2026-09-09', attempts: 0, lastIssuedAt: 0, allocations: {} },
+    { version: 2, day: 1, attempts: 0, lastIssuedAt: 0, allocations: {} },
+    { version: 2, day: '2026-09-09', attempts: -1, lastIssuedAt: 0, allocations: {} },
+    { version: 2, day: '2026-09-09', attempts: 0, lastIssuedAt: 0, allocations: { [randomUUID()]: { bytes: 0 } } },
+    {
+      version: 2,
+      day: '2026-09-09',
+      attempts: 0,
+      lastIssuedAt: 0,
+      allocations: { [randomUUID()]: { bytes: 1, reclaimAt: -1 } },
+    },
+    { version: 2, day: '2026-09-09', attempts: 0, lastIssuedAt: 0, allocations: { 'not-a-ticket': { bytes: 1 } } },
+  ])('fails closed on a malformed ledger %#', async ledger => {
+    memory.set(ledgerKey, ledger);
+    await expect(uploader.issue(1)).rejects.toMatchObject({ code: 'corruption' });
   });
 
   it('bounds retries on persistent conditional-write contention', async () => {
