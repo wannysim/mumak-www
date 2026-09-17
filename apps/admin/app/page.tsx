@@ -19,7 +19,7 @@ export default async function Page() {
         <p className="text-sm font-medium text-muted-foreground">Private operator tool</p>
         <h1 className="text-3xl font-semibold tracking-tight">블로그 이미지 발행</h1>
         <p className="text-sm leading-6 text-muted-foreground">
-          JPEG 한 장을 검증하고 불변 JPEG/WebP 주소와 MDX snippet을 만듭니다.
+          JPEG 한 장을 검증하고 이미지 주소와 HTML·Markdown·React/MDX·Next.js 스니펫을 만듭니다.
         </p>
       </header>
       <AdminSession initialAuthenticated={authenticated} />
