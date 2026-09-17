@@ -23,25 +23,26 @@
 > 이 절은 단계 단위 진행률 보드다. 단계가 끝날 때마다 여기서 체크하고 PR 번호를 적는다.
 > **지금 할 일은 `docs/design-system/NEXT.md`에 있다.** 상세 체크리스트는 §8·§9, 산출물은 `docs/design-system/`.
 
-| 단계                                            | 기간       | 상태                          | 산출물                                                 |
-| ----------------------------------------------- | ---------- | ----------------------------- | ------------------------------------------------------ |
-| 단계 0 — 기준선과 문제 정의                     | 1주차      | **진행 중 — Q-004 결정 완료** | `docs/design-system/` 6개 문서 + baselines 36장        |
-| 단계 1 — 최소 수직 절편                         | 2주차      | 대기                          | token schema, Figma Variables, Button/ContentCard 절편 |
-| 단계 2 — 시각·interaction 기준과 component 계약 | 3\~6주차   | 대기                          | 지원 6개 계약과 테스트                                 |
-| 단계 3 — 접근성·visual regression·migration     | 7\~10주차  | 대기                          | visual baseline 6\~10개, 대표 화면 4개 migration       |
-| 단계 4 — 문서, 외부 리뷰, 사례 연구 v1          | 11\~12주차 | 대기                          | 사례 연구, evidence matrix, 5분 발표                   |
-| 단계 5 — token 운영과 두 번째 소비자            | 4\~6개월   | 대기                          | 진입 조건 미충족                                       |
-| 단계 6 — 선택적 확장과 채용 대응                | 7\~12개월  | 대기                          | 진입 조건 미충족                                       |
+| 단계                                            | 기간       | 상태                        | 산출물                                                 |
+| ----------------------------------------------- | ---------- | --------------------------- | ------------------------------------------------------ |
+| 단계 0 — 기준선과 문제 정의                     | 1주차      | **진행 중 — 원칙 4개 정리** | `docs/design-system/` 6개 문서 + baselines 36장        |
+| 단계 1 — 최소 수직 절편                         | 2주차      | 대기                        | token schema, Figma Variables, Button/ContentCard 절편 |
+| 단계 2 — 시각·interaction 기준과 component 계약 | 3\~6주차   | 대기                        | 지원 6개 계약과 테스트                                 |
+| 단계 3 — 접근성·visual regression·migration     | 7\~10주차  | 대기                        | visual baseline 6\~10개, 대표 화면 4개 migration       |
+| 단계 4 — 문서, 외부 리뷰, 사례 연구 v1          | 11\~12주차 | 대기                        | 사례 연구, evidence matrix, 5분 발표                   |
+| 단계 5 — token 운영과 두 번째 소비자            | 4\~6개월   | 대기                        | 진입 조건 미충족                                       |
+| 단계 6 — 선택적 확장과 채용 대응                | 7\~12개월  | 대기                        | 진입 조건 미충족                                       |
 
 ### 다음 액션 아이템
 
 **`docs/design-system/NEXT.md`를 본다.** 액션 아이템의 단일 소재지다.
 이 절은 단계 단위 진행률만 다루고, 오늘 할 일은 그쪽에서 관리한다.
 
-단계 0에서 기계적으로 끝낼 수 있는 항목과 Q-001 \~ Q-004의 결정 기록은 닫혔다. Q-003과 Q-004의 후속 구현·실기기 및 가시성 검증은 완료를 뜻하지 않는다. 남은 것은 원칙 재작성, 문제 설명, 자기 비평처럼 본인 판단이 필요한 항목이다.
+단계 0에서 기계적으로 끝낼 수 있는 항목과 Q-001 \~ Q-004의 결정 기록, 본인 판단에 따른 원칙 4개 재작성은 닫혔다. Q-003과 Q-004의 후속 구현·실기기 및 가시성 검증, P-4의 본문 간격 비교는 완료를 뜻하지 않는다. 남은 것은 시스템 필요성 설명과 자기 비평이다.
 
 ### 완료 기록
 
+- [x] **A-2 — 본인 판단으로 원칙 재작성** (2026-09-17, 현재 작업 브랜치): 키보드 조작·포커스 식별, 브랜드색의 용도·테마별 변형, 글의 성장 단계, 모바일 본문 읽기의 4개 원칙과 사용자 문제·통과/기각 예시를 정리했다. 본인 관찰과 코드 확인, 후속 비교 제안을 구분했다.
 - [x] **PR 1 — audit와 기준선** (단계 0 기계적 항목): `docs/design-system/{README,audit,principles,support-matrix,exceptions,decision-log}.md` + `baselines/` 36장 + `apps/blog/scripts/capture-baselines.mjs`. 부수 수정: `plan.md` 물결표 escape(format:check 깨져 있었음), `apps/blog/AGENTS.md`의 axe 미도입 문구 정정.
 - [x] **Q-001 — 카드 hover 제목 대비**: large-scale text 예외에 기대지 않고 `accent-foreground`를 선택했다. 검토 중 발견한 `GardenOverview`의 같은 결함도 함께 닫았다. 결정 근거와 되돌리는 조건은 `decision-log.md` D-007.
 - [x] **Q-002 — karaoke radius 차이**: 공유 component의 구현·동작 기반은 유지하고 접근성 요구사항은 공통 원칙으로 다루면서, 선형 모티브와 편집 도구·콘솔 같은 product theme를 위해 별도 radius를 유지한다. 검증되지 않은 읽기 효익은 근거에서 제외했고, wannysim 브랜드 범위가 확장되면 전체 시각 언어 기준으로 재검토한다. 결정은 `decision-log.md` D-008.
@@ -261,7 +262,7 @@ MVP는 다음 한 흐름으로 제한한다.
 
 포함:
 
-- 제품 원칙 3개.
+- 제품 원칙 4개.
 - 기존 token·component·예외 audit.
 - 최초 지원 대상 6개: `Button`, `ContentCard`, `ContentSegmentNav`, `PageHeader`, `Link`/`ArrowLink`, `Badge`.
 - color, radius, motion의 최소 semantic token 후보.
@@ -383,7 +384,7 @@ MVP는 다음 한 흐름으로 제한한다.
 - [x] `packages/ui/src/styles/globals.css`, `apps/karaoke/src/index.css`, `apps/mumak-native/constants/theme.ts`의 의미·이름·값 차이를 표로 만든다.
 - [x] `packages/ui/src/components/`의 설치 목록과 최초 지원 목록을 분리한다.
 - [x] blog product recipe와 Spotify·graph·OG 등 예외를 분류한다.
-- [ ] 사용자 경험 원칙 3개와 각 원칙의 좋은 예·나쁜 예를 2개씩 작성한다.
+- [x] 사용자 경험 원칙 4개와 각 원칙의 좋은 예·나쁜 예를 2개 이상 작성한다.
 - [x] 기존 axe, unit, design validator, E2E 범위와 빈틈을 기록한다.
 - [ ] 5분 문제 설명을 녹화하고 기술 이름만 나열한 부분을 수정한다.
 
@@ -656,9 +657,9 @@ visual baseline 후보:
 
 수:
 
-- [ ] 사용자 경험 원칙 3개를 작성한다.
-- [ ] 각 원칙에 좋은 예·나쁜 예 2개씩 연결한다.
-- [ ] “사용자 문제 없이 기술만 설명한 문장”을 삭제하거나 다시 쓴다.
+- [x] 사용자 경험 원칙 4개를 작성한다.
+- [x] 각 원칙에 좋은 예·나쁜 예 2개 이상 연결한다.
+- [x] “사용자 문제 없이 기술만 설명한 문장”을 삭제하거나 다시 쓴다.
 
 목:
 
