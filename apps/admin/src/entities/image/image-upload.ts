@@ -12,6 +12,7 @@ const PUBLIC_VERIFICATION_TIMEOUT_MS = 10_000;
 const ASSET_ID_PATTERN = /^[0-9a-f]{64}$/;
 
 export type ImageUploadErrorCode =
+  | 'animated_image'
   | 'collision'
   | 'corruption'
   | 'insufficient_storage'
@@ -95,8 +96,7 @@ export async function withPreparedImage<T>(
         throw new ImageUploadError('invalid_configuration');
       if (!input.length) throw new ImageUploadError('invalid_image');
       if (input.length > maxBytes) throw new ImageUploadError('payload_too_large');
-      if (input[0] !== 0xff || input[1] !== 0xd8 || input[2] !== 0xff)
-        throw new ImageUploadError('unsupported_media_type');
+      if (!hasSupportedSignature(input)) throw new ImageUploadError('unsupported_media_type');
       directory = await mkdtemp(path.join(tmpdir(), 'mumak-image-'));
       await assertFreeSpace(directory, 128 * 1024 * 1024 + input.length);
       const inputPath = path.join(directory, 'input');
@@ -134,6 +134,27 @@ export async function withPreparedImage<T>(
   }
 }
 
+function hasSupportedSignature(input: Buffer): boolean {
+  if (input[0] === 0xff && input[1] === 0xd8 && input[2] === 0xff) return true;
+  if (input.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+    // APNG is not decoded as animation by every libvips build.
+    for (let offset = 8; offset + 12 <= input.length;) {
+      if (input.toString('ascii', offset + 4, offset + 8) === 'acTL') throw new ImageUploadError('animated_image');
+      offset += 12 + input.readUInt32BE(offset);
+    }
+    return true;
+  }
+  if (/^GIF8[79]a$/.test(input.toString('ascii', 0, 6))) return true;
+  if (input.toString('ascii', 0, 4) === 'RIFF' && input.toString('ascii', 8, 12) === 'WEBP') return true;
+  if (input.toString('ascii', 4, 8) !== 'ftyp' || input.length < 16) return false;
+  const boxEnd = Math.min(input.readUInt32BE(0), input.length, 256);
+  for (let offset = 8; offset + 4 <= boxEnd; offset += 4) {
+    if (offset === 12) continue;
+    if (['avif', 'avis'].includes(input.toString('ascii', offset, offset + 4))) return true;
+  }
+  return false;
+}
+
 async function assertFreeSpace(storageRoot: string, requiredBytes: number): Promise<void> {
   const storageStats = await statfs(storageRoot, { bigint: true });
   const availableBytes = storageStats.bavail * storageStats.bsize;
@@ -148,8 +169,11 @@ async function createCanonicalSource(inputPath: string, destination: string, max
     const options = { failOn: 'warning' as const, limitInputPixels: maxPixels, pages: 1 };
     const inputMetadata = await sharp(inputPath, options).metadata();
 
-    if (inputMetadata.format !== 'jpeg') throw new ImageUploadError('unsupported_media_type');
-    if ((inputMetadata.pages ?? 1) !== 1) throw new ImageUploadError('unsupported_media_type');
+    const supported =
+      ['jpeg', 'png', 'webp', 'gif'].includes(inputMetadata.format ?? '') ||
+      (inputMetadata.format === 'heif' && inputMetadata.compression === 'av1');
+    if (!supported) throw new ImageUploadError('unsupported_media_type');
+    if ((inputMetadata.pages ?? 1) !== 1) throw new ImageUploadError('animated_image');
     if (!inputMetadata.width || !inputMetadata.height) throw new ImageUploadError('invalid_image');
     if (inputMetadata.width * inputMetadata.height > maxPixels) {
       throw new ImageUploadError('pixel_limit_exceeded');
@@ -158,6 +182,7 @@ async function createCanonicalSource(inputPath: string, destination: string, max
     const info = await sharp(inputPath, options)
       .autoOrient()
       .toColourspace('srgb')
+      .flatten({ background: '#ffffff' })
       .jpeg({
         quality: 95,
         chromaSubsampling: '4:4:4',
