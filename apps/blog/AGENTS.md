@@ -232,6 +232,7 @@ Blog와 Garden은 같은 사이트의 sibling 섹션이다. 두 섹션의 대응
 - axe 접근성 스캔은 도입됨(`e2e/a11y.spec.ts`, WCAG 2.1 A/AA 7개 시나리오). 상세 페이지는 `.prose`를 제외한다.
 - visual regression(`toHaveScreenshot`)은 미도입. 도입 시 기존 `blog` E2E 안에 포함해 새 GitHub check를 늘리지 않는다.
 - 디자인시스템 작업의 기준선·지원 범위·예외·결정 기록은 `docs/design-system/`에 있다. 계획은 `apps/blog/plan.md`.
+- 홈서버 이관 경위와 배포·운영 런북(Cloudflare, NPM, promote → GHCR → Watchtower)은 `apps/blog/docs/home-server-migration.md`에 있다. `plan.md`와 다른 문서다.
 - 확인된 미해결 결함: light 모드 `--ring` 대비 2.82:1(비텍스트 최소치 3:1 미달). axe는 포커스 표시 대비를 평가하지 않아 스캔이 통과해도 남는다. `docs/design-system/audit.md` 참조.
 
 ---
