@@ -196,7 +196,7 @@ describe('R2 image publication', () => {
     expect(memory.json(ledgerKey).allocations[ticket.ticketId].bytes).toBe(160 * 1024 * 1024);
   });
 
-  it('keeps version 1 allocations as settled bytes that are never reclaimed', async () => {
+  it('keeps settled version 1 allocations as bytes that are never reclaimed', async () => {
     const legacy = randomUUID();
     memory.set(ledgerKey, {
       version: 1,
@@ -211,6 +211,38 @@ describe('R2 image publication', () => {
     const ledger = memory.json(ledgerKey);
     expect(ledger.version).toBe(2);
     expect(ledger.allocations[legacy]).toEqual({ bytes: 4096 });
+  });
+
+  it('dates a version 1 reservation from the ledger admission rather than the read', async () => {
+    const stuck = randomUUID();
+    const issuedAt = timestamp;
+    memory.set(ledgerKey, {
+      version: 1,
+      day: '2026-09-09',
+      attempts: 1,
+      lastIssuedAt: issuedAt,
+      allocations: { [stuck]: 160 * 1024 * 1024 },
+    });
+    timestamp += 6_000;
+    await uploader.issue(1);
+    expect(memory.json(ledgerKey).allocations[stuck]).toEqual({
+      bytes: 160 * 1024 * 1024,
+      reclaimAt: issuedAt + reclaimDelay,
+    });
+    timestamp = issuedAt + reclaimDelay;
+    await uploader.issue(1);
+    expect(memory.json(ledgerKey).allocations[stuck]).toBeUndefined();
+  });
+
+  it('reopens admission when only version 1 reservations exhausted the budget', async () => {
+    const issuedAt = timestamp;
+    const allocations = Object.fromEntries(Array.from({ length: 47 }, () => [randomUUID(), 160 * 1024 * 1024]));
+    memory.set(ledgerKey, { version: 1, day: '2026-09-09', attempts: 1, lastIssuedAt: issuedAt, allocations });
+    timestamp += 6_000;
+    await expect(uploader.issue(1)).rejects.toMatchObject({ code: 'storage_limit' });
+    timestamp = issuedAt + reclaimDelay;
+    await expect(uploader.issue(1)).resolves.toHaveProperty('ticketId');
+    expect(Object.keys(memory.json(ledgerKey).allocations)).toHaveLength(1);
   });
 
   it('rejects missing staging, invalid images and failed public verification', async () => {

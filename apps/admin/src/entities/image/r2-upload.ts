@@ -267,16 +267,25 @@ function parseLedger(object: StoredObject): Ledger {
     allocations: Object.fromEntries(
       Object.entries(allocations).map(([id, entry]) => {
         if (!TICKET_PATTERN.test(id)) throw new ImageUploadError('corruption');
-        return [id, parseAllocation(entry)];
+        return [id, parseAllocation(entry, lastIssuedAt)];
       })
     ),
   };
 }
 
-// version 1 장부는 예약과 정산을 구분하지 못한다. 회수하지 않는 정산으로 읽어 기존 보수적
-// 회계를 유지한다.
-function parseAllocation(entry: unknown): Allocation {
-  if (isReservedBytes(entry)) return { bytes: entry };
+// version 1 장부는 예약과 정산을 구분하는 필드가 없다. 다만 정산값은 입력 크기와 영구 파일
+// 크기의 합이라 예약 상한과 정확히 같아질 수 없으므로, 상한과 같은 값만 아직 정산되지 않은
+// 예약으로 읽는다. 나머지는 회수하지 않는 정산으로 남긴다.
+//
+// 유예 기준은 장부가 기록한 마지막 admission 시각이다. 읽은 시각을 쓰면 예산이 이미 소진된
+// 장부에서 회수가 영원히 시작되지 않는다. change()가 storage_limit으로 던지면 장부를 쓰지
+// 못해 기준 시각도 저장되지 않고, 다음 읽기가 기준을 다시 미래로 밀기 때문이다.
+function parseAllocation(entry: unknown, lastIssuedAt: number): Allocation {
+  if (isReservedBytes(entry)) {
+    return entry === RESERVATION_BYTES
+      ? { bytes: entry, reclaimAt: lastIssuedAt + RECLAIM_DELAY_MS }
+      : { bytes: entry };
+  }
   if (!isRecord(entry) || !isReservedBytes(entry.bytes)) throw new ImageUploadError('corruption');
   const { bytes, reclaimAt } = entry;
   if (reclaimAt === undefined) return { bytes };

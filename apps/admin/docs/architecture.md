@@ -99,6 +99,8 @@ mumak-www-public/blog/<asset-id>/content-v1/image.webp
   지점을 통과한 예약은 수동 대조까지 남는다. 이 장부 쓰기가 실패하면 ticket은 아직 ready여서
   같은 ticket으로 다시 시도할 수 있다. processing ticket 재처리는 거절하며, 새 ticket으로 같은 파일을 올리면
   checksum이 일치하는 누락 객체를 복구할 수 있다.
+- version 1 장부의 예약 상한 항목은 미정산 예약으로 보고 기록된 마지막 admission 시각부터 유예를
+  센다. 그 외 값은 정산으로 남긴다.
 - 발행 실패는 원인 코드를 유지해 응답한다. 저장소 상태 불일치(collision·corruption)는 재시도를
   권하지 않고, 공개 URL 검증 실패만 일시적 실패로 안내한다.
 - staging은 1일 lifecycle로 삭제한다. 유효한 signed URL 재사용을 막기 위해 전송 직후 객체를
