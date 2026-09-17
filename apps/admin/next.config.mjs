@@ -28,7 +28,7 @@ const nextConfig = {
           { key: 'Cache-Control', value: 'no-store' },
           {
             key: 'Content-Security-Policy',
-            value: `default-src 'self'; base-uri 'self'; connect-src 'self' https://*.r2.cloudflarestorage.com${process.env.NODE_ENV === 'development' ? ' ws:' : ''}; form-action 'self'; frame-ancestors 'none'; img-src 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'`,
+            value: `default-src 'self'; base-uri 'self'; connect-src 'self' https://*.r2.cloudflarestorage.com${process.env.NODE_ENV === 'development' ? ' ws:' : ''}; form-action 'self'; frame-ancestors 'none'; img-src 'self' https://img.wannysim.com; object-src 'none'; script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'`,
           },
           { key: 'Permissions-Policy', value: 'camera=(), geolocation=(), microphone=()' },
           { key: 'Referrer-Policy', value: 'no-referrer' },

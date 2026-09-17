@@ -46,10 +46,10 @@ test('uploads directly to R2 and publishes a copyable React / MDX snippet', asyn
   await page.reload();
   await expect(page.getByText('로그인됨')).toBeVisible();
   await expect(page.getByLabel('업로드 토큰')).toHaveCount(0);
-  await page.getByLabel('JPEG 이미지').setInputFiles({
-    name: 'photo.jpg',
-    mimeType: 'image/jpeg',
-    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  await page.getByLabel('업로드 이미지').setInputFiles({
+    name: 'photo.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
   });
   await page.getByLabel('대체 텍스트').fill('산 위로 떠오르는 해');
   await page.getByRole('button', { name: '이미지 발행' }).click();
@@ -70,9 +70,14 @@ test('uploads directly to R2 and publishes a copyable React / MDX snippet', asyn
   expect(transferAuthorization).toBeUndefined();
 });
 
-test('is excluded from indexing', async ({ page }) => {
+test('is excluded from indexing and serves the admin favicon', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+  const icon = page.locator('link[rel="icon"][type="image/svg+xml"]');
+  await expect(icon).toHaveAttribute('href', /icon\.svg/);
+  const response = await page.request.get((await icon.getAttribute('href'))!);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()['content-type']).toContain('image/svg+xml');
 });
 
 test('keeps a server-issued HttpOnly session across reload and clears it on logout', async ({ page, context }) => {
@@ -89,7 +94,7 @@ test('keeps a server-issued HttpOnly session across reload and clears it on logo
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
   expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
   await page.reload();
-  await expect(page.getByLabel('JPEG 이미지')).toBeVisible();
+  await expect(page.getByLabel('업로드 이미지')).toBeVisible();
   await page.getByRole('button', { name: '로그아웃' }).click();
   await expect(page.getByRole('heading', { name: '관리자 로그인' })).toBeVisible();
   await page.reload();
@@ -115,7 +120,7 @@ test('returns to login when an upload encounters a missing session', async ({ pa
   await expect(page.getByText('로그인됨')).toBeVisible();
   await context.clearCookies();
   await page
-    .getByLabel('JPEG 이미지')
+    .getByLabel('업로드 이미지')
     .setInputFiles({ name: 'test.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff]) });
   await page.getByLabel('대체 텍스트').fill('세션 만료 검증');
   await page.getByRole('button', { name: '이미지 발행' }).click();
