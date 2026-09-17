@@ -44,6 +44,8 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       # KVM 가속이 있어야 에뮬레이터가 현실적인 속도로 부팅된다.
       - name: Enable KVM
