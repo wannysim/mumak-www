@@ -3,9 +3,13 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { buildAlternates } from '@/src/app/seo';
 import { ArrowLink } from '@/src/shared/ui';
+import { ContentImage } from '@/src/shared/ui/content-image';
+import { ImageZoom } from '@/src/shared/ui/image-zoom';
 import { SocialLinks } from '@/src/widgets/footer';
 
 const TECH_STACK = ['TypeScript', 'React', 'Next.js', 'React Native'] as const;
+const PROFILE_IMAGE =
+  'https://img.wannysim.com/blog/5dac9df09fd36092cc7c76e2181736b6f23186e16f6cae5d6c9c07babc8ac46b/content-v1';
 
 interface AboutPageProps {
   params: Promise<{ locale: string }>;
@@ -30,18 +34,32 @@ export default async function AboutPage({ params }: AboutPageProps) {
 
   return (
     <article className="max-w-2xl mx-auto">
-      <header className="mb-8">
+      <header className="mb-6">
         <h1 className="text-3xl font-bold mb-2">{t('title')}</h1>
         <p className="text-lg text-muted-foreground">{t('description')}</p>
         <p className="mt-1 text-sm text-muted-foreground">{t('role')}</p>
       </header>
 
-      <div className="mb-8">
-        <SocialLinks variant="default" />
-      </div>
+      <SocialLinks variant="default" className="mb-8 flex-wrap" />
 
-      <div className="prose prose-neutral dark:prose-invert">
-        <p className="whitespace-pre-wrap leading-relaxed">{t('intro')}</p>
+      <div className="grid items-start gap-6 sm:grid-cols-[minmax(0,1fr)_12rem] sm:gap-8">
+        <ImageZoom className="w-40 justify-self-center sm:col-start-2 sm:row-start-1 sm:w-full">
+          <ContentImage
+            src={`${PROFILE_IMAGE}/image.jpg`}
+            zoomSrc={`${PROFILE_IMAGE}/image.webp`}
+            alt={t('photoAlt')}
+            width={1067}
+            height={1600}
+            sizes="(min-width: 640px) 192px, 160px"
+            className="h-auto w-full"
+            loading="eager"
+            decoding="async"
+          />
+        </ImageZoom>
+
+        <div className="prose prose-neutral dark:prose-invert sm:col-start-1 sm:row-start-1">
+          <p className="m-0 whitespace-pre-wrap break-keep leading-relaxed">{t('intro')}</p>
+        </div>
       </div>
 
       <section className="mt-10">

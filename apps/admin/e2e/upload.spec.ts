@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('uploads directly to R2 and publishes a copyable MDX snippet', async ({ page }) => {
+test('uploads directly to R2 and publishes a copyable React / MDX snippet', async ({ page }) => {
   const hash = 'a'.repeat(64);
   let authorization = '';
   let contentType = '';
@@ -54,9 +54,17 @@ test('uploads directly to R2 and publishes a copyable MDX snippet', async ({ pag
   await page.getByLabel('대체 텍스트').fill('산 위로 떠오르는 해');
   await page.getByRole('button', { name: '이미지 발행' }).click();
 
-  const snippet = page.getByRole('textbox', { name: 'MDX snippet' });
+  const snippet = page.getByRole('textbox', { name: 'React / MDX snippet' });
   await expect(snippet).toHaveValue(/https:\/\/img\.wannysim\.com\/blog\//);
   await expect(snippet).toHaveValue(/width="1600"/);
+  await page.getByRole('radio', { name: 'Next.js', exact: true }).check();
+  await expect(page.getByRole('textbox', { name: 'Next.js snippet' })).toHaveValue(/import Image from 'next\/image'/);
+  await expect(page.getByRole('textbox', { name: 'Next.js snippet' })).toHaveValue(/width=\{1600\}/);
+  await expect(page.getByRole('button', { name: '도메인 설정 복사' })).toBeVisible();
+  await page.getByRole('radio', { name: 'HTML', exact: true }).check();
+  await expect(page.getByRole('textbox', { name: 'HTML snippet' })).toHaveValue(/srcset=/);
+  await page.getByRole('radio', { name: 'Markdown', exact: true }).check();
+  await expect(page.getByRole('textbox', { name: 'Markdown snippet' })).toHaveValue(/^!\[/);
   expect(authorization).toBe('');
   expect(contentType).toBe('application/json');
   expect(transferAuthorization).toBeUndefined();

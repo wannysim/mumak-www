@@ -114,9 +114,15 @@
     "title": "About",
     "description": "Hello, I'm Wan Sim.",
     "role": "Software Engineer at Apartmentary",
+    "photoAlt": "Me sitting in a garden, holding a camera",
     "intro": "I am a software engineer who values positivity, efficiency, and honesty.\nThis is a space where I refactor the tangled thoughts in my head into clean text.\nWhile this blog serves more as a personal record than a content for others, it is always open.\n\nFeel free to look around, just like browsing through my source code.",
     "stackTitle": "Tech Stack",
     "nowCta": "What I'm up to now"
+  },
+  "imageViewer": {
+    "open": "Enlarge image",
+    "title": "Image",
+    "close": "Close image"
   },
   "now": {
     "lastUpdated": "Last updated"

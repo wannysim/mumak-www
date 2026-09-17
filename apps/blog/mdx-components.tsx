@@ -5,6 +5,8 @@ import { Link } from '@/src/shared/config/i18n';
 import { EXTERNAL_LINK_REL, isExternalHref, isInAppHref, normalizeMdxInAppHref } from '@/src/shared/lib/url';
 import { normalizeHeadingToAnchor } from '@/src/shared/lib/wikilink';
 import { BrokenWikiEmbed, BrokenWikiLink, WikiEmbed, WikiLink } from '@/src/shared/ui';
+import { ContentImage } from '@/src/shared/ui/content-image';
+import { ImageZoom } from '@/src/shared/ui/image-zoom';
 import { SocialLinks } from '@/src/widgets/footer';
 
 // text-primary는 라이트에서 흰 배경 대비 3.48:1로 AA(4.5:1) 미달이다. 같은 hue 계열의
@@ -122,6 +124,8 @@ export const mdxComponents: MDXComponents = {
   th: ({ children }) => <th className="border border-border px-4 py-2 bg-muted font-semibold text-left">{children}</th>,
   td: ({ children }) => <td className="border border-border px-4 py-2">{children}</td>,
   // Custom components
+  ContentImage,
+  ImageZoom,
   SocialLinks,
   // Garden wikilink components
   WikiLink,

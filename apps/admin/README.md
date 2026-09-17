@@ -1,6 +1,6 @@
 # Media Admin
 
-JPEG를 R2에 발행하고 블로그용 JPEG/WebP 주소와 MDX snippet을 만드는 내부 운영 도구다.
+JPEG를 R2에 발행하고 JPEG/WebP 주소와 용도별 이미지 스니펫을 만드는 내부 운영 도구다.
 인증·인코딩·불변성 계약은 [architecture.md](docs/architecture.md), 운영 설정은
 [r2-setup.md](docs/r2-setup.md)를 따른다.
 
@@ -8,7 +8,19 @@ JPEG를 R2에 발행하고 블로그용 JPEG/WebP 주소와 MDX snippet을 만�
 
 [관리자 페이지](https://admin.wannysim.com)에서 업로드 토큰으로 한 번 로그인한다.
 같은 브라우저에서 7일간 유지되며 새로고침해도 다시 입력하지 않는다. JPEG와 대체 텍스트를 입력해
-발행하고 MDX snippet을 블로그 본문에 붙인다. 사용을 마치면 로그아웃할 수 있다.
+발행한 뒤 스니펫 형식을 선택해 복사한다. 형식을 바꾸거나 대체 텍스트를 수정할 때 다시 업로드하지 않는다.
+사용을 마치면 로그아웃할 수 있다.
+
+| 형식        | 사용처                    | 출력                                        |
+| ----------- | ------------------------- | ------------------------------------------- |
+| React / MDX | 이 블로그 본문, React JSX | WebP/JPEG `<picture>`, `srcSet`             |
+| HTML        | 일반 HTML                 | WebP/JPEG `<picture>`, `srcset`             |
+| Markdown    | 일반 Markdown 편집기      | JPEG 이미지 문법; 크기와 WebP fallback 없음 |
+| Next.js     | Next.js 페이지·컴포넌트   | `next/image` import + 반응형 `<Image>`      |
+
+Next.js 형식은 표시 크기에 맞게 `sizes`를 조정하고, 함께 제공되는 항목을 기존
+`next.config`의 `images.remotePatterns` 배열에 추가한다. 이 블로그의 MDX에는 **React / MDX**를
+사용한다. 렌더링 단계에서 Next Image 최적화와 확대 보기가 자동 적용되고, RSS에는 native `<picture>`가 유지된다.
 
 ## 로컬 실행
 

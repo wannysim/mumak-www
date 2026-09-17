@@ -152,6 +152,20 @@ draft: false
 관련 노트는 [[note-slug]] 또는 [[note-slug|표시할 텍스트]]로 연결합니다.
 ```
 
+### 이미지
+
+이미지 발행 도구에서 **React / MDX** 형식의 WebP/JPEG `<picture>` snippet을 복사해 본문에 붙입니다.
+블로그·Garden·Now의 공통 MDX 설정이 발행 URL 쌍과 실제 크기를 확인해 `ContentImage`(`next/image`)로 렌더링하고 확대 버튼을 추가합니다.
+별도 import는 필요 없습니다. `sizes`에 맞는 썸네일을 내려받고, 확대 뷰는 전체 크기의 WebP와 alt 캡션을 표시합니다.
+작성된 native `<picture>`는 RSS·원문 Markdown에서 유지됩니다. 커스텀 picture나 크기를 모르는 이미지도 native 렌더링을 유지합니다.
+클릭·Enter·Space로 열고, 닫기 버튼·Esc·바깥 클릭으로 닫습니다.
+
+링크나 버튼 안에 있는 이미지, 빈 alt 또는 `role="presentation"`/`aria-hidden="true"`로 지정한 장식 이미지는 확대하지 않습니다.
+MDX 밖의 페이지에서는 `@/src/shared/ui/image-zoom`의 `ImageZoom`으로 `@/src/shared/ui/content-image`의 `ContentImage`를 감쌉니다.
+`src`에 JPEG, `zoomSrc`에 전체 크기의 WebP, `width`·`height`에 발행 크기, `sizes`에 실제 표시 너비를 지정합니다.
+native `<picture>`와 `<img>`도 `ImageZoom`으로 감쌀 수 있습니다.
+발행 이미지 형식·크기·대체 텍스트 검증은 기존 `pnpm validate:content` 규칙을 따릅니다.
+
 ### Frontmatter
 
 | 필드        | 블로그 글 | Garden 노트 | 설명                               |

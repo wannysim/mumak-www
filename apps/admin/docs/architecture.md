@@ -21,7 +21,7 @@
 - admin은 `apps/admin`을 root directory로 하는 독립 Vercel 프로젝트다.
 - 영구 저장소는 R2뿐이다. 변환마다 서버가 임시 디렉터리를 생성하고 성공·실패 뒤 삭제한다.
 - 공개 도메인과 자산 URL은 블로그 앱의 배포 위치에 의존하지 않는다.
-- DB, 요청 시 이미지 변환기, 별도 queue는 사용하지 않는다.
+- 발행 서비스는 DB, 요청 시 이미지 변환기, 별도 queue를 사용하지 않는다. 소비 앱인 블로그는 Next Image의 크기별 변환·캐시를 사용한다.
 
 ## 인증과 업로드
 
@@ -110,8 +110,18 @@ mumak-www-public/blog/<asset-id>/content-v1/image.webp
 
 ## 블로그 사용 계약
 
-성공 응답의 MDX snippet은 WebP `<source>`와 JPEG `<img>`를 갖춘 `<picture>`다.
+성공 응답의 공개 URL과 크기를 바탕으로 클라이언트가 스니펫을 생성한다. 형식 선택은 재업로드나 R2 변경을 일으키지 않는다.
+기본 React / MDX snippet은 WebP `<source>`와 JPEG `<img>`를 갖춘 `<picture>`다.
 `img.wannysim.com/blog/<asset-id>/content-v1/image.{jpg,webp}`를 그대로 사용한다.
 실제 rendition의 width/height와 `loading="lazy"`, `decoding="async"`를 포함한다.
 의미 있는 사진은 대체 텍스트를 작성하고, 장식 이미지는 빈 alt와 presentation/aria-hidden을 지정한다.
 이미지 발행 뒤 블로그 본문에 snippet을 붙이고 콘텐츠를 배포한다.
+
+- HTML은 같은 picture를 lowercase `srcset`으로 출력한다.
+- Markdown은 JPEG URL의 이미지 문법을 출력한다. 크기·format fallback을 담지 못하므로 블로그의 콘텐츠 검증 계약에는 사용하지 않는다.
+- Next.js는 JPEG를 입력으로 하는 `next/image` import와 `<Image>`를 출력한다. 사용자 앱은 공개 호스트의 `/blog/**`를 `remotePatterns`에 허용하고 `sizes`를 실제 레이아웃에 맞춘다.
+
+블로그의 MDX 렌더러는 위 불변 URL 쌍과 크기가 있는 `<picture>`를 `ContentImage`로 변환한다.
+Next Image가 작은 화면·썸네일에 맞는 이미지를 제공하며, 확대 뷰는 원본 크기의 공개 WebP와 alt 캡션을 표시한다.
+RSS·원문 Markdown은 작성된 native picture를 유지하므로 Next 서버에 종속되지 않는다.
+변환은 Next 서버의 연산·캐시를 사용한다. R2의 발행 rendition, 객체 키와 업로드 경로는 이 소비 방식에 영향받지 않는다.
