@@ -72,6 +72,9 @@ export class ImageUploadError extends Error {
   }
 }
 
+// 한 런타임 인스턴스 안에서만 유효한 잠금이다. 동시 sharp 실행으로 native peak memory가
+// 겹치는 것을 막는 용도이고, 서버리스에서 인스턴스 사이의 직렬화는 보장하지 않는다.
+// 전역 직렬화는 R2 장부의 admission 최소 간격이 담당한다.
 let uploadInProgress = false;
 sharp.concurrency(1);
 

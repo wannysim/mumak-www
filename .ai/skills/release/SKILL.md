@@ -144,7 +144,18 @@ gh run list --workflow promote.yml --commit "$release_sha" \
 gh run view <promote-run-id> --json headSha,conclusion,jobs,url
 ```
 
-`headSha`가 `release_sha`와 같고 `Push production images to GHCR`와 `Report successful promote (commit status)`가 성공한 run만 production artifact promotion 성공 근거로 삼아라. run 전체가 `success`여도 두 step이 skipped면 새 promotion으로 간주하지 마라.
+`headSha`가 `release_sha`와 같고 현재 workflow의 이미지 push step과 `Report successful promote (commit status)`가 성공한 run만 production artifact promotion 성공 근거로 삼아라. run 전체가 `success`여도 두 step이 skipped면 새 promotion으로 간주하지 마라. step 이름은 workflow가 바뀌면 함께 바뀌므로 이 문서가 아니라 `promote.yml`을 정본으로 읽어라. 2026-09-10 기준 GHCR 대상은 blog뿐이고 step 이름은 `Push blog image to GHCR`다.
+
+같은 SHA에 promote run이 여러 개 생긴다. CI, E2E, 그 외 workflow가 각각 끝날 때마다 `workflow_run`이 깨어나고 concurrency group이 앞선 run을 취소하기 때문이다. `cancelled`나 `skipped` run은 실패가 아니다. **모든 run이 `completed`가 된 뒤** 그중 `success`인 run 하나를 근거로 삼아라. 취소된 run을 완료로 세고 일찍 판정하지 마라.
+
+GHCR promotion 경로에 없는 앱은 이 run으로 판정할 수 없다. admin은 Vercel Git 연동으로 `main` push 시 Production이 배포되므로 merge commit의 커밋 상태(`Vercel – mumak-www-admin`)로 따로 확인하라.
+
+```bash
+gh api "repos/wannysim/mumak-www/commits/$release_sha/status" \
+  --jq '"overall: \(.state)", (.statuses[] | "  \(.context): \(.state)")'
+```
+
+Vercel 상태는 `pending`으로 한참 머물 수 있다. required check가 아니므로 릴리즈를 막지는 않지만, 미해결로 남기지 말고 `success`까지 확인하고 기록하라.
 
 이 workflow에는 Watchtower pull, container restart, health acknowledgement가 없으므로 실제 serving 성공을 주장하지 마라. 별도로 관측하지 않았다면 serving 상태를 `unverified`로 기록하라. Vercel preview도 production serving 근거로 사용하지 마라.
 
@@ -225,7 +236,8 @@ git switch -c chore/sync-hotfix-<version> origin/main
 
 - [ ] main release/hotfix PR merge commit으로 merge 완료
 - [ ] 태그가 검증한 `mergeCommit.oid`를 가리킴
-- [ ] 같은 merge commit SHA의 production artifact promotion step 성공
+- [ ] 같은 merge commit SHA의 production artifact promotion step 성공 (모든 promote run이 completed된 뒤 판정)
+- [ ] GHCR 경로에 없는 앱(admin 등)의 Vercel production 커밋 상태 `success` 확인
 - [ ] 실제 serving을 별도로 관측했거나 `unverified`로 기록
 - [ ] develop back-sync PR merge commit으로 merge 완료
 - [ ] 태그 커밋이 fetch한 `origin/develop`의 조상임
