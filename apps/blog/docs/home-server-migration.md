@@ -4,12 +4,7 @@
 > `plan.md`를 옮긴 것이다. Phase 1–2(컷오버)와 운영 런북은 지금도 유효하다. blog는 여전히
 > 홈서버에서 서빙되고 `promote.yml` → GHCR → Watchtower 경로가 그대로 돌아간다.
 >
-> **Phase 4(이미지 자산·업로드)만 폐기됐다.** 같은 브랜치에 있던 `image-upload-design.md`는
-> "런타임 업로드 시스템을 배포하지 않는다"로 결론지었지만, 릴리즈 `1.17.0`에서 admin을 Vercel +
-> Cloudflare R2로 전환해 실제 업로드 경로를 배포했다. 현행 기준 문서는
-> [`apps/admin/docs/architecture.md`](../../admin/docs/architecture.md)와
-> [`apps/admin/docs/r2-setup.md`](../../admin/docs/r2-setup.md)다. 이 문서의 Phase 4 절은
-> 당시 판단의 기록으로만 남긴다.
+> **Phase 4(이미지 자산·업로드)만 폐기됐다.** 경위는 아래 Phase 4 절에 적었다.
 
 > 상태(2026-07-11): **컷오버 + 후속 정리까지 완료 — `https://wannysim.com`이 홈서버에서 서빙 중.**
 > Cloudflare(orange, Full strict) → NPM(Origin CA) → `mumak-blog`. dev/프리뷰는 Vercel 유지.
@@ -380,10 +375,8 @@ develop에 옮기지 않았다.
 현행 기준 문서는 [`apps/admin/docs/architecture.md`](../../admin/docs/architecture.md)와
 [`apps/admin/docs/r2-setup.md`](../../admin/docs/r2-setup.md)다.
 
-아래는 폐기 당시의 기록이다.
-
-- 런타임 업로드 인프라를 구축하지 않는다. (뒤집힘)
-- 즉시 작업은 `apps/blog/mdx-components.tsx`의 고정 `800×400` 제거와 MDX 웹/RSS 계약 검증이다.
+당시 함께 적혀 있던 즉시 작업은 `apps/blog/mdx-components.tsx`의 고정 `800×400` 제거와
+MDX 웹/RSS 계약 검증이다.
 
 ## 놓치기 쉬운 것 / 리스크
 
@@ -430,10 +423,3 @@ develop에 옮기지 않았다.
 - [x] GHCR PAT 발급·docker login·push (`write:packages`)
 - [x] Portainer GHCR 레지스트리 등록 + `blog` 스택 배포 (healthy, 2026-07-09)
 - [x] 홈서버 내부망 접근 검증 (`http://10.0.0.105:3100/ko/blog` 200)
-
----
-
-## Phase 4 실행 가이드 (폐기)
-
-원래 실행 순서와 인수 조건을 담고 있던 `image-upload-design.md`는 develop에 옮기지 않았다.
-현행 admin 업로드 경로의 운영 절차는 [`apps/admin/docs/r2-setup.md`](../../admin/docs/r2-setup.md)에 있다.
