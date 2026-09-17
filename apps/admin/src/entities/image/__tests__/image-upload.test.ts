@@ -101,6 +101,51 @@ describe('temporary image preparation', () => {
     await expect(withPreparedImage(bytes, consume)).rejects.toMatchObject({ code });
     expect(consume).not.toHaveBeenCalled();
   });
+  it.each(['png', 'webp', 'avif', 'gif'] as const)(
+    'converts static %s into metadata-free JPEG and WebP',
+    async format => {
+      const bytes = await sharp({
+        create: { width: 20, height: 10, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 0 } },
+      })
+        .toFormat(format)
+        .toBuffer();
+      await withPreparedImage(bytes, async ({ manifest, files }) => {
+        expect(manifest.source).toMatchObject({ width: 20, height: 10 });
+        expect(await sharp(files.source).metadata()).toMatchObject({ format: 'jpeg', hasAlpha: false });
+        expect(await sharp(files.webp).metadata()).toMatchObject({ format: 'webp', width: 20, height: 10 });
+        const pixel = await sharp(files.source).raw().toBuffer();
+        expect([...pixel.subarray(0, 3)]).toEqual([255, 255, 255]);
+        expect(await sharp(files.source).metadata()).not.toHaveProperty('exif');
+      });
+      await expect(withPreparedImage(bytes, async () => true, { maxPixels: 199 })).rejects.toMatchObject({
+        code: 'pixel_limit_exceeded',
+      });
+    }
+  );
+
+  it.each(['gif', 'webp'] as const)('rejects animated %s without publishing a first-frame-only image', async format => {
+    const pixels = Buffer.concat([Buffer.alloc(20 * 10 * 3, 0), Buffer.alloc(20 * 10 * 3, 255)]);
+    const bytes = await sharp(pixels, { raw: { width: 20, height: 20, channels: 3, pageHeight: 10 } })
+      .toFormat(format)
+      .toBuffer();
+    expect((await sharp(bytes).metadata()).pages).toBe(2);
+    const consume = jest.fn();
+    await expect(withPreparedImage(bytes, consume)).rejects.toMatchObject({ code: 'animated_image' });
+    expect(consume).not.toHaveBeenCalled();
+  });
+
+  it('rejects APNG animation control chunks and unsupported SVG/TIFF inputs', async () => {
+    const pngHeader = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const animationChunk = Buffer.concat([Buffer.alloc(4), Buffer.from('acTL'), Buffer.alloc(4)]);
+    await expect(withPreparedImage(Buffer.concat([pngHeader, animationChunk]), jest.fn())).rejects.toMatchObject({
+      code: 'animated_image',
+    });
+    const tiff = await sharp(input).tiff().toBuffer();
+    for (const bytes of [Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"/>'), tiff]) {
+      await expect(withPreparedImage(bytes, jest.fn())).rejects.toMatchObject({ code: 'unsupported_media_type' });
+    }
+  });
+
   it('enforces exact byte and decoded-pixel limits', async () => {
     await expect(withPreparedImage(input, async () => true, { maxBytes: input.length, maxPixels: 200 })).resolves.toBe(
       true

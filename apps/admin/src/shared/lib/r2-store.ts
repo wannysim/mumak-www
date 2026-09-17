@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export type StoredObject = { body: Buffer; etag: string };
@@ -16,7 +16,14 @@ export type ObjectStore = {
   presign(key: string, bytes: number): Promise<string>;
 };
 
-export function createR2Store(env: NodeJS.ProcessEnv = process.env): ObjectStore {
+export type ImageLibraryStore = {
+  listImages(cursor?: string): Promise<{
+    objects: { key: string; bytes: number; modifiedAt: string | null }[];
+    cursor: string | null;
+  }>;
+};
+
+export function createR2Store(env: NodeJS.ProcessEnv = process.env): ObjectStore & ImageLibraryStore {
   const required = (name: string) => {
     const value = env[name];
     if (!value) throw new Error(`Missing ${name}`);
@@ -35,6 +42,26 @@ export function createR2Store(env: NodeJS.ProcessEnv = process.env): ObjectStore
     maxAttempts: 2,
   });
   return {
+    async listImages(cursor) {
+      const response = await client.send(
+        new ListObjectsV2Command({
+          Bucket: buckets.public,
+          Prefix: 'blog/',
+          MaxKeys: 200,
+          ContinuationToken: cursor,
+        }),
+        { abortSignal: AbortSignal.timeout(30_000) }
+      );
+      if (response.IsTruncated && !response.NextContinuationToken) throw new Error('Missing R2 cursor');
+      return {
+        objects: (response.Contents ?? []).flatMap(object =>
+          object.Key && typeof object.Size === 'number'
+            ? [{ key: object.Key, bytes: object.Size, modifiedAt: object.LastModified?.toISOString() ?? null }]
+            : []
+        ),
+        cursor: response.IsTruncated ? response.NextContinuationToken! : null,
+      };
+    },
     async get(bucket, key, maxBytes) {
       try {
         const response = await client.send(new GetObjectCommand({ Bucket: buckets[bucket], Key: key }), {

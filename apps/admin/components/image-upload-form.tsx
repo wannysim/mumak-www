@@ -19,7 +19,13 @@ import {
 import type { PublishedImage } from '@/src/entities/image/published-image';
 import { publishImage, SessionExpiredError } from '@/src/features/image-upload/api/publish-image';
 
-function ImageUploadForm({ onSessionExpired }: { onSessionExpired: () => void }) {
+function ImageUploadForm({
+  onSessionExpired,
+  onUploadingChange,
+}: {
+  onSessionExpired: () => void;
+  onUploadingChange?: (uploading: boolean) => void;
+}) {
   const [file, setFile] = React.useState<File>();
   const [alt, setAlt] = React.useState('');
   const [decorative, setDecorative] = React.useState(false);
@@ -37,6 +43,7 @@ function ImageUploadForm({ onSessionExpired }: { onSessionExpired: () => void })
     if (!file || !canUpload) return;
 
     setUploading(true);
+    onUploadingChange?.(true);
     setMessage('업로드 중…');
     setPublishedImage(undefined);
 
@@ -52,6 +59,7 @@ function ImageUploadForm({ onSessionExpired }: { onSessionExpired: () => void })
       setMessage(error instanceof Error ? error.message : '이미지를 발행하지 못했습니다.');
     } finally {
       setUploading(false);
+      onUploadingChange?.(false);
     }
   }
 
@@ -67,11 +75,11 @@ function ImageUploadForm({ onSessionExpired }: { onSessionExpired: () => void })
   return (
     <form className="space-y-6 rounded-xl border border-border bg-card p-5 shadow-sm" onSubmit={handleSubmit}>
       <div className="space-y-2">
-        <Label htmlFor="image">JPEG 이미지</Label>
+        <Label htmlFor="image">업로드 이미지</Label>
         <Input
           id="image"
           type="file"
-          accept="image/jpeg,.jpg,.jpeg"
+          accept="image/jpeg,image/png,image/webp,image/avif,image/gif,.jpg,.jpeg,.png,.webp,.avif,.gif"
           required
           disabled={uploading}
           onChange={event => {
@@ -79,7 +87,12 @@ function ImageUploadForm({ onSessionExpired }: { onSessionExpired: () => void })
             setPublishedImage(undefined);
           }}
         />
-        <p className="text-xs text-muted-foreground">최대 32 MiB, 50 MP. 원본 metadata는 제거됩니다.</p>
+        <p className="text-xs text-muted-foreground">
+          JPEG·PNG·WebP·AVIF·정적 GIF. 최대 32 MiB, 50 MP. metadata는 제거됩니다.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          JPEG/WebP로 발행되며 투명 배경은 흰색으로 바뀝니다. 움직이는 이미지는 지원하지 않습니다.
+        </p>
       </div>
 
       <div className="space-y-2">
