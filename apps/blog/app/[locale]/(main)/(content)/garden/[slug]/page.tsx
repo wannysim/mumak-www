@@ -24,6 +24,7 @@ import {
 import { calculateWordCount, getPostsByHrefs, getPostsLinkingTo, toPostHref, type PostMeta } from '@/src/entities/post';
 import { Link, locales, type Locale } from '@/src/shared/config/i18n';
 import { mdxOptions } from '@/src/shared/config/mdx';
+import { prerenderGardenRoutes } from '@/src/shared/config/prerender';
 import { formatDateForLocale } from '@/src/shared/lib/date';
 import { createGardenResolver, transformWikilinks } from '@/src/shared/lib/wikilink';
 import { Breadcrumbs } from '@/src/shared/ui';
@@ -38,6 +39,8 @@ interface NotePageProps {
 }
 
 export function generateStaticParams() {
+  if (!prerenderGardenRoutes) return [];
+
   return locales.flatMap(locale => {
     const slugs = getAllNoteSlugs(locale);
     return slugs.map(slug => ({ locale, slug }));

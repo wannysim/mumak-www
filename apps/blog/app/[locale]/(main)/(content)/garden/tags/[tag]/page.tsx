@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { buildAlternates } from '@/src/app/seo';
 import { getAllNoteTags, getNotesByTag } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
+import { prerenderGardenRoutes } from '@/src/shared/config/prerender';
 import { PageHeader } from '@/src/shared/ui';
 import { GardenNav, getGardenNavCounts } from '@/src/widgets/garden-nav';
 import { NoteCard } from '@/src/widgets/note-card';
@@ -15,6 +16,8 @@ interface GardenTagPageProps {
 }
 
 export function generateStaticParams() {
+  if (!prerenderGardenRoutes) return [];
+
   return locales.flatMap(locale => {
     const tags = getAllNoteTags(locale);
     return tags.map(tag => ({ locale, tag: encodeURIComponent(tag.name) }));
