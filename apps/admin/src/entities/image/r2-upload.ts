@@ -12,7 +12,20 @@ const STORAGE_LIMIT = 8_000_000_000;
 const DAILY_LIMIT = 20;
 const TICKET_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const LEDGER_KEY = 'blog/control/upload-budget.json';
-type Ledger = { version: 1; day: string; attempts: number; lastIssuedAt: number; allocations: Record<string, number> };
+// private staging의 lifecycle 만료 주기. R2 콘솔의 `expire-blog-staging` 규칙과 같아야 한다.
+const STAGING_LIFECYCLE_MS = 24 * 60 * 60_000;
+// 예약 회수는 staging 바이트가 확실히 사라진 뒤여야 한다. lifecycle 삭제와 사용량 집계 지연을
+// 감안해 만료 주기의 세 배를 유예로 둔다. 이 값이 lifecycle보다 짧아지면 아직 남아 있는
+// 바이트를 회수해 예산을 초과 admission하게 된다.
+const RECLAIM_DELAY_MS = 3 * STAGING_LIFECYCLE_MS;
+type Allocation = { bytes: number; reclaimAt?: number };
+type Ledger = {
+  version: 2;
+  day: string;
+  attempts: number;
+  lastIssuedAt: number;
+  allocations: Record<string, Allocation>;
+};
 type Ticket = {
   version: 1;
   bytes: number;
@@ -38,9 +51,8 @@ export function createR2Uploader(
   async function updateLedger(change: (ledger: Ledger) => void) {
     for (let attempt = 0; attempt < 5; attempt++) {
       const object = await store.get('private', LEDGER_KEY, MiB);
-      const ledger = object
-        ? parseLedger(object)
-        : { version: 1 as const, day: '', attempts: 0, lastIssuedAt: 0, allocations: {} };
+      const ledger = object ? parseLedger(object) : emptyLedger();
+      reclaimExpired(ledger, now());
       change(ledger);
       if (await putJson(LEDGER_KEY, ledger, object?.etag ?? '*')) return;
     }
@@ -63,13 +75,13 @@ export function createR2Uploader(
       }
       if (ledger.attempts >= DAILY_LIMIT) throw new R2UploadError('daily_limit');
       if (timestamp - ledger.lastIssuedAt < 5_000) throw new R2UploadError('upload_busy');
-      const reserved = Object.values(ledger.allocations).reduce((sum, value) => sum + value, MiB);
+      const reserved = Object.values(ledger.allocations).reduce((sum, value) => sum + value.bytes, MiB);
       if (reserved + RESERVATION_BYTES > STORAGE_LIMIT || Object.keys(ledger.allocations).length >= 5_000) {
         throw new R2UploadError('storage_limit');
       }
       ledger.attempts++;
       ledger.lastIssuedAt = timestamp;
-      ledger.allocations[ticketId] = RESERVATION_BYTES;
+      ledger.allocations[ticketId] = { bytes: RESERVATION_BYTES, reclaimAt: timestamp + RECLAIM_DELAY_MS };
     });
     const ticket: Ticket = { version: 1, bytes, expiresAt: timestamp + 15 * 60_000, state: 'ready' };
     if (!(await putJson(ticketKey(ticketId), ticket))) throw new R2UploadError('upload_busy');
@@ -93,6 +105,14 @@ export function createR2Uploader(
       return toResult(manifest, true);
     }
     if (ticket.state !== 'ready' || !object) throw new R2UploadError('upload_busy');
+    // ticket을 claim하면 영구 객체를 만들 수 있고, 중단되면 실제 사용량을 장부만으로 알 수 없다.
+    // 그래서 claim 전에 자동 회수 대상에서 먼저 뺀다. 이 순서라면 장부 경합으로 실패해도 ticket은
+    // 아직 ready여서 같은 ticket으로 다시 시도할 수 있다.
+    await updateLedger(ledger => {
+      const allocation = ledger.allocations[ticketId];
+      if (!allocation) throw new ImageUploadError('corruption');
+      delete allocation.reclaimAt;
+    });
     if (!(await putJson(ticketKey(ticketId), { ...ticket, state: 'processing' }, object.etag)))
       throw new R2UploadError('upload_busy');
     const input = await store.get('private', stagingKey(ticketId), 32 * MiB);
@@ -101,13 +121,14 @@ export function createR2Uploader(
       try {
         return await commit(prepared);
       } catch (error) {
-        throw new ImageUploadError('public_verification_failed', error);
+        // collision·corruption처럼 사람이 확인해야 하는 코드를 전송 실패로 뭉개지 않는다.
+        throw error instanceof ImageUploadError ? error : new ImageUploadError('storage_failure', error);
       }
     });
     const permanentBytes = Object.values(published.bytes).reduce((sum, bytes) => sum + bytes, 0);
     await updateLedger(ledger => {
       if (!(ticketId in ledger.allocations)) throw new ImageUploadError('corruption');
-      ledger.allocations[ticketId] = ticket.bytes + permanentBytes + 8192;
+      ledger.allocations[ticketId] = { bytes: ticket.bytes + permanentBytes + 8192 };
     });
     const claimed = await store.get('private', ticketKey(ticketId), 4096);
     if (
@@ -179,7 +200,11 @@ export function createR2Uploader(
   }
 
   async function verify(result: ImageUploadResult, manifest: ImageManifest) {
-    await (options.verifyPublic ? options.verifyPublic(result) : verifyPublicImages(result, manifest));
+    try {
+      await (options.verifyPublic ? options.verifyPublic(result) : verifyPublicImages(result, manifest));
+    } catch (error) {
+      throw error instanceof ImageUploadError ? error : new ImageUploadError('public_verification_failed', error);
+    }
   }
 
   return { issue, publish };
@@ -215,30 +240,65 @@ function parseTicket(object: StoredObject | undefined): Ticket {
   return value as Ticket;
 }
 
+function emptyLedger(): Ledger {
+  return { version: 2, day: '', attempts: 0, lastIssuedAt: 0, allocations: {} };
+}
+
+// 발행 단계에 들어가지 못한 예약만 회수한다. 그 ticket의 staging 객체는 lifecycle이 이미
+// 지웠고 영구 객체는 만들어진 적이 없으므로, 남은 예약은 실제 사용량과 무관하다.
+function reclaimExpired(ledger: Ledger, timestamp: number) {
+  for (const [id, allocation] of Object.entries(ledger.allocations)) {
+    if (allocation.reclaimAt !== undefined && allocation.reclaimAt <= timestamp) delete ledger.allocations[id];
+  }
+}
+
 function parseLedger(object: StoredObject): Ledger {
   const value: unknown = JSON.parse(object.body.toString('utf8'));
-  if (
-    !isRecord(value) ||
-    value.version !== 1 ||
-    typeof value.day !== 'string' ||
-    typeof value.attempts !== 'number' ||
-    !Number.isSafeInteger(value.attempts) ||
-    value.attempts < 0 ||
-    typeof value.lastIssuedAt !== 'number' ||
-    !Number.isSafeInteger(value.lastIssuedAt) ||
-    !isRecord(value.allocations) ||
-    Object.entries(value.allocations).some(
-      ([id, bytes]) =>
-        !TICKET_PATTERN.test(id) ||
-        typeof bytes !== 'number' ||
-        !Number.isSafeInteger(bytes) ||
-        bytes < 1 ||
-        bytes > RESERVATION_BYTES
-    )
-  ) {
+  if (!isRecord(value) || (value.version !== 1 && value.version !== 2)) throw new ImageUploadError('corruption');
+  const { day, attempts, lastIssuedAt, allocations } = value;
+  if (typeof day !== 'string' || !isCounter(attempts) || !isCounter(lastIssuedAt) || !isRecord(allocations)) {
     throw new ImageUploadError('corruption');
   }
-  return value as Ledger;
+  return {
+    version: 2,
+    day,
+    attempts,
+    lastIssuedAt,
+    allocations: Object.fromEntries(
+      Object.entries(allocations).map(([id, entry]) => {
+        if (!TICKET_PATTERN.test(id)) throw new ImageUploadError('corruption');
+        return [id, parseAllocation(entry, lastIssuedAt)];
+      })
+    ),
+  };
+}
+
+// version 1 장부는 예약과 정산을 구분하는 필드가 없다. 다만 정산값은 입력 크기와 영구 파일
+// 크기의 합이라 예약 상한과 정확히 같아질 수 없으므로, 상한과 같은 값만 아직 정산되지 않은
+// 예약으로 읽는다. 나머지는 회수하지 않는 정산으로 남긴다.
+//
+// 유예 기준은 장부가 기록한 마지막 admission 시각이다. 읽은 시각을 쓰면 예산이 이미 소진된
+// 장부에서 회수가 영원히 시작되지 않는다. change()가 storage_limit으로 던지면 장부를 쓰지
+// 못해 기준 시각도 저장되지 않고, 다음 읽기가 기준을 다시 미래로 밀기 때문이다.
+function parseAllocation(entry: unknown, lastIssuedAt: number): Allocation {
+  if (isReservedBytes(entry)) {
+    return entry === RESERVATION_BYTES
+      ? { bytes: entry, reclaimAt: lastIssuedAt + RECLAIM_DELAY_MS }
+      : { bytes: entry };
+  }
+  if (!isRecord(entry) || !isReservedBytes(entry.bytes)) throw new ImageUploadError('corruption');
+  const { bytes, reclaimAt } = entry;
+  if (reclaimAt === undefined) return { bytes };
+  if (!isCounter(reclaimAt)) throw new ImageUploadError('corruption');
+  return { bytes, reclaimAt };
+}
+
+function isReservedBytes(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 && value <= RESERVATION_BYTES;
+}
+
+function isCounter(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -6,9 +6,12 @@ import { Button } from '@mumak/ui/components/button';
 import { Input } from '@mumak/ui/components/input';
 import { Label } from '@mumak/ui/components/label';
 
+import { ImageLibrary } from '@/components/image-library';
 import { ImageUploadForm } from '@/components/image-upload-form';
 
 export function AdminSession({ initialAuthenticated }: { initialAuthenticated: boolean }) {
+  const [uploading, setUploading] = React.useState(false);
+  const [view, setView] = React.useState<'upload' | 'library'>('upload');
   const [authenticated, setAuthenticated] = React.useState(initialAuthenticated);
   const [token, setToken] = React.useState('');
   const [pending, setPending] = React.useState(false);
@@ -53,11 +56,11 @@ export function AdminSession({ initialAuthenticated }: { initialAuthenticated: b
     }
   }
 
-  function sessionExpired() {
+  const sessionExpired = React.useCallback(() => {
     setAuthenticated(false);
     setToken('');
     setMessage('로그인이 만료되었습니다. 다시 로그인하세요.');
-  }
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -65,11 +68,34 @@ export function AdminSession({ initialAuthenticated }: { initialAuthenticated: b
         <>
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">로그인됨</p>
-            <Button type="button" variant="outline" disabled={pending} onClick={logout}>
+            <Button type="button" variant="outline" disabled={pending || uploading} onClick={logout}>
               로그아웃
             </Button>
           </div>
-          <ImageUploadForm onSessionExpired={sessionExpired} />
+          <div className="flex gap-2" role="group" aria-label="이미지 관리 메뉴">
+            <Button
+              type="button"
+              variant={view === 'upload' ? 'default' : 'outline'}
+              disabled={uploading}
+              aria-pressed={view === 'upload'}
+              onClick={() => setView('upload')}
+            >
+              이미지 업로드
+            </Button>
+            <Button
+              type="button"
+              variant={view === 'library' ? 'default' : 'outline'}
+              disabled={uploading}
+              aria-pressed={view === 'library'}
+              onClick={() => setView('library')}
+            >
+              이미지 보관함
+            </Button>
+          </div>
+          <div hidden={view !== 'upload'}>
+            <ImageUploadForm onSessionExpired={sessionExpired} onUploadingChange={setUploading} />
+          </div>
+          {view === 'library' && <ImageLibrary onSessionExpired={sessionExpired} />}
         </>
       ) : (
         <form className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-sm" onSubmit={login}>

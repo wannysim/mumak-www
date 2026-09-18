@@ -30,7 +30,7 @@ describe('ImageUploadForm', () => {
     fireEvent.submit(publish.closest('form')!);
     expect(fetchMock).not.toHaveBeenCalled();
 
-    await user.upload(screen.getByLabelText('JPEG 이미지'), new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' }));
+    await user.upload(screen.getByLabelText('업로드 이미지'), new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' }));
     expect(publish).toBeDisabled();
 
     await user.type(screen.getByLabelText('대체 텍스트'), '산 위로 떠오르는 해');
@@ -42,7 +42,7 @@ describe('ImageUploadForm', () => {
     render(<ImageUploadForm onSessionExpired={jest.fn()} />);
 
     await user.upload(
-      screen.getByLabelText('JPEG 이미지'),
+      screen.getByLabelText('업로드 이미지'),
       new File(['jpeg'], 'decoration.jpg', { type: 'image/jpeg' })
     );
     await user.click(screen.getByLabelText('의미 없는 장식 이미지'));
@@ -66,10 +66,10 @@ describe('ImageUploadForm', () => {
       .mockResolvedValueOnce({ ok: true, json: async () => result });
     Object.defineProperty(global, 'fetch', { configurable: true, value: fetchSpy });
     render(<ImageUploadForm onSessionExpired={jest.fn()} />);
-    await user.upload(screen.getByLabelText('JPEG 이미지'), file);
+    await user.upload(screen.getByLabelText('업로드 이미지'), file);
     await user.type(screen.getByLabelText('대체 텍스트'), '설명');
     fireEvent.submit(screen.getByRole('button', { name: '이미지 발행' }).closest('form')!);
-    const snippet = await screen.findByRole<HTMLTextAreaElement>('textbox', { name: 'MDX snippet' });
+    const snippet = await screen.findByRole<HTMLTextAreaElement>('textbox', { name: 'React / MDX snippet' });
     expect(snippet.value).toContain(result.urls.jpeg);
     expect(fetchSpy).toHaveBeenNthCalledWith(1, '/api/images/uploads', {
       method: 'POST',
@@ -78,7 +78,7 @@ describe('ImageUploadForm', () => {
       body: JSON.stringify({ bytes: file.size }),
     });
     await user.click(screen.getByRole('button', { name: 'snippet 복사' }));
-    expect(screen.getByText('MDX snippet을 복사했습니다.')).toBeInTheDocument();
+    expect(screen.getByText('React / MDX snippet을 복사했습니다.')).toBeInTheDocument();
     expect(fetchSpy).toHaveBeenNthCalledWith(2, ticket.uploadUrl, {
       method: 'PUT',
       credentials: 'omit',
@@ -91,6 +91,36 @@ describe('ImageUploadForm', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticketId: 'ticket-1' }),
     });
+
+    await user.click(screen.getByRole('radio', { name: 'Next.js' }));
+    expect(screen.getByRole('radio', { name: 'Next.js' })).toBeChecked();
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Next.js snippet' }).value).toContain('<Image');
+    await user.click(screen.getByRole('button', { name: 'snippet 복사' }));
+    expect(await navigator.clipboard.readText()).toContain("import Image from 'next/image';");
+    await user.click(screen.getByRole('button', { name: '도메인 설정 복사' }));
+    expect(await navigator.clipboard.readText()).toContain("hostname: 'img.wannysim.com'");
+
+    await user.click(screen.getByRole('radio', { name: 'HTML' }));
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'HTML snippet' }).value).toContain('srcset=');
+    await user.click(screen.getByRole('radio', { name: 'Markdown' }));
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Markdown snippet' }).value).toBe(
+      `![설명](${result.urls.jpeg})`
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+
+    await user.clear(screen.getByLabelText('대체 텍스트'));
+    expect(screen.getByRole('button', { name: 'snippet 복사' })).toBeDisabled();
+    await user.type(screen.getByLabelText('대체 텍스트'), '수정한 설명');
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Markdown snippet' }).value).toContain(
+      '수정한 설명'
+    );
+
+    jest.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(new Error('denied'));
+    await user.click(screen.getByRole('button', { name: 'snippet 복사' }));
+    expect(screen.getByText('복사하지 못했습니다. 코드를 직접 선택해 복사하세요.')).toBeInTheDocument();
+
+    await user.upload(screen.getByLabelText('업로드 이미지'), new File(['other'], 'other.jpg', { type: 'image/jpeg' }));
+    expect(screen.queryByRole('textbox', { name: 'Markdown snippet' })).not.toBeInTheDocument();
   });
 
   it.each(['admission', 'transfer'])('stops before publication on R2 %s failure', async failure => {
@@ -108,7 +138,7 @@ describe('ImageUploadForm', () => {
       .mockResolvedValueOnce({ ok: false });
     Object.defineProperty(global, 'fetch', { configurable: true, value: fetchSpy });
     render(<ImageUploadForm onSessionExpired={jest.fn()} />);
-    await user.upload(screen.getByLabelText('JPEG 이미지'), new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' }));
+    await user.upload(screen.getByLabelText('업로드 이미지'), new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' }));
     await user.type(screen.getByLabelText('대체 텍스트'), '설명');
     fireEvent.submit(screen.getByRole('button', { name: '이미지 발행' }).closest('form')!);
     expect(
@@ -130,12 +160,12 @@ describe('ImageUploadForm', () => {
     });
     render(<ImageUploadForm onSessionExpired={jest.fn()} />);
 
-    await user.upload(screen.getByLabelText('JPEG 이미지'), new File(['jpeg'], 'photo.jpg'));
+    await user.upload(screen.getByLabelText('업로드 이미지'), new File(['jpeg'], 'photo.jpg'));
     await user.type(screen.getByLabelText('대체 텍스트'), '설명');
     fireEvent.submit(screen.getByRole('button', { name: '이미지 발행' }).closest('form')!);
 
     expect(await screen.findByText('저장 공간이 부족합니다.')).toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: 'MDX snippet' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'React / MDX snippet' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '이미지 발행' })).toBeEnabled();
   });
 
@@ -147,7 +177,7 @@ describe('ImageUploadForm', () => {
     });
     render(<ImageUploadForm onSessionExpired={jest.fn()} />);
 
-    await user.upload(screen.getByLabelText('JPEG 이미지'), new File(['jpeg'], 'photo.jpg'));
+    await user.upload(screen.getByLabelText('업로드 이미지'), new File(['jpeg'], 'photo.jpg'));
     await user.type(screen.getByLabelText('대체 텍스트'), '설명');
     fireEvent.submit(screen.getByRole('button', { name: '이미지 발행' }).closest('form')!);
 
@@ -176,13 +206,13 @@ describe('upload authorization and publication failures', () => {
     fetchMock.mockResolvedValueOnce(unauthorized);
     Object.defineProperty(global, 'fetch', { configurable: true, value: fetchMock });
     render(<ImageUploadForm onSessionExpired={expired} />);
-    await user.upload(screen.getByLabelText('JPEG 이미지'), new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' }));
+    await user.upload(screen.getByLabelText('업로드 이미지'), new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' }));
     await user.type(screen.getByLabelText('대체 텍스트'), '설명');
     fireEvent.submit(screen.getByRole('button', { name: '이미지 발행' }).closest('form')!);
     await waitFor(() => expect(expired).toHaveBeenCalledTimes(1));
     expect(unauthorized.json).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(stage === 'admission' ? 1 : 3);
-    expect(screen.queryByRole('textbox', { name: 'MDX snippet' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'React / MDX snippet' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '이미지 발행' })).toBeEnabled();
   });
 
@@ -198,11 +228,11 @@ describe('upload authorization and publication failures', () => {
       .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({ error: '공개 URL 검증 실패' }) });
     Object.defineProperty(global, 'fetch', { configurable: true, value: fetchMock });
     render(<ImageUploadForm onSessionExpired={jest.fn()} />);
-    await user.upload(screen.getByLabelText('JPEG 이미지'), new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' }));
+    await user.upload(screen.getByLabelText('업로드 이미지'), new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' }));
     await user.type(screen.getByLabelText('대체 텍스트'), '설명');
     fireEvent.submit(screen.getByRole('button', { name: '이미지 발행' }).closest('form')!);
     expect(await screen.findByText('공개 URL 검증 실패')).toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: 'MDX snippet' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'React / MDX snippet' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '이미지 발행' })).toBeEnabled();
   });
 
@@ -213,7 +243,7 @@ describe('upload authorization and publication failures', () => {
     const file = new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' });
     Object.defineProperty(file, 'size', { value: 32 * 1024 * 1024 + 1 });
     render(<ImageUploadForm onSessionExpired={jest.fn()} />);
-    await user.upload(screen.getByLabelText('JPEG 이미지'), file);
+    await user.upload(screen.getByLabelText('업로드 이미지'), file);
     await user.type(screen.getByLabelText('대체 텍스트'), '설명');
     fireEvent.submit(screen.getByRole('button', { name: '이미지 발행' }).closest('form')!);
     expect(await screen.findByText('파일이 32 MiB 제한을 넘었습니다.')).toBeInTheDocument();

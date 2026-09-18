@@ -1,6 +1,7 @@
 /** @jest-environment node */
 import { createHash } from 'node:crypto';
 
+import { ImageUploadError } from '@/src/entities/image/image-upload';
 import { createR2Uploader, R2UploadError } from '@/src/entities/image/r2-upload';
 import { readAdminAuthConfig } from '@/src/shared/lib/admin-auth-config';
 import { createSession, sessionCookieName } from '@/src/shared/lib/admin-session';
@@ -66,6 +67,17 @@ describe('R2 upload request trust boundaries', () => {
     expect((await handleR2Upload(request('raw', { 'Content-Type': 'application/octet-stream' }), 'issue')).status).toBe(
       415
     );
+  });
+  it.each([
+    ['collision', 500, '다시 시도하지 말고'],
+    ['corruption', 500, '다시 시도하지 말고'],
+    ['public_verification_failed', 503, '잠시 후'],
+    ['payload_too_large', 422, '32 MiB'],
+  ] as const)('reports %s as %s with operator guidance', async (code, status, guidance) => {
+    publish.mockRejectedValueOnce(new ImageUploadError(code));
+    const response = await handleR2Upload(request(JSON.stringify({ ticketId: 'ticket' })), 'publish');
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({ code, error: expect.stringContaining(guidance) });
   });
   it.each([
     ['daily_limit', 429],

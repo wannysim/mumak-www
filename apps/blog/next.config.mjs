@@ -32,6 +32,12 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
+        hostname: 'img.wannysim.com',
+        pathname: '/blog/**',
+        search: '',
+      },
+      {
+        protocol: 'https',
         hostname: 'i.scdn.co',
       },
     ],
