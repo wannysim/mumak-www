@@ -6,15 +6,16 @@
 
 ## 문서
 
-| 파일                                   | 내용                                                     | 상태                     |
-| -------------------------------------- | -------------------------------------------------------- | ------------------------ |
-| [NEXT.md](NEXT.md)                     | **액션 아이템 단일 소재지.** 지금 네 차례인 일           | 계속 갱신                |
-| [audit.md](audit.md)                   | 단계 0 기준선. token, 대비, motion, component, 검증 공백 | 단계 0 완료              |
-| [principles.md](principles.md)         | 제품 원칙 3개와 통과/기각 예                             | **초안. 본인이 다시 씀** |
-| [support-matrix.md](support-matrix.md) | 지원 6개 / 비지원 / 승격 후보                            | 단계 0 완료              |
-| [exceptions.md](exceptions.md)         | 시스템에 흡수하지 않기로 한 것                           | 단계 0 완료              |
-| [decision-log.md](decision-log.md)     | 채택 9건, 기각 1건, 열린 질문 0건                        | 계속 갱신                |
-| [baselines/](baselines/)               | 대표 화면 36장 + manifest                                | 스크립트 생성            |
+| 파일                                   | 내용                                                     | 상태                          |
+| -------------------------------------- | -------------------------------------------------------- | ----------------------------- |
+| [NEXT.md](NEXT.md)                     | **액션 아이템 단일 소재지.** 지금 네 차례인 일           | 계속 갱신                     |
+| [audit.md](audit.md)                   | 단계 0 기준선. token, 대비, motion, component, 검증 공백 | 단계 0 완료                   |
+| [principles.md](principles.md)         | 사람 중심 탐색 목적과 원칙 4개·통과/기각 예              | 사진 중심 방향 결정·비평 남음 |
+| [home-direction.md](home-direction.md) | 홈 레퍼런스·취향·소재·표현 선호 기록                     | 디자인 구현 원복·재검토       |
+| [support-matrix.md](support-matrix.md) | 지원 6개 / 비지원 / 승격 후보                            | 단계 0 완료                   |
+| [exceptions.md](exceptions.md)         | 시스템에 흡수하지 않기로 한 것                           | 단계 0 완료                   |
+| [decision-log.md](decision-log.md)     | 채택 9건, 기각 1건, 열린 질문 0건                        | 계속 갱신                     |
+| [baselines/](baselines/)               | 대표 화면 36장 + manifest                                | 스크립트 생성                 |
 
 ## 기준선 다시 뜨기
 
