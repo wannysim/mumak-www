@@ -2,6 +2,7 @@ import { ImageResponse } from 'next/og';
 
 import { getAllNoteSlugs, getNote, getNoteEmbedPreview, type NoteStatus } from '@/src/entities/note';
 import { locales, type Locale } from '@/src/shared/config/i18n';
+import { prerenderGardenRoutes } from '@/src/shared/config/prerender';
 import {
   loadOgFonts,
   OgClampText,
@@ -19,6 +20,8 @@ export const size = OG_SIZE;
 export const contentType = 'image/png';
 
 export function generateStaticParams() {
+  if (!prerenderGardenRoutes) return [];
+
   return locales.flatMap(locale => {
     const slugs = getAllNoteSlugs(locale);
     return slugs.map(slug => ({ locale, slug }));
