@@ -2,7 +2,9 @@ import { CircleAlert } from 'lucide-react';
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@mumak/ui/components/table';
 
+import { FillReason } from '@/components/fill-reason';
 import { PerformanceChart } from '@/components/performance-chart';
+import { StockLink } from '@/components/stock-link';
 import type { DashboardFill, DashboardHolding, DashboardSnapshot } from '@/lib/dashboard-schema';
 import { formatDateTime, formatDecimal, formatMoney, formatPercent, valueTone } from '@/lib/format';
 
@@ -49,7 +51,9 @@ function MobileHolding({ holding, currency }: { holding: DashboardHolding; curre
   return (
     <article className="border-b border-border p-4 last:border-b-0">
       <div className="mb-4 flex items-baseline justify-between gap-4">
-        <h3 className="font-mono text-base font-semibold">{holding.symbol}</h3>
+        <h3 className="font-mono text-base font-semibold">
+          <StockLink symbol={holding.symbol} />
+        </h3>
         <span className={`font-mono text-sm tabular-nums ${valueTone(holding.returnPct)}`}>
           {formatPercent(holding.returnPct)}
         </span>
@@ -111,7 +115,9 @@ function Holdings({ holdings, currency }: { holdings: DashboardHolding[]; curren
           <TableBody>
             {holdings.map(holding => (
               <TableRow key={holding.symbol}>
-                <TableCell className="font-mono font-semibold">{holding.symbol}</TableCell>
+                <TableCell className="font-mono font-semibold">
+                  <StockLink symbol={holding.symbol} />
+                </TableCell>
                 <TableCell className="text-right font-mono tabular-nums">{formatDecimal(holding.quantity)}</TableCell>
                 <TableCell className="text-right font-mono tabular-nums">
                   {formatMoney(holding.averageCost, currency)}
@@ -145,10 +151,13 @@ function MobileFill({ fill, currency }: { fill: DashboardFill; currency: string 
     <article className="flex items-center justify-between gap-4 border-b border-border p-4 last:border-b-0">
       <div>
         <div className="flex items-center gap-2">
-          <strong className="font-mono">{fill.symbol}</strong>
+          <strong className="font-mono">
+            <StockLink symbol={fill.symbol} />
+          </strong>
           <span className="border border-border px-1.5 py-0.5 text-[0.65rem]">
             {fill.side === 'buy' ? '매수' : '매도'}
           </span>
+          <FillReason fill={fill} />
         </div>
         <p className="mt-1 font-mono text-xs text-muted-foreground tabular-nums">{formatDateTime(fill.at)}</p>
       </div>
@@ -191,8 +200,15 @@ function Fills({ fills, currency }: { fills: DashboardFill[]; currency: string }
                 <TableCell className="font-mono text-xs text-muted-foreground tabular-nums">
                   {formatDateTime(fill.at)}
                 </TableCell>
-                <TableCell>{fill.side === 'buy' ? '매수' : '매도'}</TableCell>
-                <TableCell className="font-mono font-semibold">{fill.symbol}</TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center gap-1">
+                    {fill.side === 'buy' ? '매수' : '매도'}
+                    <FillReason fill={fill} />
+                  </span>
+                </TableCell>
+                <TableCell className="font-mono font-semibold">
+                  <StockLink symbol={fill.symbol} />
+                </TableCell>
                 <TableCell className="text-right font-mono tabular-nums">{formatDecimal(fill.quantity)}</TableCell>
                 <TableCell className="text-right font-mono tabular-nums">{formatMoney(fill.price, currency)}</TableCell>
                 <TableCell className="text-right font-mono tabular-nums">

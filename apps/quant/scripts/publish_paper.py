@@ -25,6 +25,31 @@ class NoRedirect(HTTPRedirectHandler):
         raise PublishError('Redirect refused')
 
 
+PUBLIC_FILL_REASONS = {
+    '정기 리밸런싱',
+    '위험 한도에 따른 매도',
+    '집중도 한도 조정',
+}
+
+
+def is_publishable_snapshot(snapshot):
+    if not isinstance(snapshot, dict) or not isinstance(snapshot.get('fills'), list):
+        return False
+    legacy_snapshot = dict(snapshot)
+    legacy_snapshot['fills'] = []
+    for fill in snapshot['fills']:
+        if not isinstance(fill, dict):
+            return False
+        reason = fill.get('reason')
+        if ('reason' in fill and reason is not None
+                and (not isinstance(reason, str) or reason not in PUBLIC_FILL_REASONS)):
+            return False
+        legacy_fill = dict(fill)
+        legacy_fill.pop('reason', None)
+        legacy_snapshot['fills'].append(legacy_fill)
+    return is_public_snapshot(legacy_snapshot)
+
+
 def request_json(method, url, key, payload=None):
     body = json.dumps(payload, ensure_ascii=False).encode() if payload is not None else None
     request = Request(url, data=body, method=method, headers={
@@ -40,7 +65,7 @@ def request_json(method, url, key, payload=None):
 
 
 def publish(snapshot, url, key, transport=request_json):
-    if (not is_public_snapshot(snapshot)
+    if (not is_publishable_snapshot(snapshot)
             or snapshot.get('schemaVersion') != 1 or snapshot.get('mode') != 'paper'
             or snapshot.get('source') != 'forward-paper-ledger'):
         raise PublishError('Only versioned paper snapshots can be published')

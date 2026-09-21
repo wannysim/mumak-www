@@ -40,6 +40,7 @@ type DashboardFill = {
   quantity: string;
   price: string;
   commission: string;
+  reason: string | null;
 };
 
 type DashboardSnapshot = {
@@ -94,6 +95,12 @@ function string(value: unknown, path: string): string {
   if (typeof value !== 'string' || value.length === 0 || value !== value.trim())
     fail(path, 'expected non-empty string');
   return value;
+}
+
+function shortText(value: unknown, path: string): string {
+  const result = string(value, path);
+  if (result.length > 80) fail(path, 'expected at most 80 characters');
+  return result;
 }
 
 function oneOf<const Values extends readonly string[]>(value: unknown, path: string, values: Values): Values[number] {
@@ -187,7 +194,9 @@ function parseHistoryPoint(value: unknown, path: string): DashboardHistoryPoint 
 
 function parseFill(value: unknown, path: string): DashboardFill {
   const fill = record(value, path);
-  exactKeys(fill, path, ['id', 'at', 'symbol', 'side', 'quantity', 'price', 'commission']);
+  const legacyFill = { ...fill };
+  delete legacyFill.reason;
+  exactKeys(legacyFill, path, ['id', 'at', 'symbol', 'side', 'quantity', 'price', 'commission']);
   return {
     id: string(fill.id, `${path}.id`),
     at: isoDate(fill.at, `${path}.at`),
@@ -196,6 +205,7 @@ function parseFill(value: unknown, path: string): DashboardFill {
     quantity: decimal(fill.quantity, `${path}.quantity`),
     price: decimal(fill.price, `${path}.price`),
     commission: decimal(fill.commission, `${path}.commission`),
+    reason: fill.reason === undefined || fill.reason === null ? null : shortText(fill.reason, `${path}.reason`),
   };
 }
 
