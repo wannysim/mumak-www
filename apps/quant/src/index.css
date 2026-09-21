@@ -1,0 +1,122 @@
+@font-face {
+  font-family: 'Mumak Sans Variable';
+  src: url('./assets/fonts/mumak-sans-variable.woff2') format('woff2-variations');
+  font-weight: 45 920;
+  font-display: swap;
+  unicode-range: U+0020-007F, U+00A0-00FF, U+2010-202F, U+3130-3163, U+AC00-D7A3, U+20A9, U+20AC, U+2122;
+}
+
+:root {
+  --background: #e9edf0;
+  --foreground: #111318;
+  --card: #eef1f3;
+  --card-foreground: #111318;
+  --popover: #eef1f3;
+  --popover-foreground: #111318;
+  --primary: #263cff;
+  --primary-foreground: #f8f9ff;
+  --secondary: #dfe4e8;
+  --secondary-foreground: #20242a;
+  --muted: #dce1e5;
+  --muted-foreground: #59616b;
+  --accent: #dce2ff;
+  --accent-foreground: #1c2fd9;
+  --border: #bcc3ca;
+  --input: #7e8792;
+  --ring: #263cff;
+  --positive: #087a55;
+  --chart-1: #263cff;
+  --chart-2: #087a55;
+  --radius: 0.25rem;
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.dark {
+  --background: #15171b;
+  --foreground: #f1f3f4;
+  --card: #1b1e23;
+  --card-foreground: #f1f3f4;
+  --popover: #1b1e23;
+  --popover-foreground: #f1f3f4;
+  --primary: #8390ff;
+  --primary-foreground: #111423;
+  --secondary: #25282e;
+  --secondary-foreground: #f1f3f4;
+  --muted: #25282e;
+  --muted-foreground: #abb1b7;
+  --accent: #282d50;
+  --accent-foreground: #cbd0ff;
+  --border: #3a3f46;
+  --input: #626a74;
+  --ring: #8390ff;
+  --positive: #65d6a9;
+  --chart-1: #8390ff;
+  --chart-2: #65d6a9;
+}
+
+html {
+  min-width: 320px;
+  background: var(--background);
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Mumak Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.chart-nav {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-linecap: square;
+  stroke-linejoin: bevel;
+  stroke-width: 2.5;
+}
+.chart-return {
+  fill: none;
+  stroke: var(--chart-2);
+  stroke-dasharray: 5 5;
+  stroke-linecap: square;
+  stroke-width: 1.5;
+}
+.chart-point {
+  fill: var(--card);
+  stroke: var(--chart-1);
+  stroke-width: 2;
+}
+.chart-return-key {
+  background: repeating-linear-gradient(90deg, var(--chart-2) 0 5px, transparent 5px 9px);
+}
+
+:where(button) {
+  transition: transform 160ms var(--ease-out-strong);
+}
+button:active {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+  translate: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

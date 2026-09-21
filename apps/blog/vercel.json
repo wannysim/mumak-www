@@ -1,4 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "pnpm install --filter=blog... --frozen-lockfile"
+  "installCommand": "pnpm install --filter=blog... --frozen-lockfile",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "develop": true
+    }
+  }
 }
