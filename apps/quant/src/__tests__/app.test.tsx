@@ -46,6 +46,22 @@ class AppTestClient implements DashboardClient {
 }
 
 describe('Quant dashboard app', () => {
+  beforeEach(() => {
+    // jsdom has no layout; provide a measured container for ResponsiveContainer.
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 720,
+      bottom: 360,
+      width: 720,
+      height: 360,
+      toJSON: () => ({}),
+    });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
   it('warns when logout fails while clearing private display', async () => {
     const client = new AppTestClient();
     client.session = { userId: 'owner-1' };

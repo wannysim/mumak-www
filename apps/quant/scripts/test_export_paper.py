@@ -60,6 +60,25 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(self.db.read_bytes(), before)
         self.assertNotIn(str(self.root), json.dumps(doc))
 
+    def test_fill_reason_projects_only_fixed_public_summaries(self):
+        cases = [
+            ('rebalance', '정기 리밸런싱'),
+            ('risk_stop', '위험 한도에 따른 매도'),
+            ('concentration_reduction', '집중도 한도 조정'),
+            ('private diagnostic: factor=secret', None),
+            ({'private': 'diagnostic'}, None),
+            (['rebalance'], None),
+            (None, None),
+        ]
+        for reason_code, expected in cases:
+            with self.subTest(reason_code=reason_code):
+                if reason_code is None:
+                    self.fills[0].pop('reason', None)
+                else:
+                    self.fills[0]['reason'] = reason_code
+                self.save()
+                self.assertEqual(self.export()['fills'][0]['reason'], expected)
+
     def test_never_exports_live_or_provisional_state(self):
         for key, value in [('live', True), ('mode', 'live'), ('performance_provisional', True),
                            ('corporate_holds', {'TEST': 'split'}), ('net_contributions', '50')]:

@@ -20,6 +20,13 @@ class ExportError(ValueError):
     """Source data cannot be safely projected."""
 
 
+PUBLIC_FILL_REASONS = {
+    'rebalance': '정기 리밸런싱',
+    'risk_stop': '위험 한도에 따른 매도',
+    'concentration_reduction': '집중도 한도 조정',
+}
+
+
 def number(value):
     try:
         result = Decimal(str(value))
@@ -133,7 +140,9 @@ def export_snapshot(ledger, policy_path, *, episode_id, now=None):
                 costs[symbol] = basis * (held - qty) / held
             public_fills.append({'id': f['id'], 'at': f['filled_at'], 'symbol': symbol,
                                  'side': f['side'], 'quantity': text(qty), 'price': text(price),
-                                 'commission': text(fee)})
+                                 'commission': text(fee),
+                                 'reason': PUBLIC_FILL_REASONS.get(f['reason'])
+                                 if isinstance(f.get('reason'), str) else None})
             fill_index += 1
         quotes = obs['quotes']
         active = {s: q for s, q in positions.items() if q > 0}
