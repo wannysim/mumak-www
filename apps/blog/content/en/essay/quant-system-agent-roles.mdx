@@ -1,0 +1,139 @@
+---
+title: 'Dividing the work while building a quant investment system'
+date: '2026-09-21'
+description: 'Building a quant investment system with Hermes, and deciding what to delegate to AI and what to keep in code.'
+tags: ['ai', 'agents', 'quant', 'architecture', 'hermes']
+draft: false
+---
+
+I have been building a quant investment system with Hermes.
+It applies investment rules to market data, records the results, and gives me something to work from when considering the next strategy.
+It is currently paper trading with observed US market prices and virtual funds.
+
+The system has grown quite large.
+From researching strategies to collecting prices and recording transactions, each addition seemed understandable on its own. Looking at the whole system, though, I started losing track of what happened where.
+Rather than add another feature, I wanted to write down who does what.
+
+## Not every task needed the same AI
+
+Model usage was one of my first concerns when dividing the roles.
+For a system running on weekdays, I wondered whether strategy research and document summaries really needed the same model.
+I wanted to give research enough room for reasoning and leave well-defined tasks to a lighter model.
+
+But before choosing between models, there was another distinction to make.
+Some tasks did not need AI at all.
+
+Collecting prices, calculating quantities from fixed allocations, and updating the ledger already have defined rules.
+There was no reason to explain those rules to AI and ask for an answer every time.
+Code was the better place for calculations that should produce the same result from the same input.
+
+I decided to use AI for strategy research and problem analysis, while ordinary programs handle recurring operations.
+Code also produces the daily report by putting ledger values into a fixed format.
+AI becomes useful when looking at those records and considering what to change.
+
+## Research and operational support
+
+I divided the AI work between Astra, Sol, and Luna.
+These are not three separate investment bots.
+They are different models called for particular jobs within the same system.
+
+Astra handles strategy research.
+It takes on work that needs more thought, such as choosing investment ideas to test and interpreting experimental results.
+A promising return needs examination: did it depend on a particular period, and does it hold up after trading costs?
+Astra is also the model I use in the main research conversation to discuss direction.
+
+Sol helps with operations.
+It can read logs to narrow down a price-collection failure or handle a bounded code change and its tests.
+I also made it the default model for delegated work.
+It does not decide whether to buy or sell each time a trade comes up.
+Code executes the established trading rules; Sol is called when something needs investigation or a change.
+
+Luna organizes material.
+It extracts facts, sources, and dates from supplied documents for the next task.
+I ask it to keep the material concise and accurate rather than add new investment judgments.
+It also handles small tasks such as generating session titles.
+Sorting CSV files and adding up profit and loss still stay in code.
+
+The division follows the work more than the model names.
+I choose where to send a task based on whether it needs deeper reasoning, bounded execution, or document organization.
+
+## Work passes through the main conversation
+
+I send requests to Hermes through Telegram.
+Hermes breaks down the work, passes relevant material to a role, and brings the results back.
+It also runs programs on schedule and delivers reports.
+
+The three agents are not always running and debating with one another.
+The main conversation delegates only the work that is needed.
+Instead of handing over the entire conversation, it passes the task's purpose, relevant material, and boundaries on what should not be changed.
+
+For a price-collection problem, a request to Sol might look like this:
+
+> Read these logs and narrow down the collection failure. Leave the ledger alone and suggest what to check next.
+
+Sol returns observed facts, possible causes, and check results to the main conversation.
+The actual logs or test results are checked before deciding on the next task.
+For research that needs some preparation, material organized by Luna can become input for Astra's review.
+Not every task calls all three models in sequence.
+
+I wanted the results to be something I could check.
+An agent saying a task is complete does not necessarily mean the work is done.
+The changed files and test results need to be checked before continuing.
+
+The overall structure looks like this:
+
+```text
+Me: investment direction and operating rules
+  |
+  v
+Hermes: hand off tasks and check results
+  +-- Astra: strategy research
+  +-- Sol: operational checks and problem analysis
+  +-- Luna: organize material
+  |
+  v
+Reviewed strategy and rules
+  |
+  v
+Code: collect prices -> calculate signals and sizes -> check risk
+  |
+  v
+Paper fills -> ledger -> report
+  |
+  +-- Review the results in the next round of research
+```
+
+## What runs daily, and what changes next
+
+Code runs when the market opens.
+It checks trading dates and session times, collects prices, and calculates signals and quantities using the fixed strategy.
+Risk checks come before paper fills and ledger updates.
+This process and the template-based daily report are scheduled jobs that do not call an LLM.
+
+The current experiment uses a low-frequency trend strategy.
+It does not need to trade every day, and no-trade days are recorded too.
+Results are grouped into a report scheduled for 09:00 Korea time.
+Since US trading often overlaps with my sleep, I chose to batch routine fill notifications and receive urgent problems separately.
+
+I set up month-end reviews to revisit the strategy using the accumulated records.
+The intermediate review is assigned to Sol and the final strategy review to Astra.
+Rather than look only at profit and loss, I want to consider costs and operational problems when deciding what to test next.
+
+Experiments with other strategies use separate ledgers.
+Mixing them with the current strategy's records would make it harder to tell which change affected the results.
+I also built a connection for applying the same strategy to an independent paper path alongside future live trading, so execution and cost differences can be compared.
+Live trading is not enabled yet.
+
+## A system I can keep understanding
+
+I started out thinking mainly about building a quant investment system.
+As I wrote down the structure, I realized that I was also putting a way of delegating to AI into practice.
+Some work gets a deeper review, some is broken into small tasks, and established rules are left to code to repeat.
+
+Dividing the roles does not remove my need to understand the whole system.
+I still need to know where a result came from and which changes will affect the next run.
+I do not want it to grow into something I can no longer explain.
+
+For now, I want to keep this process running rather than add more features.
+As records accumulate, I expect to see places where things differ from what I anticipated.
+I want to keep the system understandable enough to decide which rules to retain and what to research again when that happens.
