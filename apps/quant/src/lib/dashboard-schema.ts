@@ -83,8 +83,8 @@ function record(value: unknown, path: string): Record<string, unknown> {
 }
 
 function exactKeys(value: Record<string, unknown>, path: string, expected: readonly string[]) {
-  const actual = Object.keys(value);
-  const unexpected = actual.find(key => !expected.includes(key));
+  const allowed = new Set(expected);
+  const unexpected = Object.keys(value).find(key => !allowed.has(key));
   const missing = expected.find(key => !(key in value));
   if (unexpected) fail(`${path}.${unexpected}`, 'unexpected field');
   if (missing) fail(`${path}.${missing}`, 'missing field');

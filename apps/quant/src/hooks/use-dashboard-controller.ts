@@ -160,29 +160,21 @@ function useDashboardController(client: DashboardClient) {
   }, [authRevision, authStatus, loadSnapshots, mode]);
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
-    const startPolling = () => {
+    const interval = setInterval(() => {
       if (document.visibilityState !== 'visible') return;
-      interval = setInterval(() => void loadSnapshots(modeRef.current), 60_000);
-    };
-    const stopPolling = () => {
-      if (interval) clearInterval(interval);
-      interval = undefined;
-    };
+      void loadSnapshots(modeRef.current);
+    }, 60_000);
     const handleVisibility = () => {
-      stopPolling();
       if (document.visibilityState === 'hidden') {
         invalidateRequest(modeRef.current);
         return;
       }
       void loadSnapshots(modeRef.current);
-      startPolling();
     };
 
-    startPolling();
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
-      stopPolling();
+      clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [invalidateRequest, loadSnapshots]);
@@ -225,17 +217,13 @@ function useDashboardController(client: DashboardClient) {
 
   const selection = selectionByMode[mode];
   const data = dataByMode[mode];
-  const episodes = useMemo(
-    () =>
-      data.snapshots.reduce<Array<{ id: string; label: string }>>(
-        (items, snapshot) =>
-          items.some(item => item.id === snapshot.episodeId)
-            ? items
-            : [...items, { id: snapshot.episodeId, label: snapshot.label }],
-        []
-      ),
-    [data.snapshots]
-  );
+  const episodes = useMemo(() => {
+    const labelByEpisodeId = new Map<string, string>();
+    for (const snapshot of data.snapshots) {
+      if (!labelByEpisodeId.has(snapshot.episodeId)) labelByEpisodeId.set(snapshot.episodeId, snapshot.label);
+    }
+    return Array.from(labelByEpisodeId, ([id, label]) => ({ id, label }));
+  }, [data.snapshots]);
   const months = useMemo(
     () => data.snapshots.filter(snapshot => snapshot.episodeId === selection.episodeId).map(snapshot => snapshot.month),
     [data.snapshots, selection.episodeId]
