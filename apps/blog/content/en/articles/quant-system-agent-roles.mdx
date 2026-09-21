@@ -12,7 +12,7 @@ According to the implementation records dated September 21, 2026, the system is 
 
 ## Separate repetitive work before assigning models
 
-Calling an expensive model every time a weekday system runs would consume too much of the usage allowance. Sending every important strategy review to a lighter model did not seem right either.
+I was concerned about usage if every recurring weekday task called a deep-reasoning model. Treating every important strategy review as though it needed the same level of reasoning did not seem right either. Rather than assume a verified cost difference between models, I started by matching the scope of calls and reasoning effort to the work.
 
 The initial division was simple: Astra for deep research, Sol for operations, and Luna for organizing material. Before assigning models, though, I needed to identify **the work that does not need a model at all**.
 
@@ -98,7 +98,7 @@ Coordinator
   Handle any repair separately within the approved scope
 ```
 
-Research follows the same principle. Luna can organize material for Astra to review when needed, but there is no daily automatic Luna-to-Sol-to-Astra pipeline. The role runner also prohibits nested model calls and automatic escalation to a more expensive model.
+Research follows the same principle. Luna can organize material for Astra to review when needed, but there is no daily automatic Luna-to-Sol-to-Astra pipeline. Role prompts prohibit additional model calls, and the runner has no failure path that automatically escalates to a higher-tier model. The prompt prohibition itself is not a process-level block.
 
 **A process exiting successfully is not the same as a task being correct.** If a delegated agent reports that tests passed, the coordinator checks the actual execution evidence. The requested model is checked against session and usage records rather than inferred from a runner receipt alone.
 
@@ -124,11 +124,11 @@ Combining different purposes under the word "paper" makes results easy to misrea
 
 The live and shadow paths share versioned strategy decisions and data contracts. They keep capital, fills, ledgers, and stop state separate. Live fills are not copied into the paper ledger to make the results match. A successful alternative experiment is not automatically promoted into the operating strategy either.
 
-The dual-track connection has been implemented, installed, and tested in an isolated environment. Live comparison remains pending until actual opening balances, cost and settlement evidence, and the production data supply are aligned. Replaying historical data does not count as new forward performance.
+The dual-track connection has been implemented, installed, and tested in an isolated environment. Loading the new modules into the existing running financial process and enabling its access to the corresponding tools have not yet been verified. Live comparison remains pending until actual opening balances, cost and settlement evidence, and the production data supply are aligned. Replaying historical data does not count as new forward performance.
 
 ## Model costs need limits and evidence too
 
-The current configuration bounds role calls by time and turns and limits native delegated workers to two concurrent children. It passes only the required material and does not automatically move to a more expensive model after a failure. Less visible auxiliary calls, including title generation, are included when checking usage.
+The current configuration bounds role calls by time and turns and limits native delegated workers to two concurrent children. It passes only the required material and does not automatically move to a higher-tier model after a failure. Less visible auxiliary calls, including title generation, are included when checking usage.
 
 This is not a budget mechanism that enforces a hard daily token or currency cap. The relative weights of models in the subscription allowance and the actual savings percentage have not been verified. What I can claim is narrower: model calls have been excluded from recurring operations, and the scope of work that uses AI has been limited.
 
