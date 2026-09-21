@@ -33,6 +33,35 @@ class PublishTests(unittest.TestCase):
         self.assertTrue(transport.call_args_list[0].args[1].endswith('/rpc/publish_paper_snapshot'))
         self.assertEqual(transport.call_args_list[1].args[0], 'GET')
 
+    def test_accepts_allowlisted_fill_reason_and_legacy_missing_reason(self):
+        for reason in [None, '정기 리밸런싱', '위험 한도에 따른 매도', '집중도 한도 조정']:
+            with self.subTest(reason=reason):
+                doc = copy.deepcopy(self.doc)
+                doc['fills'][0]['reason'] = reason
+                row = {**self.row, 'payload': doc}
+                transport = Mock(side_effect=[True, [row]])
+                self.assertEqual(
+                    publish(doc, 'https://fixture.supabase.co', 'test-key', transport),
+                    'verified',
+                )
+
+        transport = Mock(side_effect=[True, [self.row]])
+        self.assertEqual(
+            publish(self.doc, 'https://fixture.supabase.co', 'test-key', transport),
+            'verified',
+        )
+
+    def test_rejects_unapproved_or_malformed_fill_reason_before_post(self):
+        for reason in ['private diagnostic', '', ' 정기 리밸런싱', 42, 'x' * 81,
+                       {'private': 'diagnostic'}, []]:
+            with self.subTest(reason=reason):
+                doc = copy.deepcopy(self.doc)
+                doc['fills'][0]['reason'] = reason
+                transport = Mock()
+                with self.assertRaises(PublishError):
+                    publish(doc, 'https://fixture.supabase.co', 'test-key', transport)
+                transport.assert_not_called()
+
     def test_refuses_live_source_and_bad_host_without_network(self):
         cases = [({**self.doc, 'mode': 'live'}, 'https://fixture.supabase.co', 'test-key'),
                  ({**self.doc, 'source': 'live-ledger'}, 'https://fixture.supabase.co', 'test-key'),

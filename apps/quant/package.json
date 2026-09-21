@@ -1,6 +1,6 @@
 {
   "name": "quant",
-  "version": "1.19.0",
+  "version": "1.20.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,7 @@
     "format:check": "oxfmt --check .",
     "check-types": "node ../../node_modules/typescript-go/bin/tsc --noEmit",
     "preview": "vite preview --port 3007",
-    "preview:e2e": "vite preview --port 3007",
+    "preview:e2e": "node scripts/preview-e2e.mjs",
     "test": "vitest --watch=false",
     "test:watch": "vitest --watch",
     "test:run": "vitest run",
@@ -30,9 +30,11 @@
     "@tailwindcss/vite": "^4.3.3",
     "lucide-react": "^1.41.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "recharts": "3.10.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@mumak/playwright-config": "workspace:*",
     "@mumak/typescript-config": "workspace:*",
     "@playwright/test": "1.61.0",
