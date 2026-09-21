@@ -1,147 +1,103 @@
 ---
 title: 'Dividing the work in a quant system: AI researches, code operates'
 date: '2026-09-21'
-description: 'How a Hermes-based quant system assigns research, operations, and document work to Astra, Sol, and Luna, with explicit handoffs and verification before changes reach paper trading.'
+description: 'Building a quant system with Hermes: Astra researches strategies, Sol helps with operations, Luna organizes material, and code handles the recurring work.'
 tags: ['ai', 'agents', 'quant', 'architecture', 'hermes']
 draft: true
 ---
 
-The quant system I built does not ask an AI to decide every buy and sell. AI helps research strategies and investigate operational problems. Ordinary code collects data, calculates quantities, checks risk conditions, and maintains the ledger under fixed rules.
+I have been building a quant investment system with Hermes. It applies a set of investment rules to market data, records the results, and gives me something to work from when planning the next strategy. It is currently paper trading with observed US market prices and virtual funds.
 
-According to the implementation records dated September 21, 2026, the system is in forward paper trading using observed US market prices. A connection for running live and paper tracks together has also been implemented, but live-account activation remains closed pending separate verification and approval. This is an account of how people and agents divide the work, rather than a report on investment performance.
+One part I spent time on was deciding what to leave to AI. A single model did not need to handle everything from strategy research to daily calculations. I assigned research to Astra, operational support to Sol, and document work to Luna, while keeping recurring operations in code.
 
-## Separate repetitive work before assigning models
+## Not everything needs a model call
 
-I was concerned about usage if every recurring weekday task called a deep-reasoning model. Treating every important strategy review as though it needed the same level of reasoning did not seem right either. Rather than assume a verified cost difference between models, I started by matching the scope of calls and reasoning effort to the work.
+Model usage mattered because this system would run on weekdays. I wanted enough reasoning for a substantial strategy review, but there was little reason to call a model for a return calculation or ledger update whose rules were already defined.
 
-The initial division was simple: Astra for deep research, Sol for operations, and Luna for organizing material. Before assigning models, though, I needed to identify **the work that does not need a model at all**.
+I started by separating two kinds of work:
 
-There is little reason to use natural-language reasoning for a defined return calculation, position sizing rule, or ledger update. Those operations should be code whose inputs and outputs can be checked. A daily report can also be generated without a model when it places verified ledger values into a fixed template.
+- AI helps form hypotheses, interpret results, and investigate problems.
+- Code processes data, calculates quantities, and keeps records under fixed rules.
 
-I kept normal recurring operations in code and reserved model calls for work that needs interpretation or judgment. This limits model use, but it also helps apply the same rules consistently and trace problems when they occur.
+The same applies to the daily report. Putting ledger values into a template is a job for an ordinary program. A model becomes useful when interpreting those results and considering what to change next.
 
-## The structure: verification between research and execution
-
-```text
-User: investment goals, capital, risk limits, final approval
-  |
-  v
-Main Hermes conversation: scope work, select roles, verify results
-  +-- Astra: strategy hypotheses, bias, and risk review
-  +-- Sol: operational exceptions and clearly scoped tasks
-  +-- Luna: facts, sources, and dates in supplied material
-  |
-  v
-Strategy and settings fixed after verification and approval
-  |
-  v
-Ordinary code: collect -> calculate signals and sizes -> check risk
-  |
-  v
-Current paper fills -> ledger and valuation -> daily report
-  |
-  +-- Observations feed later research and month-end review
-```
-
-These are logical roles. They are not three AIs with separate brokerage accounts or separate servers holding a continuous conversation. Assigning the roles did not create new brokerage connections or copies of financial credentials.
-
-Hermes handles the conversation, task delegation, scheduled execution, and delivery of results. Financial execution stays behind the existing integrated execution service. Adding agents does not mean duplicating order permissions.
-
-## Astra: scrutinizing the strategy
-
-Astra handles strategy hypotheses, experiment design, bias and overfitting, and important risk judgments. The main research conversation also remains on Astra.
-
-The aim of strategy research is to find worthwhile returns, but a review cannot stop at the return figure. It has to ask whether a rule benefited from a particular period, used information unavailable at the time, or loses its appeal after costs. A good result from a short paper run should not become a claim of lasting advantage.
-
-Astra produces hypotheses, evidence, proposed experiments, and an account of uncertainty. Its natural-language answer is not an operating policy. Strategy changes need verification and confirmation, and a move to live trading requires separate user approval.
-
-## Sol: narrowing operational problems within an approved scope
-
-Sol handles clearly bounded delegated tasks and operational exceptions. For example, it can inspect a collection failure, distinguish a provider problem from an input-format problem, and propose the next safe check.
-
-An operations role is not an order-placement role. The execution code carries out the predefined trading rules. A Sol call through the role runner follows a policy against modifying the financial executor, operating policy, or original ledger. If a code change is needed, it happens in a separate working copy. The coordinating agent checks the result and tests before applying it.
-
-Sol is also the default model for delegated workers. That does not mean an error automatically launches Sol into an unlimited repair loop. Existing error notifications remain in place, and the coordinator decides which investigation to delegate.
-
-## Luna: preparing evidence for judgment
-
-Luna organizes facts, sources, dates, and uncertainty from supplied documents. Its scope excludes filling in missing numbers or turning a factual summary into an investment recommendation. Luna also handles auxiliary work such as session titles.
-
-If an announcement says revenue increased without giving a percentage, the summary should not invent a growth rate. A short account of what the source says and what remains unknown becomes input for the next judgment.
-
-Not every dataset passes through Luna. Sorting a CSV or aggregating profit and loss still belongs in code when the rules are clear.
-
-## How agents hand work to one another
-
-The current collaboration pattern centers on the main conversation. It sends a task and the material needed to complete it, rather than copying the entire conversation to every agent.
-
-The local role runner selects `research`, `operations`, or `organize`, fixes the model, available toolsets, time budget, and turn limit, then starts a fresh CLI session. Native delegation defaults to Sol. Work that needs Astra or Luna uses the corresponding explicit role route. The default delegation call is not an automatic classifier that chooses among all three models.
-
-The prompt separates instructions from reference material. A sentence in a supplied document that looks like a command is not supposed to become part of the assigned task. The runner saves the output, error output, exit status, requested model, and other execution metadata.
-
-The following illustrates a handoff. It is not an actual incident record or an enforced message schema.
+## The overall structure
 
 ```text
-Coordinator -> Sol
-  Task: narrow down a market-data collection failure
-  Material: relevant error logs and the input format
-  Restrictions: do not modify the original ledger, strategy,
-                or financial execution service
-  Return: observed facts, unresolved causes, and the next check
-
-Sol -> Coordinator
-  Distinguish observations from possible explanations
-  Include the results and limits of any checks performed
-
-Coordinator
-  Compare the answer with actual logs, files, and tests
-  Handle any repair separately within the approved scope
+Me: investment direction and operating rules
+  |
+  v
+Hermes: divide the work and bring results together
+  +-- Astra: strategy research and important judgments
+  +-- Sol: operational checks and problem analysis
+  +-- Luna: organize supplied material
+  |
+  v
+Reviewed strategy and rules
+  |
+  v
+Code: collect prices -> calculate signals and sizes -> check risk
+  |
+  v
+Paper fills -> ledger -> daily report
+  |
+  +-- Results feed the next round of research
 ```
 
-Research follows the same principle. Luna can organize material for Astra to review when needed, but there is no daily automatic Luna-to-Sol-to-Astra pipeline. Role prompts prohibit additional model calls, and the runner has no failure path that automatically escalates to a higher-tier model. The prompt prohibition itself is not a process-level block.
+I discuss direction with Hermes through Telegram. Hermes breaks down the work, assigns it to the appropriate role, and brings the results back together. It also handles scheduled program runs and report delivery.
 
-**A process exiting successfully is not the same as a task being correct.** If a delegated agent reports that tests passed, the coordinator checks the actual execution evidence. The requested model is checked against session and usage records rather than inferred from a runner receipt alone.
+The three roles are closer to people I can call on for a particular job than separate investment bots. The account connection and order path stay in the existing execution service.
 
-Tool lists and prompt restrictions are not an OS sandbox. Roles that can use files and a terminal assume a trusted local worker. Giving roles different names does not create a strong security boundary.
+## What each agent does
 
-## When the market opens, code does the recurring work
+### Astra researches strategies
 
-Collection, fixed strategy calculations, risk checks, ledger updates, and the template-based daily report run as `no_agent` scheduled jobs in the current paper system. These jobs run ordinary programs without calling an LLM in that recurring path. Development, research, exception analysis, and month-end interpretation still consume model usage.
+Astra handles investment ideas, experiment design, and interpretation. It is also the model for the main research conversation.
 
-The code checks trading dates and session times, collects data, and applies the fixed rules. The strategy currently under observation is a low-frequency trend strategy, so it does not need to trade every day. Distinguishing a no-trade day from missing data or a failed run is part of operating it.
+When a strategy looks promising, its job is to examine whether the result depends too much on a particular period or changes once trading costs are included. I reserved it for work that needs more thought, such as deciding what to test next and which assumptions to revisit.
 
-Results go into the ledger and a Korean daily summary scheduled for 09:00 Asia/Seoul. Routine fills are grouped rather than sent as individual overnight messages; urgent safety issues and failures retain a separate notification path. Verified schedules and local runs do not guarantee that every future delivery will succeed.
+### Sol helps with operations
 
-Month-end work interprets those records: returns and losses, costs, risk, decision quality, and proposed experiments. The intermediate review is assigned to Sol and the final strategy review to Astra. A month-end report is not a signal to start live trading automatically the following month.
+Sol handles well-defined tasks and operational investigations. If price collection fails, it can read the relevant logs and narrow down the cause. If code needs a change, it can work on a separate copy and test it. Sol is also the default model for delegated workers.
 
-## Paper trading has more than one purpose
+It does not make a new decision for every trade. Code executes the trading rules; Sol is called when an investigation is needed. Rather than freely changing the original ledger or operating rules, it returns its work to the main conversation for review before anything is applied.
 
-Combining different purposes under the word "paper" makes results easy to misread. The system distinguishes these tracks:
+### Luna organizes material
 
-- The current forward paper episode observes the strategy and operating process as market time passes. Funds and fills are simulated.
-- A same-strategy shadow track is designed to receive the same strategy decision as future live trading, then calculate fills and maintain its ledger independently. It compares the effects of execution conditions and costs.
-- An alternative-strategy experiment tests a changed rule in a separate ledger. It studies strategy differences rather than execution differences.
+Luna extracts facts, sources, and dates from supplied documents. Its job is to turn longer material into something manageable for the next decision.
 
-The live and shadow paths share versioned strategy decisions and data contracts. They keep capital, fills, ledgers, and stop state separate. Live fills are not copied into the paper ledger to make the results match. A successful alternative experiment is not automatically promoted into the operating strategy either.
+If an announcement says revenue increased without giving a percentage, Luna should summarize what is known rather than guess the growth rate. It also handles small auxiliary tasks such as session titles. Sorting a CSV or adding up profit and loss stays in code.
 
-The dual-track connection has been implemented, installed, and tested in an isolated environment. Loading the new modules into the existing running financial process and enabling its access to the corresponding tools have not yet been verified. Live comparison remains pending until actual opening balances, cost and settlement evidence, and the production data supply are aligned. Replaying historical data does not count as new forward performance.
+## How work moves between agents
 
-## Model costs need limits and evidence too
+The main conversation coordinates the work. The agents do not all share the entire conversation and debate continuously. The coordinator selects a role and passes along the task and relevant material.
 
-The current configuration bounds role calls by time and turns and limits native delegated workers to two concurrent children. It passes only the required material and does not automatically move to a higher-tier model after a failure. Less visible auxiliary calls, including title generation, are included when checking usage.
+For example, a price-collection problem could be handled like this:
 
-This is not a budget mechanism that enforces a hard daily token or currency cap. The relative weights of models in the subscription allowance and the actual savings percentage have not been verified. What I can claim is narrower: model calls have been excluded from recurring operations, and the scope of work that uses AI has been limited.
+```text
+Main conversation -> Sol
+  "Read these logs and narrow down the collection failure.
+   Leave the ledger alone and suggest the next check."
 
-## What has been checked, and what comes next
+Sol -> Main conversation
+  Return observed facts, possible causes, and check results
 
-The implementation records confirm actual calls to the three role models, Sol as the default delegate, and preservation of existing settings and schedules within the approved change scope. The paper/live connection underwent offline testing and installation verification. These checks support the role routing and software execution paths.
+Main conversation
+  Check the actual logs and tests, then decide the next task
+```
 
-They do not establish live-account performance or profitability. Live trading has not been activated. Actual capital, the final strategy, and the account baseline still need to be fixed before a separate operational validation. A short paper episode cannot establish long-term returns either.
+For research, material organized by Luna can become input for Astra's review. But there is no daily sequence that calls all three models in turn. I delegate only the work needed at the time.
 
-The next decision depends less on adding features than on what the paper run teaches us. I want to check whether records remain consistent through missing data and restarts, whether results can be explained after costs, and whether there is evidence to keep or change the strategy.
+Each role has a defined set of tools and limits on time and turns. Outputs and execution records are kept as well. An agent saying "done" is not the end of a task: files and test results need to be checked. That gives whoever picks up the next task a clearer basis for continuing.
 
-AI handles part of the research and interpretation. Code handles recurring execution, verification stands before changes, and a person retains responsibility for investment direction and live activation. I have paid more attention to where each role's responsibility ends than to how many agents the system contains.
+## Connecting daily operations to the next experiment
 
----
+Ordinary code handles the recurring work when the market opens. It checks trading dates and session times, collects prices, and calculates signals and quantities from the fixed strategy. Risk checks come before paper fills and ledger updates. This path and the template-based daily report run as `no_agent` scheduled jobs, without calling an LLM.
 
-This article was checked against internal implementation reports, model-routing operating rules, the role runner, and verification records dated September 21, 2026. Account information, credentials, internal runtime paths, and original ledgers are not published. The collaboration example is explanatory, not an actual trading instruction or investment recommendation.
+The current experiment uses a low-frequency trend strategy, so it does not need to trade every day. No-trade days are recorded too, and results are grouped into a report scheduled for 09:00 Korea time. Since US trading often overlaps with my sleep, I chose to batch routine fill notifications and receive urgent problems separately.
+
+At month-end, those records become material for another strategy review. The intermediate review is assigned to Sol and the final strategy review to Astra. The idea is to consider costs and operational problems alongside profit and loss, then decide what to test next.
+
+I also separated the purposes of paper trading. The current paper episode observes the existing strategy, while experiments with different rules use separate ledgers. I built a connection for applying the same strategy to an independent paper path alongside future live trading, so execution and cost differences can be compared. Live trading is not enabled yet.
+
+For now, I want to keep this process running rather than add more models. Code handles the repetitive work, AI concentrates on research and problem-solving, and I use the results to choose the next direction. I am building the system on my own, but dividing the work means I do not have to hold every part of it in my head at once.
