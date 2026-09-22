@@ -8,7 +8,7 @@ import { FillDetails } from '@/components/fill-details';
 import { StockLink } from '@/components/stock-link';
 import { useTimeZone } from '@/components/time-zone-provider';
 import type { DashboardFill, DashboardHolding, DashboardSnapshot } from '@/lib/dashboard-schema';
-import { formatDecimal, formatMoney, formatPercent, valueTone } from '@/lib/format';
+import { fillAmount, formatDecimal, formatMoney, formatPercent, valueTone } from '@/lib/format';
 
 // recharts는 이 차트에서만 쓰이는데 엔트리 청크의 큰 부분을 차지한다.
 // 별도 청크로 분리해 첫 화면(요약·보유·체결)이 먼저 그려지게 한다.
@@ -166,7 +166,7 @@ function MobileFill({ fill, currency }: { fill: DashboardFill; currency: string 
           <StockLink symbol={fill.symbol} />
         </strong>
         <p className="text-right font-mono text-sm font-semibold tabular-nums">
-          {formatMoney(String(Number(fill.quantity) * Number(fill.price)), currency)}
+          {formatMoney(fillAmount(fill), currency)}
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -243,7 +243,7 @@ function Fills({ fills, currency }: { fills: DashboardFill[]; currency: string }
                   </strong>
                 </TableCell>
                 <TableCell className="text-right font-mono font-semibold tabular-nums">
-                  {formatMoney(String(Number(fill.quantity) * Number(fill.price)), currency)}
+                  {formatMoney(fillAmount(fill), currency)}
                 </TableCell>
                 <TableCell className="text-right font-mono text-muted-foreground tabular-nums">
                   {formatDecimal(fill.quantity)}

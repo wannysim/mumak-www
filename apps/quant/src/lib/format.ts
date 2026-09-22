@@ -1,3 +1,5 @@
+import type { DashboardFill } from '@/lib/dashboard-schema';
+
 const PERCENT_FORMAT = new Intl.NumberFormat('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function createDateFormatters(timeZone: string) {
@@ -54,6 +56,14 @@ function formatPercent(decimal: string | null) {
   if (value === null) return '산출 불가';
   const sign = value > 0 ? '+' : '';
   return `${sign}${PERCENT_FORMAT.format(value)}%`;
+}
+
+export function fillAmount(fill: Pick<DashboardFill, 'quantity' | 'price'>) {
+  return String(Number(fill.quantity) * Number(fill.price));
+}
+
+export function fillTotal(fill: Pick<DashboardFill, 'quantity' | 'price' | 'side' | 'commission'>) {
+  return String(Number(fillAmount(fill)) + (fill.side === 'buy' ? 1 : -1) * Number(fill.commission));
 }
 
 function valueTone(decimal: string | null) {

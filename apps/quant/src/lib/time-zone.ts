@@ -38,8 +38,8 @@ function timeZoneOffset(timeZone: string, at = new Date()) {
   );
 }
 
-function timeZoneLabel(timeZone: string, at = new Date()) {
-  const offset = timeZoneOffset(timeZone, at);
+function timeZoneLabel(timeZone: string) {
+  const offset = timeZoneOffset(timeZone);
   const place = TIME_ZONES.find(zone => zone.value === timeZone)?.label ?? '현지';
   return `${offset} · ${place}`;
 }

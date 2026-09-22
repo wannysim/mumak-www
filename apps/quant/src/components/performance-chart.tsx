@@ -41,9 +41,8 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
     return <p className="py-14 text-center text-sm text-muted-foreground">표시할 시계열이 없습니다.</p>;
   }
 
-  const endPoint = last;
   const activeIndex = Math.min(Math.max(selectedIndex ?? points.length - 1, 0), points.length - 1);
-  const activePoint = points[activeIndex] ?? endPoint;
+  const activePoint = points[activeIndex] ?? last;
   const lineColor = 'var(--color-navValue)';
   // 점이 많으면 선택 지점만, 적으면 모든 지점을 찍는다. ReferenceDot은 Line보다
   // 아래 레이어에 깔려 선 위의 점에 가려지므로 Line의 dot으로 직접 그린다.
@@ -188,9 +187,8 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
           </LineChart>
         </ChartContainer>
       </div>
-      <p className="text-xs text-muted-foreground">NAV 추이 · 기록이 없는 시간은 생략합니다.</p>
       <p className="text-xs text-muted-foreground">
-        {formatDateTime(first.at)} — {formatDateTime(last.at)}
+        NAV 추이 · 기록이 없는 시간은 생략 · {formatDateTime(first.at)} — {formatDateTime(last.at)}
       </p>
     </div>
   );

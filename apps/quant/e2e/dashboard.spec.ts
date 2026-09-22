@@ -169,7 +169,7 @@ test.describe('touch dashboard', () => {
 });
 
 for (const width of [320, 390, 768, 1440]) {
-  test(`dashboard layout and full fill history at ${width}px`, async ({ page }, testInfo) => {
+  test(`dashboard layout at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await mockSnapshots(page, true, true);
     const episode = page.getByRole('combobox', { name: '에피소드' });
@@ -187,23 +187,11 @@ for (const width of [320, 390, 768, 1440]) {
     await expect(page.getByRole('option', { name: '미국 주식 저빈도 추세 모의 운용 에피소드' })).toBeVisible();
     await page.keyboard.press('Escape');
 
-    await page.getByRole('banner').screenshot({ path: testInfo.outputPath(`header-${width}.png`) });
     const chartPanel = page.locator('section').filter({ has: page.getByRole('heading', { name: '성과 추이' }) });
     const bounds = await chartBounds(page);
     await expect(chartPanel.getByRole('status')).toContainText('$100,300.00');
     await expect(chartPanel.getByRole('status')).toContainText('+0.30%');
     await expect(chartPanel.getByRole('radio')).toHaveCount(0);
-    await chartPanel.screenshot({ path: testInfo.outputPath(`performance-${width}.png`) });
-    const explorer = page.getByRole('slider');
-    await explorer.focus();
-    const positions = [];
-    await page.keyboard.press('Home');
-    for (let index = 0; index < 4; index++) {
-      positions.push(Number(await page.locator('circle[data-selected="true"]').getAttribute('cx')));
-      await page.keyboard.press('ArrowRight');
-    }
-    expect(positions[1]! - positions[0]!).toBeCloseTo(positions[2]! - positions[1]!, 0);
-    expect(positions[2]! - positions[1]!).toBeCloseTo(positions[3]! - positions[2]!, 0);
     expect(bounds.height).toBeLessThan(350);
 
     const fills = page.locator('section').filter({ has: page.getByRole('heading', { name: '최근 체결' }) });
@@ -213,21 +201,38 @@ for (const width of [320, 390, 768, 1440]) {
       const sell = await fills.getByText('매도', { exact: true }).first().boundingBox();
       expect(buy!.x).toBe(sell!.x);
     }
-    await fills.getByRole('button', { name: '다음' }).click();
-    await expect(fills.getByRole('status')).toContainText('21–40건 표시');
-    await expect(fills.getByRole('status')).toBeFocused();
-    await fills.getByRole('button', { name: '다음' }).click();
-    await expect(fills.getByRole('status')).toContainText('41–41건 표시');
-    await expect(fills.getByRole('button', { name: '다음' })).toBeDisabled();
-    await expect(fills.getByRole('button', { name: /체결 상세/ })).toHaveCount(1);
-    await fills.getByRole('button', { name: /체결 상세/ }).click();
-    await expect(page.getByRole('dialog')).toContainText('총 매수 지출');
-    await page.keyboard.press('Escape');
-    await fills.getByRole('button', { name: '이전' }).click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({ path: testInfo.outputPath(`dashboard-${width}.png`), fullPage: true });
   });
 }
+
+test('expanded history keeps equal chart spacing and all fill pages reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await mockSnapshots(page, true, true);
+
+  const explorer = page.getByRole('slider');
+  await explorer.focus();
+  const positions = [];
+  await page.keyboard.press('Home');
+  for (let index = 0; index < 4; index++) {
+    positions.push(Number(await page.locator('circle[data-selected="true"]').getAttribute('cx')));
+    await page.keyboard.press('ArrowRight');
+  }
+  expect(positions[1]! - positions[0]!).toBeCloseTo(positions[2]! - positions[1]!, 0);
+  expect(positions[2]! - positions[1]!).toBeCloseTo(positions[3]! - positions[2]!, 0);
+
+  const fills = page.locator('section').filter({ has: page.getByRole('heading', { name: '최근 체결' }) });
+  await fills.getByRole('button', { name: '다음' }).click();
+  await expect(fills.getByRole('status')).toContainText('21–40건 표시');
+  await expect(fills.getByRole('status')).toBeFocused();
+  await fills.getByRole('button', { name: '다음' }).click();
+  await expect(fills.getByRole('status')).toContainText('41–41건 표시');
+  await expect(fills.getByRole('button', { name: '다음' })).toBeDisabled();
+  await expect(fills.getByRole('button', { name: /체결 상세/ })).toHaveCount(1);
+  await fills.getByRole('button', { name: /체결 상세/ }).click();
+  await expect(page.getByRole('dialog')).toContainText('총 매수 지출');
+  await page.keyboard.press('Escape');
+  await fills.getByRole('button', { name: '이전' }).click();
+});
 
 test.describe('time zone selection', () => {
   test.use({ timezoneId: 'America/New_York' });

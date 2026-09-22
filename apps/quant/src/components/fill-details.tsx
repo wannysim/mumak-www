@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@mumak
 
 import { useTimeZone } from '@/components/time-zone-provider';
 import type { DashboardFill } from '@/lib/dashboard-schema';
-import { formatDecimal, formatMoney } from '@/lib/format';
+import { fillAmount, fillTotal, formatDecimal, formatMoney } from '@/lib/format';
 
 function FillDetails({ fill, currency }: { fill: DashboardFill; currency: string }) {
   const { formatDateTime } = useTimeZone();
@@ -52,20 +52,11 @@ function FillDetails({ fill, currency }: { fill: DashboardFill; currency: string
             <dt className="text-muted-foreground">체결 단가</dt>
             <dd className="text-right tabular-nums">{formatMoney(fill.price, currency)}</dd>
             <dt className="text-muted-foreground">체결 금액</dt>
-            <dd className="text-right tabular-nums">
-              {formatMoney(String(Number(fill.quantity) * Number(fill.price)), currency)}
-            </dd>
+            <dd className="text-right tabular-nums">{formatMoney(fillAmount(fill), currency)}</dd>
             <dt className="text-muted-foreground">수수료</dt>
             <dd className="text-right tabular-nums">{formatMoney(fill.commission, currency)}</dd>
             <dt className="text-muted-foreground">{fill.side === 'buy' ? '총 매수 지출' : '순매도 수령액'}</dt>
-            <dd className="text-right font-medium tabular-nums">
-              {formatMoney(
-                String(
-                  Number(fill.quantity) * Number(fill.price) + (fill.side === 'buy' ? 1 : -1) * Number(fill.commission)
-                ),
-                currency
-              )}
-            </dd>
+            <dd className="text-right font-medium tabular-nums">{formatMoney(fillTotal(fill), currency)}</dd>
           </dl>
           <div className="border-t border-border pt-3">
             <p className="mb-1 text-xs font-medium">결정 근거</p>
