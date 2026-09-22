@@ -71,6 +71,47 @@ test('desktop chart values, metric switch, decision reason, and safe ticker navi
   await expect(link).toHaveAttribute('target', '_blank');
 });
 
+test('the selected point stays visible on the chart and the axes stay compact', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await mockSnapshots(page);
+  await chartBounds(page);
+
+  // 선택 지점이 판독값뿐 아니라 그래프 위에도 표시되어야 한다.
+  const marker = page.locator('circle[data-selected="true"]');
+  const guide = page.locator('.recharts-reference-line-line');
+  await expect(marker).toBeVisible();
+  // 세로 가이드는 폭이 0인 <line>이라 Playwright의 visible 판정 대상이 아니다. 존재와 위치로 확인한다.
+  await expect(guide).toHaveCount(1);
+
+  const explorer = page.getByRole('slider', { name: /^성과 시계열 탐색/ });
+  await explorer.focus();
+  await page.keyboard.press('End');
+  const atEnd = await marker.getAttribute('cx');
+  const guideAtEnd = await guide.getAttribute('x1');
+  await page.keyboard.press('Home');
+  const atStart = await marker.getAttribute('cx');
+  const guideAtStart = await guide.getAttribute('x1');
+  expect(Number(atStart)).toBeLessThan(Number(atEnd));
+  expect(Number(guideAtStart)).toBeLessThan(Number(guideAtEnd));
+
+  // Y축은 축약 통화 표기만 쓴다. $101,250.50 같은 전체 표기는 축 폭을 밀어낸다.
+  const yTicks = await page
+    .locator('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')
+    .allTextContents();
+  expect(yTicks.length).toBeGreaterThan(0);
+  for (const tick of yTicks) expect(tick.trim()).toMatch(/^\$[\d.]+[KMB]?$/);
+
+  // X축 눈금에는 시각·타임존을 넣지 않는다. 정확한 시각은 판독값과 툴팁이 담당한다.
+  const xTicks = await page
+    .locator('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')
+    .allTextContents();
+  expect(xTicks.length).toBeGreaterThan(0);
+  for (const tick of xTicks) expect(tick).not.toMatch(/GMT|:/);
+
+  // 축 이름은 차트 위 한 곳에만 있어야 한다(회전 축 라벨과 중복되던 지점).
+  await expect(page.getByText('NAV (USD)', { exact: true })).toHaveCount(1);
+});
+
 test('historical fills without reasons remain blank and the live tab requires login', async ({ page }) => {
   await mockSnapshots(page, false);
   await expect(page.getByRole('button', { name: /결정 근거/ })).toHaveCount(0);
