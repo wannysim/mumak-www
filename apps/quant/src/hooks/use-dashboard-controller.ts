@@ -145,7 +145,7 @@ function useDashboardController(client: DashboardClient) {
           [targetMode]: {
             status: 'error',
             snapshots: [],
-            message: error instanceof Error ? error.message : '스냅샷을 불러오지 못했습니다.',
+            message: error instanceof Error ? error.message : '운용 내역을 불러오지 못했습니다.',
           },
         }));
       } finally {

@@ -19,3 +19,9 @@ global.ResizeObserver = class ResizeObserver {
   observe() {}
   unobserve() {}
 };
+
+// jsdom은 Radix Select가 사용하는 포인터 캡처·스크롤 API를 구현하지 않는다.
+Element.prototype.hasPointerCapture = () => false;
+Element.prototype.setPointerCapture = () => {};
+Element.prototype.releasePointerCapture = () => {};
+HTMLElement.prototype.scrollIntoView = () => {};

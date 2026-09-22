@@ -69,10 +69,10 @@ describe('Quant dashboard app', () => {
     render(<App client={client} />);
     await screen.findByRole('heading', { name: '테스트 운용 1기' });
     await userEvent.click(screen.getByRole('tab', { name: '실운용' }));
-    await screen.findByText('실운용 스냅샷이 아직 없습니다.');
+    await screen.findByText('실운용 내역이 아직 없습니다.');
     await userEvent.click(screen.getByRole('button', { name: '로그아웃' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('공유 기기');
-    expect(screen.getByRole('heading', { name: '실운용 원장 로그인' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '실운용 내역 로그인' })).toBeInTheDocument();
   });
 
   it('fails closed to login rather than hanging when session recovery fails', async () => {
@@ -81,7 +81,7 @@ describe('Quant dashboard app', () => {
     render(<App client={client} />);
     await screen.findByRole('heading', { name: '테스트 운용 1기' });
     await userEvent.click(screen.getByRole('tab', { name: '실운용' }));
-    expect(await screen.findByRole('heading', { name: '실운용 원장 로그인' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '실운용 내역 로그인' })).toBeInTheDocument();
     expect(client.requests).not.toContain('live');
   });
 
@@ -91,12 +91,12 @@ describe('Quant dashboard app', () => {
     expect(screen.getByRole('heading', { level: 1, name: '퀀트 대시보드' })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { level: 2, name: '테스트 운용 1기' })).toBeInTheDocument();
     expect(screen.getByText(/운용 시작월 · 부분 월/)).toBeInTheDocument();
-    expect(screen.getByText('$101,250.50')).toBeInTheDocument();
+    expect(await screen.findByRole('status', { name: '선택 시점 성과' })).toHaveTextContent('$101,250.50');
     expect(screen.getByRole('img', { name: /NAV 및 수익률 추이/ })).toBeInTheDocument();
     expect(screen.getAllByText('TEST').length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText('매수').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/실시간 시세가 아닌 원장 스냅샷/)).toBeInTheDocument();
-    expect(screen.getByText(/원장 기준/)).toBeInTheDocument();
+    expect(screen.getByText(/실시간 시세가 아닌 저장된 운용 현황/)).toBeInTheDocument();
+    expect(screen.getByText(/^데이터 기준 시각 /)).toBeInTheDocument();
   });
 
   it('renders the selected month from the same episode', async () => {
@@ -114,7 +114,8 @@ describe('Quant dashboard app', () => {
     render(<App client={client} />);
     await screen.findByRole('heading', { level: 2, name: '9월 기록' });
 
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: '조회 월' }), '2026-08');
+    await userEvent.click(screen.getByRole('combobox', { name: '조회 월' }));
+    await userEvent.click(screen.getByRole('option', { name: '2026-08' }));
 
     expect(screen.getByRole('heading', { level: 2, name: '8월 기록' })).toBeInTheDocument();
     expect(screen.getByText(/월초 기준 · 전체 월/)).toBeInTheDocument();
@@ -145,9 +146,9 @@ describe('Quant dashboard app', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: '실운용' }));
 
-    expect(await screen.findByText('실운용 스냅샷이 아직 없습니다.')).toBeInTheDocument();
+    expect(await screen.findByText('실운용 내역이 아직 없습니다.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '로그아웃' }));
-    expect(await screen.findByRole('heading', { name: '실운용 원장 로그인' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '실운용 내역 로그인' })).toBeInTheDocument();
   });
 
   it('fails closed with an explicit state when Supabase is not configured', () => {
@@ -174,7 +175,7 @@ describe('Quant dashboard app', () => {
     client.fetchError = true;
     render(<App client={client} />);
 
-    expect(await screen.findByRole('heading', { name: '스냅샷을 불러오지 못했습니다.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '운용 내역을 불러오지 못했습니다.' })).toBeInTheDocument();
     expect(screen.queryByText('$101,250.50')).not.toBeInTheDocument();
   });
 });
