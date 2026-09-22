@@ -311,3 +311,13 @@ test('month picker uses the shared menu and loads the selected month', async ({ 
   await expect(page.getByRole('listbox')).toHaveCount(0);
   await expect(month).toBeFocused();
 });
+
+test('serves the favicon declared in the document head', async ({ page, request }) => {
+  await mockSnapshots(page);
+  await page.goto('/');
+  const href = await page.locator('link[rel="icon"]').getAttribute('href');
+  expect(href).toBe('/favicon.svg');
+  const response = await request.get(href!);
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toContain('image/svg+xml');
+});
