@@ -4,39 +4,33 @@ import { useMemo, useState, type MouseEvent, type TouchEvent } from 'react';
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts';
 
 import { ChartContainer, type ChartConfig } from '@mumak/ui/components/chart';
-import { ToggleGroup, ToggleGroupItem } from '@mumak/ui/components/toggle-group';
 
+import { useTimeZone } from '@/components/time-zone-provider';
 import type { DashboardHistoryPoint } from '@/lib/dashboard-schema';
-import { formatDate, formatDateTime, formatMoney, formatMoneyCompact, formatPercent, numeric } from '@/lib/format';
-
-type Metric = 'nav' | 'returnPct';
+import { formatMoney, formatMoneyCompact, formatPercent, numeric, valueTone } from '@/lib/format';
 
 type DotPosition = { cx?: number; cy?: number; index?: number };
 
 type ChartPoint = DashboardHistoryPoint & {
-  timestamp: number;
+  index: number;
   navValue: number;
-  returnValue: number | null;
 };
 
 const chartConfig = {
   navValue: { label: 'NAV', color: 'var(--primary)' },
-  returnValue: { label: '수익률', color: 'var(--primary)' },
 } satisfies ChartConfig;
 
 function PerformanceChart({ history, currency }: { history: DashboardHistoryPoint[]; currency: string }) {
-  const [metric, setMetric] = useState<Metric>('nav');
-  const [selectedIndex, setSelectedIndex] = useState(history.length - 1);
-  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+  const { formatDate, formatDateTime } = useTimeZone();
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const points = useMemo<ChartPoint[]>(
     () =>
       history
         .toSorted((left, right) => Date.parse(left.at) - Date.parse(right.at))
-        .map(point => ({
+        .map((point, index) => ({
           ...point,
-          timestamp: Date.parse(point.at),
+          index,
           navValue: numeric(point.nav) ?? 0,
-          returnValue: numeric(point.returnPct),
         })),
     [history]
   );
@@ -47,13 +41,9 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
     return <p className="py-14 text-center text-sm text-muted-foreground">표시할 시계열이 없습니다.</p>;
   }
 
-  const startPoint = first;
-  const endPoint = last;
-  const selectedDataKey = metric === 'nav' ? 'navValue' : 'returnValue';
-  const yAxisLabel = metric === 'nav' ? `NAV (${currency})` : '수익률 (%)';
-  const activeIndex = Math.min(Math.max(selectedIndex, 0), points.length - 1);
-  const activePoint = points[activeIndex] ?? endPoint;
-  const lineColor = `var(--color-${selectedDataKey})`;
+  const activeIndex = Math.min(Math.max(selectedIndex ?? points.length - 1, 0), points.length - 1);
+  const activePoint = points[activeIndex] ?? last;
+  const lineColor = 'var(--color-navValue)';
   // 점이 많으면 선택 지점만, 적으면 모든 지점을 찍는다. ReferenceDot은 Line보다
   // 아래 레이어에 깔려 선 위의 점에 가려지므로 Line의 dot으로 직접 그린다.
   const showEveryDot = points.length <= 40;
@@ -76,7 +66,7 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
   }
 
   function moveSelection(direction: -1 | 1) {
-    setSelectedIndex(current => Math.min(Math.max(current + direction, 0), points.length - 1));
+    setSelectedIndex(Math.min(Math.max(activeIndex + direction, 0), points.length - 1));
   }
 
   function selectAtClientX(clientX: number, container: HTMLElement) {
@@ -85,16 +75,8 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
     if (bounds.width <= 0) return;
 
     const fraction = Math.min(Math.max((clientX - bounds.left) / bounds.width, 0), 1);
-    const targetTimestamp = startPoint.timestamp + fraction * (endPoint.timestamp - startPoint.timestamp);
-    const nextIndex = points.reduce(
-      (closest, point, index) =>
-        Math.abs(point.timestamp - targetTimestamp) < Math.abs(points[closest]!.timestamp - targetTimestamp)
-          ? index
-          : closest,
-      0
-    );
+    const nextIndex = Math.round(fraction * (points.length - 1));
     setSelectedIndex(nextIndex);
-    setIsTooltipVisible(true);
   }
 
   function handleMouseMove(event: MouseEvent<HTMLDivElement>) {
@@ -108,22 +90,33 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <ToggleGroup
-        type="single"
-        value={metric}
-        onValueChange={value => value && setMetric(value as Metric)}
-        variant="outline"
-        size="sm"
-        aria-label="차트 지표"
+      <div
+        role="status"
+        aria-label="선택 시점 성과"
+        aria-live="polite"
+        aria-atomic="true"
+        className="flex flex-col gap-2"
       >
-        <ToggleGroupItem value="nav" aria-label="NAV">
-          NAV
-        </ToggleGroupItem>
-        <ToggleGroupItem value="returnPct" aria-label="수익률">
-          수익률
-        </ToggleGroupItem>
-      </ToggleGroup>
-      <p className="text-xs font-medium">{yAxisLabel}</p>
+        <dl className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+          <div className="min-w-0">
+            <dt className="text-xs text-muted-foreground">NAV ({currency})</dt>
+            <dd className="mt-1 break-all font-mono text-xl font-semibold tabular-nums sm:text-3xl">
+              {formatMoney(activePoint.nav, currency)}
+            </dd>
+          </div>
+          <div className="text-right">
+            <dt className="text-xs text-muted-foreground">수익률</dt>
+            <dd
+              className={`mt-1 font-mono text-xl font-semibold tabular-nums sm:text-3xl ${valueTone(activePoint.returnPct)}`}
+            >
+              {formatPercent(activePoint.returnPct)}
+            </dd>
+          </div>
+        </dl>
+        <time dateTime={activePoint.at} className="text-xs text-muted-foreground">
+          {formatDateTime(activePoint.at)}
+        </time>
+      </div>
       <span
         role="img"
         className="sr-only"
@@ -138,7 +131,6 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
         aria-valuenow={activeIndex}
         aria-valuetext={`${formatDateTime(activePoint.at)}, NAV ${formatMoney(activePoint.nav, currency)}, 수익률 ${formatPercent(activePoint.returnPct)}`}
         onMouseMove={handleMouseMove}
-        onMouseLeave={() => setIsTooltipVisible(false)}
         onTouchStart={handleTouch}
         onTouchMove={handleTouch}
         onKeyDown={event => {
@@ -158,34 +150,32 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
         }}
         className="relative rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <ChartContainer config={chartConfig} className="min-h-52 w-full">
+        <ChartContainer config={chartConfig} className="h-60 w-full aspect-auto sm:h-80">
           <LineChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 4 }}>
             <CartesianGrid vertical={false} />
             <XAxis
-              dataKey="timestamp"
+              dataKey="index"
               type="number"
-              scale="time"
-              domain={['dataMin', 'dataMax']}
-              tickFormatter={value => formatDate(new Date(value).toISOString())}
+              domain={[0, Math.max(points.length - 1, 1)]}
+              ticks={points
+                .filter((point, index) => index === 0 || formatDate(point.at) !== formatDate(points[index - 1]!.at))
+                .map(point => point.index)}
+              tickFormatter={value => (points[value] ? formatDate(points[value]!.at) : '')}
               minTickGap={32}
               tickMargin={6}
             />
             <YAxis
-              dataKey={selectedDataKey}
+              dataKey="navValue"
               domain={['auto', 'auto']}
-              tickFormatter={value =>
-                metric === 'nav'
-                  ? formatMoneyCompact(Number(value), currency)
-                  : `${Number(value).toLocaleString('ko-KR')}%`
-              }
-              width={metric === 'nav' ? 52 : 44}
+              tickFormatter={value => formatMoneyCompact(Number(value), currency)}
+              width={52}
               tickMargin={4}
             />
             {/* 선택 지점을 차트 위에 직접 표시한다. recharts의 자체 hover cursor는
                 키보드 탐색 때 나타나지 않아 판독값만 바뀌고 그래프는 그대로였다. */}
-            <ReferenceLine x={activePoint.timestamp} stroke={lineColor} strokeOpacity={0.5} strokeDasharray="4 4" />
+            <ReferenceLine x={activePoint.index} stroke={lineColor} strokeOpacity={0.5} strokeDasharray="4 4" />
             <Line
-              dataKey={selectedDataKey}
+              dataKey="navValue"
               type="linear"
               stroke={lineColor}
               strokeWidth={2}
@@ -196,26 +186,9 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
             />
           </LineChart>
         </ChartContainer>
-        {isTooltipVisible && (
-          <div
-            role="tooltip"
-            className="pointer-events-none absolute left-2 top-2 z-10 grid min-w-40 gap-1 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl"
-          >
-            <p className="font-medium">{formatDateTime(activePoint.at)}</p>
-            <p>NAV {formatMoney(activePoint.nav, currency)}</p>
-            <p>수익률 {formatPercent(activePoint.returnPct)}</p>
-          </div>
-        )}
-        <p role="status" aria-live="polite" className="px-2 pb-2 text-xs font-medium tabular-nums">
-          {formatDateTime(activePoint.at)} · NAV {formatMoney(activePoint.nav, currency)} · 수익률{' '}
-          {formatPercent(activePoint.returnPct)}
-        </p>
       </div>
       <p className="text-xs text-muted-foreground">
-        {formatDateTime(first.at)} — {formatDateTime(last.at)}
-      </p>
-      <p className="text-xs text-muted-foreground">
-        현금 흐름이 없고 기준점이 고정된 경우 NAV와 수익률은 같은 추세를 보입니다. 값과 단위가 같다는 뜻은 아닙니다.
+        NAV 추이 · 기록이 없는 시간은 생략 · {formatDateTime(first.at)} — {formatDateTime(last.at)}
       </p>
     </div>
   );

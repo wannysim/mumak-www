@@ -245,6 +245,20 @@ SEED는 UI component 모음이 아니라 디자인 결정을 Figma, Rootage 원�
 - Figma 파일과 현재 디자인 작업 방식은 저장소에서 확인할 수 없다.
 - 사용자의 Figma 숙련도, 시각 디자인 훈련 이력, 주당 가용 시간은 확인되지 않았다.
 - 3·6·12개월 기간은 주 6\~8시간 투입을 가정한 **추정**이다. 주 3\~4시간이면 기간을 약 1.5\~2배로 조정한다.
+- 에이전트와 함께 디자인하기 위한 자산은 규칙·원칙·결정 기록의 **텍스트 계층은 두텁고, 시안을 만들고 보여주고 비교하는 시각 루프는 비어 있다**(2026-09-22 확인). 변형 생성, 비교 화면, 공유 가능한 프로토타입 URL이 전부 없고 baselines 36장은 사후 기록이다. 채울 후보는 아래 "보류한 도구 후보"에 두고 단계별로 판단한다.
+
+### 보류한 도구 후보 (2026-09-22)
+
+"디자인 하네스" 글[21]을 계기로 검토했다. 글의 구성요소 중 Rules.md와 세션 후 규칙 갱신은 이 저장소에 이미 있고, 비어 있는 것은 변형 생성·비교·공유 루프다. **지금 적용하지 않는다.** 시스템과 규율이 먼저고, 각 항목은 아래 단계에 진입할 때 §6 시작 문턱(2개 이상)으로 다시 판정한다. 그때까지 이 표는 §12 매월 삭제·보류 리뷰의 대상이다.
+
+| 후보                                                                                  | 붙인 단계                              | 그때 판단할 것                                                                                                                                                        | 주의                                                                                                                   |
+| ------------------------------------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `DESIGN.md` 스펙[22] + linter (`@google/design.md`: lint·diff·export)                 | 단계 1 token schema                    | 단계 1이 정하는 schema의 포맷 후보로 비교한다. linter의 `contrast-ratio` 규칙이 light `--ring` 2.82:1을 CI에서 잡는지, `diff`로 theme 원천 3곳의 drift를 볼 수 있는지 | D-004(token audit 스크립트 기각) 사유와 대조한다. export가 Tailwind v4 CSS-first(`@theme`)와 맞지 않으면 스펙만 빌린다 |
+| dev 전용 `/labs` 변형 갤러리 (실제 token·`packages/ui`로 렌더한 변형 N개를 한 화면에) | 단계 1 D-010 "최소 Storybook" 결정     | Storybook의 대안인지 보완인지. 목적이 좁고 가벼운 대신 표준이 아니다                                                                                                  | 프로덕션 빌드에서 제외한다                                                                                             |
+| 시안 preview URL (Vercel)                                                             | 단계 4 외부 리뷰                       | 공유 대상(리뷰어 3명)이 생기는 시점에 필요 범위를 정한다. GitHub Pages는 불필요                                                                                       | PR #580이 preview를 `develop`으로 축소한 결정과 충돌한다. `/labs`만 담은 경량 배포가 대안                              |
+| Claude Code `/design` 캔버스[23]                                                      | 홈 시안 재착수 시점 (단계 1 진입 직후) | 방향 탐색용으로만 쓴다. 비용 0                                                                                                                                        | 디자인 시스템 밖에서 그리는 그림이라 **코드 계약이 아니다**. 수렴은 실제 token으로 하는 `/labs`에서 한다               |
+
+Paper·Figma 양방향 sync는 후보에 넣지 않는다(`support-matrix.md` §5 비목표).
 
 ## 6. MVP 범위와 과투자 방지 기준
 
@@ -446,6 +460,7 @@ MVP는 다음 한 흐름으로 제한한다.
 - 출력 후보: `packages/design-tokens/dist/css/variables.css`, `dist/ts/tokens.ts`.
 - 아직 두 번째 소비자가 없으면 React Native output은 만들지 않고 key mapping fixture만 둔다.
 - 생성 유지비가 크면 package를 만들지 않고 `packages/ui/src/styles/globals.css`와 구조화된 TS mapping을 단일 원천으로 유지한다.
+- schema 포맷과 Storybook 여부를 정할 때 §5 "보류한 도구 후보"의 `DESIGN.md` 스펙과 `/labs` 갤러리를 같은 자리에서 판정한다.
 
 검증 기준:
 
@@ -564,6 +579,7 @@ visual baseline 후보:
 - [ ] 원칙, token, 지원 component, state, a11y, do/don’t를 한 진입점에서 탐색하게 한다.
 - [ ] 제품 문서는 Markdown 문서 또는 실제 `/design-system` showcase를 우선한다. D-010의 Storybook은 foundation·preset·상태 검증 용도로 유지한다.
 - [ ] showcase가 필요하면 `apps/blog/app/[locale]/(main)/(content)/design-system/page.tsx`를 검토한다.
+- [ ] 리뷰어에게 줄 시안 URL이 필요하면 §5 "보류한 도구 후보"의 preview 경로를 이때 판정한다.
 - [ ] 외부 리뷰어 3명에게 5분 walkthrough를 진행한다.
 - [ ] 피드백을 수용·기각·보류하고 근거를 기록한다.
 - [ ] 가능하면 사용자 3명의 탐색→읽기 과업을 관찰한다.
@@ -937,3 +953,6 @@ pnpm --filter @mumak/ui format:check
 - [18] https://github.com/wannysim/mumak-www/blob/528e5ed856a698f79f907c37862bda66fb4176fd/packages/ui/src/components/button.tsx — 공통 Button 구현
 - [19] https://github.com/daangn/seed-design/blob/dev/CONTRIBUTING.md — SEED 기여와 변경 절차
 - [20] https://seed-design.io/updates/why-we-hired-a-design-engineer — SEED Design Engineer 역할 설명
+- [21] https://news.hada.io/topic?id=34096 — "나만의 디자인 하네스 만들기" (원문 x.com/willdjthrill, 2026-09-22 확인)
+- [22] https://github.com/google-labs-code/design.md — DESIGN.md 포맷 스펙과 `@google/design.md` CLI
+- [23] https://code.claude.com/docs/en/artifacts.md#draft-a-design-canvas — Claude Code `/design` (v2.1.265+)

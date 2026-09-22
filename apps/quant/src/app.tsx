@@ -3,10 +3,19 @@ import { useState } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 import { Input } from '@mumak/ui/components/input';
-import { NativeSelect, NativeSelectOption } from '@mumak/ui/components/native-select';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@mumak/ui/components/select';
 
 import { Panel, SnapshotDashboard } from '@/components/dashboard-sections';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { TimeZoneProvider } from '@/components/time-zone-provider';
+import { TimeZoneSelect } from '@/components/time-zone-select';
 import { useDashboardController } from '@/hooks/use-dashboard-controller';
 import type { DashboardClient } from '@/lib/dashboard-client';
 import type { DashboardMode } from '@/lib/dashboard-schema';
@@ -14,22 +23,25 @@ import type { DashboardMode } from '@/lib/dashboard-schema';
 function AppHeader() {
   return (
     <header className="border-b border-border">
-      <div className="mx-auto flex min-h-16 w-full max-w-[90rem] items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-16 w-full max-w-[90rem] items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
           <span
-            className="grid size-8 place-items-center border border-primary bg-primary font-mono text-sm font-bold text-primary-foreground"
+            className="hidden size-8 place-items-center sm:grid border border-primary bg-primary font-mono text-sm font-bold text-primary-foreground"
             aria-hidden="true"
           >
             Q
           </span>
           <div>
-            <h1 className="text-base font-semibold tracking-tight">퀀트 대시보드</h1>
+            <h1 className="text-sm font-semibold tracking-tight sm:text-base">퀀트 대시보드</h1>
             <p className="hidden text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground sm:block">
-              Portfolio ledger monitor
+              Portfolio overview
             </p>
           </div>
         </div>
-        <ThemeToggle />
+        <div className="flex shrink-0 items-center gap-1">
+          <TimeZoneSelect />
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );
@@ -91,7 +103,7 @@ function LoginPanel({ requestMagicLink }: { requestMagicLink: (email: string) =>
   return (
     <Panel className="mx-auto max-w-lg p-5 sm:p-8">
       <p className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-primary">Owner access</p>
-      <h2 className="mt-3 text-xl font-semibold">실운용 원장 로그인</h2>
+      <h2 className="mt-3 text-xl font-semibold">실운용 내역 로그인</h2>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
         등록된 소유자 이메일로 일회용 로그인 링크를 보냅니다. 접근 권한은 화면이 아니라 데이터베이스 RLS에서 확인됩니다.
       </p>
@@ -125,10 +137,10 @@ function LoginPanel({ requestMagicLink }: { requestMagicLink: (email: string) =>
 function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDashboardController> }) {
   const snapshot = controller.selectedSnapshot;
   return (
-    <div className="grid gap-4 border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end sm:p-5">
+    <div className="grid gap-4 border border-border bg-card p-4 xl:grid-cols-[minmax(0,1fr)_minmax(28rem,auto)] xl:items-end sm:p-5">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{snapshot?.label}</h2>
+          <h2 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">{snapshot?.label}</h2>
           {snapshot && (
             <span className="border border-border bg-muted px-2 py-1 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
               {snapshot.status === 'active' ? '운용 중' : snapshot.status === 'stopped' ? '중단' : '완료'}
@@ -142,42 +154,54 @@ function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDas
           </p>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        <label className="grid gap-1.5 text-xs text-muted-foreground">
-          에피소드
-          <NativeSelect
-            aria-label="에피소드"
-            value={controller.selectedEpisodeId ?? ''}
-            onChange={event => controller.selectEpisode(event.target.value)}
-            className="w-full sm:w-48 [&_select]:h-10 [&_select]:rounded-none"
-          >
-            {controller.episodes.map(episode => (
-              <NativeSelectOption key={episode.id} value={episode.id}>
-                {episode.label}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </label>
-        <label className="grid gap-1.5 text-xs text-muted-foreground">
-          조회 월
-          <NativeSelect
-            aria-label="조회 월"
-            value={controller.selectedMonth ?? ''}
-            onChange={event => controller.selectMonth(event.target.value)}
-            className="w-full sm:w-36 [&_select]:h-10 [&_select]:rounded-none"
-          >
-            {controller.months.map(month => (
-              <NativeSelectOption key={month} value={month}>
-                {month}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </label>
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
+        <div className="col-span-2 grid min-w-0 gap-1.5 text-xs text-muted-foreground sm:col-span-1">
+          <label htmlFor="episode-select">에피소드</label>
+          <Select value={controller.selectedEpisodeId ?? ''} onValueChange={controller.selectEpisode}>
+            <SelectTrigger
+              id="episode-select"
+              aria-label="에피소드"
+              className="min-h-11 w-full rounded-none text-left whitespace-normal data-[size=default]:h-auto [&_[data-slot=select-value]]:line-clamp-none [&_[data-slot=select-value]]:break-words"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" className="max-w-[calc(100vw-2rem)]">
+              <SelectGroup>
+                {controller.episodes.map(episode => (
+                  <SelectItem key={episode.id} value={episode.id} className="whitespace-normal break-words">
+                    {episode.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid min-w-0 gap-1.5 text-xs text-muted-foreground">
+          <label htmlFor="month-select">조회 월</label>
+          <Select value={controller.selectedMonth ?? ''} onValueChange={controller.selectMonth}>
+            <SelectTrigger
+              id="month-select"
+              aria-label="조회 월"
+              className="min-h-11 w-full rounded-none text-left data-[size=default]:h-auto"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" className="max-w-[calc(100vw-2rem)]">
+              <SelectGroup>
+                {controller.months.map(month => (
+                  <SelectItem key={month} value={month}>
+                    {month}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
         <Button
           type="button"
           variant="outline"
           size="icon"
-          className="mt-auto size-10 rounded-none"
+          className="size-11 rounded-none"
           aria-label="새로고침"
           onClick={() => void controller.refresh()}
         >
@@ -199,20 +223,20 @@ function ConfiguredApp({ client }: { client: DashboardClient }) {
     content = <LoginPanel requestMagicLink={controller.requestMagicLink} />;
   } else if (controller.data.status === 'loading' && !controller.selectedSnapshot) {
     content = (
-      <StatePanel title="원장 스냅샷을 불러오고 있습니다.">페이지가 보이는 동안에만 안전하게 갱신합니다.</StatePanel>
+      <StatePanel title="운용 내역을 불러오고 있습니다.">페이지가 보이는 동안에만 안전하게 갱신합니다.</StatePanel>
     );
   } else if (controller.data.status === 'error') {
     content = (
-      <StatePanel title="스냅샷을 불러오지 못했습니다.">
+      <StatePanel title="운용 내역을 불러오지 못했습니다.">
         연결 상태를 확인한 뒤 다시 시도해 주세요. 기존 실운용 데이터는 표시하지 않습니다.
       </StatePanel>
     );
   } else if (controller.data.status === 'empty') {
     content = (
       <StatePanel
-        title={controller.mode === 'live' ? '실운용 스냅샷이 아직 없습니다.' : '모의 운용 스냅샷이 아직 없습니다.'}
+        title={controller.mode === 'live' ? '실운용 내역이 아직 없습니다.' : '모의 운용 내역이 아직 없습니다.'}
       >
-        내보내기 에이전트가 이 모드의 첫 월간 스냅샷을 적재하면 여기에 표시됩니다.
+        첫 월간 운용 내역이 저장되면 여기에 표시됩니다.
       </StatePanel>
     );
   } else if (controller.selectedSnapshot) {
@@ -223,7 +247,7 @@ function ConfiguredApp({ client }: { client: DashboardClient }) {
       </>
     );
   } else {
-    content = <StatePanel title="표시할 데이터가 없습니다.">선택한 모드에 연결된 스냅샷이 없습니다.</StatePanel>;
+    content = <StatePanel title="표시할 데이터가 없습니다.">선택한 모드에 저장된 운용 내역이 없습니다.</StatePanel>;
   }
 
   return (
@@ -233,7 +257,7 @@ function ConfiguredApp({ client }: { client: DashboardClient }) {
         <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(18rem,28rem)_1fr] sm:items-center">
           <ModeTabs mode={controller.mode} onChange={controller.selectMode} />
           <p className="text-xs leading-5 text-muted-foreground sm:text-right">
-            60초 간격 스냅샷 조회 · 페이지가 보일 때만 갱신 · 실시간 체결 화면 아님
+            페이지가 보일 때 60초마다 운용 내역 갱신 · 실시간 체결 화면 아님
           </p>
         </div>
         {controller.authStatus === 'authenticated' && (
@@ -294,10 +318,7 @@ function UnconfiguredApp() {
 }
 
 function App({ client }: { client: DashboardClient | null }) {
-  if (!client) {
-    return <UnconfiguredApp />;
-  }
-  return <ConfiguredApp client={client} />;
+  return <TimeZoneProvider>{client ? <ConfiguredApp client={client} /> : <UnconfiguredApp />}</TimeZoneProvider>;
 }
 
 export { App };

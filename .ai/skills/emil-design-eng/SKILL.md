@@ -1,6 +1,8 @@
 ---
 name: emil-design-eng
 description: This skill encodes Emil Kowalski's philosophy on UI polish, component design, animation decisions, and the invisible details that make software feel great.
+source: https://github.com/emilkowalski/skills/tree/main/design-engineering
+vendored: 2026-07-28 (PR #491). Trimmed 2026-09-22 — Framer Motion sections removed because this repo has no motion library dependency (CSS transitions, tw-animate-css, Base UI, Sonner, Vaul only).
 ---
 
 # Design Engineering
@@ -157,20 +159,7 @@ Springs feel more natural than duration-based animations because they simulate r
 
 ### Spring-based mouse interactions
 
-Tying visual changes directly to mouse position feels artificial because it lacks motion. Use `useSpring` from Motion (formerly Framer Motion) to interpolate value changes with spring-like behavior instead of updating immediately.
-
-```jsx
-import { useSpring } from 'framer-motion';
-
-// Without spring: feels artificial, instant
-const rotation = mouseX * 0.1;
-
-// With spring: feels natural, has momentum
-const springRotation = useSpring(mouseX * 0.1, {
-  stiffness: 100,
-  damping: 10,
-});
-```
+Tying visual changes directly to mouse position feels artificial because it lacks motion. Interpolate toward the target with a spring (a small `requestAnimationFrame` spring step, or a spring easing via WAAPI) instead of assigning the value immediately. This repo has no motion library; if a dependency is ever added for this, record the decision in `docs/design-system/decision-log.md` first.
 
 This works because the animation is **decorative** — it doesn't serve a function. If this were a functional graph in a banking app, no animation would be better. Know when decoration helps and when it hinders.
 
@@ -436,7 +425,7 @@ Use `clip-path: inset(0 100% 0 0)` on a colored overlay. On `:active`, transitio
 
 ### Image reveals on scroll
 
-Start with `clip-path: inset(0 0 100% 0)` (hidden from bottom). Animate to `inset(0 0 0 0)` when the element enters the viewport. Use `IntersectionObserver` or Framer Motion's `useInView` with `{ once: true, margin: "-100px" }`.
+Start with `clip-path: inset(0 0 100% 0)` (hidden from bottom). Animate to `inset(0 0 0 0)` when the element enters the viewport. Use `IntersectionObserver` with `rootMargin: "-100px"` and disconnect after the first intersection (once semantics).
 
 ### Comparison sliders
 
@@ -498,23 +487,9 @@ element.style.setProperty('--swipe-amount', `${distance}px`);
 element.style.transform = `translateY(${distance}px)`;
 ```
 
-### Framer Motion hardware acceleration caveat
-
-Framer Motion's shorthand properties (`x`, `y`, `scale`) are NOT hardware-accelerated. They use `requestAnimationFrame` on the main thread. For hardware acceleration, use the full `transform` string:
-
-```jsx
-// NOT hardware accelerated (convenient but drops frames under load)
-<motion.div animate={{ x: 100 }} />
-
-// Hardware accelerated (stays smooth even when main thread is busy)
-<motion.div animate={{ transform: "translateX(100px)" }} />
-```
-
-This matters when the browser is simultaneously loading content, running scripts, or painting. At Vercel, the dashboard tab animation used Shared Layout Animations and dropped frames during page loads. Switching to CSS animations (off main thread) fixed it.
-
 ### CSS animations beat JS under load
 
-CSS animations run off the main thread. When the browser is busy loading a new page, Framer Motion animations (using `requestAnimationFrame`) drop frames. CSS animations remain smooth. Use CSS for predetermined animations; JS for dynamic, interruptible ones.
+CSS animations run off the main thread. When the browser is busy loading a new page, `requestAnimationFrame`-driven JS animations drop frames. CSS animations remain smooth. Use CSS for predetermined animations; JS for dynamic, interruptible ones.
 
 ### Use WAAPI for programmatic CSS animations
 
@@ -675,6 +650,5 @@ When reviewing UI code, check for:
 | Duration > 300ms on UI element         | Reduce to 150-250ms                                                                                    |
 | Hover animation without media query    | Add `@media (hover: hover) and (pointer: fine)`                                                        |
 | Keyframes on rapidly-triggered element | Use CSS transitions for interruptibility                                                               |
-| Framer Motion `x`/`y` props under load | Use `transform: "translateX()"` for hardware acceleration                                              |
 | Same enter/exit transition speed       | Make exit faster than enter (e.g., enter 2s, exit 200ms)                                               |
 | Elements all appear at once            | Add stagger delay (30-80ms between items)                                                              |

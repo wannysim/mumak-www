@@ -31,6 +31,7 @@
 - **스킬·서브에이전트의 단일 소스는 `.ai/`**. `.agents/`·`.cursor/`·`.claude/` 하위는 symlink이므로 직접 수정하지 말 것.
 - Codex용 `.codex/agents/*.toml` 복사본은 커밋하지 않는다. Codex에서는 필요한 역할의 `.ai/agents/*.md`를 읽어 generic subagent에 전달한다.
 - **동일 이름의 스킬이 user(`~/.ai-skills`)와 project(`.ai/`) 양쪽에 있으면 project 버전이 우선**.
+- **외부에서 가져온(벤더링) 스킬은 `skills-lock.json`에 등재한다.** 현재 `shadcn`, `emil-design-eng` 2개. `pnpm validate:skills`가 내용 해시를 대조하고 CI `Quality (root only)` 잡에서 돈다. 의도해서 고쳤다면 `pnpm validate:skills:write`로 해시를 갱신하고 무엇을 왜 바꿨는지 그 항목의 `localChanges`에 남긴다. 해시 정의는 `scripts/validate-skills.mjs` 상단 주석에 있다.
 - **공통 규칙은 이 파일(또는 nested `AGENTS.md`)에만 적는다.** `.cursor/rules/*.mdc`에 복제하지 않는다. (nested `AGENTS.md` + path-scoped frontmatter로 대체)
 - 새 AI provider 도입 시: 해당 provider가 `AGENTS.md`를 읽는지 먼저 확인하고, 못 읽으면 포인터 파일만 추가한다.
 
@@ -40,17 +41,16 @@
 - `turborepo` — Turborepo 필터 문법, 캐시 관리
 - `shadcn` — shadcn/ui 컴포넌트 설치·커스터마이즈
 - `react-component-generator` — 새 컴포넌트 스캐폴딩
-- `test-writer` — Jest · Vitest · Playwright 테스트 작성
 - `release` — Git Flow 기반 버전 관리
-- `expressive-refactor` — 이름·구조 중심 리팩토링
-- `perf-optimization` — 성능 최적화 체크리스트
-- `emil-design-eng` — 애니메이션·UI 폴리시 구현 가이드 (easing/duration/GPU/a11y, [emilkowalski/skills](https://github.com/emilkowalski/skills) 벤더링)
-- `review-animations` — 모션 코드 엄격 리뷰 (명시 호출 전용, 같은 출처)
+- `emil-design-eng` — 애니메이션·UI 폴리시 구현 가이드 (easing/duration/GPU/a11y, [emilkowalski/skills](https://github.com/emilkowalski/skills) 벤더링. 이 저장소에 모션 라이브러리가 없어 Framer Motion 절은 제거됨)
+
+테스트 작성 규칙은 이 파일의 "테스트 작성 규칙" 절이 정본이다. 모션 코드 리뷰(`review-animations`)·리팩토링(`frontend-refactor`)·성능 진단은 user-level `~/.ai-skills` 스킬을 쓴다 (2026-09-22 프로젝트 사본 정리).
 
 ### 서브에이전트 (위임용)
 
 - `verifier` — 완료 주장과 실제 검증 사이의 누락 점검 (구현 완료 후)
 - `debugger` — 실패 로그가 길거나 원인이 불명확한 에러의 근본 원인 분석
+- `design-reviewer` — `apps/blog` Blog/Garden UI 변경의 디자인 리뷰 (`validate:design` 선행 후 정보구조·shared primitive·token·a11y·반응형·i18n 판단)
 
 ---
 
@@ -397,9 +397,8 @@ import { mockUser } from '@/test/mocks';
 
 1. 관련 규칙(이 파일 + nested `AGENTS.md`)을 따르며 구현
 2. 필요하면 스킬 사용
-   - 리팩토링: `expressive-refactor`
    - 검증: `ci-preflight`
-3. 완료 후 `verifier` 서브에이전트로 실제 검증 범위 점검
+3. 완료 후 `verifier` 서브에이전트로 실제 검증 범위 점검. `apps/blog` UI 변경이면 `design-reviewer`도 함께
 
 ### 테스트 실패 / 버그 발생 시
 
