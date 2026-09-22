@@ -10,7 +10,7 @@ import { buildHoldingsAllocation, type AllocationSlice } from '@/lib/holdings-al
 //
 // 색은 목록으로 박아두지 않고 황금각(137.508°)만큼 색상환을 돌며 만든다. 몇 개를 찍든
 // 다음 색이 기존 색들 사이의 가장 넓은 빈 곳에 떨어지므로, 종목이 늘어도 슬롯을 손으로
-// 늘릴 일이 없다. 명도·채도는 테마 토큰이라 라이트/다크가 각자의 값으로 돈다.
+// 늘릴 일이 없다. 명도·채도는 index.css의 토큰에서 받는다.
 const BASE_HUE = 264; // --primary와 같은 계열에서 출발한다
 const HUE_STEP = 137.508;
 // '기타'는 범주가 아니라 접힌 나머지다. 색상환에서 한 칸을 쓰지 않고 중립색으로 둔다.
