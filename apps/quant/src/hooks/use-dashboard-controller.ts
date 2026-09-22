@@ -17,6 +17,13 @@ type ModeSelection = {
   month: string | null;
 };
 
+// 수동 새로고침이 성공했는지 알려주려면 호출부가 결과를 받아야 한다. 화면 상태만으로는
+// "이미 같은 데이터였다"와 "요청이 나가지도 않았다"를 구분할 수 없다.
+type RefreshOutcome = {
+  status: 'loaded' | 'empty' | 'error' | 'skipped';
+  asOf?: string;
+};
+
 const EMPTY_DATA: ModeData = { status: 'idle', snapshots: [] };
 const EMPTY_SELECTION: ModeSelection = { episodeId: null, month: null };
 
@@ -51,6 +58,9 @@ function useDashboardController(client: DashboardClient) {
     live: EMPTY_SELECTION,
   });
   const modeRef = useRef(mode);
+  // 새로고침 직후 토스트에 쓸 기준 시각을 뽑으려면 방금 고른 선택을 렌더 밖에서 읽어야 한다.
+  const selectionRef = useRef(selectionByMode);
+  selectionRef.current = selectionByMode;
   const requestRevision = useRef<Record<DashboardMode, number>>({ paper: 0, live: 0 });
   const requestControllers = useRef<Partial<Record<DashboardMode, AbortController>>>({});
 
@@ -102,9 +112,9 @@ function useDashboardController(client: DashboardClient) {
   }, [clearLiveData, client, invalidateRequest]);
 
   const loadSnapshots = useCallback(
-    async (targetMode: DashboardMode) => {
-      if (document.visibilityState === 'hidden') return;
-      if (targetMode === 'live' && (!session || authStatus !== 'authenticated')) return;
+    async (targetMode: DashboardMode): Promise<RefreshOutcome> => {
+      if (document.visibilityState === 'hidden') return { status: 'skipped' };
+      if (targetMode === 'live' && (!session || authStatus !== 'authenticated')) return { status: 'skipped' };
 
       invalidateRequest(targetMode);
       const revision = requestRevision.current[targetMode];
@@ -122,23 +132,26 @@ function useDashboardController(client: DashboardClient) {
           revision !== requestRevision.current[targetMode] ||
           modeRef.current !== targetMode
         ) {
-          return;
+          return { status: 'skipped' };
         }
         setDataByMode(current => ({
           ...current,
           [targetMode]: { status: snapshots.length === 0 ? 'empty' : 'ready', snapshots },
         }));
-        setSelectionByMode(current => ({
-          ...current,
-          [targetMode]: nextSelection(snapshots, current[targetMode]),
-        }));
+        const selection = nextSelection(snapshots, selectionRef.current[targetMode]);
+        setSelectionByMode(current => ({ ...current, [targetMode]: selection }));
+        if (snapshots.length === 0) return { status: 'empty' };
+        const selected = snapshots.find(
+          snapshot => snapshot.episodeId === selection.episodeId && snapshot.month === selection.month
+        );
+        return { status: 'loaded', asOf: selected?.asOf };
       } catch (error) {
         if (
           controller.signal.aborted ||
           revision !== requestRevision.current[targetMode] ||
           modeRef.current !== targetMode
         ) {
-          return;
+          return { status: 'skipped' };
         }
         setDataByMode(current => ({
           ...current,
@@ -148,6 +161,7 @@ function useDashboardController(client: DashboardClient) {
             message: error instanceof Error ? error.message : '운용 내역을 불러오지 못했습니다.',
           },
         }));
+        return { status: 'error' };
       } finally {
         if (requestControllers.current[targetMode] === controller) delete requestControllers.current[targetMode];
       }
@@ -251,4 +265,4 @@ function useDashboardController(client: DashboardClient) {
   };
 }
 
-export { useDashboardController, type AuthStatus, type DataStatus, type ModeData };
+export { useDashboardController, type AuthStatus, type DataStatus, type ModeData, type RefreshOutcome };

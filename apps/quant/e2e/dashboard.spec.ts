@@ -406,3 +406,52 @@ test('a long tail folds into one 기타 slice and the donut fits the narrowest p
   await expect(legend).toContainText('기타 4종목');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+// 첫 로드는 항상 성공시키고, 이후 실패 여부는 테스트가 직접 켠다. 앱이 초기에 몇 번
+// 요청하는지에 기대면(StrictMode·auth 효과) 실패 케이스가 flaky해진다.
+async function mockRefreshOutcome(page: Page) {
+  const state = { failing: false };
+  await page.route('https://quant-e2e.supabase.co/**', async route => {
+    if (new URL(route.request().url()).pathname === '/rest/v1/paper_snapshots') {
+      if (state.failing) await route.fulfill({ status: 500, json: { message: 'unavailable' } });
+      else await route.fulfill({ json: [TEST_ONLY_PAPER_ROW] });
+    } else {
+      await route.abort();
+    }
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '테스트 운용 1기' })).toBeVisible();
+  return state;
+}
+
+test('the refresh button reports success with the data timestamp and stays CSP clean', async ({ page }) => {
+  const blocked: string[] = [];
+  page.on('console', message => {
+    if (message.type() === 'error' && /Content Security Policy/i.test(message.text())) blocked.push(message.text());
+  });
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await mockRefreshOutcome(page);
+
+  const notice = page.getByRole('status', { name: '알림' });
+  // 누르기 전에는 비어 있어야 한다. 라이브 영역 자체는 미리 떠 있다.
+  await expect(notice).toBeEmpty();
+
+  await page.getByRole('button', { name: '운용 내역 전체 새로고침' }).click();
+  await expect(notice).toContainText('운용 내역을 새로 불러왔습니다.');
+  await expect(notice).toContainText('데이터 기준 시각');
+  // 토스트가 대시보드를 영구히 가리지 않는다.
+  await expect(notice).toBeEmpty({ timeout: 10_000 });
+  expect(blocked).toEqual([]);
+});
+
+test('a failed refresh says so instead of silently leaving the old screen', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  const state = await mockRefreshOutcome(page);
+  state.failing = true;
+
+  await page.getByRole('button', { name: '운용 내역 전체 새로고침' }).click();
+  const notice = page.getByRole('status', { name: '알림' });
+  await expect(notice).toContainText('운용 내역을 불러오지 못했습니다.');
+  await notice.getByRole('button', { name: '알림 닫기' }).click();
+  await expect(notice).toBeEmpty();
+});
