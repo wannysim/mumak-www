@@ -1,10 +1,20 @@
 {
-  "version": 1,
+  "version": 2,
+  "hashAlgorithm": "sha256 over sorted(relativePath + NUL + fileBytes) for every file in .ai/skills/<name>/ — scripts/validate-skills.mjs",
   "skills": {
     "shadcn": {
       "source": "shadcn/ui",
       "sourceType": "github",
-      "computedHash": "507f011a70e8b3ae242bdc0bb5b39fd91a1d4049a0f3c281991ccf84973d591c"
+      "vendored": "2026-03-20",
+      "localChanges": false,
+      "computedHash": "410bf9a2f09f69282d6fe97abb0c1d2f00b57fbaaa64ffa25d5ce3ee5d1e1f3f"
+    },
+    "emil-design-eng": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "vendored": "2026-07-28 (#491)",
+      "localChanges": "Framer Motion 관련 4개 절 제거 — 이 저장소에 모션 라이브러리 의존성이 없다 (2026-09-22)",
+      "computedHash": "04ccc71f0b1be43cf743642640bc31c471a83fa8737724c5071fb241da8ae957"
     }
   }
 }
