@@ -1,6 +1,11 @@
 import type { DashboardFill } from '@/lib/dashboard-schema';
 
 const PERCENT_FORMAT = new Intl.NumberFormat('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const WEIGHT_FORMAT = new Intl.NumberFormat('ko-KR', {
+  style: 'percent',
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
 
 function createDateFormatters(timeZone: string) {
   const date = new Intl.DateTimeFormat('ko-KR', { timeZone, month: 'short', day: 'numeric' });
@@ -58,6 +63,13 @@ function formatPercent(decimal: string | null) {
   return `${sign}${PERCENT_FORMAT.format(value)}%`;
 }
 
+// 구성 비중 전용. 손익률과 달리 부호를 붙이지 않고, 0.1% 미만은 0.0%가 아니라 그렇게 적는다.
+function formatWeight(ratio: number) {
+  if (!Number.isFinite(ratio) || ratio < 0) return '—';
+  if (ratio > 0 && ratio < 0.001) return '<0.1%';
+  return WEIGHT_FORMAT.format(ratio);
+}
+
 export function fillAmount(fill: Pick<DashboardFill, 'quantity' | 'price'>) {
   return String(Number(fill.quantity) * Number(fill.price));
 }
@@ -72,4 +84,13 @@ function valueTone(decimal: string | null) {
   return value > 0 ? 'text-[var(--positive)]' : 'text-destructive';
 }
 
-export { createDateFormatters, formatDecimal, formatMoney, formatMoneyCompact, formatPercent, numeric, valueTone };
+export {
+  createDateFormatters,
+  formatDecimal,
+  formatMoney,
+  formatMoneyCompact,
+  formatPercent,
+  formatWeight,
+  numeric,
+  valueTone,
+};

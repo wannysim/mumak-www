@@ -26,8 +26,12 @@
   --ring: #263cff;
   --positive: #087a55;
   --destructive: #c02626;
-  --chart-1: #263cff;
-  --chart-2: #087a55;
+  /* 도넛 조각 색의 재료. 색상환 각도는 컴포넌트가 돌리고 명도·채도만 여기서 준다.
+     두 명도를 번갈아 쓰면 인접 조각의 색각이상 분리도가 올라간다. 라이트·다크가
+     같은 값으로 dataviz validator의 adjacent 게이트를 통과해 한 벌만 둔다. */
+  --chart-lightness-a: 56%;
+  --chart-lightness-b: 66%;
+  --chart-chroma: 0.2;
   --radius: 0.25rem;
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -52,8 +56,6 @@
   --ring: #8390ff;
   --positive: #65d6a9;
   --destructive: #ff9a9a;
-  --chart-1: #8390ff;
-  --chart-2: #65d6a9;
 }
 
 /* 명시 선택이 없을 때(.light/.dark 미부여) OS 설정을 첫 페인트부터 반영한다.
@@ -81,8 +83,6 @@
     --ring: #8390ff;
     --positive: #65d6a9;
     --destructive: #ff9a9a;
-    --chart-1: #8390ff;
-    --chart-2: #65d6a9;
   }
 }
 
@@ -104,33 +104,6 @@ select {
 }
 button {
   -webkit-tap-highlight-color: transparent;
-}
-
-.chart-grid {
-  stroke: var(--border);
-  stroke-width: 1;
-}
-.chart-nav {
-  fill: none;
-  stroke: var(--chart-1);
-  stroke-linecap: square;
-  stroke-linejoin: bevel;
-  stroke-width: 2.5;
-}
-.chart-return {
-  fill: none;
-  stroke: var(--chart-2);
-  stroke-dasharray: 5 5;
-  stroke-linecap: square;
-  stroke-width: 1.5;
-}
-.chart-point {
-  fill: var(--card);
-  stroke: var(--chart-1);
-  stroke-width: 2;
-}
-.chart-return-key {
-  background: repeating-linear-gradient(90deg, var(--chart-2) 0 5px, transparent 5px 9px);
 }
 
 :where(button) {

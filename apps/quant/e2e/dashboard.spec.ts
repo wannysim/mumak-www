@@ -335,3 +335,74 @@ test('paints the chart line under the production CSP', async ({ page }) => {
   expect(stroke).not.toBe('none');
   expect(blocked).toEqual([]);
 });
+
+const ALLOCATION_SYMBOLS = [
+  'AMD',
+  'GOOGL',
+  'MSFT',
+  'NVDA',
+  'TSLA',
+  'AVGO',
+  'META',
+  'NFLX',
+  'CRM',
+  'ORCL',
+  'ADBE',
+  'QCOM',
+  'INTC',
+];
+
+async function mockAllocationSnapshot(page: Page, symbolCount: number) {
+  const base = structuredClone(TEST_ONLY_PAPER_ROW.payload.holdings[0]!);
+  const holdings = ALLOCATION_SYMBOLS.slice(0, symbolCount).map((symbol, index) => ({
+    ...base,
+    symbol,
+    marketValue: String(8000 - index * 400),
+  }));
+  const row = {
+    ...structuredClone(TEST_ONLY_PAPER_ROW),
+    payload: { ...structuredClone(TEST_ONLY_PAPER_ROW.payload), holdings },
+  };
+  await page.route('https://quant-e2e.supabase.co/**', async route => {
+    if (new URL(route.request().url()).pathname === '/rest/v1/paper_snapshots') {
+      await route.fulfill({ json: [row] });
+    } else {
+      await route.abort();
+    }
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '테스트 운용 1기' })).toBeVisible();
+}
+
+test('holding weights are readable as text and every slice keeps a resolved color', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await mockAllocationSnapshot(page, 3);
+
+  const legend = page.getByRole('list', { name: '보유 종목 평가액 비중' });
+  await expect(legend.getByRole('listitem')).toHaveCount(3);
+  await expect(legend).toContainText('AMD');
+  await expect(legend).toContainText('35.1%');
+  await expect(legend).toContainText('33.3%');
+  await expect(legend).toContainText('31.6%');
+
+  // CSP가 style-src 'self'라 주입된 <style>이 차단되면 stroke가 none으로 떨어져 도넛이 사라진다.
+  // 색이 실제 값으로 해석되는지까지 확인한다.
+  const strokes = await page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: '보유 종목' }) })
+    .locator('circle')
+    .evaluateAll(nodes => nodes.map(node => getComputedStyle(node).stroke));
+  expect(strokes).toHaveLength(3);
+  for (const stroke of strokes) expect(stroke).not.toMatch(/^(none|)$/);
+  expect(new Set(strokes).size).toBe(3);
+});
+
+test('a long tail folds into one 기타 slice and the donut fits the narrowest phone', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await mockAllocationSnapshot(page, 13);
+
+  const legend = page.getByRole('list', { name: '보유 종목 평가액 비중' });
+  await expect(legend.getByRole('listitem')).toHaveCount(10);
+  await expect(legend).toContainText('기타 4종목');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

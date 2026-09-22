@@ -4,6 +4,7 @@ import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { Button } from '@mumak/ui/components/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@mumak/ui/components/table';
 
+import { AllocationDonut } from '@/components/allocation-donut';
 import { FillDetails } from '@/components/fill-details';
 import { StockLink } from '@/components/stock-link';
 import { useTimeZone } from '@/components/time-zone-provider';
@@ -324,6 +325,12 @@ function SnapshotDashboard({ snapshot }: { snapshot: DashboardSnapshot }) {
         <div className="p-4 pb-0 sm:p-6 sm:pb-0">
           <SectionHeading kicker={`${snapshot.holdings.length} POSITIONS`}>보유 종목</SectionHeading>
         </div>
+        <AllocationDonut
+          holdings={snapshot.holdings}
+          currency={snapshot.currency}
+          cash={snapshot.summary.cash}
+          nav={snapshot.summary.currentNav}
+        />
         <Holdings holdings={snapshot.holdings} currency={snapshot.currency} />
       </Panel>
       <Panel>
