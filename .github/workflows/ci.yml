@@ -192,8 +192,13 @@ jobs:
       - name: Build
         run: pnpm turbo run build --filter=${{ matrix.app }} $TURBO_CACHE_ARG
 
+      # 커버리지는 step summary와 Codecov에도 남으므로 이 업로드는 게이트가 아니다.
+      # 아티팩트 업로드의 일시적 네트워크 실패(ETIMEDOUT)로 릴리즈가 막히지 않도록
+      # 실패를 잡에 전파하지 않는다. 대신 다음 Codecov 잡의 hashFiles 가드가
+      # 아티팩트 부재를 자연스럽게 흡수한다.
       - name: Upload coverage artifact
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ matrix.app }}
@@ -237,7 +242,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # 위 업로드가 continue-on-error가 된 이상 아티팩트가 아예 없을 수 있다.
+      # download-artifact는 패턴에 하나도 안 걸리면 실패하므로 여기도 전파를 막는다.
+      # 뒤의 Codecov step들은 이미 hashFiles 가드로 부재를 흡수한다.
       - name: Download coverage artifacts
+        continue-on-error: true
         uses: actions/download-artifact@v8
         with:
           pattern: coverage-*
