@@ -1,12 +1,18 @@
 import { CircleAlert } from 'lucide-react';
+import { lazy, Suspense } from 'react';
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@mumak/ui/components/table';
 
 import { FillReason } from '@/components/fill-reason';
-import { PerformanceChart } from '@/components/performance-chart';
 import { StockLink } from '@/components/stock-link';
 import type { DashboardFill, DashboardHolding, DashboardSnapshot } from '@/lib/dashboard-schema';
 import { formatDateTime, formatDecimal, formatMoney, formatPercent, valueTone } from '@/lib/format';
+
+// recharts는 이 차트에서만 쓰이는데 엔트리 청크의 큰 부분을 차지한다.
+// 별도 청크로 분리해 첫 화면(요약·보유·체결)이 먼저 그려지게 한다.
+const PerformanceChart = lazy(() =>
+  import('@/components/performance-chart').then(module => ({ default: module.PerformanceChart }))
+);
 
 function Panel({ className = '', ...props }: React.ComponentProps<'section'>) {
   return <section className={`border border-border bg-card ${className}`} {...props} />;
@@ -239,7 +245,10 @@ function SnapshotDashboard({ snapshot }: { snapshot: DashboardSnapshot }) {
       <SummaryGrid snapshot={snapshot} />
       <Panel className="p-4 sm:p-6">
         <SectionHeading kicker="NAV / RETURN">성과 추이</SectionHeading>
-        <PerformanceChart history={snapshot.history} currency={snapshot.currency} />
+        {/* 높이를 고정해 청크가 늦게 도착해도 아래 패널이 밀리지 않게 한다. */}
+        <Suspense fallback={<div className="min-h-[21rem] w-full animate-pulse rounded-md bg-muted/40" />}>
+          <PerformanceChart history={snapshot.history} currency={snapshot.currency} />
+        </Suspense>
       </Panel>
       <Panel>
         <div className="p-4 pb-0 sm:p-6 sm:pb-0">

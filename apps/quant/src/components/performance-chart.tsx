@@ -1,15 +1,17 @@
 'use client';
 
 import { useMemo, useState, type MouseEvent, type TouchEvent } from 'react';
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts';
 
-import { ChartContainer, ChartTooltip, type ChartConfig } from '@mumak/ui/components/chart';
+import { ChartContainer, type ChartConfig } from '@mumak/ui/components/chart';
 import { ToggleGroup, ToggleGroupItem } from '@mumak/ui/components/toggle-group';
 
 import type { DashboardHistoryPoint } from '@/lib/dashboard-schema';
-import { formatDateTime, formatMoney, formatPercent, numeric } from '@/lib/format';
+import { formatDate, formatDateTime, formatMoney, formatMoneyCompact, formatPercent, numeric } from '@/lib/format';
 
 type Metric = 'nav' | 'returnPct';
+
+type DotPosition = { cx?: number; cy?: number; index?: number };
 
 type ChartPoint = DashboardHistoryPoint & {
   timestamp: number;
@@ -51,6 +53,27 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
   const yAxisLabel = metric === 'nav' ? `NAV (${currency})` : '수익률 (%)';
   const activeIndex = Math.min(Math.max(selectedIndex, 0), points.length - 1);
   const activePoint = points[activeIndex] ?? endPoint;
+  const lineColor = `var(--color-${selectedDataKey})`;
+  // 점이 많으면 선택 지점만, 적으면 모든 지점을 찍는다. ReferenceDot은 Line보다
+  // 아래 레이어에 깔려 선 위의 점에 가려지므로 Line의 dot으로 직접 그린다.
+  const showEveryDot = points.length <= 40;
+
+  function renderDot({ cx, cy, index }: DotPosition) {
+    if (cx === undefined || cy === undefined) return <></>;
+    const selected = index === activeIndex;
+    if (!selected && !showEveryDot) return <></>;
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={selected ? 5 : 2.5}
+        fill={selected ? lineColor : 'var(--background)'}
+        stroke={selected ? 'var(--background)' : lineColor}
+        strokeWidth={selected ? 2 : 1.5}
+        data-selected={selected ? 'true' : undefined}
+      />
+    );
+  }
 
   function moveSelection(direction: -1 | 1) {
     setSelectedIndex(current => Math.min(Math.max(current + direction, 0), points.length - 1));
@@ -136,33 +159,39 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
         className="relative rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChartContainer config={chartConfig} className="min-h-52 w-full">
-          <LineChart data={points} margin={{ top: 12, right: 12, bottom: 24, left: 24 }}>
+          <LineChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 4 }}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="timestamp"
               type="number"
               scale="time"
               domain={['dataMin', 'dataMax']}
-              tickFormatter={value => formatDateTime(new Date(value).toISOString())}
+              tickFormatter={value => formatDate(new Date(value).toISOString())}
               minTickGap={32}
+              tickMargin={6}
             />
             <YAxis
               dataKey={selectedDataKey}
               domain={['auto', 'auto']}
               tickFormatter={value =>
-                metric === 'nav' ? formatMoney(String(value), currency) : `${Number(value).toLocaleString('ko-KR')}%`
+                metric === 'nav'
+                  ? formatMoneyCompact(Number(value), currency)
+                  : `${Number(value).toLocaleString('ko-KR')}%`
               }
-              width={84}
-              label={{ value: yAxisLabel, angle: -90, position: 'insideLeft' }}
+              width={metric === 'nav' ? 52 : 44}
+              tickMargin={4}
             />
-            <ChartTooltip cursor content={() => null} />
+            {/* 선택 지점을 차트 위에 직접 표시한다. recharts의 자체 hover cursor는
+                키보드 탐색 때 나타나지 않아 판독값만 바뀌고 그래프는 그대로였다. */}
+            <ReferenceLine x={activePoint.timestamp} stroke={lineColor} strokeOpacity={0.5} strokeDasharray="4 4" />
             <Line
               dataKey={selectedDataKey}
               type="linear"
-              stroke={`var(--color-${selectedDataKey})`}
+              stroke={lineColor}
               strokeWidth={2}
               connectNulls={false}
-              dot={points.length === 1}
+              dot={renderDot}
+              activeDot={false}
               isAnimationActive={false}
             />
           </LineChart>
