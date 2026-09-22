@@ -321,3 +321,17 @@ test('serves the favicon declared in the document head', async ({ page, request 
   expect(response.status()).toBe(200);
   expect(response.headers()['content-type']).toContain('image/svg+xml');
 });
+
+test('paints the chart line under the production CSP', async ({ page }) => {
+  const blocked: string[] = [];
+  page.on('console', message => {
+    if (message.type() === 'error' && /Content Security Policy/i.test(message.text())) blocked.push(message.text());
+  });
+  await mockSnapshots(page);
+  await page.goto('/');
+  const line = page.locator('.recharts-line-curve');
+  await expect(line).toBeVisible();
+  const stroke = await line.evaluate(node => getComputedStyle(node).stroke);
+  expect(stroke).not.toBe('none');
+  expect(blocked).toEqual([]);
+});

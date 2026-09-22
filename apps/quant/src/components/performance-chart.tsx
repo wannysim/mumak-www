@@ -16,9 +16,14 @@ type ChartPoint = DashboardHistoryPoint & {
   navValue: number;
 };
 
+// color를 주면 ChartContainer가 --color-navValue를 인라인 <style> 태그로 주입하는데,
+// 이 앱의 CSP는 style-src 'self'라 그 태그가 차단된다. 변수가 정의되지 않으면 stroke는
+// none, fill은 검정으로 떨어져 선이 통째로 사라진다. label만 남기고 색은 토큰을 직접 쓴다.
 const chartConfig = {
-  navValue: { label: 'NAV', color: 'var(--primary)' },
+  navValue: { label: 'NAV' },
 } satisfies ChartConfig;
+
+const LINE_COLOR = 'var(--primary)';
 
 function PerformanceChart({ history, currency }: { history: DashboardHistoryPoint[]; currency: string }) {
   const { formatDate, formatDateTime } = useTimeZone();
@@ -43,7 +48,7 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
 
   const activeIndex = Math.min(Math.max(selectedIndex ?? points.length - 1, 0), points.length - 1);
   const activePoint = points[activeIndex] ?? last;
-  const lineColor = 'var(--color-navValue)';
+  const lineColor = LINE_COLOR;
   // 점이 많으면 선택 지점만, 적으면 모든 지점을 찍는다. ReferenceDot은 Line보다
   // 아래 레이어에 깔려 선 위의 점에 가려지므로 Line의 dot으로 직접 그린다.
   const showEveryDot = points.length <= 40;
