@@ -58,17 +58,19 @@ description: 에러와 테스트 실패의 근본 원인을 분석합니다. 버
 ## 디버깅 명령어
 
 ```bash
-# TypeScript 타입 체크
-pnpm tsc --noEmit
+# 타입 체크 · lint (앱 단위. 루트 스크립트는 turbo를 거치므로 필터로 좁힌다)
+pnpm turbo run check-types --filter=<app>
+pnpm turbo run lint --filter=<app>
 
-# Lint 검사
-pnpm lint
+# 특정 테스트만 실행 — 러너가 앱마다 다르다
+pnpm --filter <app> exec jest <파일명>          # admin · blog · mumak-next · mumak-native (Jest)
+pnpm --filter <app> exec vitest run <파일명>    # karaoke · lattice · mumak-react · quant (Vitest)
 
-# 특정 테스트 실행
-pnpm test -- --testPathPattern="파일명"
-
-# 테스트 watch 모드
-pnpm test -- --watch
+# watch
+pnpm --filter <app> exec jest --watch <파일명>
+pnpm --filter <app> exec vitest <파일명>
 ```
+
+`pnpm test -- <flag>`는 루트 `test`가 `turbo run test`라 플래그가 러너까지 전달되지 않는다. 전체 검증 순서는 `ci-preflight` 스킬을 따른다.
 
 증상이 아닌 근본 원인을 수정하는 데 집중하세요.

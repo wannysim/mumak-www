@@ -53,7 +53,7 @@ pnpm turbo run test:e2e --filter=<app>
 
 - `app/`, `src/`, `components/`, `widgets/`, `features/` 변경
 - 라우팅, 레이아웃, 메타데이터, `playwright.config.*`, `e2e/**` 변경
-- `apps/blog`, `apps/mumak-next`, `apps/mumak-react`의 UI 동작 변경
+- `apps/*` 중 어느 앱이든 UI 동작 변경 (현재 admin · blog · karaoke · lattice · mumak-native · mumak-next · mumak-react · quant)
 - 리팩토링이지만 동작 보존이 중요한 변경
 
 반대로 문서, 주석, 순수 설정 변경처럼 런타임 영향이 거의 없으면 `check-types -> lint -> format:check -> test:ci`까지만 우선 수행할 수 있습니다.
@@ -149,20 +149,20 @@ pnpm turbo run format --filter=<app>
 전체 검증을 한번에 실행하려면:
 
 ```bash
-./scripts/preflight.sh [app-name] [--with-build] [--with-e2e]
+.ai/skills/ci-preflight/scripts/preflight.sh [app-name] [--with-build] [--with-e2e]
 ```
 
 예시:
 
 ```bash
 # 변경된 부분만 기본 검증
-./scripts/preflight.sh
+.ai/skills/ci-preflight/scripts/preflight.sh
 
 # blog만 build 포함 검증
-./scripts/preflight.sh blog --with-build
+.ai/skills/ci-preflight/scripts/preflight.sh blog --with-build
 
 # blog만 build + e2e 포함 검증
-./scripts/preflight.sh blog --with-build --with-e2e
+.ai/skills/ci-preflight/scripts/preflight.sh blog --with-build --with-e2e
 ```
 
 스크립트 없이 한줄로:

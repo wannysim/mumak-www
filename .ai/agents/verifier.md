@@ -29,7 +29,7 @@ description: 작업 완료 후 실제로 동작하는지 검증합니다. 기능
 
 ## 영향 범위 판단 기준
 
-- `apps/blog`, `apps/mumak-next`, `apps/mumak-react` 변경 시: 해당 앱 중심으로 검증합니다.
+- `apps/*` 변경 시: 해당 앱 중심으로 검증합니다 (admin · blog · karaoke · lattice · mumak-native · mumak-next · mumak-react · quant). 러너는 앱마다 Jest/Vitest가 다르니 `apps/<app>/package.json`의 `test:ci`를 기준으로 삼습니다.
 - `packages/**` 변경 시: 의존 앱까지 영향을 확인합니다.
 - 테스트 파일만 바뀌었더라도, 테스트가 실제로 실행되고 의도한 회귀를 막는지 확인합니다.
 - UI, 라우팅, Playwright 설정, `e2e/**` 변경 시: 가능하면 E2E까지 검증합니다.
