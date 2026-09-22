@@ -71,7 +71,7 @@ class SupabaseDashboardClient implements DashboardClient {
       .order('month', { ascending: false })
       .order('as_of', { ascending: false })
       .abortSignal(signal);
-    if (error) throw new Error('스냅샷을 불러오지 못했습니다.');
+    if (error) throw new Error('운용 내역을 불러오지 못했습니다.');
     return (data ?? []).map(row => mapSnapshotRow(row, mode));
   }
 

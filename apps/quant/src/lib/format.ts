@@ -1,17 +1,22 @@
+import type { DashboardFill } from '@/lib/dashboard-schema';
+
 const PERCENT_FORMAT = new Intl.NumberFormat('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// 축 눈금은 좁은 폭에서 겹치지 않아야 하므로 시각·타임존을 뺀 짧은 형태를 쓴다.
-// 정확한 시각은 선택 지점 판독값과 툴팁이 계속 전체 형식으로 보여준다.
-const DATE_FORMAT = new Intl.DateTimeFormat('ko-KR', { month: 'short', day: 'numeric' });
-
-const DATE_TIME_FORMAT = new Intl.DateTimeFormat('ko-KR', {
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZoneName: 'short',
-});
+function createDateFormatters(timeZone: string) {
+  const date = new Intl.DateTimeFormat('ko-KR', { timeZone, month: 'short', day: 'numeric' });
+  const dateTime = new Intl.DateTimeFormat('ko-KR', {
+    timeZone,
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  return {
+    formatDate: (value: string) => date.format(new Date(value)),
+    formatDateTime: (value: string) => dateTime.format(new Date(value)),
+  };
+}
 
 function numeric(decimal: string | null): number | null {
   if (decimal === null) return null;
@@ -53,12 +58,12 @@ function formatPercent(decimal: string | null) {
   return `${sign}${PERCENT_FORMAT.format(value)}%`;
 }
 
-function formatDateTime(value: string) {
-  return DATE_TIME_FORMAT.format(new Date(value));
+export function fillAmount(fill: Pick<DashboardFill, 'quantity' | 'price'>) {
+  return String(Number(fill.quantity) * Number(fill.price));
 }
 
-function formatDate(value: string) {
-  return DATE_FORMAT.format(new Date(value));
+export function fillTotal(fill: Pick<DashboardFill, 'quantity' | 'price' | 'side' | 'commission'>) {
+  return String(Number(fillAmount(fill)) + (fill.side === 'buy' ? 1 : -1) * Number(fill.commission));
 }
 
 function valueTone(decimal: string | null) {
@@ -67,13 +72,4 @@ function valueTone(decimal: string | null) {
   return value > 0 ? 'text-[var(--positive)]' : 'text-destructive';
 }
 
-export {
-  formatDate,
-  formatDateTime,
-  formatDecimal,
-  formatMoney,
-  formatMoneyCompact,
-  formatPercent,
-  numeric,
-  valueTone,
-};
+export { createDateFormatters, formatDecimal, formatMoney, formatMoneyCompact, formatPercent, numeric, valueTone };

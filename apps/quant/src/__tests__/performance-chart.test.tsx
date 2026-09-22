@@ -32,19 +32,15 @@ describe('PerformanceChart', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows one explicitly selected metric with an accurately labelled axis', async () => {
-    const user = userEvent.setup();
+  it('shows the latest NAV and return together without switching metrics', () => {
     render(<PerformanceChart history={HISTORY} currency="USD" />);
-
-    expect(screen.getByRole('radio', { name: 'NAV' })).toBeChecked();
-    expect(screen.getAllByText('NAV (USD)').length).toBeGreaterThan(0);
-    expect(screen.queryByText('수익률 (%)')).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('radio', { name: '수익률' }));
-
-    expect(screen.getByRole('radio', { name: '수익률' })).toBeChecked();
-    expect(screen.getAllByText('수익률 (%)').length).toBeGreaterThan(0);
-    expect(screen.queryByText('NAV (USD)')).not.toBeInTheDocument();
+    const readout = screen.getByRole('status', { name: '선택 시점 성과' });
+    expect(readout).toHaveTextContent('NAV (USD)');
+    expect(readout).toHaveTextContent('$1,040.00');
+    expect(readout).toHaveTextContent('수익률');
+    expect(readout).toHaveTextContent('+4.00%');
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   });
 
   it('lets keyboard users inspect every timestamp with NAV and return values', async () => {
@@ -57,14 +53,14 @@ describe('PerformanceChart', () => {
     expect(explorer).toHaveAttribute('aria-valuemax', '2');
     expect(explorer).toHaveAttribute('aria-valuenow', '2');
     expect(screen.getByRole('status')).toHaveTextContent('9월 4일');
-    expect(screen.getByRole('status')).toHaveTextContent('NAV $1,040.00');
-    expect(screen.getByRole('status')).toHaveTextContent('수익률 +4.00%');
+    expect(screen.getByRole('status')).toHaveTextContent('$1,040.00');
+    expect(screen.getByRole('status')).toHaveTextContent('+4.00%');
 
     await user.keyboard('{ArrowLeft}');
 
     expect(screen.getByRole('status')).toHaveTextContent('9월 2일');
-    expect(screen.getByRole('status')).toHaveTextContent('NAV $1,010.00');
-    expect(screen.getByRole('status')).toHaveTextContent('수익률 +1.00%');
+    expect(screen.getByRole('status')).toHaveTextContent('$1,010.00');
+    expect(screen.getByRole('status')).toHaveTextContent('+1.00%');
     expect(explorer).toHaveAttribute('aria-valuenow', '1');
 
     await user.keyboard('{ArrowDown}');
@@ -75,7 +71,7 @@ describe('PerformanceChart', () => {
     expect(explorer).toHaveAttribute('aria-valuenow', '2');
   });
 
-  it('shows the timestamp, NAV, and return together on hover', () => {
+  it('updates the fixed readout on hover without covering the plot', () => {
     render(<PerformanceChart history={HISTORY} currency="USD" />);
 
     fireEvent.mouseMove(screen.getByRole('slider', { name: /성과 시계열 탐색/ }), {
@@ -83,18 +79,26 @@ describe('PerformanceChart', () => {
       clientY: 160,
     });
 
-    expect(screen.getByRole('tooltip')).toHaveTextContent('9월 2일');
-    expect(screen.getByRole('tooltip')).toHaveTextContent('NAV');
-    expect(screen.getByRole('tooltip')).toHaveTextContent('$1,010.00');
-    expect(screen.getByRole('tooltip')).toHaveTextContent('수익률');
-    expect(screen.getByRole('tooltip')).toHaveTextContent('+1.00%');
-    expect(screen.getByRole('status')).toHaveTextContent('NAV $1,010.00');
+    expect(screen.getByRole('status')).toHaveTextContent('9월 2일');
+    expect(screen.getByRole('status')).toHaveTextContent('NAV');
+    expect(screen.getByRole('status')).toHaveTextContent('$1,010.00');
+    expect(screen.getByRole('status')).toHaveTextContent('수익률');
+    expect(screen.getByRole('status')).toHaveTextContent('+1.00%');
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 
-  it('explains when NAV and return should share the same trend', () => {
-    render(<PerformanceChart history={HISTORY} currency="USD" />);
-
-    expect(screen.getByText(/현금 흐름이 없고 기준점이 고정된 경우.*같은 추세/)).toBeInTheDocument();
+  it('preserves recorded returns instead of deriving them from the first visible NAV', async () => {
+    const user = userEvent.setup();
+    const history = HISTORY.map((point, index) => ({ ...point, returnPct: index === 1 ? '-2.5' : '7.25' }));
+    render(<PerformanceChart history={history} currency="USD" />);
+    const explorer = screen.getByRole('slider');
+    explorer.focus();
+    await user.keyboard('{Home}');
+    expect(screen.getByRole('status')).toHaveTextContent('7.25%');
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('status')).toHaveTextContent('$1,010.00');
+    expect(screen.getByRole('status')).toHaveTextContent('-2.50%');
+    expect(explorer).toHaveAttribute('aria-valuetext', expect.stringContaining('수익률 -2.50%'));
   });
 
   it('renders an empty-state message without chart controls for empty history', () => {
@@ -115,16 +119,14 @@ describe('PerformanceChart', () => {
     expect(explorer).toHaveAttribute('aria-valuemin', '0');
     expect(explorer).toHaveAttribute('aria-valuemax', '0');
     expect(explorer).toHaveAttribute('aria-valuenow', '0');
-    expect(screen.getByRole('status')).toHaveTextContent('NAV $1,000.00');
+    expect(screen.getByRole('status')).toHaveTextContent('$1,000.00');
   });
 
-  it('reports a null return as unavailable instead of inventing a value', async () => {
-    const user = userEvent.setup();
+  it('reports a null return as unavailable instead of inventing a value', () => {
     render(<PerformanceChart history={[{ ...HISTORY[0]!, returnPct: null }]} currency="USD" />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('수익률 산출 불가');
-    await user.click(screen.getByRole('radio', { name: '수익률' }));
-    expect(screen.getAllByText('수익률 (%)').length).toBeGreaterThan(0);
+    expect(screen.getByRole('status')).toHaveTextContent('산출 불가');
+    expect(screen.getByRole('status')).toHaveTextContent('$1,000.00');
   });
 
   it('navigates constant values without implying a calculated change', async () => {
@@ -137,7 +139,30 @@ describe('PerformanceChart', () => {
     await user.keyboard('{Home}{ArrowRight}');
 
     expect(explorer).toHaveAttribute('aria-valuenow', '1');
-    expect(screen.getByRole('status')).toHaveTextContent('NAV $1,000.00');
-    expect(screen.getByRole('status')).toHaveTextContent('수익률 0.00%');
+    expect(screen.getByRole('status')).toHaveTextContent('$1,000.00');
+    expect(screen.getByRole('status')).toHaveTextContent('0.00%');
+  });
+
+  it('selects observations equally across a weekend for mouse and touch', () => {
+    const history = [
+      '2026-09-18T19:45:00Z',
+      '2026-09-18T20:00:00Z',
+      '2026-09-21T13:30:00Z',
+      '2026-09-21T13:45:00Z',
+    ].map((at, index) => ({ at, nav: String(1000 + index), profit: String(index), returnPct: '0' }));
+    render(<PerformanceChart history={history.toReversed()} currency="USD" />);
+    const explorer = screen.getByRole('slider');
+    fireEvent.mouseMove(explorer, { clientX: 640 / 3 });
+    expect(explorer).toHaveAttribute('aria-valuenow', '1');
+    expect(screen.getByRole('status')).toHaveTextContent('$1,001.00');
+    fireEvent.touchStart(explorer, { touches: [{ clientX: 1280 / 3 }] });
+    expect(explorer).toHaveAttribute('aria-valuenow', '2');
+    expect(screen.getByRole('status')).toHaveTextContent('$1,002.00');
+  });
+
+  it('follows the latest observation when new data arrives before user selection', () => {
+    const { rerender } = render(<PerformanceChart history={HISTORY.slice(0, 2)} currency="USD" />);
+    rerender(<PerformanceChart history={HISTORY} currency="USD" />);
+    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
   });
 });
