@@ -59,8 +59,11 @@ function useDashboardController(client: DashboardClient) {
   });
   const modeRef = useRef(mode);
   // 새로고침 직후 토스트에 쓸 기준 시각을 뽑으려면 방금 고른 선택을 렌더 밖에서 읽어야 한다.
+  // 렌더 중에 ref를 건드리면 concurrent 렌더가 버려질 때 값이 어긋나므로 커밋 이후에 맞춘다.
   const selectionRef = useRef(selectionByMode);
-  selectionRef.current = selectionByMode;
+  useEffect(() => {
+    selectionRef.current = selectionByMode;
+  }, [selectionByMode]);
   const requestRevision = useRef<Record<DashboardMode, number>>({ paper: 0, live: 0 });
   const requestControllers = useRef<Partial<Record<DashboardMode, AbortController>>>({});
 

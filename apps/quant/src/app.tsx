@@ -145,8 +145,13 @@ function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDas
   // 누른 사람만 결과를 기다리고 있고, 자동 갱신까지 알리면 토스트가 배경 소음이 된다.
   async function refresh() {
     setRefreshing(true);
-    const outcome = await controller.refresh();
-    setRefreshing(false);
+    let outcome;
+    try {
+      outcome = await controller.refresh();
+    } finally {
+      // 예상 밖의 예외에도 버튼이 영원히 도는 상태로 남지 않게 한다.
+      setRefreshing(false);
+    }
     if (outcome.status === 'skipped') return;
     if (outcome.status === 'error') {
       showToast({
