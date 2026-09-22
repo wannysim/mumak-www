@@ -31,6 +31,7 @@
 - **스킬·서브에이전트의 단일 소스는 `.ai/`**. `.agents/`·`.cursor/`·`.claude/` 하위는 symlink이므로 직접 수정하지 말 것.
 - Codex용 `.codex/agents/*.toml` 복사본은 커밋하지 않는다. Codex에서는 필요한 역할의 `.ai/agents/*.md`를 읽어 generic subagent에 전달한다.
 - **동일 이름의 스킬이 user(`~/.ai-skills`)와 project(`.ai/`) 양쪽에 있으면 project 버전이 우선**.
+- **외부에서 가져온(벤더링) 스킬은 `skills-lock.json`에 등재한다.** 현재 `shadcn`, `emil-design-eng` 2개. `pnpm validate:skills`가 내용 해시를 대조하고 CI `Quality (root only)` 잡에서 돈다. 의도해서 고쳤다면 `pnpm validate:skills:write`로 해시를 갱신하고 무엇을 왜 바꿨는지 그 항목의 `localChanges`에 남긴다. 해시 정의는 `scripts/validate-skills.mjs` 상단 주석에 있다.
 - **공통 규칙은 이 파일(또는 nested `AGENTS.md`)에만 적는다.** `.cursor/rules/*.mdc`에 복제하지 않는다. (nested `AGENTS.md` + path-scoped frontmatter로 대체)
 - 새 AI provider 도입 시: 해당 provider가 `AGENTS.md`를 읽는지 먼저 확인하고, 못 읽으면 포인터 파일만 추가한다.
 
