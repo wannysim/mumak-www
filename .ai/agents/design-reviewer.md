@@ -41,5 +41,5 @@ description: apps/blog의 Blog/Garden UI 변경을 디자인 관점으로 리뷰
 
 ## 한계
 
-- 픽셀 단위 시각 회귀는 판정하지 않습니다(그건 visual regression 하네스의 몫). 당신은 구조·일관성·접근성·카피 같은 판단 영역을 담당합니다.
+- 픽셀 단위 시각 회귀는 판정하지 않습니다. 이 저장소에는 아직 visual regression 하네스가 없고(`apps/blog/plan.md` 단계 3 예정), `docs/design-system/baselines/`는 사후 기록용 스크린샷입니다. 당신은 구조·일관성·접근성·카피 같은 판단 영역을 담당합니다.
 - 실제 코드 수정은 하지 않고 리뷰 결과만 돌려줍니다. 수정은 호출자가 별도로 진행합니다.

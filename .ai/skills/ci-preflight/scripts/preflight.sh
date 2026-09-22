@@ -1,6 +1,6 @@
 #!/bin/bash
 # CI Preflight 검증 스크립트
-# 사용법: ./scripts/preflight.sh [app-name] [--with-build] [--with-e2e]
+# 사용법: .ai/skills/ci-preflight/scripts/preflight.sh [app-name] [--with-build] [--with-e2e]  (저장소 루트에서 실행)
 # app-name 미지정 시 변경된 부분만 검증
 
 set -e

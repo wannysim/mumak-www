@@ -131,6 +131,11 @@ jobs:
       - name: Format Check (root files)
         run: pnpm turbo run format:root:check
 
+      # 벤더링 스킬(.ai/skills)이 skills-lock.json과 어긋나면 실패한다.
+      # 의도한 변경이면 `pnpm validate:skills:write`로 갱신하고 localChanges에 사유를 남긴다.
+      - name: Validate vendored skills
+        run: pnpm validate:skills
+
   # Step 5: Validate each app — lint, format, types, test, build (parallel matrix)
   validate:
     name: Validate (${{ matrix.app }})

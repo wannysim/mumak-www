@@ -43,7 +43,7 @@ description: Turborepo 모노레포 명령어, 필터 문법, 캐시 관리 가�
 - `--filter=mumak-next`: 특정 패키지만
 - `--filter=...mumak-next`: 패키지 + 의존성 모두
 - `--filter=mumak-next...`: 패키지 + dependents
-- `--filter=!moomin-money`: 특정 패키지 제외
+- `--filter=!@mumak/ui`: 특정 패키지 제외
 
 ### Git 기반 필터
 
@@ -90,12 +90,17 @@ GitHub Secrets 필요:
 ```yaml
 apps:
   - app: blog
-    type: next
+    type: next # next | vite | expo
     hasE2E: true
+    e2eShards: 4 # Playwright --shard 분할 수 (생략 시 1). e2e.yml만 사용
+    packageDependencies: # packages/{name} 변경 시 이 앱을 포함
+      - ui
+      - typescript-config
 ```
 
-- `packages/**` 변경 시 모든 앱 포함
 - `apps/{app}/**` 변경 시 해당 앱만 포함
+- `packages/{name}/**` 변경 시 `packageDependencies`에 그 이름을 가진 앱만 포함. 어느 앱에도 매핑되지 않은 package가 바뀌면 안전을 위해 전체 앱으로 fallback (`.github/actions/detect-scopes`)
+- 새 workspace package를 의존하면 해당 앱의 `packageDependencies`에 디렉터리명을 추가한다
 
 ## 문제 해결
 

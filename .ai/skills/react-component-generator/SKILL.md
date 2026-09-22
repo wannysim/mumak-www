@@ -9,12 +9,13 @@ description: shadcn/ui 기반 React 컴포넌트를 일관된 구조로 생성�
 
 ## 컴포넌트 위치 규칙
 
-| 유형         | 위치                                                     | 설명                             |
-| ------------ | -------------------------------------------------------- | -------------------------------- |
-| 공유 UI      | `packages/ui/src/components/`                            | 여러 앱에서 재사용 (shadcn 기반) |
-| Next.js 전용 | `apps/mumak-next/components/`                            | Next.js 앱 전용                  |
-| React 전용   | `apps/mumak-react/src/components/`                       | Vite 앱 전용                     |
-| Blog 전용    | `apps/blog/src/{widgets,features,entities,shared}/*/ui/` | Blog 앱은 FSD 구조               |
+| 유형       | 위치                                                       | 설명                                    |
+| ---------- | ---------------------------------------------------------- | --------------------------------------- |
+| 공유 UI    | `packages/ui/src/components/`                              | 여러 앱에서 재사용 (shadcn 기반)        |
+| Next.js 앱 | `apps/{admin,mumak-next}/components/`                      | Next.js 앱 전용                         |
+| Vite 앱    | `apps/{karaoke,lattice,mumak-react,quant}/src/components/` | Vite 앱 전용                            |
+| Expo 앱    | `apps/mumak-native/components/`                            | React Native. web component 재사용 불가 |
+| Blog 전용  | `apps/blog/src/{widgets,features,entities,shared}/*/ui/`   | Blog 앱은 FSD 구조                      |
 
 ### Blog (FSD) 배치 가이드
 

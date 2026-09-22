@@ -46,10 +46,8 @@ Cursor는 이 중 다음을 자동으로 읽는다.
 - `turborepo` — 필터 문법, 캐시 관리
 - `shadcn` — 컴포넌트 설치·커스터마이즈
 - `react-component-generator` — 새 컴포넌트 스캐폴딩
-- `test-writer` — Jest · Vitest · Playwright 테스트 작성
 - `release` — Git Flow 기반 버전 관리
-- `expressive-refactor` — 이름·구조 중심 리팩토링
-- `perf-optimization` — 성능 체크리스트
+- `emil-design-eng` — 애니메이션·UI 폴리시 구현 가이드
 
 ### Agents (symlink)
 
@@ -60,6 +58,7 @@ Cursor는 이 중 다음을 자동으로 읽는다.
 
 - `verifier` — 완료 주장과 실제 검증 사이의 누락을 찾는다
 - `debugger` — 에러·테스트 실패의 근본 원인을 분석한다
+- `design-reviewer` — `apps/blog` Blog/Garden UI 변경을 디자인 관점으로 리뷰한다
 
 권장 사용 시점:
 
@@ -106,9 +105,8 @@ Cursor는 이 중 다음을 자동으로 읽는다.
 
 1. 관련 규칙(`AGENTS.md` + nested `AGENTS.md`)을 따르며 구현
 2. 필요하면 스킬 사용
-   - 리팩토링: `expressive-refactor`
    - 검증: `ci-preflight`
-3. 완료 후 `verifier`로 실제 검증 범위 점검
+3. 완료 후 `verifier`로 실제 검증 범위 점검. `apps/blog` UI 변경이면 `design-reviewer`도 함께
 
 ### 테스트 실패 / 버그 발생 시
 
