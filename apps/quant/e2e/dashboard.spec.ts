@@ -335,3 +335,123 @@ test('paints the chart line under the production CSP', async ({ page }) => {
   expect(stroke).not.toBe('none');
   expect(blocked).toEqual([]);
 });
+
+const ALLOCATION_SYMBOLS = [
+  'AMD',
+  'GOOGL',
+  'MSFT',
+  'NVDA',
+  'TSLA',
+  'AVGO',
+  'META',
+  'NFLX',
+  'CRM',
+  'ORCL',
+  'ADBE',
+  'QCOM',
+  'INTC',
+];
+
+async function mockAllocationSnapshot(page: Page, symbolCount: number) {
+  const base = structuredClone(TEST_ONLY_PAPER_ROW.payload.holdings[0]!);
+  const holdings = ALLOCATION_SYMBOLS.slice(0, symbolCount).map((symbol, index) => ({
+    ...base,
+    symbol,
+    marketValue: String(8000 - index * 400),
+  }));
+  const row = {
+    ...structuredClone(TEST_ONLY_PAPER_ROW),
+    payload: { ...structuredClone(TEST_ONLY_PAPER_ROW.payload), holdings },
+  };
+  await page.route('https://quant-e2e.supabase.co/**', async route => {
+    if (new URL(route.request().url()).pathname === '/rest/v1/paper_snapshots') {
+      await route.fulfill({ json: [row] });
+    } else {
+      await route.abort();
+    }
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '테스트 운용 1기' })).toBeVisible();
+}
+
+test('holding weights are readable as text and every slice keeps a resolved color', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await mockAllocationSnapshot(page, 3);
+
+  const legend = page.getByRole('list', { name: '보유 종목 평가액 비중' });
+  await expect(legend.getByRole('listitem')).toHaveCount(3);
+  await expect(legend).toContainText('AMD');
+  await expect(legend).toContainText('35.1%');
+  await expect(legend).toContainText('33.3%');
+  await expect(legend).toContainText('31.6%');
+
+  // CSP가 style-src 'self'라 주입된 <style>이 차단되면 stroke가 none으로 떨어져 도넛이 사라진다.
+  // 색이 실제 값으로 해석되는지까지 확인한다.
+  const strokes = await page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: '보유 종목' }) })
+    .locator('circle')
+    .evaluateAll(nodes => nodes.map(node => getComputedStyle(node).stroke));
+  expect(strokes).toHaveLength(3);
+  for (const stroke of strokes) expect(stroke).not.toMatch(/^(none|)$/);
+  expect(new Set(strokes).size).toBe(3);
+});
+
+test('a long tail folds into one 기타 slice and the donut fits the narrowest phone', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await mockAllocationSnapshot(page, 13);
+
+  const legend = page.getByRole('list', { name: '보유 종목 평가액 비중' });
+  await expect(legend.getByRole('listitem')).toHaveCount(10);
+  await expect(legend).toContainText('기타 4종목');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+// 첫 로드는 항상 성공시키고, 이후 실패 여부는 테스트가 직접 켠다. 앱이 초기에 몇 번
+// 요청하는지에 기대면(StrictMode·auth 효과) 실패 케이스가 flaky해진다.
+async function mockRefreshOutcome(page: Page) {
+  const state = { failing: false };
+  await page.route('https://quant-e2e.supabase.co/**', async route => {
+    if (new URL(route.request().url()).pathname === '/rest/v1/paper_snapshots') {
+      if (state.failing) await route.fulfill({ status: 500, json: { message: 'unavailable' } });
+      else await route.fulfill({ json: [TEST_ONLY_PAPER_ROW] });
+    } else {
+      await route.abort();
+    }
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '테스트 운용 1기' })).toBeVisible();
+  return state;
+}
+
+test('the refresh button reports success with the data timestamp and stays CSP clean', async ({ page }) => {
+  const blocked: string[] = [];
+  page.on('console', message => {
+    if (message.type() === 'error' && /Content Security Policy/i.test(message.text())) blocked.push(message.text());
+  });
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await mockRefreshOutcome(page);
+
+  const notice = page.getByRole('status', { name: '알림' });
+  // 누르기 전에는 비어 있어야 한다. 라이브 영역 자체는 미리 떠 있다.
+  await expect(notice).toBeEmpty();
+
+  await page.getByRole('button', { name: '운용 내역 전체 새로고침' }).click();
+  await expect(notice).toContainText('운용 내역을 새로 불러왔습니다.');
+  await expect(notice).toContainText('데이터 기준 시각');
+  // 토스트가 대시보드를 영구히 가리지 않는다.
+  await expect(notice).toBeEmpty({ timeout: 10_000 });
+  expect(blocked).toEqual([]);
+});
+
+test('a failed refresh says so instead of silently leaving the old screen', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  const state = await mockRefreshOutcome(page);
+  state.failing = true;
+
+  await page.getByRole('button', { name: '운용 내역 전체 새로고침' }).click();
+  const notice = page.getByRole('status', { name: '알림' });
+  await expect(notice).toContainText('운용 내역을 불러오지 못했습니다.');
+  await notice.getByRole('button', { name: '알림 닫기' }).click();
+  await expect(notice).toBeEmpty();
+});
