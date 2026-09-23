@@ -75,6 +75,8 @@ export default async function HomePage({ params }: HomePageProps) {
         </div>
 
         <div className="w-full md:w-auto">
+          {/* SWR의 공유 클라이언트 캐시로 재진입 시 마지막 값을 즉시 표시한다.
+              서버에서 Spotify를 읽지 않아 콘텐츠 페이지의 정적 렌더링을 유지한다. */}
           <SpotifyVinylClient
             initialData={null}
             listeningToLabel={t('listeningTo')}

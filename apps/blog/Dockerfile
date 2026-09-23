@@ -7,16 +7,16 @@
 #     --build-arg NEXT_PUBLIC_BASE_URL=https://<host> \
 #     -t ghcr.io/wannysim/mumak-blog:latest .
 
-# ---- base: pin node + pnpm exactly (engines >=24.11.1, packageManager pnpm@12.3.4) ----
+# ---- base: pin node + pnpm exactly (engines >=24.11.1, devEngines pnpm 12.5.1) ----
 FROM node:24-slim AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
-RUN npm install --global pnpm@12.3.4
+RUN npm install --global pnpm@12.5.1
 WORKDIR /app
 
 # ---- prune: native turbo prune produces a minimal monorepo subset for blog ----
 FROM base AS prune
 COPY . .
-RUN pnpm dlx turbo@2.10.2 prune blog --docker
+RUN pnpm dlx turbo@2.11.3 prune blog --docker
 # -> /app/out/json  (package.json skeletons + pruned pnpm-lock.yaml + workspace file)
 # -> /app/out/full  (pruned source for blog + @mumak/ui and its deps)
 
@@ -74,7 +74,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/blog/public ./apps/blog/publ
 
 # Pre-create the writable cache dir owned by the runtime user. A fresh named volume
 # mounted here inherits this ownership (Docker copies dir perms into an empty named
-# volume on first mount) — prevents EACCES from 'use cache' + the image optimizer.
+# volume on first mount) — prevents EACCES from the image optimizer.
 RUN mkdir -p /app/apps/blog/.next/cache && chown -R nextjs:nodejs /app/apps/blog/.next
 
 USER nextjs

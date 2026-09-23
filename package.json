@@ -33,7 +33,7 @@
     "version:check": "node scripts/sync-versions.mjs --check",
     "validate:skills": "node scripts/validate-skills.mjs",
     "validate:skills:write": "node scripts/validate-skills.mjs --write",
-    "doctor": "npx react-doctor@latest"
+    "doctor": "pnpm dlx react-doctor@latest"
   },
   "devDependencies": {
     "@playwright/test": "1.61.0",
@@ -57,8 +57,14 @@
       "oxfmt --no-error-on-unmatched-pattern"
     ]
   },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.5.1",
+      "onFail": "download"
+    }
+  },
   "engines": {
     "node": ">=24.11.1"
-  },
-  "packageManager": "pnpm@12.3.4"
+  }
 }
