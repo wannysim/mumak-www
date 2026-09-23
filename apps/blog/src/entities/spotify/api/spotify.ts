@@ -312,9 +312,8 @@ async function fetchNowPlayingData(accessToken: string): Promise<NowPlaying | nu
 }
 
 /**
- * Spotify API 직접 호출 (캐싱 없음)
- * - 'use cache' 컴포넌트 내에서 호출됨
- * - connection() 호출 불필요 (캐시 컴포넌트가 처리)
+ * Spotify API 직접 호출 (캐싱 없음).
+ * Route Handler에서 getNowPlaying()을 거쳐 호출한다.
  */
 export async function getNowPlayingDirect(): Promise<NowPlaying | null> {
   const missingEnvState = getMissingSpotifyEnvState();

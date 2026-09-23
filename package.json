@@ -33,18 +33,18 @@
     "version:check": "node scripts/sync-versions.mjs --check",
     "validate:skills": "node scripts/validate-skills.mjs",
     "validate:skills:write": "node scripts/validate-skills.mjs --write",
-    "doctor": "npx react-doctor@latest"
+    "doctor": "pnpm dlx react-doctor@latest"
   },
   "devDependencies": {
     "@playwright/test": "1.61.0",
-    "eslint-plugin-turbo": "^2.10.12",
+    "eslint-plugin-turbo": "^2.11.3",
     "husky": "^9.1.7",
     "knip": "^6.29.0",
     "lint-staged": "^17.2.0",
     "oxfmt": "^0.60.0",
     "oxlint": "^1.76.0",
     "portless": "^0.15.4",
-    "turbo": "^2.10.12",
+    "turbo": "^2.11.3",
     "typescript": "^7.0.2",
     "typescript-go": "npm:typescript@7.0.2"
   },
@@ -57,8 +57,14 @@
       "oxfmt --no-error-on-unmatched-pattern"
     ]
   },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.5.1",
+      "onFail": "warn"
+    }
+  },
   "engines": {
     "node": ">=24.11.1"
-  },
-  "packageManager": "pnpm@12.3.4"
+  }
 }
