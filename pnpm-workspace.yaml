@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+pmOnFail: download
 overrides:
   '@axe-core/playwright>playwright-core': 1.61.0
   '@types/react': 19.3.0
