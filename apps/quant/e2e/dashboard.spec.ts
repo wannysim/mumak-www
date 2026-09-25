@@ -100,7 +100,7 @@ test('the selected point stays visible on the chart and the axes stay compact', 
 
   // 선택 지점이 판독값뿐 아니라 그래프 위에도 표시되어야 한다.
   const marker = page.locator('circle[data-selected="true"]');
-  const guide = page.locator('.recharts-reference-line-line');
+  const guide = page.locator('.selection-guide .recharts-reference-line-line');
   await expect(marker).toBeVisible();
   // 세로 가이드는 폭이 0인 <line>이라 Playwright의 visible 판정 대상이 아니다. 존재와 위치로 확인한다.
   await expect(guide).toHaveCount(1);
@@ -336,6 +336,30 @@ test('paints the chart line under the production CSP', async ({ page }) => {
   expect(blocked).toEqual([]);
 });
 
+test('the month-start NAV baseline spans the plot under the production CSP', async ({ page }) => {
+  const blocked: string[] = [];
+  page.on('console', message => {
+    if (message.type() === 'error' && /Content Security Policy/i.test(message.text())) blocked.push(message.text());
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await mockSnapshots(page);
+  await chartBounds(page);
+
+  const baseline = page.locator('.baseline-nav .recharts-reference-line-line');
+  await expect(baseline).toHaveCount(1);
+  // 가로선이라 높이 0 — visible 판정 대신 좌표와 해석된 stroke로 확인한다.
+  const line = await baseline.evaluate(node => ({
+    y1: Number(node.getAttribute('y1')),
+    y2: Number(node.getAttribute('y2')),
+    stroke: getComputedStyle(node).stroke,
+  }));
+  expect(line.y1).toBe(line.y2);
+  expect(line.stroke).not.toMatch(/^(none|)$/);
+  const chartPanel = page.locator('section').filter({ has: page.getByRole('heading', { name: '성과 추이' }) });
+  await expect(chartPanel).toContainText(/월 시작 NAV \$[\d,]+\.\d{2}/);
+  expect(blocked).toEqual([]);
+});
+
 const ALLOCATION_SYMBOLS = [
   'AMD',
   'GOOGL',
@@ -395,6 +419,45 @@ test('holding weights are readable as text and every slice keeps a resolved colo
   expect(strokes).toHaveLength(3);
   for (const stroke of strokes) expect(stroke).not.toMatch(/^(none|)$/);
   expect(new Set(strokes).size).toBe(3);
+});
+
+test('hovering a slice shows its symbol, weight, and value next to the arc', async ({ page }) => {
+  const blocked: string[] = [];
+  page.on('console', message => {
+    if (message.type() === 'error' && /Content Security Policy/i.test(message.text())) blocked.push(message.text());
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await mockAllocationSnapshot(page, 3);
+
+  const figure = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: '보유 종목' }) })
+    .locator('figure');
+  await figure.scrollIntoViewIfNeeded();
+  const box = await figure.boundingBox();
+  if (!box) throw new Error('Donut bounds unavailable');
+  // 첫 조각(AMD)은 12시에서 시계방향으로 시작한다. 1시 방향 링 위를 가리킨다.
+  const ring = (box.width * 15.9155) / 42;
+  const angle = Math.PI / 6;
+  await page.mouse.move(
+    box.x + box.width / 2 + Math.sin(angle) * ring,
+    box.y + box.height / 2 - Math.cos(angle) * ring
+  );
+
+  const tooltip = page.getByRole('tooltip');
+  await expect(tooltip).toContainText('AMD');
+  await expect(tooltip).toContainText('35.1%');
+  await expect(tooltip).toContainText('$8,000.00');
+  // CSP가 인라인 위치를 막으면 툴팁이 figure 왼쪽 위 모서리로 떨어진다. 1시 방향 기준점에서
+  // 중심 쪽(왼쪽 아래)으로 펼쳐지므로 오른쪽 끝이 도넛 중심보다 오른쪽, 위쪽 끝이 figure 안이어야 한다.
+  const tip = await tooltip.boundingBox();
+  if (!tip) throw new Error('Tooltip bounds unavailable');
+  expect(tip.x + tip.width).toBeGreaterThan(box.x + box.width / 2);
+  expect(tip.y).toBeGreaterThanOrEqual(box.y);
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(tooltip).toHaveCount(0);
+  expect(blocked).toEqual([]);
 });
 
 test('a long tail folds into one 기타 slice and the donut fits the narrowest phone', async ({ page }) => {

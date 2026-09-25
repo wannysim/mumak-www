@@ -318,6 +318,7 @@ function SnapshotDashboard({ snapshot }: { snapshot: DashboardSnapshot }) {
             key={`${snapshot.mode}:${snapshot.episodeId}:${snapshot.month}`}
             history={snapshot.history}
             currency={snapshot.currency}
+            baselineNav={snapshot.summary.startingNav}
           />
         </Suspense>
       </Panel>
