@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, type PointerEvent } from 'react';
 
 import type { DashboardHolding } from '@/lib/dashboard-schema';
 import { formatMoney, formatWeight, numeric } from '@/lib/format';
@@ -23,6 +23,11 @@ const CIRCUMFERENCE = 100;
 // 인접 조각 사이의 표면 간격. 렌더 크기 기준 약 2px.
 const SLICE_GAP = 0.5;
 const MIN_SLICE_LENGTH = 0.4;
+// 툴팁 기준점. 조각 두께의 가운데를 figure 크기 대비 %로 둔다.
+const ANCHOR_RADIUS_PCT = (RADIUS / (CENTER * 2)) * 100;
+const INACTIVE_OPACITY = 0.35;
+
+type Arc = { slice: AllocationSlice; length: number; offset: number; color: string };
 
 function sliceColor(slice: AllocationSlice, index: number) {
   if (slice.key === 'other') return FOLDED_COLOR;
@@ -40,6 +45,47 @@ function Swatch({ color }: { color: string }) {
   );
 }
 
+// 조각의 호 중앙. 도넛은 -90° 회전돼 12시에서 시계방향으로 쌓이므로 그 기준으로 잰다.
+// 툴팁은 항상 도넛 중심 쪽으로 펼친다. 바깥으로 펼치면 데스크톱에서 도넛이 패널 왼쪽
+// 끝에 붙어 있어 왼쪽 조각의 툴팁이 패널 밖으로, 위쪽 조각의 툴팁이 제목 위로 나간다.
+function arcAnchor(arc: Arc) {
+  const angle = ((arc.offset + (arc.slice.weight * CIRCUMFERENCE) / 2) / CIRCUMFERENCE) * 2 * Math.PI;
+  const x = Math.sin(angle);
+  const y = -Math.cos(angle);
+  return {
+    position: { left: `${50 + x * ANCHOR_RADIUS_PCT}%`, top: `${50 + y * ANCHOR_RADIUS_PCT}%` },
+    towardCenterX: x < 0 ? 'translate-x-2' : '-translate-x-[calc(100%+0.5rem)]',
+    towardCenterY: y < 0 ? 'translate-y-2' : '-translate-y-[calc(100%+0.5rem)]',
+  };
+}
+
+// left/top 인라인 style은 React가 CSSOM(element.style)으로 넣는다. CSP style-src 'self'가
+// 막는 건 <style> 태그와 HTML style 속성이라 이 경로는 막히지 않는다(fill-details의 Radix
+// 툴팁 위치도 같은 경로다). 색처럼 CSS 변수가 필요한 값만 presentation attribute로 넘긴다.
+function SliceTooltip({ arc, currency }: { arc: Arc; currency: string }) {
+  const { slice } = arc;
+  const { position, towardCenterX, towardCenterY } = arcAnchor(arc);
+  return (
+    <div
+      role="tooltip"
+      className={`pointer-events-none absolute z-10 w-max max-w-52 rounded-md bg-foreground px-3 py-2 text-xs text-background shadow-md ${towardCenterX} ${towardCenterY}`}
+      style={position}
+    >
+      <p className="flex items-center gap-1.5 font-mono font-semibold">
+        <Swatch color={arc.color} />
+        {slice.label}
+      </p>
+      <dl className="mt-1.5 grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 font-mono tabular-nums">
+        <dt className="opacity-70">비중</dt>
+        <dd className="text-right font-semibold">{formatWeight(slice.weight)}</dd>
+        <dt className="opacity-70">평가액</dt>
+        <dd className="text-right">{formatMoney(String(slice.value), currency)}</dd>
+      </dl>
+      {slice.key === 'other' && <p className="mt-1.5 leading-4 opacity-70">{slice.symbols.join(', ')}</p>}
+    </div>
+  );
+}
+
 function AllocationDonut({
   holdings,
   currency,
@@ -53,6 +99,7 @@ function AllocationDonut({
 }) {
   const allocation = useMemo(() => buildHoldingsAllocation(holdings), [holdings]);
   const { slices, total, omittedSymbols } = allocation;
+  const [activeKey, setActiveKey] = useState<string | null>(null);
 
   if (slices.length === 0) return null;
 
@@ -60,10 +107,25 @@ function AllocationDonut({
   let offset = 0;
   const arcs = slices.map((slice, index) => {
     const length = Math.max(slice.weight * CIRCUMFERENCE - gap, MIN_SLICE_LENGTH);
-    const arc = { slice, length, offset, color: sliceColor(slice, index) };
+    const arc: Arc = { slice, length, offset, color: sliceColor(slice, index) };
     offset += slice.weight * CIRCUMFERENCE;
     return arc;
   });
+
+  const activeArc = arcs.find(arc => arc.slice.key === activeKey);
+
+  // 마우스는 hover로 열고 닫는다. 터치에는 hover가 없어 탭으로 토글한다.
+  function handlePointerEnter(event: PointerEvent<SVGCircleElement>, key: string) {
+    if (event.pointerType !== 'touch') setActiveKey(key);
+  }
+
+  function handlePointerLeave(event: PointerEvent<SVGCircleElement>) {
+    if (event.pointerType !== 'touch') setActiveKey(null);
+  }
+
+  function handlePointerDown(event: PointerEvent<SVGCircleElement>, key: string) {
+    if (event.pointerType === 'touch') setActiveKey(current => (current === key ? null : key));
+  }
 
   const navValue = numeric(nav);
   const navShare = navValue !== null && navValue > 0 ? total / navValue : null;
@@ -83,10 +145,17 @@ function AllocationDonut({
               strokeWidth={6}
               strokeDasharray={`${arc.length} ${CIRCUMFERENCE - arc.length}`}
               strokeDashoffset={-arc.offset}
+              opacity={activeArc && activeArc !== arc ? INACTIVE_OPACITY : 1}
+              data-active={activeArc === arc ? 'true' : undefined}
+              className="cursor-default transition-opacity duration-150 motion-reduce:transition-none"
+              onPointerEnter={event => handlePointerEnter(event, arc.slice.key)}
+              onPointerLeave={handlePointerLeave}
+              onPointerDown={event => handlePointerDown(event, arc.slice.key)}
             />
           ))}
         </svg>
-        <figcaption className="absolute inset-0 grid place-items-center text-center">
+        {/* 캡션이 svg 위를 덮으므로 포인터를 통과시켜야 조각이 hover를 받는다. */}
+        <figcaption className="pointer-events-none absolute inset-0 grid place-items-center text-center">
           <div>
             <span className="block font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground">
               종목 평가액
@@ -96,6 +165,7 @@ function AllocationDonut({
             </span>
           </div>
         </figcaption>
+        {activeArc && <SliceTooltip arc={activeArc} currency={currency} />}
       </figure>
       <div className="min-w-0">
         <ul aria-label="보유 종목 평가액 비중" className="grid gap-x-8 lg:grid-cols-2">

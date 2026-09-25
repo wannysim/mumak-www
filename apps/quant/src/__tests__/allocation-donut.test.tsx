@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { AllocationDonut } from '@/components/allocation-donut';
 import type { DashboardHolding } from '@/lib/dashboard-schema';
@@ -84,4 +85,68 @@ it('names the holdings it could not weight', () => {
 it('renders nothing when no holding can be weighted', () => {
   const { container } = renderDonut([holding('NOPRICE', null)]);
   expect(container).toBeEmptyDOMElement();
+});
+
+describe('slice tooltip', () => {
+  it('shows the symbol, weight, and value of the hovered slice and dims the rest', async () => {
+    const user = userEvent.setup();
+    const { container } = renderDonut([holding('AAA', '7500'), holding('BBB', '2500')]);
+    const [first, second] = [...container.querySelectorAll('circle')];
+
+    await user.hover(second!);
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip).toHaveTextContent('BBB');
+    expect(tooltip).toHaveTextContent('비중25.0%');
+    expect(tooltip).toHaveTextContent('평가액$2,500.00');
+    expect(second).toHaveAttribute('opacity', '1');
+    expect(first).toHaveAttribute('opacity', '0.35');
+
+    await user.unhover(second!);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(first).toHaveAttribute('opacity', '1');
+  });
+
+  it('anchors the tooltip on the middle of the hovered arc and opens it toward the center', async () => {
+    const user = userEvent.setup();
+    const { container } = renderDonut([holding('AAA', '7500'), holding('BBB', '2500')]);
+    const [first, second] = [...container.querySelectorAll('circle')];
+
+    // BBB는 75%~100% 구간이라 호 중앙이 10시 반 방향(87.5%)이다. 중심보다 왼쪽·위 → 오른쪽·아래로 펼친다.
+    await user.hover(second!);
+    let tooltip = screen.getByRole('tooltip');
+    expect(parseFloat(tooltip.style.left)).toBeLessThan(50);
+    expect(parseFloat(tooltip.style.top)).toBeLessThan(50);
+    expect(tooltip).toHaveClass('translate-x-2', 'translate-y-2');
+
+    // AAA는 0%~75% 구간이라 호 중앙이 4시 반 방향(37.5%)이다. 중심보다 오른쪽·아래 → 왼쪽·위로 펼친다.
+    await user.unhover(second!);
+    await user.hover(first!);
+    tooltip = screen.getByRole('tooltip');
+    expect(parseFloat(tooltip.style.left)).toBeGreaterThan(50);
+    expect(parseFloat(tooltip.style.top)).toBeGreaterThan(50);
+    expect(tooltip).toHaveClass('-translate-x-[calc(100%+0.5rem)]', '-translate-y-[calc(100%+0.5rem)]');
+  });
+
+  it('lists the folded symbols for the 기타 slice', async () => {
+    const user = userEvent.setup();
+    const holdings = Array.from({ length: 12 }, (_, index) => holding(`S${index}`, String(100 - index)));
+    const { container } = renderDonut(holdings);
+
+    await user.hover([...container.querySelectorAll('circle')].at(-1)!);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('기타 3종목');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('S9, S10, S11');
+  });
+
+  it('toggles on tap for touch, where there is no hover', async () => {
+    const user = userEvent.setup();
+    const { container } = renderDonut([holding('AAA', '7500'), holding('BBB', '2500')]);
+    const [first, second] = [...container.querySelectorAll('circle')];
+
+    await user.pointer({ keys: '[TouchA]', target: first! });
+    expect(screen.getByRole('tooltip')).toHaveTextContent('AAA');
+    await user.pointer({ keys: '[TouchA]', target: second! });
+    expect(screen.getByRole('tooltip')).toHaveTextContent('BBB');
+    await user.pointer({ keys: '[TouchA]', target: second! });
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
 });
