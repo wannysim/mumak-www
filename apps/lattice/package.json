@@ -1,6 +1,6 @@
 {
   "name": "lattice",
-  "version": "1.21.1",
+  "version": "1.21.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -31,8 +31,8 @@
     "@mumak/ui": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "lucide-react": "^1.41.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@mumak/playwright-config": "workspace:*",
@@ -42,14 +42,14 @@
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^26.1.1",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.5",
-    "@vitejs/plugin-react": "^6.0.4",
-    "@vitest/coverage-v8": "^4.1.11",
-    "@vitest/ui": "^4.1.11",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "@vitest/coverage-v8": "^5.0.1",
+    "@vitest/ui": "^5.0.1",
     "jsdom": "^29.1.1",
     "typescript": "~7.0.2",
-    "vite": "^8.2.2",
-    "vitest": "^4.1.11"
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
   }
 }

@@ -133,8 +133,10 @@ describe('Quant dashboard app', () => {
 
     expect(client.requests).not.toContain('live');
     expect(client.magicLinkRequests).toEqual(['owner@example.test']);
-    expect(screen.getByRole('status')).toHaveTextContent(
-      '로그인 요청을 처리했습니다. 등록된 계정이라면 이메일을 확인해 주세요.'
+    // 앱에 전역 알림 영역(role="status" name="알림")이 생겨서 로그인 안내를 문구로 집는다.
+    expect(screen.getByText('로그인 요청을 처리했습니다. 등록된 계정이라면 이메일을 확인해 주세요.')).toHaveAttribute(
+      'role',
+      'status'
     );
   });
 

@@ -14,8 +14,9 @@ import {
 
 import { Panel, SnapshotDashboard } from '@/components/dashboard-sections';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { TimeZoneProvider } from '@/components/time-zone-provider';
+import { TimeZoneProvider, useTimeZone } from '@/components/time-zone-provider';
 import { TimeZoneSelect } from '@/components/time-zone-select';
+import { ToastProvider, useToast } from '@/components/toaster';
 import { useDashboardController } from '@/hooks/use-dashboard-controller';
 import type { DashboardClient } from '@/lib/dashboard-client';
 import type { DashboardMode } from '@/lib/dashboard-schema';
@@ -136,6 +137,44 @@ function LoginPanel({ requestMagicLink }: { requestMagicLink: (email: string) =>
 
 function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDashboardController> }) {
   const snapshot = controller.selectedSnapshot;
+  const { formatDateTime } = useTimeZone();
+  const showToast = useToast();
+  const [refreshing, setRefreshing] = useState(false);
+
+  // 60초 자동 갱신은 조용히 두고, 버튼을 눌렀을 때만 결과를 알린다.
+  // 누른 사람만 결과를 기다리고 있고, 자동 갱신까지 알리면 토스트가 배경 소음이 된다.
+  async function refresh() {
+    setRefreshing(true);
+    let outcome;
+    try {
+      outcome = await controller.refresh();
+    } finally {
+      // 예상 밖의 예외에도 버튼이 영원히 도는 상태로 남지 않게 한다.
+      setRefreshing(false);
+    }
+    if (outcome.status === 'skipped') return;
+    if (outcome.status === 'error') {
+      showToast({
+        tone: 'error',
+        title: '운용 내역을 불러오지 못했습니다.',
+        description: '연결 상태를 확인한 뒤 다시 시도해 주세요.',
+      });
+      return;
+    }
+    showToast({
+      tone: 'success',
+      title: '운용 내역을 새로 불러왔습니다.',
+      // 같은 값이 다시 와도 새로고침 자체는 성공이다. 성공 여부와 데이터가 얼마나 최신인지는
+      // 다른 질문이라, 기준 시각을 함께 적어 둘 다 한 번에 판단할 수 있게 한다.
+      description:
+        outcome.status === 'empty'
+          ? '저장된 월간 운용 내역이 아직 없습니다.'
+          : outcome.asOf
+            ? `데이터 기준 시각 ${formatDateTime(outcome.asOf)}`
+            : undefined,
+    });
+  }
+
   return (
     <div className="grid gap-4 border border-border bg-card p-4 xl:grid-cols-[minmax(0,1fr)_minmax(28rem,auto)] xl:items-end sm:p-5">
       <div className="min-w-0">
@@ -202,10 +241,12 @@ function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDas
           variant="outline"
           size="icon"
           className="size-11 rounded-none"
-          aria-label="새로고침"
-          onClick={() => void controller.refresh()}
+          aria-label="운용 내역 전체 새로고침"
+          aria-busy={refreshing}
+          disabled={refreshing}
+          onClick={() => void refresh()}
         >
-          <RefreshCw aria-hidden="true" />
+          <RefreshCw aria-hidden="true" className={refreshing ? 'animate-spin' : undefined} />
         </Button>
       </div>
     </div>
@@ -318,7 +359,11 @@ function UnconfiguredApp() {
 }
 
 function App({ client }: { client: DashboardClient | null }) {
-  return <TimeZoneProvider>{client ? <ConfiguredApp client={client} /> : <UnconfiguredApp />}</TimeZoneProvider>;
+  return (
+    <TimeZoneProvider>
+      <ToastProvider>{client ? <ConfiguredApp client={client} /> : <UnconfiguredApp />}</ToastProvider>
+    </TimeZoneProvider>
+  );
 }
 
 export { App };

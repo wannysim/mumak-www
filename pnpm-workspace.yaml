@@ -1,10 +1,11 @@
 packages:
   - apps/*
   - packages/*
+pmOnFail: download
 overrides:
   '@axe-core/playwright>playwright-core': 1.61.0
-  '@types/react': 19.2.15
-  '@types/react-dom': 19.2.3
+  '@types/react': 19.3.0
+  '@types/react-dom': 19.3.0
   'brace-expansion@>=5.0.0 <5.0.8': 5.0.8
   jest-mock: ^30.4.1
   'next>postcss': 8.5.23
@@ -21,16 +22,25 @@ allowBuilds:
   sharp: false
   unrs-resolver: false
 minimumReleaseAgeExclude:
-  - '@next/bundle-analyzer@16.3.0'
-  - '@next/env@16.3.0'
-  - '@next/swc-darwin-arm64@16.3.0'
-  - '@next/swc-darwin-x64@16.3.0'
-  - '@next/swc-linux-arm64-gnu@16.3.0'
-  - '@next/swc-linux-arm64-musl@16.3.0'
-  - '@next/swc-linux-x64-gnu@16.3.0'
-  - '@next/swc-linux-x64-musl@16.3.0'
-  - '@next/swc-win32-arm64-msvc@16.3.0'
-  - '@next/swc-win32-x64-msvc@16.3.0'
-  - next@16.3.0
+  - '@next/bundle-analyzer@16.3.6'
+  - '@next/env@16.3.6'
+  - '@next/swc-darwin-arm64@16.3.6'
+  - '@next/swc-darwin-x64@16.3.6'
+  - '@next/swc-linux-arm64-gnu@16.3.6'
+  - '@next/swc-linux-arm64-musl@16.3.6'
+  - '@next/swc-linux-x64-gnu@16.3.6'
+  - '@next/swc-linux-x64-musl@16.3.6'
+  - '@next/swc-win32-arm64-msvc@16.3.6'
+  - '@next/swc-win32-x64-msvc@16.3.6'
+  - next@16.3.6
+  - '@turbo/darwin-64@2.11.3'
+  - '@turbo/darwin-arm64@2.11.3'
+  - '@turbo/linux-64@2.11.3'
+  - '@turbo/linux-arm64@2.11.3'
+  - '@turbo/windows-64@2.11.3'
+  - '@turbo/windows-arm64@2.11.3'
+  - eslint-plugin-turbo@2.11.3
+  - turbo@2.11.3
+  - '@turbo/gen@2.11.3'
 patchedDependencies:
   '@dnd-kit/dom@0.5.0': patches/@dnd-kit__dom@0.5.0.patch

@@ -24,8 +24,18 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 const LINE_COLOR = 'var(--primary)';
+const BASELINE_COLOR = 'var(--muted-foreground)';
+const BASELINE_DASH = '6 3';
 
-function PerformanceChart({ history, currency }: { history: DashboardHistoryPoint[]; currency: string }) {
+function PerformanceChart({
+  history,
+  currency,
+  baselineNav,
+}: {
+  history: DashboardHistoryPoint[];
+  currency: string;
+  baselineNav: string;
+}) {
   const { formatDate, formatDateTime } = useTimeZone();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const points = useMemo<ChartPoint[]>(
@@ -49,6 +59,7 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
   const activeIndex = Math.min(Math.max(selectedIndex ?? points.length - 1, 0), points.length - 1);
   const activePoint = points[activeIndex] ?? last;
   const lineColor = LINE_COLOR;
+  const baselineValue = numeric(baselineNav);
   // 점이 많으면 선택 지점만, 적으면 모든 지점을 찍는다. ReferenceDot은 Line보다
   // 아래 레이어에 깔려 선 위의 점에 가려지므로 Line의 dot으로 직접 그린다.
   const showEveryDot = points.length <= 40;
@@ -178,7 +189,25 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
             />
             {/* 선택 지점을 차트 위에 직접 표시한다. recharts의 자체 hover cursor는
                 키보드 탐색 때 나타나지 않아 판독값만 바뀌고 그래프는 그대로였다. */}
-            <ReferenceLine x={activePoint.index} stroke={lineColor} strokeOpacity={0.5} strokeDasharray="4 4" />
+            <ReferenceLine
+              x={activePoint.index}
+              className="selection-guide"
+              stroke={lineColor}
+              strokeOpacity={0.5}
+              strokeDasharray="4 4"
+            />
+            {/* 월 시작 NAV 기준선. 선이 이보다 위면 이익, 아래면 손실이다. extendDomain이
+                없으면 NAV가 한쪽으로만 움직인 달에는 'auto' 축 밖으로 밀려나 선이 사라진다. */}
+            {baselineValue !== null && (
+              <ReferenceLine
+                y={baselineValue}
+                ifOverflow="extendDomain"
+                className="baseline-nav"
+                stroke={BASELINE_COLOR}
+                strokeWidth={1}
+                strokeDasharray={BASELINE_DASH}
+              />
+            )}
             <Line
               dataKey="navValue"
               type="linear"
@@ -192,9 +221,21 @@ function PerformanceChart({ history, currency }: { history: DashboardHistoryPoin
           </LineChart>
         </ChartContainer>
       </div>
-      <p className="text-xs text-muted-foreground">
-        NAV 추이 · 기록이 없는 시간은 생략 · {formatDateTime(first.at)} — {formatDateTime(last.at)}
-      </p>
+      <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <p>
+          NAV 추이 · 기록이 없는 시간은 생략 · {formatDateTime(first.at)} — {formatDateTime(last.at)}
+        </p>
+        {baselineValue !== null && (
+          <p className="flex shrink-0 items-center gap-2">
+            <svg viewBox="0 0 16 2" className="h-0.5 w-4 shrink-0" aria-hidden="true">
+              <line x1="0" y1="1" x2="16" y2="1" stroke={BASELINE_COLOR} strokeWidth={2} strokeDasharray="4 2" />
+            </svg>
+            <span>
+              월 시작 NAV <span className="font-mono tabular-nums">{formatMoney(baselineNav, currency)}</span>
+            </span>
+          </p>
+        )}
+      </div>
     </div>
   );
 }
