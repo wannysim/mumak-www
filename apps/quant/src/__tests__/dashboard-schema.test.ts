@@ -16,6 +16,37 @@ describe('dashboard snapshot ingress', () => {
     });
   });
 
+  it('accepts the exporter cash-only pending baseline without invented market rows', () => {
+    const payload = {
+      ...structuredClone(TEST_ONLY_PAPER_PAYLOAD),
+      episodeId: 'paper-intraday-2026-09',
+      status: 'pending',
+      label: '미국 주식 장중 15분 ORB 모의운용 · 시작 대기',
+      startedAt: '2026-09-26T03:43:19.000Z',
+      asOf: '2026-09-26T03:43:19.000Z',
+      exportedAt: '2026-09-26T04:00:00.000Z',
+      summary: {
+        ...TEST_ONLY_PAPER_PAYLOAD.summary,
+        startingNav: '100000',
+        currentNav: '100000',
+        cash: '100000',
+        profit: '0',
+        returnPct: '0',
+      },
+      holdings: [],
+      history: [{ at: '2026-09-26T03:43:19.000Z', nav: '100000', profit: '0', returnPct: '0' }],
+      fills: [],
+      notes: ['완결봉과 후속 관측이 아직 없는 시작 대기 현금 기준선입니다.'],
+    };
+
+    const parsed = parseSnapshotPayload(payload, 'paper');
+
+    expect(parsed.summary).toMatchObject({ currentNav: '100000', cash: '100000', profit: '0' });
+    expect(parsed.holdings).toEqual([]);
+    expect(parsed.fills).toEqual([]);
+    expect(parsed.history).toHaveLength(1);
+  });
+
   it('normalizes a legacy fill without reason to null', () => {
     expect(parseSnapshotPayload(TEST_ONLY_PAPER_PAYLOAD, 'paper').fills[0]?.reason).toBeNull();
   });

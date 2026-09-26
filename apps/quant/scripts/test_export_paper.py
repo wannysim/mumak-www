@@ -7,6 +7,7 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 from export_paper import ExportError, export_snapshot
+from publish_paper import is_publishable_snapshot
 
 class ExportTests(unittest.TestCase):
     def setUp(self):
@@ -59,6 +60,97 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(len(doc['history']), 2)
         self.assertEqual(self.db.read_bytes(), before)
         self.assertNotIn(str(self.root), json.dumps(doc))
+        self.assertEqual(doc['label'], '미국 주식 저빈도 추세 모의운용')
+        self.assertEqual(
+            doc['notes'][-1],
+            '기존 시세 수집은 약 15분 간격입니다. 화면 갱신이 새 시세 수신을 뜻하지 않습니다.',
+        )
+
+    def test_empty_initialized_ledger_projects_truthful_cash_baseline_without_market_observation(self):
+        self.policy = {
+            'live': False,
+            'period': {'start': '2026-09-28', 'end': '2026-09-30'},
+            'initial_virtual_cash_usd': '100000',
+            'presentation': {
+                'label': '미국 주식 장중 15분 ORB 모의운용 · 시작 대기',
+                'notes': ['2026-09-28 XNYS 정규장부터 시작 대기 중입니다.'],
+            },
+        }
+        self.book.update(
+            state='pending',
+            cash='100000',
+            nav='100000',
+            positions={},
+            initialized_at='2026-09-26T03:43:19+00:00',
+            last_observation=None,
+        )
+        self.fills = []
+        self.observations = []
+        self.save()
+
+        doc = export_snapshot(
+            self.db,
+            self.root/'policy.json',
+            episode_id='test-fixture',
+            now='2026-09-30T21:00:00+00:00',
+        )
+
+        self.assertEqual(doc['label'], self.policy['presentation']['label'])
+        self.assertEqual(doc['startedAt'], self.book['initialized_at'])
+        self.assertEqual(doc['asOf'], self.book['initialized_at'])
+        self.assertEqual(doc['history'], [{
+            'at': self.book['initialized_at'], 'nav': '100000', 'profit': '0', 'returnPct': '0',
+        }])
+        self.assertEqual(doc['holdings'], [])
+        self.assertEqual(doc['fills'], [])
+        self.assertEqual(doc['status'], 'pending')
+        self.assertEqual(doc['notes'], self.policy['presentation']['notes'])
+        self.assertTrue(is_publishable_snapshot(doc))
+
+    def test_preregistered_presentation_is_state_neutral_across_pending_and_active(self):
+        candidate = json.loads((Path(__file__).parent.parent / 'config' / 'intraday-paper-v1.json').read_text())
+        self.policy['presentation'] = candidate['presentation']
+        self.save()
+        active = self.export()
+        self.assertEqual(active['status'], 'active')
+        self.assertNotIn('시작 대기', active['label'])
+        self.assertTrue(all('대기 중' not in note for note in active['notes']))
+        self.book.update(state='pending', cash='1000', nav='1000', positions={},
+                         initialized_at='2026-09-17T03:00:00+00:00', last_observation=None)
+        self.fills = []
+        self.observations = []
+        self.save()
+        pending = self.export()
+        self.assertEqual(pending['status'], 'pending')
+        self.assertEqual(pending['label'], active['label'])
+        self.assertEqual(pending['notes'], active['notes'])
+
+    def test_presentation_metadata_and_reason_mapping_are_strictly_bounded(self):
+        self.policy['public_presentation'] = {
+            'label': '검증된 공개 라벨',
+            'notes': ['검증된 공개 메모'],
+            'reason_mapping': {'risk_stop': '위험 한도에 따른 매도'},
+        }
+        self.fills[0]['reason'] = 'risk_stop'
+        self.save()
+        doc = self.export()
+        self.assertEqual(doc['label'], '검증된 공개 라벨')
+        self.assertEqual(doc['notes'], ['검증된 공개 메모'])
+        self.assertEqual(doc['fills'][0]['reason'], '위험 한도에 따른 매도')
+
+        for presentation in [
+            {'label': '', 'notes': [], 'reason_mapping': {}},
+            {'label': 'x' * 81, 'notes': [], 'reason_mapping': {}},
+            {'label': 'ok', 'notes': ['x' * 241], 'reason_mapping': {}},
+            {'label': 'ok', 'notes': [], 'reason_mapping': {'private': 'private diagnostic'}},
+            {'label': 'ok', 'notes': [], 'reason_mapping': {'risk_stop': ' 정기 리밸런싱'}},
+            {'label': 'ok', 'notes': [], 'reason_mapping': {}, 'private': 'secret'},
+        ]:
+            with self.subTest(presentation=presentation):
+                self.policy['public_presentation'] = presentation
+                self.save()
+                with self.assertRaises(ExportError):
+                    self.export()
 
     def test_fill_reason_projects_only_fixed_public_summaries(self):
         cases = [

@@ -144,6 +144,58 @@ test('historical fills without reasons remain blank and the live tab requires lo
   await expect(page.getByRole('heading', { name: '최근 체결' })).toHaveCount(0);
 });
 
+test('two paper strategies share the episode selector and dashboard sections', async ({ page }) => {
+  const lowFrequency = structuredClone(TEST_ONLY_PAPER_ROW);
+  lowFrequency.episode_id = 'sep2026-low-frequency';
+  lowFrequency.payload.episodeId = 'sep2026-low-frequency';
+  lowFrequency.payload.label = '미국 주식 저빈도 추세 모의운용';
+  const intraday = structuredClone(TEST_ONLY_PAPER_ROW);
+  intraday.episode_id = 'paper-intraday-2026-09';
+  intraday.as_of = '2026-09-26T03:43:19.000Z';
+  Object.assign(intraday.payload, {
+    episodeId: 'paper-intraday-2026-09',
+    status: 'pending',
+    label: '미국 주식 장중 15분 ORB 모의운용 · 시작 대기',
+    startedAt: '2026-09-26T03:43:19.000Z',
+    asOf: '2026-09-26T03:43:19.000Z',
+    summary: {
+      ...intraday.payload.summary,
+      startingNav: '100000',
+      currentNav: '100000',
+      cash: '100000',
+      profit: '0',
+      returnPct: '0',
+    },
+    history: [{ at: '2026-09-26T03:43:19.000Z', nav: '100000', profit: '0', returnPct: '0' }],
+    holdings: [],
+    fills: [],
+    notes: ['테스트 전용 시작 대기 스냅샷입니다.'],
+  });
+  await page.route('https://quant-e2e.supabase.co/**', async route => {
+    if (new URL(route.request().url()).pathname === '/rest/v1/paper_snapshots') {
+      await route.fulfill({ json: [intraday, lowFrequency] });
+    } else {
+      await route.abort();
+    }
+  });
+  await page.goto('/');
+
+  await expect(page.getByRole('heading', { name: '미국 주식 장중 15분 ORB 모의운용 · 시작 대기' })).toBeVisible();
+  await expect(page.getByText('시작 대기', { exact: true })).toBeVisible();
+  await expect(page.getByText('운용 중', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('보유 종목이 없습니다.')).toBeVisible();
+  await expect(page.getByText('최근 체결이 없습니다.')).toBeVisible();
+  const episode = page.getByRole('combobox', { name: '에피소드' });
+  await episode.click();
+  await page.getByRole('option', { name: '미국 주식 저빈도 추세 모의운용' }).click();
+
+  await expect(page.getByRole('heading', { name: '미국 주식 저빈도 추세 모의운용' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '성과 추이' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '보유 종목' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '최근 체결' })).toBeVisible();
+  await expect(page.getByText('TEST').first()).toBeVisible();
+});
+
 test.describe('touch dashboard', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
