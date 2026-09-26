@@ -2,6 +2,8 @@
 
 This adapter is a one-way projection, not a trading process. It never imports the broker client, writes the operational SQLite database, refreshes trading credentials, or reads/writes the live dashboard table.
 
+The independent intraday PAPER engine is documented in [../INTRADAY_PAPER.md](../INTRADAY_PAPER.md). Its `book`/`fills`/`observations` tables intentionally reuse this read-only projection boundary. Strategy-specific source evidence and intents remain private and are never added to `DashboardSnapshot`.
+
 ## Scope
 
 - Input: an explicitly paper-only forward ledger, plus its monthly policy.
@@ -9,7 +11,8 @@ This adapter is a one-way projection, not a trading process. It never imports th
 - Every fill is replayed with decimal arithmetic. Cash, holdings and latest NAV must exactly reconcile with the book in the same read-only SQLite transaction.
 - Average cost includes modeled buy commissions. Account profit includes modeled sell commissions. Holding return is since purchase, not the monthly account return.
 - NAV is valued at the latest complete recorded observation. Each holding retains its actual quote timestamp; a refreshed page/export does not make an old quote current.
-- A fill may carry `reason: string | null`. The exporter maps only the ledger codes `rebalance`, `risk_stop`, and `concentration_reduction` to fixed Korean summaries (`정기 리밸런싱`, `위험 한도에 따른 매도`, `집중도 한도 조정`). Missing or unknown codes become `null`; raw ledger diagnostics are never copied. Public reason text is capped at 80 characters at ingress.
+- A fill may carry `reason: string | null`. The exporter maps only allowlisted ledger codes to the three already-published Korean summaries (`정기 리밸런싱`, `위험 한도에 따른 매도`, `집중도 한도 조정`). Missing or unknown codes become `null`; raw ledger diagnostics are never copied. Policy presentation labels/notes are length-bounded, and an optional reason map may only select those three public summaries. Public reason text is capped at 80 characters at ingress.
+- A newly initialized, observation-free PAPER ledger may export one cash-only inception point when cash/NAV exactly equal the configured baseline and there are no fills, positions, or market observations. Its label/notes must truthfully say that the episode is pending. This is an initialization record, not a market valuation or forward result.
 - No database outage is allowed to trigger broker action. Run this separately from the trading service. The adapter has no live export capability.
 
 ## Offline validation

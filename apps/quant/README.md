@@ -47,6 +47,7 @@ pnpm --filter=quant test:e2e
 - `asOf`는 원장 기준 시각이고 15분을 넘기면 지연 경고를 표시합니다. `markAsOf`는 종목별 평가 시각입니다.
 - 스냅샷 payload는 버전 1만 허용합니다. 모드, episode, month, as-of가 행과 다르거나 decimal/date가 잘못되면 전체 행을 거부합니다.
 - 포트폴리오 데이터는 localStorage, service worker, 빌드 파일에 저장하지 않습니다. 인증 토큰의 수명과 저장은 Supabase SDK가 관리합니다.
+- `paper` 안의 에피소드 선택기는 저빈도 회차와 독립 장중 회차를 같은 차트·보유·체결 컴포넌트로 표시합니다. 장중 회차의 가설, 고정 위험 한도, 데이터 제한과 로컬 CLI는 [INTRADAY_PAPER.md](./INTRADAY_PAPER.md)를 참고하세요.
 
 ## 화면 상호작용
 

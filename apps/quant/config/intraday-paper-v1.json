@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "run_id": "intraday-paper-2026-09",
+  "episode_id": "paper-intraday-2026-09",
+  "live": false,
+  "mode": "forward_paper",
+  "strategy_id": "opening-range-breakout-long-v1",
+  "strategy_version": "orb-long-15m-v1",
+  "initialized_at": "2026-09-26T12:43:19+09:00",
+  "period": {
+    "start": "2026-09-28",
+    "end": "2026-09-30"
+  },
+  "initial_virtual_cash_usd": "100000",
+  "universe": ["AAPL", "MSFT", "NVDA", "AMD", "AMZN", "META", "GOOGL", "TSLA"],
+  "data": {
+    "bar_minutes": 5,
+    "max_delay_seconds": 120,
+    "max_attempts": 3
+  },
+  "costs": {
+    "commission_bps_each_side": "10",
+    "slippage_bps_each_side": "5",
+    "stress_commission_bps_each_side": "20",
+    "stress_slippage_bps_each_side": "10"
+  },
+  "risk": {
+    "max_positions": 4,
+    "position_cap_pct": "20",
+    "minimum_cash_pct": "20",
+    "max_entries_per_symbol_day": 2,
+    "max_entries_per_day": 12,
+    "max_trades_per_day": 24,
+    "max_daily_turnover_pct": "160",
+    "daily_loss_stop_pct": "1",
+    "episode_loss_stop_pct": "10"
+  },
+  "strategy": {
+    "opening_range_bars": 3,
+    "breakout_buffer_bps": 5,
+    "relative_volume_min": "1.50",
+    "momentum_bars": 1,
+    "stop_loss_pct": "1.00",
+    "profit_target_pct": "2.00",
+    "max_hold_minutes": 120,
+    "last_entry_minutes_before_close": 60,
+    "force_exit_minutes_before_close": 20
+  },
+  "presentation": {
+    "label": "미국 주식 장중 15분 ORB 모의운용",
+    "notes": [
+      "2026-09-28~2026-09-30 XNYS 정규장 대상의 별도 USD 100,000 PAPER 회차입니다.",
+      "5분 관측 주기는 거래 빈도 보장이 아니며 완결봉 신호와 이후 새 관측이 모두 유효할 때만 가상 체결합니다.",
+      "연구에서 영감을 받은 long-only 변형이며 원 논문의 성과를 재현하거나 수익을 보장하지 않습니다.",
+      "수수료 10bp와 슬리피지 5bp를 매수·매도 각 측에 적용하고 2배 비용 스트레스도 별도 기록합니다."
+    ]
+  },
+  "hypothesis": "A fixed-universe, long-only breakout above the first three complete five-minute regular-session bars may produce measurable forward-paper outcomes after conservative costs.",
+  "references": [
+    "https://doi.org/10.1016/j.jfineco.2018.05.009",
+    "https://www.bauer.uh.edu/departments/finance/documents/Heston-Korajczyk-Sadka-jf-2010-01-07.pdf",
+    "https://www.alexandria.unisg.ch/server/api/core/bitstreams/3c2989c4-688d-4d78-8a71-f02690990d51/content"
+  ]
+}

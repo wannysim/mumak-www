@@ -1,5 +1,5 @@
 type DashboardMode = 'paper' | 'live';
-type DashboardStatus = 'active' | 'stopped' | 'completed';
+type DashboardStatus = 'pending' | 'active' | 'stopped' | 'completed';
 type DashboardSource = 'forward-paper-ledger' | 'live-ledger';
 type BaselineKind = 'inception' | 'month-start';
 type ReturnMethod = 'simple-no-flows' | 'unavailable';
@@ -247,7 +247,7 @@ function parseSnapshotPayload(value: unknown, expectedMode?: DashboardMode): Das
     month,
     label: string(payload.label, 'payload.label'),
     currency: oneOf(payload.currency, 'payload.currency', ['USD']),
-    status: oneOf(payload.status, 'payload.status', ['active', 'stopped', 'completed']),
+    status: oneOf(payload.status, 'payload.status', ['pending', 'active', 'stopped', 'completed']),
     startedAt: isoDate(payload.startedAt, 'payload.startedAt'),
     asOf: isoDate(payload.asOf, 'payload.asOf'),
     exportedAt: isoDate(payload.exportedAt, 'payload.exportedAt'),
