@@ -10,6 +10,7 @@ import { StockLink } from '@/components/stock-link';
 import { useTimeZone } from '@/components/time-zone-provider';
 import type { DashboardFill, DashboardHolding, DashboardSnapshot } from '@/lib/dashboard-schema';
 import { fillAmount, formatDecimal, formatMoney, formatPercent, valueTone } from '@/lib/format';
+import { CHART_RANGES, type ChartRange } from '@/lib/history-windows';
 
 // recharts는 이 차트에서만 쓰이는데 엔트리 청크의 큰 부분을 차지한다.
 // 별도 청크로 분리해 첫 화면(요약·보유·체결)이 먼저 그려지게 한다.
@@ -21,11 +22,40 @@ function Panel({ className = '', ...props }: React.ComponentProps<'section'>) {
   return <section className={`border border-border bg-card ${className}`} {...props} />;
 }
 
-function SectionHeading({ kicker, children }: React.ComponentProps<'h2'> & { kicker: string }) {
+function SectionHeading({
+  kicker,
+  action,
+  children,
+}: React.ComponentProps<'h2'> & { kicker: string; action?: React.ReactNode }) {
+  const kickerLabel = (
+    <span className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">{kicker}</span>
+  );
   return (
     <div className="mb-5 flex items-end justify-between gap-4 border-b border-border pb-3">
-      <h2 className="text-base font-semibold tracking-tight">{children}</h2>
-      <span className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">{kicker}</span>
+      {/* 오른쪽 자리를 action이 쓰면 kicker는 제목 옆으로 옮기고, 좁은 화면에선 제목 아래로 내린다. */}
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-base font-semibold tracking-tight">{children}</h2>
+        {action && kickerLabel}
+      </div>
+      {action ?? kickerLabel}
+    </div>
+  );
+}
+
+function ChartRangeToggle({ value, onChange }: { value: ChartRange; onChange: (range: ChartRange) => void }) {
+  return (
+    <div role="group" aria-label="차트 기간" className="flex shrink-0 border border-border p-0.5">
+      {CHART_RANGES.map(range => (
+        <button
+          key={range.value}
+          type="button"
+          aria-pressed={value === range.value}
+          className="min-h-8 min-w-10 px-2.5 text-xs font-medium text-muted-foreground transition-[color,background-color,transform] duration-150 ease-out aria-pressed:bg-primary aria-pressed:text-primary-foreground active:scale-[0.97]"
+          onClick={() => onChange(range.value)}
+        >
+          {range.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -296,6 +326,7 @@ function Fills({ fills, currency }: { fills: DashboardFill[]; currency: string }
 function SnapshotDashboard({ snapshot }: { snapshot: DashboardSnapshot }) {
   const { formatDateTime } = useTimeZone();
   const delayed = Date.now() - Date.parse(snapshot.asOf) > 15 * 60 * 1000;
+  const [chartRange, setChartRange] = useState<ChartRange>('all');
   return (
     <div className="space-y-5 sm:space-y-6">
       <div className="flex flex-col gap-3 border border-border bg-muted/40 p-4 text-xs sm:flex-row sm:items-center sm:justify-between">
@@ -311,14 +342,17 @@ function SnapshotDashboard({ snapshot }: { snapshot: DashboardSnapshot }) {
       </div>
       <SummaryGrid snapshot={snapshot} />
       <Panel className="p-4 sm:p-6">
-        <SectionHeading kicker="NAV / RETURN">성과 추이</SectionHeading>
+        <SectionHeading kicker="NAV / RETURN" action={<ChartRangeToggle value={chartRange} onChange={setChartRange} />}>
+          성과 추이
+        </SectionHeading>
         {/* 높이를 고정해 청크가 늦게 도착해도 아래 패널이 밀리지 않게 한다. */}
         <Suspense fallback={<div className="min-h-[21rem] w-full animate-pulse rounded-md bg-muted/40" />}>
           <PerformanceChart
-            key={`${snapshot.mode}:${snapshot.episodeId}:${snapshot.month}`}
+            key={`${snapshot.mode}:${snapshot.episodeId}:${snapshot.month}:${chartRange}`}
             history={snapshot.history}
             currency={snapshot.currency}
             baselineNav={snapshot.summary.startingNav}
+            range={chartRange}
           />
         </Suspense>
       </Panel>

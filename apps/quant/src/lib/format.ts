@@ -17,9 +17,11 @@ function createDateFormatters(timeZone: string) {
     minute: '2-digit',
     hour12: false,
   });
+  const time = new Intl.DateTimeFormat('ko-KR', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   return {
     formatDate: (value: string) => date.format(new Date(value)),
     formatDateTime: (value: string) => dateTime.format(new Date(value)),
+    formatTime: (value: string) => time.format(new Date(value)),
   };
 }
 

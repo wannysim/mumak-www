@@ -180,4 +180,139 @@ describe('PerformanceChart', () => {
     rerender(<PerformanceChart history={HISTORY} currency="USD" baselineNav="1000" />);
     expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '2');
   });
+
+  describe('with day and week ranges', () => {
+    // 뉴욕 세션 9/18(금), 9/21(월), 9/22(화), 9/28(월). 기본 표시 시간대는 서울이라
+    // 20:00Z 마감 기록은 다음 날 05:00으로 보이지만 그 전날 세션에 속한다.
+    const SESSIONS: DashboardHistoryPoint[] = [
+      ['2026-09-18T13:30:00Z', '1000'],
+      ['2026-09-18T20:00:00Z', '1010'],
+      ['2026-09-21T13:30:00Z', '1020'],
+      ['2026-09-21T20:00:00Z', '1030'],
+      ['2026-09-22T13:30:00Z', '1025'],
+      ['2026-09-22T20:00:00Z', '1028'],
+      ['2026-09-28T13:30:00Z', '1040'],
+    ].map(([at, nav]) => ({ at: at!, nav: nav!, profit: '0', returnPct: '0' }));
+
+    let now = 0;
+    beforeEach(() => {
+      now = 0;
+      vi.spyOn(Date, 'now').mockImplementation(() => now);
+    });
+
+    function flick(target: HTMLElement, from: { x: number; y?: number }, to: { x: number; y?: number }, ms = 120) {
+      fireEvent.touchStart(target, { touches: [{ clientX: from.x, clientY: from.y ?? 100 }] });
+      now += ms;
+      fireEvent.touchEnd(target, { changedTouches: [{ clientX: to.x, clientY: to.y ?? 100 }] });
+    }
+
+    it('opens on the latest trading session and pages through sessions with the buttons', async () => {
+      const user = userEvent.setup();
+      render(<PerformanceChart history={SESSIONS} currency="USD" baselineNav="1000" range="day" />);
+      const range = screen.getByRole('group', { name: '표시 구간' });
+      const previous = screen.getByRole('button', { name: '이전 거래일' });
+      const next = screen.getByRole('button', { name: '다음 거래일' });
+
+      expect(range).toHaveTextContent('9월 28일 (월)');
+      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuemax', '0');
+      expect(screen.getByRole('status')).toHaveTextContent('$1,040.00');
+      expect(next).toBeDisabled();
+
+      await user.click(previous);
+      expect(range).toHaveTextContent('9월 22일 (화)');
+      await user.click(previous);
+      expect(range).toHaveTextContent('9월 21일 (월)');
+      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuemax', '1');
+      // 구간을 옮기면 그 구간의 마지막 기록을 선택한다.
+      expect(screen.getByRole('status')).toHaveTextContent('$1,030.00');
+      expect(screen.getByRole('status')).toHaveTextContent('9월 22일 05:00');
+      await user.click(previous);
+      expect(range).toHaveTextContent('9월 18일 (금)');
+      expect(previous).toBeDisabled();
+
+      await user.click(next);
+      expect(range).toHaveTextContent('9월 21일 (월)');
+      expect(next).toBeEnabled();
+    });
+
+    it('labels a week by its first and last session start dates', async () => {
+      const user = userEvent.setup();
+      render(<PerformanceChart history={SESSIONS} currency="USD" baselineNav="1000" range="week" />);
+      const range = screen.getByRole('group', { name: '표시 구간' });
+
+      expect(range).toHaveTextContent('9월 28일');
+      await user.click(screen.getByRole('button', { name: '이전 주' }));
+      // 마지막 기록은 서울 기준 9/23 05:00이지만 뉴욕 거래일(9/22)로 적는다.
+      expect(range).toHaveTextContent('9월 21일 – 9월 22일');
+      expect(screen.getByRole('slider')).toHaveAttribute('aria-valuemax', '3');
+      expect(screen.getByRole('status')).toHaveTextContent('$1,028.00');
+    });
+
+    it('moves between sessions on a quick horizontal flick, following the finger', () => {
+      render(<PerformanceChart history={SESSIONS} currency="USD" baselineNav="1000" range="day" />);
+      const explorer = screen.getByRole('slider');
+      const range = screen.getByRole('group', { name: '표시 구간' });
+
+      flick(explorer, { x: 300 }, { x: 400 });
+      expect(range).toHaveTextContent('9월 22일 (화)');
+      expect(screen.getByRole('status')).toHaveTextContent('$1,028.00');
+
+      flick(explorer, { x: 400 }, { x: 300 });
+      expect(range).toHaveTextContent('9월 28일 (월)');
+    });
+
+    it('keeps slow drags, short moves, and vertical scrolls as scrubbing only', () => {
+      render(<PerformanceChart history={SESSIONS} currency="USD" baselineNav="1000" range="day" />);
+      const explorer = screen.getByRole('slider');
+      const range = screen.getByRole('group', { name: '표시 구간' });
+
+      flick(explorer, { x: 300 }, { x: 500 }, 600);
+      flick(explorer, { x: 300 }, { x: 330 });
+      flick(explorer, { x: 300, y: 100 }, { x: 360, y: 250 });
+
+      expect(range).toHaveTextContent('9월 28일 (월)');
+    });
+
+    it('labels a late-starting session by its market date rather than the viewer date', () => {
+      // 19:45Z는 서울 기준 9/19(토) 04:45지만 9/18(금) 세션이다.
+      render(
+        <PerformanceChart
+          history={[{ at: '2026-09-18T19:45:00Z', nav: '1000', profit: '0', returnPct: '0' }]}
+          currency="USD"
+          baselineNav="1000"
+          range="day"
+        />
+      );
+      expect(screen.getByRole('group', { name: '표시 구간' })).toHaveTextContent('9월 18일 (금)');
+      expect(screen.getByRole('status')).toHaveTextContent('9월 19일 04:45');
+    });
+
+    it('offers no paging in the whole-month view', () => {
+      render(<PerformanceChart history={SESSIONS} currency="USD" baselineNav="1000" />);
+      const explorer = screen.getByRole('slider');
+
+      expect(screen.queryByRole('button', { name: /이전|다음/ })).not.toBeInTheDocument();
+      expect(screen.getByRole('group', { name: '표시 구간' })).toHaveTextContent('9월 18일 – 9월 28일');
+      flick(explorer, { x: 300 }, { x: 400 });
+      expect(explorer).toHaveAttribute('aria-valuemax', '6');
+    });
+
+    it('draws the month-start baseline in a session only when the session reaches it', async () => {
+      const user = userEvent.setup();
+      const { container } = render(
+        <PerformanceChart history={SESSIONS} currency="USD" baselineNav="1025" range="day" />
+      );
+      const baseline = () => container.querySelector('.baseline-nav .recharts-reference-line-line');
+
+      // 9/28 세션(1040)은 기준선 1025에 닿지 않는다. 축을 넓히면 세션 움직임이 눌린다.
+      expect(baseline()).not.toBeInTheDocument();
+      expect(screen.queryByText('월 시작 NAV', { exact: false })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: '이전 거래일' }));
+      await user.click(screen.getByRole('button', { name: '이전 거래일' }));
+      // 9/21 세션(1020~1030)은 기준선을 가로지른다.
+      expect(baseline()).toBeInTheDocument();
+      expect(screen.getByText('월 시작 NAV', { exact: false })).toHaveTextContent('월 시작 NAV $1,025.00');
+    });
+  });
 });
