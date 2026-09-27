@@ -55,6 +55,11 @@ async function rejected(episodeId, fill) {
   }
   throw new Error(`unexpectedly accepted: ${episodeId}`);
 }
+const pending = snapshot('pending', baseFill);
+pending.status = 'pending';
+pending.fills = [];
+const pendingResult = await db.query('SELECT public.publish_paper_snapshot($1::jsonb) AS accepted', [JSON.stringify(pending)]);
+if (pendingResult.rows[0].accepted !== true) throw new Error('pending contract rejected');
 await accepted('legacy', baseFill);
 await accepted('safe-string', {...baseFill, reason: '정기 리밸런싱'});
 await accepted('safe-null', {...baseFill, reason: null});

@@ -1,13 +1,21 @@
 'use client';
 
-import { useMemo, useState, type MouseEvent, type TouchEvent } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useMemo, useRef, useState, type MouseEvent, type TouchEvent } from 'react';
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from 'recharts';
 
+import { Button } from '@mumak/ui/components/button';
 import { ChartContainer, type ChartConfig } from '@mumak/ui/components/chart';
 
 import { useTimeZone } from '@/components/time-zone-provider';
 import type { DashboardHistoryPoint } from '@/lib/dashboard-schema';
 import { formatMoney, formatMoneyCompact, formatPercent, numeric, valueTone } from '@/lib/format';
+import {
+  formatMarketDate,
+  formatMarketDateWithWeekday,
+  splitHistoryWindows,
+  type ChartRange,
+} from '@/lib/history-windows';
 
 type DotPosition = { cx?: number; cy?: number; index?: number };
 
@@ -27,28 +35,41 @@ const LINE_COLOR = 'var(--primary)';
 const BASELINE_COLOR = 'var(--muted-foreground)';
 const BASELINE_DASH = '6 3';
 
+// 드래그는 시점 선택(scrub)이라, 짧고 빠른 가로 플릭만 구간 이동으로 본다.
+const SWIPE_MAX_MS = 300;
+const SWIPE_MIN_PX = 50;
+
+function toChartPoints(history: DashboardHistoryPoint[]): ChartPoint[] {
+  return history.map((point, index) => ({ ...point, index, navValue: numeric(point.nav) ?? 0 }));
+}
+
 function PerformanceChart({
   history,
   currency,
   baselineNav,
+  range = 'all',
 }: {
   history: DashboardHistoryPoint[];
   currency: string;
   baselineNav: string;
+  range?: ChartRange;
 }) {
-  const { formatDate, formatDateTime } = useTimeZone();
+  const { formatDate, formatDateTime, formatTime } = useTimeZone();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const points = useMemo<ChartPoint[]>(
+  // null이면 가장 최근 구간을 따라간다. 새 데이터가 들어와도 최신 구간이 보이게 한다.
+  const [windowIndex, setWindowIndex] = useState<number | null>(null);
+  const swipeStart = useRef<{ x: number; y: number; time: number } | null>(null);
+  const windows = useMemo(
     () =>
-      history
-        .toSorted((left, right) => Date.parse(left.at) - Date.parse(right.at))
-        .map((point, index) => ({
-          ...point,
-          index,
-          navValue: numeric(point.nav) ?? 0,
-        })),
-    [history]
+      splitHistoryWindows(
+        history.toSorted((left, right) => Date.parse(left.at) - Date.parse(right.at)),
+        range
+      ).map(toChartPoints),
+    [history, range]
   );
+  const lastWindowIndex = windows.length - 1;
+  const activeWindowIndex = Math.min(windowIndex ?? lastWindowIndex, lastWindowIndex);
+  const points = windows[activeWindowIndex] ?? [];
   const first = points[0];
   const last = points.at(-1);
 
@@ -59,7 +80,30 @@ function PerformanceChart({
   const activeIndex = Math.min(Math.max(selectedIndex ?? points.length - 1, 0), points.length - 1);
   const activePoint = points[activeIndex] ?? last;
   const lineColor = LINE_COLOR;
-  const baselineValue = numeric(baselineNav);
+  const canPage = range !== 'all';
+  const sessionStarts = splitHistoryWindows(points, 'day').map(session => session[0]!);
+  const windowLabel =
+    range === 'day'
+      ? formatMarketDateWithWeekday(first.at)
+      : formatMarketDate(first.at) === formatMarketDate(last.at)
+        ? formatMarketDate(first.at)
+        : `${formatMarketDate(first.at)} – ${formatMarketDate(last.at)}`;
+  const windowUnit = range === 'day' ? '거래일' : '주';
+  // 일 보기는 정시마다, 주·전체 보기는 거래 세션 시작마다 눈금을 둔다.
+  const xTicks =
+    range === 'day'
+      ? points.filter(point => formatTime(point.at).endsWith(':00')).map(point => point.index)
+      : sessionStarts.map(point => point.index);
+  const formatTick = range === 'day' ? formatTime : formatDate;
+  const baselineNavValue = numeric(baselineNav);
+  const navValues = points.map(point => point.navValue);
+  // 전체 보기는 기준선이 보이도록 축을 넓힌다. 일·주 보기에서 같은 일을 하면 짧은 구간의
+  // 움직임이 기준선 쪽으로 눌려 평평해지므로, 구간 안에 들어올 때만 그린다.
+  const baselineValue =
+    baselineNavValue !== null &&
+    (range === 'all' || (baselineNavValue >= Math.min(...navValues) && baselineNavValue <= Math.max(...navValues)))
+      ? baselineNavValue
+      : null;
   // 점이 많으면 선택 지점만, 적으면 모든 지점을 찍는다. ReferenceDot은 Line보다
   // 아래 레이어에 깔려 선 위의 점에 가려지므로 Line의 dot으로 직접 그린다.
   const showEveryDot = points.length <= 40;
@@ -85,6 +129,13 @@ function PerformanceChart({
     setSelectedIndex(Math.min(Math.max(activeIndex + direction, 0), points.length - 1));
   }
 
+  function moveWindow(direction: -1 | 1) {
+    const nextIndex = Math.min(Math.max(activeWindowIndex + direction, 0), lastWindowIndex);
+    if (nextIndex === activeWindowIndex) return;
+    setWindowIndex(nextIndex === lastWindowIndex ? null : nextIndex);
+    setSelectedIndex(null);
+  }
+
   function selectAtClientX(clientX: number, container: HTMLElement) {
     const plot = container.querySelector<SVGGraphicsElement>('.recharts-cartesian-grid');
     const bounds = plot?.getBoundingClientRect() ?? container.getBoundingClientRect();
@@ -104,8 +155,54 @@ function PerformanceChart({
     if (touch) selectAtClientX(touch.clientX, event.currentTarget);
   }
 
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
+    handleTouch(event);
+    const touch = event.touches[0];
+    swipeStart.current = touch ? { x: touch.clientX, y: touch.clientY, time: Date.now() } : null;
+  }
+
+  function handleTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    const touch = event.changedTouches[0];
+    if (!canPage || !start || !touch) return;
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    const isFlick =
+      Date.now() - start.time <= SWIPE_MAX_MS &&
+      Math.abs(deltaX) >= SWIPE_MIN_PX &&
+      Math.abs(deltaX) > Math.abs(deltaY) * 1.5;
+    // 콘텐츠가 손가락을 따라간다. 왼쪽으로 밀면 다음(최근) 구간이 들어온다.
+    if (isFlick) moveWindow(deltaX < 0 ? 1 : -1);
+  }
+
   return (
     <div className="flex min-w-0 flex-col gap-3">
+      <div role="group" aria-label="표시 구간" className="flex min-h-8 items-center justify-end gap-1">
+        {canPage && (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`이전 ${windowUnit}`}
+            disabled={activeWindowIndex === 0}
+            onClick={() => moveWindow(-1)}
+          >
+            <ChevronLeft aria-hidden="true" />
+          </Button>
+        )}
+        <span className="px-1 text-xs tabular-nums text-muted-foreground">{windowLabel}</span>
+        {canPage && (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`다음 ${windowUnit}`}
+            disabled={activeWindowIndex === lastWindowIndex}
+            onClick={() => moveWindow(1)}
+          >
+            <ChevronRight aria-hidden="true" />
+          </Button>
+        )}
+      </div>
       <div
         role="status"
         aria-label="선택 시점 성과"
@@ -147,8 +244,9 @@ function PerformanceChart({
         aria-valuenow={activeIndex}
         aria-valuetext={`${formatDateTime(activePoint.at)}, NAV ${formatMoney(activePoint.nav, currency)}, 수익률 ${formatPercent(activePoint.returnPct)}`}
         onMouseMove={handleMouseMove}
-        onTouchStart={handleTouch}
+        onTouchStart={handleTouchStart}
         onTouchMove={handleTouch}
+        onTouchEnd={handleTouchEnd}
         onKeyDown={event => {
           if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
             event.preventDefault();
@@ -164,7 +262,7 @@ function PerformanceChart({
             setSelectedIndex(points.length - 1);
           }
         }}
-        className="relative rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="relative touch-pan-y rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChartContainer config={chartConfig} className="h-60 w-full aspect-auto sm:h-80">
           <LineChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 4 }}>
@@ -173,10 +271,8 @@ function PerformanceChart({
               dataKey="index"
               type="number"
               domain={[0, Math.max(points.length - 1, 1)]}
-              ticks={points
-                .filter((point, index) => index === 0 || formatDate(point.at) !== formatDate(points[index - 1]!.at))
-                .map(point => point.index)}
-              tickFormatter={value => (points[value] ? formatDate(points[value]!.at) : '')}
+              ticks={xTicks}
+              tickFormatter={value => (points[value] ? formatTick(points[value]!.at) : '')}
               minTickGap={32}
               tickMargin={6}
             />

@@ -1,0 +1,3 @@
+# Runtime-only XNYS schedule provider. Unit tests inject a calendar and do not
+# depend on a host virtualenv or network-installed package.
+exchange-calendars==4.13.2

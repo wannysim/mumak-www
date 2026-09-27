@@ -182,7 +182,13 @@ function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDas
           <h2 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">{snapshot?.label}</h2>
           {snapshot && (
             <span className="border border-border bg-muted px-2 py-1 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
-              {snapshot.status === 'active' ? '운용 중' : snapshot.status === 'stopped' ? '중단' : '완료'}
+              {snapshot.status === 'pending'
+                ? '시작 대기'
+                : snapshot.status === 'active'
+                  ? '운용 중'
+                  : snapshot.status === 'stopped'
+                    ? '중단'
+                    : '완료'}
             </span>
           )}
         </div>

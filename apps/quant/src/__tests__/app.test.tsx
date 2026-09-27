@@ -122,6 +122,48 @@ describe('Quant dashboard app', () => {
     expect(screen.getByText('$99,000.00')).toBeInTheDocument();
   });
 
+  it('uses the same dashboard sections when switching between paper strategies', async () => {
+    const client = new AppTestClient();
+    client.snapshots.paper = [
+      paperSnapshot({
+        episodeId: 'paper-intraday-2026-09',
+        status: 'pending',
+        label: '미국 주식 장중 15분 ORB 모의운용 · 시작 대기',
+        asOf: '2026-09-26T03:43:19.000Z',
+        startedAt: '2026-09-26T03:43:19.000Z',
+        summary: {
+          ...TEST_ONLY_PAPER_PAYLOAD.summary,
+          currentNav: '100000',
+          cash: '100000',
+          profit: '0',
+          returnPct: '0',
+        },
+        history: [{ at: '2026-09-26T03:43:19.000Z', nav: '100000', profit: '0', returnPct: '0' }],
+        holdings: [],
+        fills: [],
+        notes: ['완결봉 이후 새 관측이 유효할 때만 체결하는 시작 대기 회차입니다.'],
+      }),
+      paperSnapshot({
+        episodeId: 'sep2026-low-frequency',
+        label: '미국 주식 저빈도 추세 모의운용',
+        asOf: '2026-09-25T20:15:41.000Z',
+      }),
+    ];
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '미국 주식 장중 15분 ORB 모의운용 · 시작 대기' });
+    expect(screen.getByRole('heading', { name: '성과 추이' })).toBeInTheDocument();
+    expect(screen.getByText('보유 종목이 없습니다.')).toBeInTheDocument();
+    expect(screen.getByText('최근 체결이 없습니다.')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('combobox', { name: '에피소드' }));
+    await userEvent.click(screen.getByRole('option', { name: '미국 주식 저빈도 추세 모의운용' }));
+
+    expect(screen.getByRole('heading', { name: '미국 주식 저빈도 추세 모의운용' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '보유 종목' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '최근 체결' })).toBeInTheDocument();
+    expect(screen.getAllByText('TEST').length).toBeGreaterThanOrEqual(2);
+  });
+
   it('shows a generic magic-link result and never requests live data while anonymous', async () => {
     const client = new AppTestClient();
     render(<App client={client} />);

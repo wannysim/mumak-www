@@ -107,11 +107,13 @@ gh pr create \
   --title "chore: release <version>"
 ```
 
-merge 전에 현재 branch ruleset의 required checks만 조회하고 통과시켜라.
+merge 전에 base 브랜치 ruleset의 required checks만 조회하고 통과시켜라.
 
 ```bash
-gh pr checks <main-release-pr-number> --required --watch
+.ai/skills/release/scripts/wait-required-checks.sh <main-release-pr-number>
 ```
+
+`gh pr checks --required --watch`로 대신하지 마라. required check인 `CI Success`·`E2E Success`는 다른 job을 모두 `needs`로 기다리는 집계 job이라 실행 막바지에야 생긴다. 그 전에는 gh가 `no required checks reported`를 내고 바로 끝나서, 기다린 것처럼 보여도 아무것도 기다리지 않는다. 스크립트는 required 목록을 ruleset에서 읽고, check run이 아직 없으면 대기로 본다.
 
 Codecov와 Vercel을 자동으로 required로 간주하지 마라. live ruleset이 요구하면 따르고, 현재 workflow와 ruleset이 production 요구로 명시하지 않으면 Vercel을 dev/PR preview로만 취급하라. Production artifact promotion 경로는 `.github/workflows/promote.yml`로 판정하라.
 
@@ -179,13 +181,15 @@ gh pr create \
 ### 10. develop back-sync PR merge
 
 ```bash
-gh pr checks <develop-sync-pr-number> --required --watch
-gh pr merge <develop-sync-pr-number> --merge --delete-branch
+.ai/skills/release/scripts/wait-required-checks.sh <develop-sync-pr-number>
+gh pr merge <develop-sync-pr-number> --merge
 git fetch origin develop --tags
 git merge-base --is-ancestor <version> origin/develop
 ```
 
 develop sync PR도 required checks가 모두 통과한 뒤 merge하라. fetch 후 태그 커밋이 `origin/develop`의 조상인지 확인하라.
+
+`--delete-branch`는 붙이지 않는다. 원격 브랜치는 `delete_branch_on_merge`가 지운다. 로컬 쪽은 gh가 base(`develop`)로 checkout하려다 실패한다. managed worktree에서는 메인 체크아웃이 이미 `develop`을 잡고 있기 때문이다. 로컬 브랜치는 11단계에서 정리한다.
 
 ### 11. 로컬 정리 및 최종 확인
 
@@ -194,6 +198,13 @@ git fetch origin --prune --tags
 node scripts/sync-versions.mjs --check
 git tag --sort=-v:refname | head
 git status --short --branch
+```
+
+release·sync 로컬 브랜치를 지우려면 먼저 현재 worktree를 그 브랜치에서 옮겨야 한다. `develop`이 다른 worktree에 checkout돼 있으면 여기서 `git switch develop`은 실패하고, `--detach`로 비키면 사용자에게 설명 없는 detached HEAD가 남는다. 다음 작업 브랜치를 `origin/develop`에서 만들어 옮긴 뒤 지워라. 브랜치 이름이 정해지지 않았으면 먼저 사용자에게 물어라.
+
+```bash
+git switch -c <next-branch> --no-track origin/develop
+git branch -D release/<version> chore/sync-release-<version>
 ```
 
 ## Hotfix 워크플로우

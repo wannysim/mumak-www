@@ -25,6 +25,14 @@ PUBLIC_FILL_REASONS = {
     'risk_stop': '위험 한도에 따른 매도',
     'concentration_reduction': '집중도 한도 조정',
 }
+PUBLIC_REASON_LABELS = frozenset(PUBLIC_FILL_REASONS.values())
+DEFAULT_LABEL = '미국 주식 저빈도 추세 모의운용'
+DEFAULT_NOTES = [
+    '실제 시세를 이용한 가상 자금 모의운용입니다. 실계좌 잔고가 아닙니다.',
+    '월중 시작한 회차로 시작일 이후의 성과입니다. 입출금 없는 회차만 지원합니다.',
+    '평균 매입가는 모의 매입 수수료를 포함합니다. 매도 비용은 월 손익에 반영됩니다.',
+    '기존 시세 수집은 약 15분 간격입니다. 화면 갱신이 새 시세 수신을 뜻하지 않습니다.',
+]
 
 
 def number(value):
@@ -60,8 +68,40 @@ def session_date(value):
         raise ExportError('Invalid session date') from exc
 
 
+def presentation(policy):
+    raw = policy.get('public_presentation')
+    if raw is None:
+        raw = policy.get('presentation')
+        expected = {'label', 'notes'}
+    else:
+        expected = {'label', 'notes', 'reason_mapping'}
+    if raw is None:
+        return DEFAULT_LABEL, list(DEFAULT_NOTES), dict(PUBLIC_FILL_REASONS)
+    if not isinstance(raw, dict) or set(raw) != expected:
+        raise ExportError('Invalid public presentation fields')
+    label, notes = raw['label'], raw['notes']
+    if (not isinstance(label, str) or not 1 <= len(label) <= 80
+            or label != label.strip() or any(ord(character) < 32 for character in label)):
+        raise ExportError('Invalid public label')
+    if (not isinstance(notes, list) or len(notes) > 8
+            or any(not isinstance(note, str) or not 1 <= len(note) <= 240
+                   or note != note.strip() or any(ord(character) < 32 for character in note)
+                   for note in notes)):
+        raise ExportError('Invalid public notes')
+    mapping = dict(PUBLIC_FILL_REASONS)
+    if 'reason_mapping' in raw:
+        mapping = raw['reason_mapping']
+        if (not isinstance(mapping, dict) or len(mapping) > 16
+                or any(not isinstance(key, str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,63}', key)
+                       or value not in PUBLIC_REASON_LABELS
+                       for key, value in mapping.items())):
+            raise ExportError('Invalid public reason mapping')
+    return label, list(notes), dict(mapping)
+
+
 def export_snapshot(ledger, policy_path, *, episode_id, now=None):
     policy = json.loads(Path(policy_path).read_text())
+    label, notes, reason_mapping = presentation(policy)
     with sqlite3.connect(Path(ledger).resolve().as_uri() + '?mode=ro', uri=True) as c:
         c.execute('PRAGMA query_only=ON')
         c.execute('BEGIN')
@@ -69,8 +109,11 @@ def export_snapshot(ledger, policy_path, *, episode_id, now=None):
         fills = [json.loads(row[0]) for row in c.execute('SELECT payload FROM fills')]
         observations = [json.loads(row[0]) for row in c.execute('SELECT payload FROM observations')]
     initial = number(policy['initial_virtual_cash_usd'])
-    start_session = session_date(policy.get('paper_start_session'))
-    end_session = session_date(policy.get('paper_end_session'))
+    period = policy.get('period')
+    if period is not None and (not isinstance(period, dict) or set(period) != {'start', 'end'}):
+        raise ExportError('Invalid period fields')
+    start_session = session_date(period['start'] if period is not None else policy.get('paper_start_session'))
+    end_session = session_date(period['end'] if period is not None else policy.get('paper_end_session'))
     month = start_session.strftime('%Y-%m')
     if (policy.get('live') is not False or book.get('live') is not False
             or book.get('mode') != 'forward_paper'):
@@ -84,8 +127,6 @@ def export_snapshot(ledger, policy_path, *, episode_id, now=None):
         raise ExportError('Requires a positive baseline and a single-month episode')
     if not re.fullmatch(r'[a-zA-Z0-9_-]{1,80}', episode_id):
         raise ExportError('Invalid episode identifier')
-    if not observations:
-        raise ExportError('No recorded observations')
     seen_fills = set()
     for f in fills:
         if f['id'] in seen_fills:
@@ -141,7 +182,7 @@ def export_snapshot(ledger, policy_path, *, episode_id, now=None):
             public_fills.append({'id': f['id'], 'at': f['filled_at'], 'symbol': symbol,
                                  'side': f['side'], 'quantity': text(qty), 'price': text(price),
                                  'commission': text(fee),
-                                 'reason': PUBLIC_FILL_REASONS.get(f['reason'])
+                                 'reason': reason_mapping.get(f['reason'])
                                  if isinstance(f.get('reason'), str) else None})
             fill_index += 1
         quotes = obs['quotes']
@@ -152,6 +193,30 @@ def export_snapshot(ledger, policy_path, *, episode_id, now=None):
         history.append({'at': obs['received_at'], 'nav': text(nav),
                         'profit': text(nav-initial), 'returnPct': text((nav/initial-1)*100)})
         latest_quotes = quotes
+    if not observations:
+        initialized_at = timestamp(book.get('initialized_at'))
+        if (fills or book.get('positions') or number(book.get('cash')) != initial
+                or number(book.get('nav')) != initial or book.get('last_observation') is not None
+                or book.get('state') != 'pending'
+                or initialized_at.astimezone(ZoneInfo('America/New_York')).date() >= start_session):
+            raise ExportError('Invalid empty initialized baseline')
+        initialized = book['initialized_at']
+        return {
+            'schemaVersion': 1, 'mode': 'paper', 'episodeId': episode_id, 'month': month,
+            'label': label, 'currency': 'USD', 'status': 'pending',
+            'startedAt': initialized, 'asOf': initialized,
+            'exportedAt': now or datetime.now(timezone.utc).isoformat(),
+            'source': 'forward-paper-ledger', 'baselineKind': 'inception',
+            'summary': {
+                'startingNav': text(initial), 'currentNav': text(initial), 'cash': text(initial),
+                'netContributions': '0', 'profit': '0', 'returnPct': '0',
+                'returnMethod': 'simple-no-flows',
+            },
+            'holdings': [],
+            'history': [{'at': initialized, 'nav': text(initial), 'profit': '0', 'returnPct': '0'}],
+            'fills': [],
+            'notes': notes,
+        }
     if (not history or fill_index != len(fills)
             or timestamp(history[-1]['at']) != timestamp(observations[-1]['received_at'])
             or timestamp(history[-1]['at']) != timestamp(book['last_observation'])):
@@ -171,7 +236,7 @@ def export_snapshot(ledger, policy_path, *, episode_id, now=None):
                          'unrealizedPnl': text(value-basis), 'returnPct': text((value/basis-1)*100)})
     current = number(history[-1]['nav'])
     return {'schemaVersion': 1, 'mode': 'paper', 'episodeId': episode_id, 'month': month,
-            'label': '미국 주식 저빈도 추세 모의운용', 'currency': 'USD',
+            'label': label, 'currency': 'USD',
             'status': 'stopped' if book.get('monthly_halt') else 'active',
             'startedAt': observations[0]['received_at'], 'asOf': history[-1]['at'],
             'exportedAt': now or datetime.now(timezone.utc).isoformat(),
@@ -180,10 +245,7 @@ def export_snapshot(ledger, policy_path, *, episode_id, now=None):
                         'netContributions': '0', 'profit': text(current-initial),
                         'returnPct': text((current/initial-1)*100), 'returnMethod': 'simple-no-flows'},
             'holdings': holdings, 'history': history, 'fills': public_fills,
-            'notes': ['실제 시세를 이용한 가상 자금 모의운용입니다. 실계좌 잔고가 아닙니다.',
-                      '월중 시작한 회차로 시작일 이후의 성과입니다. 입출금 없는 회차만 지원합니다.',
-                      '평균 매입가는 모의 매입 수수료를 포함합니다. 매도 비용은 월 손익에 반영됩니다.',
-                      '기존 시세 수집은 약 15분 간격입니다. 화면 갱신이 새 시세 수신을 뜻하지 않습니다.']}
+            'notes': notes}
 
 
 def main():
