@@ -6,7 +6,9 @@ import { parseSnapshotPayload } from '@/lib/dashboard-schema';
 
 import { TEST_ONLY_PAPER_PAYLOAD } from './fixtures/test-snapshot';
 
-vi.mock('@/components/performance-chart', () => ({ PerformanceChart: () => null }));
+vi.mock('@/components/performance-chart', () => ({
+  PerformanceChart: ({ range }: { range?: string }) => <p data-testid="chart-range">{range}</p>,
+}));
 
 function snapshot() {
   const data = parseSnapshotPayload(structuredClone(TEST_ONLY_PAPER_PAYLOAD));
@@ -119,4 +121,20 @@ it.each(['buy', 'sell'] as const)('shows %s fill amounts and handles missing rea
   expect(dialog.getByText('$150.15')).toBeInTheDocument();
   expect(dialog.getByText(side === 'buy' ? '$150.40' : '$149.90')).toBeInTheDocument();
   expect(dialog.getByText('기록된 결정 근거가 없습니다.')).toBeInTheDocument();
+});
+
+it('starts the performance chart on the whole month and switches range from the heading toggle', async () => {
+  const user = userEvent.setup();
+  render(<SnapshotDashboard snapshot={snapshot()} />);
+  const toggle = screen.getByRole('group', { name: '차트 기간' });
+  expect(within(toggle).getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'true');
+  expect(await screen.findByTestId('chart-range')).toHaveTextContent('all');
+
+  await user.click(within(toggle).getByRole('button', { name: '일' }));
+  expect(within(toggle).getByRole('button', { name: '일' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(toggle).getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.getByTestId('chart-range')).toHaveTextContent('day');
+
+  await user.click(within(toggle).getByRole('button', { name: '주' }));
+  expect(screen.getByTestId('chart-range')).toHaveTextContent('week');
 });

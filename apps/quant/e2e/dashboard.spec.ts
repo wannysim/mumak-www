@@ -218,6 +218,34 @@ test.describe('touch dashboard', () => {
     await page.touchscreen.tap(outsideX, popup!.y + popup!.height / 2);
     await expect(dialog).toHaveCount(0);
   });
+
+  test('day range pages through sessions by button and flick', async ({ page }) => {
+    await mockSnapshots(page, true, true);
+    const chartPanel = page.locator('section').filter({ has: page.getByRole('heading', { name: '성과 추이' }) });
+    const range = chartPanel.getByRole('group', { name: '표시 구간' });
+    const readout = chartPanel.getByRole('status', { name: '선택 시점 성과' });
+
+    await chartPanel.getByRole('button', { name: '일', exact: true }).tap();
+    await expect(chartPanel.getByRole('button', { name: '일', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(range).toContainText('9월 21일 (월)');
+    await expect(readout).toContainText('$100,300.00');
+    await expect(chartPanel.getByRole('button', { name: '다음 거래일' })).toBeDisabled();
+
+    await chartPanel.getByRole('button', { name: '이전 거래일' }).tap();
+    await expect(range).toContainText('9월 18일 (금)');
+    await expect(readout).toContainText('$100,100.00');
+
+    const bounds = await chartBounds(page);
+    const explorer = chartPanel.getByRole('slider');
+    const y = bounds.y + bounds.height / 2;
+    await explorer.dispatchEvent('touchstart', { touches: [{ identifier: 1, clientX: bounds.x + 240, clientY: y }] });
+    await explorer.dispatchEvent('touchend', {
+      changedTouches: [{ identifier: 1, clientX: bounds.x + 120, clientY: y }],
+    });
+    await expect(range).toContainText('9월 21일 (월)');
+    await expect(readout).toContainText('$100,300.00');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
 });
 
 for (const width of [320, 390, 768, 1440]) {
