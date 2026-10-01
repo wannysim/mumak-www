@@ -307,8 +307,8 @@ importers:
         specifier: ^4.13.4
         version: 4.13.4(@swc/helpers@0.5.23)(next@16.3.6(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(@playwright/test@1.61.0)(@types/node@26.1.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)
       next-mdx-remote-client:
-        specifier: ^2.1.11
-        version: 2.1.11(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(supports-color@8.1.1)(unified@11.0.5)
+        specifier: ^2.1.12
+        version: 2.1.12(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(supports-color@8.1.1)(unified@11.0.5)
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -9094,8 +9094,8 @@ packages:
       typescript:
         optional: true
 
-  next-mdx-remote-client@2.1.11:
-    resolution: {integrity: sha512-R28K170ODHCdzoqyoNosTSMGKEj/MEHknQELSjK6eQVsGXxeQ3brORmusql3AvPBqTGOfYVVeTvuIC/133UZxw==}
+  next-mdx-remote-client@2.1.12:
+    resolution: {integrity: sha512-KDfhIk5aEM0kkZ0xQ8XBkmo4O5xmJeGWUomm40Ac/xhkt5sIDOTmTU/QFfmJGLJUJipD5o0BAHqVSIZKuXgNEw==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
       react: '>= 19.1.0'
@@ -20186,7 +20186,7 @@ snapshots:
     transitivePeerDependencies:
       - '@swc/helpers'
 
-  next-mdx-remote-client@2.1.11(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(supports-color@8.1.1)(unified@11.0.5):
+  next-mdx-remote-client@2.1.12(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(supports-color@8.1.1)(unified@11.0.5):
     dependencies:
       '@babel/code-frame': 7.29.7
       '@mdx-js/mdx': 3.1.1(supports-color@8.1.1)
