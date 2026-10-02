@@ -161,6 +161,21 @@
       "env": ["GITHUB_ACTIONS"],
       "passThroughEnv": ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"]
     },
+    // blog 단위 테스트는 빌드 산출물이 필요 없어 build를 기다리지 않는다(CI에서 build와 병렬).
+    // 빌드 산출물(.next/prerender-manifest.json)을 검증하는 테스트만 blog#test:static으로 떼어 build 뒤에 돈다.
+    "blog#test:ci": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "jest.config.*"],
+      "outputs": ["coverage/**"],
+      "env": ["GITHUB_ACTIONS"],
+      "passThroughEnv": ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"]
+    },
+    "blog#test:static": {
+      "dependsOn": ["build"],
+      "inputs": ["$TURBO_DEFAULT$", "jest.config.*"],
+      "outputs": [],
+      "env": ["GITHUB_ACTIONS"]
+    },
     "admin#test:ci": {
       "dependsOn": ["^build", "build"],
       "inputs": ["$TURBO_DEFAULT$", "jest.config.*"],

@@ -364,7 +364,8 @@ import { mockUser } from '@/test/mocks';
 ## Turborepo / CI
 
 - 앱 단위 preflight는 `check-types → lint → format:check → test:ci` 순서를 유지한다.
-- Root Task 기반 Oxc 구조에서는 CI가 workspace-level `quality(lint + format:check)`를 먼저 실행하고, 이후 앱별 `check-types → test:ci → build`를 이어서 실행한다.
+- Root Task 기반 Oxc 구조에서는 CI가 workspace-level `quality(lint + format:check)`를 먼저 실행하고, 이후 앱별로 `check-types test:ci test:static`을 turbo 한 번으로 실행한 뒤 `build`를 확인한다. turbo가 task graph대로 병렬화한다.
+- `blog#test:ci`는 build에 의존하지 않아 build와 병렬로 돈다. 빌드 산출물을 검증하는 테스트는 `apps/blog/__tests__/build/`에 두고 `blog#test:static`(build 뒤 실행)으로 돌린다. 이 디렉터리 밖 단위 테스트는 `.next`에 의존하면 안 된다.
 - Turborepo env는 가능한 한 태스크 범위로 제한하고, `globalEnv`는 최소 집합만 유지한다.
 - `apps/blog` E2E는 `output: standalone` 기준으로 실행한다. CI에서는 standalone 산출물이 없을 때 fail-fast 처리한다.
 - E2E workflow는 `test:e2e` 태스크의 `dependsOn: ["build"]`를 신뢰하고, 별도 중복 빌드 step은 지양한다.

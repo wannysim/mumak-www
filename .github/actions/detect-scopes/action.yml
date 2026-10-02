@@ -100,34 +100,36 @@ runs:
           exit 0
         fi
 
+        # 앱이 영향을 받는 workspace package는 apps.yml에 손으로 적지 않고 package.json에서 읽는다.
+        # 손으로 적던 목록은 drift가 났다(8개 앱 모두 @mumak/playwright-config를 쓰는데 quant에만 적혀 있었음).
+        # package 간 의존(예: ui -> typescript-config)도 따라가도록 transitive로 푼다.
+        PACKAGE_INDEX=$(for PKG_JSON in packages/*/package.json; do
+          [ -f "$PKG_JSON" ] || continue
+          printf '%s %s\n' "$(jq -r '.name' "$PKG_JSON")" "$(basename "$(dirname "$PKG_JSON")")"
+        done)
+
+        # $1: package.json 경로 -> 의존하는 workspace package 디렉터리 이름들
+        workspace_package_dirs() {
+          [ -f "$1" ] || return 0
+          jq -r '[.dependencies, .devDependencies, .peerDependencies | objects | keys[]] | unique[]' "$1" |
+            while read -r DEP_NAME; do
+              echo "$PACKAGE_INDEX" | awk -v name="$DEP_NAME" '$1 == name { print $2 }'
+            done
+        }
+
         get_app_package_dependencies() {
-          local target_app="$1"
-          awk -v target_app="$target_app" '
-            /^[[:space:]]*-[[:space:]]*app:[[:space:]]*/ {
-              app = $NF
-              gsub(/[[:space:]]/, "", app)
-              in_target = (app == target_app)
-              in_deps = 0
-              next
-            }
-
-            in_target && /^[[:space:]]*packageDependencies:[[:space:]]*$/ {
-              in_deps = 1
-              next
-            }
-
-            in_target && in_deps && /^[[:space:]]*-[[:space:]]*/ {
-              dep = $0
-              sub(/^[[:space:]]*-[[:space:]]*/, "", dep)
-              gsub(/[[:space:]]/, "", dep)
-              if (dep != "") print dep
-              next
-            }
-
-            in_target && in_deps && /^[[:space:]]*[[:alnum:]_-]+:[[:space:]]*/ {
-              in_deps = 0
-            }
-          ' "$APPS_CONFIG"
+          local queue next dep seen=""
+          queue=$(workspace_package_dirs "apps/$1/package.json" | xargs)
+          while [ -n "$queue" ]; do
+            next=""
+            for dep in $queue; do
+              case " $seen " in *" $dep "*) continue ;; esac
+              seen="$seen $dep"
+              next="$next $(workspace_package_dirs "packages/$dep/package.json" | xargs)"
+            done
+            queue=$(echo "$next" | xargs)
+          done
+          echo "$seen" | tr ' ' '\n' | sed '/^$/d'
         }
 
         # Workspace-global changes affect every app because cache keys, task graph,
@@ -165,7 +167,7 @@ runs:
         for PACKAGE in $CHANGED_PACKAGES; do
           if ! echo " $KNOWN_PACKAGE_DEPS " | grep -qF " $PACKAGE "; then
             UNKNOWN_PACKAGE_CHANGED=true
-            echo "packages/${PACKAGE}/ is not mapped in $APPS_CONFIG - will include all apps"
+            echo "packages/${PACKAGE}/ is not a dependency of any app - will include all apps"
           fi
         done
 

@@ -19,7 +19,7 @@
     "check-types": "turbo run check-types",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
-    "test:ci": "turbo run test:ci",
+    "test:ci": "turbo run test:ci test:static",
     "test:e2e": "turbo run test:e2e",
     "knip": "knip",
     "turbo:dry": "turbo run build test --dry-run",
