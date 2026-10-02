@@ -27,6 +27,15 @@ const nextConfig = {
     '/*': ['./content/**/*', './messages/**/*', './public/assets/fonts/**/*'],
   },
   transpilePackages: ['@mumak/ui', 'marked'],
+  turbopack: {
+    resolveAlias: {
+      // three-render-objects가 useWebGPU=false(기본값)여도 WebGPURenderer를 정적 import해서
+      // 미사용 three/webgpu(~600KB)가 그래프 lazy 번들에 실린다. 생성 시 던지는 스텁으로 대체한다.
+      // three / three-render-objects / react-force-graph-3d를 올릴 때 import 경로·useWebGPU
+      // 기본값이 그대로인지, 그래프 캔버스가 정상 렌더되는지 다시 확인할 것.
+      'three/webgpu': './src/features/graph/lib/three-webgpu-stub.ts',
+    },
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [

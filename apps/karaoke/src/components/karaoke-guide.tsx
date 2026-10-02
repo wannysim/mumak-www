@@ -81,7 +81,7 @@ export function KaraokeGuide({ replay, ready }: { replay: number; ready: boolean
       cancelAnimationFrame(frame);
       if (guideRef.current?.isActive()) guideRef.current.destroy();
     };
-  }, [ready, replay, seen]);
+  }, [ready, replay]);
 
   return null;
 }

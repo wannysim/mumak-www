@@ -76,6 +76,9 @@ export function useSpotifyPolling({
   const isVisible = useDocumentVisible();
   const [previousData, setPreviousData] = useState<NowPlaying | null>(null);
   const [hasPlayStateChanged, setHasPlayStateChanged] = useState(false);
+  // fallback baseline은 마운트 시각으로 한 번만 잡는다. 렌더마다 Date.now()를 쓰면 보간 리렌더마다
+  // fetchedAt이 밀려 drift 리셋이 일어나고 진행 바가 초기값으로 되돌아간다.
+  const [initialFetchedAt] = useState(() => Date.now());
 
   // 재생 중이면 playingInterval, 그 외엔 pausedInterval. 트랙 종료 시점은 별도 useEffect 의 예측 fetch 가 잡는다.
   const getRefreshInterval = useCallback(
@@ -94,7 +97,7 @@ export function useSpotifyPolling({
     isLoading,
     mutate,
   } = useSWR<NowPlayingResponse>(enabled ? '/api/spotify/now-playing' : null, fetcher, {
-    fallbackData: initialData ? { data: initialData, timestamp: Date.now() } : undefined,
+    fallbackData: initialData ? { data: initialData, timestamp: initialFetchedAt } : undefined,
     refreshInterval: getRefreshInterval,
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
@@ -104,7 +107,8 @@ export function useSpotifyPolling({
   });
 
   const currentData = response?.data ?? initialData ?? null;
-  const fetchedAt = response?.timestamp ?? 0;
+  // 응답이 data: null 이면 화면은 initialData 를 보여주므로 baseline 도 initialData 시각을 유지한다.
+  const fetchedAt = response?.data != null ? response.timestamp : initialFetchedAt;
 
   // 트랙 종료 예측 fetch: 보간된 잔여 시간이 0이 되는 정확한 시점에
   // mutate 를 트리거해서 다음 폴 간격을 기다리지 않고 즉시 새 트랙을 가져온다.

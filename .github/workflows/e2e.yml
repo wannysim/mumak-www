@@ -48,17 +48,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get changed files
-        id: changed-files
-        if: github.event_name == 'pull_request'
-        uses: tj-actions/changed-files@v47
-
       - name: Detect changed apps
         id: detect
         uses: ./.github/actions/detect-scopes
         with:
           manual_scopes: ${{ inputs.scopes }}
-          changed_files: ${{ steps.changed-files.outputs.all_changed_files }}
 
   # Step 2: Prepare matrix (only E2E-enabled apps)
   # scopes-to-matrix가 만든 앱 배열을 shard-matrix가 앱별 e2eShards만큼 펼친다.
@@ -99,7 +93,7 @@ jobs:
     timeout-minutes: 20
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.61.0-noble
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
       options: --user 1001
     strategy:
       fail-fast: false

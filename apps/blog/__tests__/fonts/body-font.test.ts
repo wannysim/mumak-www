@@ -12,10 +12,11 @@ describe('body font subset (Pretendard Variable)', () => {
     expect(header).toBe('wOF2');
   });
 
-  it('stays within the diet budget (not the 2.1MB full font, not empty/corrupt)', () => {
+  it('stays within the diet budget (not all 11,172 syllables or the 2.1MB full font, not empty/corrupt)', () => {
     const bytes = statSync(fontPath).size;
-    // 현재 서브셋 ~1.24MB. 하한은 손상/빈 파일, 상한은 풀셋 회귀를 잡는다.
-    expect(bytes).toBeGreaterThan(700_000);
-    expect(bytes).toBeLessThan(1_450_000);
+    // 현재 서브셋 ~372KB(KS X 1001 + 콘텐츠 글자). 하한은 손상/빈 파일, 상한은
+    // 현대 한글 전체 음절(~1.24MB)이나 풀셋으로 되돌아가는 회귀를 잡는다.
+    expect(bytes).toBeGreaterThan(200_000);
+    expect(bytes).toBeLessThan(600_000);
   });
 });

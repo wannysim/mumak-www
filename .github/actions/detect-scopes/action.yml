@@ -21,8 +21,11 @@ outputs:
     description: "Comma-separated list of changed app names"
     value: ${{ steps.detect.outputs.scopes }}
   has_changes:
-    description: "Whether any apps have changes"
+    description: "Whether any apps have changes, or lint/format config changed"
     value: ${{ steps.detect.outputs.has_changes }}
+  lint_config_changed:
+    description: "Whether a workspace-wide lint/format config changed (lint every workspace without the app matrix)"
+    value: ${{ steps.detect.outputs.lint_config_changed }}
 
 runs:
   using: "composite"
@@ -47,6 +50,7 @@ runs:
           echo "Using manual scopes: $MANUAL_SCOPES"
           echo "scopes=$MANUAL_SCOPES" >> "$GITHUB_OUTPUT"
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "lint_config_changed=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
@@ -60,17 +64,20 @@ runs:
             fi
           fi
           echo "Comparing against: $BASE_REF"
-          CHANGED_FILES=$(git diff --name-only "$BASE_REF" HEAD 2>/dev/null || echo "")
+          # diff 실패를 "변경 없음"으로 삼키면 아무 검증 없이 CI가 통과한다. 실패는 그대로 job 실패로 둔다.
+          # PR에서 HEAD는 base 위의 merge commit이라 base.sha와의 diff가 곧 PR 변경분이다(checkout fetch-depth: 0 필요).
+          CHANGED_FILES=$(git diff --name-only "$BASE_REF" HEAD)
         fi
 
         if [ -z "$CHANGED_FILES" ]; then
           echo "No changed files detected"
           echo "scopes=" >> "$GITHUB_OUTPUT"
           echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          echo "lint_config_changed=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
-        # tj-actions/changed-files emits a space-separated list on a single line.
+        # changed_files input may be a space-separated list on a single line.
         # `grep -q "^X"` then only matches the first token — alphabetically first
         # files would win, the rest silently slip past. Normalize to one path per
         # line so the start-of-line anchor works for every changed file.
@@ -89,6 +96,7 @@ runs:
           echo "No apps found in config"
           echo "scopes=" >> "$GITHUB_OUTPUT"
           echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          echo "lint_config_changed=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
@@ -125,9 +133,18 @@ runs:
         # Workspace-global changes affect every app because cache keys, task graph,
         # dependency resolution, or root tooling can change beneath all packages.
         GLOBAL_CHANGED=false
-        if echo "$CHANGED_FILES" | grep -qE "^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|turbo\.json|\.nvmrc|\.oxfmtrc\.jsonc|\.oxlintrc\.json|scripts/)"; then
+        if echo "$CHANGED_FILES" | grep -qE "^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|turbo\.json|\.nvmrc|scripts/)"; then
           GLOBAL_CHANGED=true
           echo "workspace/global config changed - will include all apps"
+        fi
+
+        # Lint/format config only changes lint/format results. Turbo already keys only the
+        # lint/format tasks on these files, so fanning out the whole app matrix (and E2E) just
+        # replays cached build/test results. The CI root-quality job lints every workspace instead.
+        LINT_CONFIG_CHANGED=false
+        if echo "$CHANGED_FILES" | grep -qE "^(\.oxfmtrc\.jsonc|\.oxlintrc\.json)$"; then
+          LINT_CONFIG_CHANGED=true
+          echo "lint/format config changed - will lint every workspace (no app matrix)"
         fi
 
         # CI-related files affect all apps because they can change detection,
@@ -188,7 +205,8 @@ runs:
         echo "=========================================="
 
         echo "scopes=$AFFECTED" >> "$GITHUB_OUTPUT"
-        if [ -n "$AFFECTED" ]; then
+        echo "lint_config_changed=$LINT_CONFIG_CHANGED" >> "$GITHUB_OUTPUT"
+        if [ -n "$AFFECTED" ] || [ "$LINT_CONFIG_CHANGED" = true ]; then
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
         else
           echo "has_changes=false" >> "$GITHUB_OUTPUT"

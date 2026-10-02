@@ -8,7 +8,7 @@ jest.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock('@sentry/nextjs', () => ({
+jest.mock('@/src/shared/lib/error-tracking', () => ({
   captureException: jest.fn(),
 }));
 
@@ -53,7 +53,7 @@ describe('Error boundary (main)', () => {
   });
 
   it('reports the error to the error tracker', () => {
-    const { captureException } = jest.requireMock('@sentry/nextjs');
+    const { captureException } = jest.requireMock('@/src/shared/lib/error-tracking');
     const error = makeError();
     render(<RouteError error={error} reset={jest.fn()} />);
 
