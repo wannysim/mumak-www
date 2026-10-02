@@ -14,6 +14,10 @@ inputs:
     description: "Whether to save pnpm cache after install"
     required: false
     default: "true"
+  warm-only:
+    description: "Only make sure the exact pnpm store cache exists: skip download and install when it already does"
+    required: false
+    default: "false"
 
 outputs:
   pnpm-store-path:
@@ -37,8 +41,20 @@ runs:
       shell: bash
       run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
+    # warm 전용 job은 같은 lockfile의 캐시가 이미 있으면 받을 필요도, 설치할 필요도 없다.
+    # lookup-only는 존재만 확인하므로 매 PR마다 store 다운로드와 install 시간을 아낀다.
+    - name: Check pnpm cache (warm-only)
+      id: pnpm-cache-lookup
+      if: inputs.warm-only == 'true'
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ steps.pnpm-store.outputs.path }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        lookup-only: true
+
     - name: Restore pnpm cache
       id: pnpm-cache
+      if: steps.pnpm-cache-lookup.outputs.cache-hit != 'true'
       uses: actions/cache/restore@v6
       with:
         path: ${{ steps.pnpm-store.outputs.path }}
@@ -47,12 +63,12 @@ runs:
           ${{ runner.os }}-pnpm-store-
 
     - name: Install dependencies
-      if: inputs.install-deps == 'true'
+      if: inputs.install-deps == 'true' && steps.pnpm-cache-lookup.outputs.cache-hit != 'true'
       shell: bash
       run: pnpm install --frozen-lockfile
 
     - name: Save pnpm cache
-      if: inputs.save-cache == 'true' && steps.pnpm-cache.outputs.cache-hit != 'true'
+      if: inputs.save-cache == 'true' && steps.pnpm-cache-lookup.outputs.cache-hit != 'true' && steps.pnpm-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v6
       with:
         path: ${{ steps.pnpm-store.outputs.path }}
