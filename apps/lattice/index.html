@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lattice</title>
+    <!-- 마운트 직후 MediaPipe wasm(jsDelivr)과 손 모델(GCS)을 CORS fetch로 받는다 -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://storage.googleapis.com" crossorigin />
   </head>
   <body>
     <div id="root"></div>

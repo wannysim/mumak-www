@@ -1,4 +1,4 @@
-import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+import type { HandLandmarker } from '@mediapipe/tasks-vision';
 import { Dices } from 'lucide-react';
 import * as React from 'react';
 
@@ -13,6 +13,18 @@ import {
 
 // 순수 헬퍼는 lattice/ascii.ts로 이동했다. 기존 테스트 import 경로 유지를 위해 re-export.
 export { coverSourceRect, luminanceToChar, saturateChannel };
+
+// wasm 런타임은 JS 번들(@mediapipe/tasks-vision)과 같은 버전이어야 한다.
+// 버전을 URL에 고정해야 jsDelivr가 immutable 캐시로 내려주고, 패키지 업데이트 시 어긋나지 않는다.
+// 버전은 vite.config.ts의 define이 설치된 패키지에서 빌드 시점에 주입한다.
+const MEDIAPIPE_WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${__MEDIAPIPE_TASKS_VISION_VERSION__}/wasm`;
+
+// MediaPipe JS(번들의 상당 부분)는 카메라 초기화 때만 필요하므로 첫 화면 번들에서 분리한다
+async function loadHandLandmarkerTasks() {
+  const { FilesetResolver, HandLandmarker } = await import('@mediapipe/tasks-vision');
+  const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL);
+  return { HandLandmarker, vision };
+}
 
 // CC0/공개 샘플 영상. 전부 CORS(ACAO) 허용 소스만 사용 —
 // ascii 존이 canvas getImageData로 픽셀을 읽어야 해서 필수 조건이다.
@@ -582,12 +594,12 @@ export function Lattice() {
 
     const init = async () => {
       // 카메라 권한을 먼저 확보해서 거부/미지원이면 모델 다운로드 없이 바로 폴백으로 빠진다
-      const [media, vision] = await Promise.all([
+      const [media, tasks] = await Promise.all([
         navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } }),
-        FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'),
+        loadHandLandmarkerTasks(),
       ]);
       stream = media;
-      landmarker = await HandLandmarker.createFromOptions(vision, {
+      landmarker = await tasks.HandLandmarker.createFromOptions(tasks.vision, {
         baseOptions: {
           modelAssetPath:
             'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
