@@ -51,7 +51,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.12.1",
+    "@axe-core/playwright": "^4.13.0",
     "@mumak/playwright-config": "workspace:*",
     "@mumak/typescript-config": "workspace:*",
     "@next/bundle-analyzer": "^16.3.6",
