@@ -368,6 +368,7 @@ import { mockUser } from '@/test/mocks';
 - Turborepo env는 가능한 한 태스크 범위로 제한하고, `globalEnv`는 최소 집합만 유지한다.
 - `apps/blog` E2E는 `output: standalone` 기준으로 실행한다. CI에서는 standalone 산출물이 없을 때 fail-fast 처리한다.
 - E2E workflow는 `test:e2e` 태스크의 `dependsOn: ["build"]`를 신뢰하고, 별도 중복 빌드 step은 지양한다.
+- 영향 앱 판정은 `.github/actions/detect-scopes`가 한다. `package.json`·lockfile·`pnpm-workspace.yaml`·`turbo.json`·`.nvmrc`·`scripts/`·`.github` CI 파일 변경은 전 앱을 띄운다. `.oxlintrc.json`·`.oxfmtrc.jsonc`만 바뀌면 앱 매트릭스와 E2E 없이 `Quality (root only)` job이 전 워크스페이스 lint/format만 돈다.
 
 ## Portless 로컬 개발
 
