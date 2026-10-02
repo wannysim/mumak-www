@@ -33,7 +33,10 @@ export function SpotifyVinylClient({ initialData, listeningToLabel, lastPlayedLa
 function SpotifyVinylClientContent({ initialData, listeningToLabel, lastPlayedLabel }: SpotifyVinylClientProps) {
   const { data, hasTrackChanged, hasPlayStateChanged, resetChangeState, fetchedAt } = useSpotifyPolling({
     initialData,
-    playingInterval: 2_000,
+    // 재생 중 진행바는 useProgressInterpolation이 로컬 보간하고, 곡 종료 시점은
+    // useSpotifyPolling의 예측 fetch가 잡는다. 폴링은 일시정지·구간 점프·곡 변경 같은
+    // 드리프트 보정용이라 10초면 충분하다(2초는 no-store 요청만 5배로 늘렸다).
+    playingInterval: 10_000,
     pausedInterval: 30_000,
     enabled: true,
   });

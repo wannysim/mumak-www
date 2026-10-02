@@ -1,7 +1,8 @@
 'use client';
 
-import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
+
+import { captureException } from '@/src/shared/lib/error-tracking';
 
 import '@mumak/ui/globals.css';
 
@@ -10,7 +11,7 @@ import '@mumak/ui/globals.css';
 // 중립 문구를 하드코딩한다. 자체 <html>/<body>를 제공해야 한다.
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    captureException(error);
     console.error(error);
   }, [error]);
 
