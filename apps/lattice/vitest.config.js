@@ -1,9 +1,18 @@
 import react from '@vitejs/plugin-react';
+import { readFileSync } from 'node:fs';
 import path from 'path';
 import { defineConfig } from 'vitest/config';
 
+// vite.config.ts의 define과 같은 값. wasm URL 버전 고정을 테스트에서도 검증한다.
+const mediapipeTasksVisionVersion = JSON.parse(
+  readFileSync(path.resolve(import.meta.dirname, 'node_modules/@mediapipe/tasks-vision/package.json'), 'utf8')
+).version;
+
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __MEDIAPIPE_TASKS_VISION_VERSION__: JSON.stringify(mediapipeTasksVisionVersion),
+  },
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),

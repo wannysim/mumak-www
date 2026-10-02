@@ -173,6 +173,17 @@ describe('SpotifyVinylClient', () => {
     expect(resetChangeState).not.toHaveBeenCalled();
   });
 
+  it('polls every 10s while playing and every 30s while paused', async () => {
+    setupHookReturn({ data: playingData });
+    const { SpotifyVinylClient } = await import('../ui/spotify-vinyl-client');
+
+    render(<SpotifyVinylClient initialData={null} listeningToLabel="Listening to" lastPlayedLabel="Last played" />);
+
+    expect(mockUseSpotifyPolling).toHaveBeenCalledWith(
+      expect.objectContaining({ playingInterval: 10_000, pausedInterval: 30_000, enabled: true })
+    );
+  });
+
   it('passes interpolated progress to SpotifyVinyl', async () => {
     setupHookReturn({ data: playingData, fetchedAt: 1000 });
     mockUseProgressInterpolation.mockReturnValue({ progressMs: 42_000, durationMs: 180_000 });

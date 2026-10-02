@@ -9,25 +9,36 @@ import { build, preview } from 'vite';
 // Chromium과 달리 127.0.0.1을 이 지시어의 예외로 두지 않아 모든 자산 요청을
 // https로 올려 버리고 앱이 아예 렌더되지 않는다. 스킴에만 걸리는 지시어라
 // style-src·script-src 같은 실제 검증 대상은 그대로 남는다.
-const productionHeaders = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'))
-  .headers.flatMap(entry => entry.headers)
-  .map(({ key, value }) =>
-    key.toLowerCase() === 'content-security-policy'
-      ? {
-          key,
-          value: value
-            .split(';')
-            .filter(directive => directive.trim() !== 'upgrade-insecure-requests')
-            .join(';'),
-        }
-      : { key, value }
-  );
+//
+// 규칙마다 source 경로를 지킨다. /assets/(.*)의 immutable Cache-Control이 index.html에 붙으면
+// 프로덕션과 다른 응답을 검증하게 된다. 여기서 쓰는 source(`/(.*)`, `/assets/(.*)`)는
+// path-to-regexp 문법이지만 그대로 정규식으로 읽어도 같은 뜻이다. 겹치면 Vercel처럼 뒤 규칙이 이긴다.
+const productionHeaderRules = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')).headers.map(
+  ({ source, headers }) => ({
+    pattern: new RegExp(`^${source}$`),
+    headers: headers.map(({ key, value }) =>
+      key.toLowerCase() === 'content-security-policy'
+        ? {
+            key,
+            value: value
+              .split(';')
+              .filter(directive => directive.trim() !== 'upgrade-insecure-requests')
+              .join(';'),
+          }
+        : { key, value }
+    ),
+  })
+);
 
 const productionHeadersPlugin = {
   name: 'e2e-production-headers',
   configurePreviewServer(server) {
-    server.middlewares.use((_request, response, next) => {
-      for (const { key, value } of productionHeaders) response.setHeader(key, value);
+    server.middlewares.use((request, response, next) => {
+      const { pathname } = new URL(request.url ?? '/', 'http://127.0.0.1');
+      for (const rule of productionHeaderRules) {
+        if (!rule.pattern.test(pathname)) continue;
+        for (const { key, value } of rule.headers) response.setHeader(key, value);
+      }
       next();
     });
   },

@@ -1,16 +1,16 @@
 'use client';
 
-import * as Sentry from '@sentry/nextjs';
 import { useTranslations } from 'next-intl';
 import { useEffect } from 'react';
 
 import { Link } from '@/src/shared/config/i18n';
+import { captureException } from '@/src/shared/lib/error-tracking';
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const t = useTranslations('error');
 
   useEffect(() => {
-    Sentry.captureException(error);
+    captureException(error);
     console.error(error);
   }, [error]);
 
