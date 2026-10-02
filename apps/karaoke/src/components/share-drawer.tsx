@@ -83,7 +83,7 @@ export function ShareDrawer({
   const [applying, setApplying] = React.useState(false);
   const [sharing, setSharing] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const shareFileFormat = React.useMemo(supportedShareFileFormat, []);
+  const [shareFileFormat] = React.useState(supportedShareFileFormat);
 
   const currentPlaylist = library.playlists.find(playlist => playlist.id === currentPlaylistId)!;
   const scopeSlugs = React.useMemo(() => {
@@ -92,20 +92,25 @@ export function ShareDrawer({
     return new Set([currentSong.slug]);
   }, [currentPlaylist.songSlugs, currentSong.slug, library.songs, scope]);
 
-  React.useEffect(() => {
-    if (open) return;
-    setView('home');
-    setScope('playlist');
-    setIncludeLyrics(false);
-    setProfileId(initialProfileId());
-    setStream(null);
-    setBundle(null);
-    setPlan(null);
-    setMessage(null);
-    setBuilding(false);
-    setApplying(false);
-    setSharing(false);
-  }, [open]);
+  // 닫힐 때 초기화하면 vaul이 닫히는 애니메이션 동안 내용이 home으로 바뀌어 보인다.
+  // 그래서 초기화는 열 때 하고, 닫을 때는 QR 인코딩만 즉시 멈춘다.
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setView('home');
+      setScope('playlist');
+      setIncludeLyrics(false);
+      setProfileId(initialProfileId());
+      setBundle(null);
+      setPlan(null);
+      setMessage(null);
+      setBuilding(false);
+      setApplying(false);
+      setSharing(false);
+    } else {
+      setStream(null);
+    }
+    setOpen(nextOpen);
+  };
 
   React.useEffect(() => {
     if (!open) return;
@@ -259,7 +264,7 @@ export function ShareDrawer({
   };
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
+    <Drawer open={open} onOpenChange={handleOpenChange}>
       <DrawerTrigger asChild>
         <Button
           type="button"

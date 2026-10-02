@@ -57,7 +57,7 @@ function SpotifyVinylClientContent({ initialData, listeningToLabel, lastPlayedLa
     progressMs: displayData?.progressMs ?? null,
     durationMs: displayData?.durationMs ?? null,
     isPlaying: displayData?.isPlaying ?? false,
-    fetchedAt: fetchedAt || Date.now(),
+    fetchedAt,
   });
 
   if (!displayData) {

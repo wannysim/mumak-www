@@ -124,6 +124,20 @@ describe('ShareDrawer', () => {
     Reflect.deleteProperty(navigator, 'mediaDevices');
   });
 
+  it('reopens on the home view with default choices after being closed mid-flow', async () => {
+    renderShareDrawer();
+
+    await openSendPanel();
+    await userEvent.click(screen.getByRole('radio', { name: /전체 보관함/ }));
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: 'QR로 보내고 받기' }));
+    expect(screen.getByText('재생목록과 가사를 옮깁니다')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /보내기/ }));
+    expect(screen.getByRole('radio', { name: /현재 재생목록/ })).toBeChecked();
+  });
+
   it('creates a looping QR for the current playlist and offers the same data as a file', async () => {
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:share');
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});

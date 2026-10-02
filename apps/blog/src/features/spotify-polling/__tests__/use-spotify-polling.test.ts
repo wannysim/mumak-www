@@ -86,6 +86,47 @@ describe('useSpotifyPolling', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
+  it('keeps the fallback fetchedAt stable across re-renders until the first fetch lands', async () => {
+    const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+
+    try {
+      const { result, rerender } = renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
+      const initialFetchedAt = result.current.fetchedAt;
+      expect(initialFetchedAt).toBe(1_000_000);
+
+      // 진행률 보간이 매초 리렌더해도 fallback baseline이 밀리면 drift 리셋으로 진행 바가 되돌아간다.
+      nowSpy.mockReturnValue(1_003_000);
+      rerender();
+
+      expect(result.current.fetchedAt).toBe(initialFetchedAt);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('keeps the initial fetchedAt when a poll returns no data and initialData is shown', async () => {
+    const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+
+    try {
+      const { result, rerender } = renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
+
+      swrReturnValue = {
+        data: { data: null, timestamp: 1_030_000 },
+        error: undefined,
+        isLoading: false,
+        mutate: mockMutate,
+      };
+      rerender();
+
+      expect(result.current.data).toEqual(mockSongData);
+      expect(result.current.fetchedAt).toBe(1_000_000);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it('should return null data when no initial data is provided', async () => {
     const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
 

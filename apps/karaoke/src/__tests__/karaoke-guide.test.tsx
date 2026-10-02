@@ -70,6 +70,28 @@ describe('KaraokeGuide', () => {
     expect(closeButton).toHaveAttribute('aria-label', '가이드 닫기');
   });
 
+  it('keeps an active tour open when another tab marks the guide as seen', async () => {
+    const guide = mockGuide({ active: true });
+    render(<KaraokeGuide replay={0} ready />);
+
+    await act(async () => {
+      await runPendingFrame();
+    });
+    expect(guide.drive).toHaveBeenCalledOnce();
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: LOCAL_STORAGE_KEYS.firstGuide,
+          newValue: 'true',
+          storageArea: localStorage,
+        })
+      );
+    });
+
+    expect(guide.destroy).not.toHaveBeenCalled();
+  });
+
   it('adds the file-import step only when that control is on screen', async () => {
     mockGuide();
     render(

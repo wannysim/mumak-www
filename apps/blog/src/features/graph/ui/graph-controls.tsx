@@ -1,7 +1,7 @@
 'use client';
 
 import { FilterIcon, SearchIcon, XIcon } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 
 import { Badge } from '@mumak/ui/components/badge';
 import { Button } from '@mumak/ui/components/button';
@@ -72,7 +72,6 @@ function GraphControls({
   const [searchExpanded, setSearchExpanded] = useState(false);
   const options = extractFilterOptions(data, activeTab);
 
-  const handleSelect = useCallback(onFilterToggle, [onFilterToggle]);
   const labelFor = (key: string) => optionLabels[key] ?? (key.split(':').slice(1).join(':') || key);
 
   return (
@@ -141,7 +140,7 @@ function GraphControls({
                 {activeTab === 'garden' && options.statuses.length > 0 && (
                   <CommandGroup heading={labels.status}>
                     {options.statuses.map(status => (
-                      <CommandItem key={`status:${status}`} onSelect={() => handleSelect(`status:${status}`)}>
+                      <CommandItem key={`status:${status}`} onSelect={() => onFilterToggle(`status:${status}`)}>
                         <span className={activeFilters.includes(`status:${status}`) ? 'font-semibold' : ''}>
                           {labelFor(`status:${status}`)}
                         </span>
@@ -152,7 +151,7 @@ function GraphControls({
                 {activeTab === 'blog' && options.categories.length > 0 && (
                   <CommandGroup heading={labels.categories}>
                     {options.categories.map(cat => (
-                      <CommandItem key={`category:${cat}`} onSelect={() => handleSelect(`category:${cat}`)}>
+                      <CommandItem key={`category:${cat}`} onSelect={() => onFilterToggle(`category:${cat}`)}>
                         <span className={activeFilters.includes(`category:${cat}`) ? 'font-semibold' : ''}>
                           {labelFor(`category:${cat}`)}
                         </span>
@@ -163,7 +162,7 @@ function GraphControls({
                 {options.tags.length > 0 && (
                   <CommandGroup heading={labels.tags}>
                     {options.tags.map(tag => (
-                      <CommandItem key={`tag:${tag}`} onSelect={() => handleSelect(`tag:${tag}`)}>
+                      <CommandItem key={`tag:${tag}`} onSelect={() => onFilterToggle(`tag:${tag}`)}>
                         <span className={activeFilters.includes(`tag:${tag}`) ? 'font-semibold' : ''}>{tag}</span>
                       </CommandItem>
                     ))}
