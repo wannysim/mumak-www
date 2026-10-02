@@ -39,6 +39,7 @@ jobs:
   detect-scopes:
     name: Detect Changed Apps
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       scopes: ${{ steps.detect.outputs.scopes }}
       has_changes: ${{ steps.detect.outputs.has_changes }}
@@ -62,6 +63,7 @@ jobs:
     needs: detect-scopes
     if: needs.detect-scopes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
       count: ${{ steps.convert.outputs.count }}
@@ -166,6 +168,7 @@ jobs:
     needs: [detect-scopes, prepare-matrix, e2e]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Check results
         run: |

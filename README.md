@@ -244,7 +244,6 @@ apps:
   - app: new-app-name
     type: next # next, vite, expo, node 등
     hasE2E: true
-    packageDependencies:
-      - ui
-      - typescript-config
 ```
+
+`packages/*` 변경 시 영향받는 앱은 각 앱 `package.json`의 `@mumak/*` 의존성에서 자동으로 계산합니다.

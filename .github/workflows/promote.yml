@@ -59,6 +59,7 @@ jobs:
   promote:
     name: Promote to production
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # 자동 경로: develop 또는 main 브랜치 + 트리거한 워크플로가 성공했을 때만.
     # 수동 경로(workflow_dispatch): 항상 진입하되, 아래 gate에서 동일한 이중 검증을 거친다.
     if: >
