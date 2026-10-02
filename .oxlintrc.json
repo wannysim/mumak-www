@@ -34,7 +34,12 @@
     "unicorn/consistent-function-scoping": "off",
     "eslint/no-useless-constructor": "off",
     "turbo/no-undeclared-env-vars": "warn",
-    "jsx-a11y/prefer-tag-over-role": "off"
+    "jsx-a11y/prefer-tag-over-role": "off",
+    "react/set-state-in-effect": "warn",
+    "react/purity": "warn",
+    "react/refs": "warn",
+    "react/immutability": "warn",
+    "react/use-memo": "warn"
   },
   "overrides": [
     {
