@@ -4,7 +4,7 @@ describe('getCategoryLabel', () => {
   it('한국어 라벨을 반환한다', () => {
     expect(getCategoryLabel('essay', 'ko')).toBe('에세이');
     expect(getCategoryLabel('articles', 'ko')).toBe('아티클');
-    expect(getCategoryLabel('notes', 'ko')).toBe('단상');
+    expect(getCategoryLabel('notes', 'ko')).toBe('짧은 글');
   });
 
   it('영어 라벨을 반환한다', () => {
