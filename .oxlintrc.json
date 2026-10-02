@@ -43,6 +43,17 @@
   },
   "overrides": [
     {
+      "files": ["**/__tests__/**", "**/*.test.{ts,tsx}"],
+      "rules": {
+        "react/set-state-in-effect": "off",
+        "react/purity": "off",
+        "react/refs": "off",
+        "react/immutability": "off",
+        "react/use-memo": "off",
+        "react/hooks": "off"
+      }
+    },
+    {
       "files": ["**/e2e/**/*.{ts,js}"],
       "plugins": ["eslint", "typescript", "oxc", "unicorn"]
     },

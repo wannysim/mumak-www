@@ -146,6 +146,20 @@ describe('GraphCanvas — ForceGraph integration (WebGL available)', () => {
     expect(typeof props.nodeThreeObject).toBe('function');
   });
 
+  it('configures d3Force once the graph libs finish loading, without a data change', async () => {
+    render(<GraphCanvas data={mockData} unsupportedLabels={unsupportedLabels} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('force-graph')).toBeInTheDocument();
+    });
+
+    // 첫 렌더는 라이브러리 로딩 중 Skeleton이라 fgRef가 비어 있다. data가 그대로여도
+    // 라이브러리 로드 후 force 설정이 적용돼야 한다.
+    expect(fakeForceGraphInstance.d3Force).toHaveBeenCalledWith('charge');
+    expect(fakeForceGraphInstance.d3Force).toHaveBeenCalledWith('link');
+    expect(fakeForceGraphInstance.d3Force).toHaveBeenCalledWith('center');
+  });
+
   it('configures d3Force when data ref changes after mount', async () => {
     const { rerender } = render(<GraphCanvas data={mockData} unsupportedLabels={unsupportedLabels} />);
 

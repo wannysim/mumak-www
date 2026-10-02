@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowRightIcon, LinkIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 import { Badge } from '@mumak/ui/components/badge';
 import { Button } from '@mumak/ui/components/button';
@@ -33,19 +33,20 @@ interface GraphDetailPanelProps {
   };
 }
 
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
+const DESKTOP_QUERY = '(min-width: 768px)';
 
-  useEffect(() => {
-    const media = window.matchMedia(query);
-    setMatches(media.matches);
+function subscribeDesktop(onStoreChange: () => void) {
+  const media = window.matchMedia(DESKTOP_QUERY);
+  media.addEventListener('change', onStoreChange);
+  return () => media.removeEventListener('change', onStoreChange);
+}
 
-    const listener = (e: MediaQueryListEvent) => setMatches(e.matches);
-    media.addEventListener('change', listener);
-    return () => media.removeEventListener('change', listener);
-  }, [query]);
-
-  return matches;
+function useIsDesktop(): boolean {
+  return useSyncExternalStore(
+    subscribeDesktop,
+    () => window.matchMedia(DESKTOP_QUERY).matches,
+    () => false
+  );
 }
 
 function NodeDetail({ node, locale, labels }: Omit<GraphDetailPanelProps, 'open' | 'onClose'>) {
@@ -84,7 +85,7 @@ function NodeDetail({ node, locale, labels }: Omit<GraphDetailPanelProps, 'open'
 }
 
 function GraphDetailPanel({ node, open, onClose, locale, labels }: GraphDetailPanelProps) {
-  const isDesktop = useMediaQuery('(min-width: 768px)');
+  const isDesktop = useIsDesktop();
 
   if (isDesktop) {
     return (

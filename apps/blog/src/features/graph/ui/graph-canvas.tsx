@@ -84,7 +84,8 @@ function GraphCanvas({
 
     const center = fg.d3Force('center') as { strength?: (s: number) => void } | undefined;
     center?.strength?.(FORCE_CONFIG.centerStrength);
-  }, [data]);
+    // libs: 라이브러리 로드 전에는 ForceGraph가 마운트되지 않아 fgRef가 비어 있으므로 로드 후 다시 적용한다.
+  }, [data, libs]);
 
   useEffect(() => {
     fgRef.current?.controls()?.handleResize();
