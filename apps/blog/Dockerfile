@@ -16,7 +16,7 @@ WORKDIR /app
 # ---- prune: native turbo prune produces a minimal monorepo subset for blog ----
 FROM base AS prune
 COPY . .
-RUN pnpm dlx turbo@2.11.3 prune blog --docker
+RUN pnpm dlx turbo@2.11.6 prune blog --docker
 # -> /app/out/json  (package.json skeletons + pruned pnpm-lock.yaml + workspace file)
 # -> /app/out/full  (pruned source for blog + @mumak/ui and its deps)
 
