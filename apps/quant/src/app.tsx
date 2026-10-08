@@ -20,6 +20,7 @@ import { ToastProvider, useToast } from '@/components/toaster';
 import { useDashboardController } from '@/hooks/use-dashboard-controller';
 import type { DashboardClient } from '@/lib/dashboard-client';
 import type { DashboardMode } from '@/lib/dashboard-schema';
+import { episodeDisplayLabel } from '@/lib/episode-display';
 
 function AppHeader() {
   return (
@@ -179,7 +180,9 @@ function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDas
     <div className="grid gap-4 border border-border bg-card p-4 xl:grid-cols-[minmax(0,1fr)_minmax(28rem,auto)] xl:items-end sm:p-5">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">{snapshot?.label}</h2>
+          <h2 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">
+            {snapshot ? episodeDisplayLabel(snapshot) : null}
+          </h2>
           {snapshot && (
             <span className="border border-border bg-muted px-2 py-1 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
               {snapshot.status === 'pending'
@@ -199,10 +202,10 @@ function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDas
           </p>
         )}
       </div>
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
-        <div className="col-span-2 grid min-w-0 gap-1.5 text-xs text-muted-foreground sm:col-span-1">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+        <div className="grid min-w-0 gap-1.5 text-xs text-muted-foreground">
           <label htmlFor="episode-select">에피소드</label>
-          <Select value={controller.selectedEpisodeId ?? ''} onValueChange={controller.selectEpisode}>
+          <Select value={controller.selectedEpisodeKey ?? ''} onValueChange={controller.selectEpisode}>
             <SelectTrigger
               id="episode-select"
               aria-label="에피소드"
@@ -213,29 +216,8 @@ function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDas
             <SelectContent position="popper" className="max-w-[calc(100vw-2rem)]">
               <SelectGroup>
                 {controller.episodes.map(episode => (
-                  <SelectItem key={episode.id} value={episode.id} className="whitespace-normal break-words">
+                  <SelectItem key={episode.key} value={episode.key} className="whitespace-normal break-words">
                     {episode.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid min-w-0 gap-1.5 text-xs text-muted-foreground">
-          <label htmlFor="month-select">조회 월</label>
-          <Select value={controller.selectedMonth ?? ''} onValueChange={controller.selectMonth}>
-            <SelectTrigger
-              id="month-select"
-              aria-label="조회 월"
-              className="min-h-11 w-full rounded-none text-left data-[size=default]:h-auto"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" className="max-w-[calc(100vw-2rem)]">
-              <SelectGroup>
-                {controller.months.map(month => (
-                  <SelectItem key={month} value={month}>
-                    {month}
                   </SelectItem>
                 ))}
               </SelectGroup>
