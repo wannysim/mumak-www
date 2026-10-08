@@ -1,6 +1,6 @@
 {
   "name": "karaoke",
-  "version": "1.21.3",
+  "version": "1.22.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -34,7 +34,7 @@
     "@mumak/ui": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "driver.js": "1.8.0",
-    "lucide-react": "^1.41.0",
+    "lucide-react": "^1.49.0",
     "qr-scanner": "1.4.2",
     "qrcode-generator": "^2.0.4",
     "react": "^19.3.0",
@@ -43,20 +43,20 @@
   "devDependencies": {
     "@mumak/playwright-config": "workspace:*",
     "@mumak/typescript-config": "workspace:*",
-    "@playwright/test": "1.61.0",
+    "@playwright/test": "1.63.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^26.1.1",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
-    "@vitest/coverage-v8": "^5.0.1",
-    "@vitest/ui": "^5.0.1",
+    "@vitest/coverage-v8": "^5.0.3",
+    "@vitest/ui": "^5.0.3",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
     "typescript": "~7.0.2",
-    "vite": "^8.3.0",
-    "vitest": "^5.0.1"
+    "vite": "^8.3.1",
+    "vitest": "^5.0.3"
   }
 }

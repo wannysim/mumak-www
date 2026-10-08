@@ -21,7 +21,13 @@ const customJestConfig = {
     '^@mumak/ui/(.*)$': '<rootDir>/../../packages/ui/src/$1',
   },
   transformIgnorePatterns: ['/node_modules/(?!.*(?:next-intl|use-intl|@formatjs|marked))'],
-  testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/', '<rootDir>/e2e/'],
+  // __tests__/build/는 빌드 산출물(.next)을 검증하는 테스트라 `test:static`이 build 뒤에 따로 돌린다.
+  testPathIgnorePatterns: [
+    '<rootDir>/.next/',
+    '<rootDir>/node_modules/',
+    '<rootDir>/e2e/',
+    '<rootDir>/__tests__/build/',
+  ],
   testMatch: ['**/src/**/__tests__/**/*.test.[jt]s?(x)', '**/__tests__/**/*.test.[jt]s?(x)'],
   collectCoverageFrom: [
     'src/**/*.{js,jsx,ts,tsx}',

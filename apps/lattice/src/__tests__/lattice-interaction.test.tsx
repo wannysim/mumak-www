@@ -8,10 +8,12 @@ import { Lattice } from '../components/lattice';
 const mocks = vi.hoisted(() => ({
   detectForVideo: vi.fn(),
   close: vi.fn(),
+  forVisionTasks: vi.fn(async (_wasmUrl: string) => ({})),
 }));
 
+// lattice.tsx는 이 모듈을 init 안에서 동적 import한다. vi.mock은 동적 import에도 적용된다.
 vi.mock('@mediapipe/tasks-vision', () => ({
-  FilesetResolver: { forVisionTasks: vi.fn(async () => ({})) },
+  FilesetResolver: { forVisionTasks: mocks.forVisionTasks },
   HandLandmarker: {
     createFromOptions: vi.fn(async () => ({
       detectForVideo: mocks.detectForVideo,
@@ -168,6 +170,17 @@ async function renderReady() {
 
 const panes = () => document.querySelectorAll('[data-pane-id]');
 const paneEl = (id: number) => document.querySelector<HTMLElement>(`[data-pane-id="${id}"]`)!;
+
+describe('mediapipe loading', () => {
+  // 버전 없는 /wasm은 jsDelivr가 짧게 캐시하고, JS 번들과 다른 버전으로 어긋날 수 있다
+  it('should request the wasm runtime pinned to the installed package version', async () => {
+    await renderReady();
+    expect(mocks.forVisionTasks).toHaveBeenCalledWith(
+      `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${__MEDIAPIPE_TASKS_VISION_VERSION__}/wasm`
+    );
+    expect(__MEDIAPIPE_TASKS_VISION_VERSION__).toMatch(/^\d+\.\d+\.\d+/);
+  });
+});
 
 describe('hand gestures', () => {
   it('should spawn a pane when a chip is pinched and released elsewhere', async () => {

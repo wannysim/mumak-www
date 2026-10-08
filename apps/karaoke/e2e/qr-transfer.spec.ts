@@ -311,15 +311,12 @@ function syntheticLyrics(library: SongLibrary, linesPerSong: number): StoredLyri
   const pick = (list: readonly string[]) => list[Math.floor(random() * list.length)]!;
   return library.songs.map(song => ({
     slug: song.slug,
-    lyrics: Array.from(
-      { length: linesPerSong },
-      (_, index): LyricLine => ({
-        time: index * 2.5 + 1,
-        jp: `${pick(SYNTHETIC_JA)}${pick(SYNTHETIC_JA)} ${pick(SYNTHETIC_JA)}`,
-        pron: `${pick(SYNTHETIC_KO)} ${pick(SYNTHETIC_KO)}`,
-        ko: `${pick(SYNTHETIC_KO)} ${pick(SYNTHETIC_KO)}${pick(SYNTHETIC_KO)}`,
-      })
-    ),
+    lyrics: Array.from({ length: linesPerSong }, (_, index): LyricLine => ({
+      time: index * 2.5 + 1,
+      jp: `${pick(SYNTHETIC_JA)}${pick(SYNTHETIC_JA)} ${pick(SYNTHETIC_JA)}`,
+      pron: `${pick(SYNTHETIC_KO)} ${pick(SYNTHETIC_KO)}`,
+      ko: `${pick(SYNTHETIC_KO)} ${pick(SYNTHETIC_KO)}${pick(SYNTHETIC_KO)}`,
+    })),
   }));
 }
 

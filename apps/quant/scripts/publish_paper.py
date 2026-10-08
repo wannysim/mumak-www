@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from urllib.error import HTTPError, URLError
 from export_paper import export_snapshot, ExportError
+from export_carry_paper import export_carry_snapshot
 from public_snapshot import is_public_snapshot
 
 class PublishError(ValueError):
@@ -84,14 +85,26 @@ def publish(snapshot, url, key, transport=request_json):
     return 'verified'
 
 
+def build_snapshot(ledger, policy, episode_id, *, source_ledger=None, source_policy=None):
+    if bool(source_ledger) != bool(source_policy):
+        raise PublishError('Both source ledger and source policy are required for a carry')
+    if source_ledger:
+        return export_carry_snapshot(ledger, policy, source_ledger, source_policy,
+                                     episode_id=episode_id)
+    return export_snapshot(ledger, policy, episode_id=episode_id)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ledger', required=True)
     parser.add_argument('--policy', required=True)
     parser.add_argument('--episode-id', required=True)
+    parser.add_argument('--source-ledger')
+    parser.add_argument('--source-policy')
     args = parser.parse_args()
     try:
-        snapshot = export_snapshot(args.ledger, args.policy, episode_id=args.episode_id)
+        snapshot = build_snapshot(args.ledger, args.policy, args.episode_id,
+                                  source_ledger=args.source_ledger, source_policy=args.source_policy)
         status = publish(snapshot, os.environ.get('SUPABASE_URL', ''),
                          os.environ.get('SUPABASE_SERVICE_ROLE_KEY', ''))
         print(json.dumps({'status': status, 'mode': 'paper', 'month': snapshot['month'],

@@ -1,6 +1,6 @@
 {
   "name": "mumak-www",
-  "version": "1.21.3",
+  "version": "1.22.0",
   "private": true,
   "scripts": {
     "build": "turbo run build",
@@ -19,7 +19,7 @@
     "check-types": "turbo run check-types",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
-    "test:ci": "turbo run test:ci",
+    "test:ci": "turbo run test:ci test:static",
     "test:e2e": "turbo run test:e2e",
     "knip": "knip",
     "turbo:dry": "turbo run build test --dry-run",
@@ -36,15 +36,15 @@
     "doctor": "pnpm dlx react-doctor@latest"
   },
   "devDependencies": {
-    "@playwright/test": "1.61.0",
-    "eslint-plugin-turbo": "^2.11.3",
+    "@playwright/test": "1.63.0",
+    "eslint-plugin-turbo": "^2.11.6",
     "husky": "^9.1.7",
-    "knip": "^6.29.0",
-    "lint-staged": "^17.2.0",
-    "oxfmt": "^0.60.0",
-    "oxlint": "^1.76.0",
-    "portless": "^0.15.4",
-    "turbo": "^2.11.3",
+    "knip": "^6.39.0",
+    "lint-staged": "^17.6.0",
+    "oxfmt": "^0.71.0",
+    "oxlint": "^1.86.0",
+    "portless": "^0.15.6",
+    "turbo": "^2.11.6",
     "typescript": "^7.0.2",
     "typescript-go": "npm:typescript@7.0.2"
   },
@@ -60,7 +60,7 @@
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.5.1",
+      "version": "12.8.1",
       "onFail": "warn"
     }
   },

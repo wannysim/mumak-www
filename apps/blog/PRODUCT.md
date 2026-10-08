@@ -44,7 +44,7 @@ Wan Sim의 개인 블로그 + 디지털 가든 (wannysim.com). 성공의 기준 
 - 스타일: Tailwind CSS v4 + `@mumak/ui`(shadcn/ui 기반 공유 패키지).
 - 접근성 기반 selector로 테스트(Jest + Playwright). E2E는 standalone 빌드 기준.
 - 새 콘텐츠 타입·페이지 추가 시 ko/en 페어리티와 wikilink 무결성 검증을 통과해야 한다.
-- 블로그 카테고리 `notes`의 표시 라벨은 "단상 / Thoughts"다. 라우트 slug(`/blog/notes`)와 콘텐츠 폴더(`content/{ko,en}/notes`)는 그대로이며, "노트"라는 단어는 가든 노트만 가리킨다.
+- 블로그 카테고리 `notes`의 표시 라벨은 "짧은 글 / Thoughts"다. 라우트 slug(`/blog/notes`)와 콘텐츠 폴더(`content/{ko,en}/notes`)는 그대로이며, "노트"라는 단어는 가든 노트만 가리킨다.
 
 ## Brand Commitments
 

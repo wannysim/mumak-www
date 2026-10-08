@@ -14,9 +14,10 @@
  *  - 콘텐츠 페이지가 동적으로 새면 manifest에서 통째로 사라지므로, presence 검사만으로
  *    회귀가 잡힌다(헤더 추론이 아니라 빌드가 내린 결정을 그대로 단언).
  *
- * 실행 전제: CI는 turbo `test:ci`의 `dependsOn: ["build"]`에 따라 build를 선행하므로
- * manifest가 항상 존재한다. 로컬에서 빌드 없이 raw jest를 돌리면 manifest가 없어 skip된다
- * (경고 출력). CI(`CI=true`)에서 manifest가 없으면 빌드 파이프라인 문제이므로 hard fail.
+ * 실행 전제: 빌드 산출물이 필요해서 일반 단위 테스트(`test:ci`)에서는 빠지고(jest.config
+ * testPathIgnorePatterns), turbo `blog#test:static`(`dependsOn: ["build"]`)으로 build 뒤에 돈다.
+ * 덕분에 `test:ci`는 build를 기다리지 않고 병렬로 돈다. 로컬에서 빌드 없이 돌리면 manifest가 없어
+ * skip된다(경고 출력). CI(`CI=true`)에서 manifest가 없으면 빌드 파이프라인 문제이므로 hard fail.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -30,14 +31,14 @@ const manifestPath = path.join(__dirname, '..', '..', '.next', 'prerender-manife
 const manifestExists = existsSync(manifestPath);
 
 if (!manifestExists && process.env.CI === 'true') {
-  throw new Error(`[static-rendering] ${manifestPath} 가 없습니다. CI는 test:ci 이전에 build를 실행해야 합니다.`);
+  throw new Error(`[static-rendering] ${manifestPath} 가 없습니다. CI는 test:static 이전에 build를 실행해야 합니다.`);
 }
 
 if (!manifestExists) {
   // eslint-disable-next-line no-console
   console.warn(
     '[static-rendering] .next/prerender-manifest.json 없음 — 빌드 산출물이 있어야 검증됩니다.\n' +
-      '  `pnpm --filter blog build` 후 재실행하세요. (CI는 build를 선행하므로 항상 검증됩니다)'
+      '  `pnpm --filter blog build` 후 재실행하세요. (CI는 test:static에서 build를 선행하므로 항상 검증됩니다)'
   );
 }
 

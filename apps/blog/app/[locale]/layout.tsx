@@ -19,9 +19,10 @@ import { ThemeMetaSyncScript, ThemeProvider } from '@/src/shared/lib/theme';
 // 루트 app/layout.tsx에서 getLocale()(headers 폴백)로 locale을 읽으면 앱 전체가
 // 동적 렌더링으로 강제되므로, setRequestLocale 스코프 안의 이 레이아웃으로 내려
 // 콘텐츠 페이지가 정적으로 prerender되게 한다.
-// 본문 폰트는 Pretendard Variable의 서브셋이다(Latin + 전체 현대 한글 + 공통 구두점,
-// wght 400~700). 원본(2.1MB, 전 축 + 한자/다국어)은 fonts/PretendardVariable.source.woff2,
-// 재생성은 scripts/subset-body-font.sh 참조. 미포함 글리프(한자 등)는 fallback으로 대체된다.
+// 본문 폰트는 Pretendard Variable의 서브셋이다(Latin + KS X 1001 한글 2,350자 + 콘텐츠에
+// 쓰인 글자 + 공통 구두점, wght 400~700). 원본(2.1MB, 전 축 + 한자/다국어)은
+// fonts/PretendardVariable.source.woff2, 재생성은 scripts/subset-body-font.sh 참조.
+// 미포함 글리프(한자, KS X 1001 밖 한글 등)는 fallback으로 글리프 단위 대체된다.
 const pretendard = localFont({
   src: '../../fonts/PretendardVariableSubset.woff2',
   fallback: ['ui-sans-serif', 'system-ui', 'sans-serif'],

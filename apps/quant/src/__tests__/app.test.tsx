@@ -67,7 +67,7 @@ describe('Quant dashboard app', () => {
     client.session = { userId: 'owner-1' };
     vi.spyOn(client, 'signOut').mockRejectedValue(new Error('TEST_ONLY signout failure'));
     render(<App client={client} />);
-    await screen.findByRole('heading', { name: '테스트 운용 1기' });
+    await screen.findByRole('heading', { name: '2026-09 · 테스트 운용 1기' });
     await userEvent.click(screen.getByRole('tab', { name: '실운용' }));
     await screen.findByText('실운용 내역이 아직 없습니다.');
     await userEvent.click(screen.getByRole('button', { name: '로그아웃' }));
@@ -79,7 +79,7 @@ describe('Quant dashboard app', () => {
     const client = new AppTestClient();
     vi.spyOn(client, 'getSession').mockRejectedValue(new Error('TEST_ONLY session error'));
     render(<App client={client} />);
-    await screen.findByRole('heading', { name: '테스트 운용 1기' });
+    await screen.findByRole('heading', { name: '2026-09 · 테스트 운용 1기' });
     await userEvent.click(screen.getByRole('tab', { name: '실운용' }));
     expect(await screen.findByRole('heading', { name: '실운용 내역 로그인' })).toBeInTheDocument();
     expect(client.requests).not.toContain('live');
@@ -89,7 +89,7 @@ describe('Quant dashboard app', () => {
     render(<App client={new AppTestClient()} />);
 
     expect(screen.getByRole('heading', { level: 1, name: '퀀트 대시보드' })).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { level: 2, name: '테스트 운용 1기' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: '2026-09 · 테스트 운용 1기' })).toBeInTheDocument();
     expect(screen.getByText(/운용 시작월 · 부분 월/)).toBeInTheDocument();
     expect(await screen.findByRole('status', { name: '선택 시점 성과' })).toHaveTextContent('$101,250.50');
     expect(screen.getByRole('img', { name: /NAV 및 수익률 추이/ })).toBeInTheDocument();
@@ -99,27 +99,29 @@ describe('Quant dashboard app', () => {
     expect(screen.getByText(/^데이터 기준 시각 /)).toBeInTheDocument();
   });
 
-  it('renders the selected month from the same episode', async () => {
+  it('selects each month in one episode control without changing historical rows', async () => {
     const client = new AppTestClient();
     client.snapshots.paper = [
-      paperSnapshot({ label: '9월 기록' }),
+      paperSnapshot({ episodeId: 'shared-id', label: '미국 주식 저빈도 추세 모의운용' }),
       paperSnapshot({
-        month: '2026-08',
-        label: '8월 기록',
-        asOf: '2026-08-31T05:30:00.000Z',
+        episodeId: 'shared-id',
+        month: '2026-10',
+        label: '2026년 10월 · 미국 주식 저빈도 추세 모의운용',
+        asOf: '2026-10-07T20:15:50.000Z',
         baselineKind: 'month-start',
-        summary: { ...TEST_ONLY_PAPER_PAYLOAD.summary, currentNav: '99000.00', profit: '-1000.00' },
+        summary: { ...TEST_ONLY_PAPER_PAYLOAD.summary, currentNav: '102516.99', profit: '2127.41' },
       }),
     ];
     render(<App client={client} />);
-    await screen.findByRole('heading', { level: 2, name: '9월 기록' });
-
-    await userEvent.click(screen.getByRole('combobox', { name: '조회 월' }));
-    await userEvent.click(screen.getByRole('option', { name: '2026-08' }));
-
-    expect(screen.getByRole('heading', { level: 2, name: '8월 기록' })).toBeInTheDocument();
-    expect(screen.getByText(/월초 기준 · 전체 월/)).toBeInTheDocument();
-    expect(screen.getByText('$99,000.00')).toBeInTheDocument();
+    await screen.findByRole('heading', { level: 2, name: '2026-10 · 미국 주식 저빈도 추세 모의운용' });
+    expect(screen.queryByRole('combobox', { name: '조회 월' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('combobox', { name: '에피소드' }));
+    expect(screen.getByRole('option', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('option', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' }));
+    expect(
+      screen.getByRole('heading', { level: 2, name: '2026-09 · 미국 주식 저빈도 추세 모의운용' })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/운용 시작월 · 부분 월/)).toBeInTheDocument();
   });
 
   it('uses the same dashboard sections when switching between paper strategies', async () => {
@@ -150,15 +152,15 @@ describe('Quant dashboard app', () => {
       }),
     ];
     render(<App client={client} />);
-    await screen.findByRole('heading', { name: '미국 주식 장중 15분 ORB 모의운용 · 시작 대기' });
+    await screen.findByRole('heading', { name: '2026-09 · 미국 주식 장중 15분 ORB 모의운용 · 시작 대기' });
     expect(screen.getByRole('heading', { name: '성과 추이' })).toBeInTheDocument();
     expect(screen.getByText('보유 종목이 없습니다.')).toBeInTheDocument();
     expect(screen.getByText('최근 체결이 없습니다.')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('combobox', { name: '에피소드' }));
-    await userEvent.click(screen.getByRole('option', { name: '미국 주식 저빈도 추세 모의운용' }));
+    await userEvent.click(screen.getByRole('option', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' }));
 
-    expect(screen.getByRole('heading', { name: '미국 주식 저빈도 추세 모의운용' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '보유 종목' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '최근 체결' })).toBeInTheDocument();
     expect(screen.getAllByText('TEST').length).toBeGreaterThanOrEqual(2);
@@ -167,7 +169,7 @@ describe('Quant dashboard app', () => {
   it('shows a generic magic-link result and never requests live data while anonymous', async () => {
     const client = new AppTestClient();
     render(<App client={client} />);
-    await screen.findByRole('heading', { level: 2, name: '테스트 운용 1기' });
+    await screen.findByRole('heading', { level: 2, name: '2026-09 · 테스트 운용 1기' });
 
     await userEvent.click(screen.getByRole('tab', { name: '실운용' }));
     await userEvent.type(screen.getByRole('textbox', { name: '이메일' }), 'owner@example.test');
@@ -186,7 +188,7 @@ describe('Quant dashboard app', () => {
     const client = new AppTestClient();
     client.session = { userId: 'owner-1' };
     render(<App client={client} />);
-    await screen.findByRole('heading', { level: 2, name: '테스트 운용 1기' });
+    await screen.findByRole('heading', { level: 2, name: '2026-09 · 테스트 운용 1기' });
 
     await userEvent.click(screen.getByRole('tab', { name: '실운용' }));
 
@@ -207,7 +209,7 @@ describe('Quant dashboard app', () => {
     client.snapshots.paper = [paperSnapshot({ history: [], holdings: [], fills: [], notes: [] })];
     render(<App client={client} />);
 
-    await screen.findByRole('heading', { level: 2, name: '테스트 운용 1기' });
+    await screen.findByRole('heading', { level: 2, name: '2026-09 · 테스트 운용 1기' });
 
     expect(screen.getByText('표시할 시계열이 없습니다.')).toBeInTheDocument();
     expect(screen.getByText('보유 종목이 없습니다.')).toBeInTheDocument();

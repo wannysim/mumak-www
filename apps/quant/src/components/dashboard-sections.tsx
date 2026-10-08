@@ -14,9 +14,12 @@ import { CHART_RANGES, type ChartRange } from '@/lib/history-windows';
 
 // recharts는 이 차트에서만 쓰이는데 엔트리 청크의 큰 부분을 차지한다.
 // 별도 청크로 분리해 첫 화면(요약·보유·체결)이 먼저 그려지게 한다.
-const PerformanceChart = lazy(() =>
-  import('@/components/performance-chart').then(module => ({ default: module.PerformanceChart }))
-);
+// 다만 차트는 첫 화면에 보이므로, 렌더 시점(데이터 도착 후)이 아니라 모듈 평가 시점에
+// 다운로드를 시작해 Supabase 요청과 병렬로 받는다. lazy는 같은 promise를 재사용한다.
+const performanceChartModule = import('@/components/performance-chart');
+// 실패는 lazy가 렌더 시점에 다시 던진다. 그 전에 unhandledrejection으로 새지 않게만 막는다.
+performanceChartModule.catch(() => {});
+const PerformanceChart = lazy(() => performanceChartModule.then(module => ({ default: module.PerformanceChart })));
 
 function Panel({ className = '', ...props }: React.ComponentProps<'section'>) {
   return <section className={`border border-border bg-card ${className}`} {...props} />;

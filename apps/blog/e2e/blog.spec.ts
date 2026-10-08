@@ -15,7 +15,7 @@ test.describe('Blog - Category and Post Pages', () => {
       await expect(page.getByRole('link', { name: '전체' })).toBeVisible();
       await expect(page.getByRole('link', { name: '에세이' })).toBeVisible();
       await expect(page.getByRole('link', { name: '아티클' })).toBeVisible();
-      await expect(page.getByRole('link', { name: '단상' })).toBeVisible();
+      await expect(page.getByRole('link', { name: '짧은 글' })).toBeVisible();
     });
   });
 
@@ -37,7 +37,7 @@ test.describe('Blog - Category and Post Pages', () => {
     test('should display notes category page', async ({ page }) => {
       await page.goto('/ko/blog/notes');
 
-      await expect(page.getByRole('heading', { level: 1, name: '단상' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 1, name: '짧은 글' })).toBeVisible();
       await expect(page.getByText('짧은 생각')).toBeVisible();
     });
 

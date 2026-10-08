@@ -47,7 +47,9 @@ async function mockSnapshots(page: Page, withReason = true, expanded = false) {
   });
   await page.goto('/');
   await expect(
-    page.getByRole('heading', { name: expanded ? '미국 주식 저빈도 추세 모의 운용 에피소드' : '테스트 운용 1기' })
+    page.getByRole('heading', {
+      name: expanded ? '2026-09 · 미국 주식 저빈도 추세 모의 운용 에피소드' : '2026-09 · 테스트 운용 1기',
+    })
   ).toBeVisible();
 }
 
@@ -180,16 +182,18 @@ test('two paper strategies share the episode selector and dashboard sections', a
   });
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: '미국 주식 장중 15분 ORB 모의운용 · 시작 대기' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: '2026-09 · 미국 주식 장중 15분 ORB 모의운용 · 시작 대기' })
+  ).toBeVisible();
   await expect(page.getByText('시작 대기', { exact: true })).toBeVisible();
   await expect(page.getByText('운용 중', { exact: true })).toHaveCount(0);
   await expect(page.getByText('보유 종목이 없습니다.')).toBeVisible();
   await expect(page.getByText('최근 체결이 없습니다.')).toBeVisible();
   const episode = page.getByRole('combobox', { name: '에피소드' });
   await episode.click();
-  await page.getByRole('option', { name: '미국 주식 저빈도 추세 모의운용' }).click();
+  await page.getByRole('option', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' }).click();
 
-  await expect(page.getByRole('heading', { name: '미국 주식 저빈도 추세 모의운용' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '성과 추이' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '보유 종목' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '최근 체결' })).toBeVisible();
@@ -254,17 +258,18 @@ for (const width of [320, 390, 768, 1440]) {
     await mockSnapshots(page, true, true);
     const episode = page.getByRole('combobox', { name: '에피소드' });
     await expect(episode).toContainText('미국 주식 저빈도 추세 모의 운용 에피소드');
-    const monthBox = await page.getByRole('combobox', { name: '조회 월' }).boundingBox();
+    expect(await page.getByRole('combobox', { name: '조회 월' }).count()).toBe(0);
     const refreshBox = await page.getByRole('button', { name: '새로고침' }).boundingBox();
     const episodeBox = await episode.boundingBox();
-    expect(Math.abs(monthBox!.y - refreshBox!.y)).toBeLessThan(2);
-    if (width < 640) expect(monthBox!.y).toBeGreaterThan(episodeBox!.y + episodeBox!.height);
+    expect(Math.abs(episodeBox!.y + episodeBox!.height - refreshBox!.y - refreshBox!.height)).toBeLessThan(2);
     expect(await episode.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     const value = episode.locator('[data-slot="select-value"]');
     expect(await value.evaluate(el => getComputedStyle(el).webkitLineClamp)).toBe('none');
     expect(await value.evaluate(el => el.scrollHeight <= el.clientHeight)).toBe(true);
     await episode.click();
-    await expect(page.getByRole('option', { name: '미국 주식 저빈도 추세 모의 운용 에피소드' })).toBeVisible();
+    await expect(
+      page.getByRole('option', { name: '2026-09 · 미국 주식 저빈도 추세 모의 운용 에피소드' })
+    ).toBeVisible();
     await page.keyboard.press('Escape');
 
     const chartPanel = page.locator('section').filter({ has: page.getByRole('heading', { name: '성과 추이' }) });
@@ -361,7 +366,7 @@ test.describe('unlisted browser time zone', () => {
   });
 });
 
-test('month picker uses the shared menu and loads the selected month', async ({ page }) => {
+test('episode picker loads another month without a second selector', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const previous = structuredClone(TEST_ONLY_PAPER_ROW);
   const august = {
@@ -378,18 +383,19 @@ test('month picker uses the shared menu and loads the selected month', async ({ 
     }
   });
   await page.goto('/');
-  const month = page.getByRole('combobox', { name: '조회 월' });
-  await expect(month).toContainText('2026-09');
-  await month.click();
-  await page.getByRole('option', { name: '2026-08' }).click();
-  await expect(month).toContainText('2026-08');
-  await expect(page.getByRole('heading', { name: '8월 운용 내역' })).toBeVisible();
-  await expect(month).toBeFocused();
-  await month.press('Enter');
+  const episode = page.getByRole('combobox', { name: '에피소드' });
+  await expect(episode).toContainText('2026-09');
+  await expect(page.getByRole('combobox', { name: '조회 월' })).toHaveCount(0);
+  await episode.click();
+  await page.getByRole('option', { name: '2026-08 · 8월 운용 내역' }).click();
+  await expect(episode).toContainText('2026-08');
+  await expect(page.getByRole('heading', { name: '2026-08 · 8월 운용 내역' })).toBeVisible();
+  await expect(episode).toBeFocused();
+  await episode.press('Enter');
   await expect(page.getByRole('listbox')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('listbox')).toHaveCount(0);
-  await expect(month).toBeFocused();
+  await expect(episode).toBeFocused();
 });
 
 test('serves the favicon declared in the document head', async ({ page, request }) => {
@@ -475,7 +481,7 @@ async function mockAllocationSnapshot(page: Page, symbolCount: number) {
     }
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '테스트 운용 1기' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '2026-09 · 테스트 운용 1기' })).toBeVisible();
 }
 
 test('holding weights are readable as text and every slice keeps a resolved color', async ({ page }) => {
@@ -563,7 +569,7 @@ async function mockRefreshOutcome(page: Page) {
     }
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '테스트 운용 1기' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '2026-09 · 테스트 운용 1기' })).toBeVisible();
   return state;
 }
 

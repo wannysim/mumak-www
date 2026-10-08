@@ -6,9 +6,14 @@ import { parseSnapshotPayload } from '@/lib/dashboard-schema';
 
 import { TEST_ONLY_PAPER_PAYLOAD } from './fixtures/test-snapshot';
 
-vi.mock('@/components/performance-chart', () => ({
-  PerformanceChart: ({ range }: { range?: string }) => <p data-testid="chart-range">{range}</p>,
-}));
+const chartModule = vi.hoisted(() => ({ evaluations: 0 }));
+
+vi.mock('@/components/performance-chart', () => {
+  chartModule.evaluations += 1;
+  return {
+    PerformanceChart: ({ range }: { range?: string }) => <p data-testid="chart-range">{range}</p>,
+  };
+});
 
 function snapshot() {
   const data = parseSnapshotPayload(structuredClone(TEST_ONLY_PAPER_PAYLOAD));
@@ -18,6 +23,11 @@ function snapshot() {
   data.history = [];
   return data;
 }
+
+// 렌더 테스트보다 먼저 둔다. 차트를 한 번이라도 렌더하면 이 검증이 무의미해진다.
+it('starts loading the chart chunk at module evaluation, before the chart renders', async () => {
+  await vi.waitFor(() => expect(chartModule.evaluations).toBe(1));
+});
 
 it('opens the recorded decision reason by click and closes with Escape', async () => {
   const user = userEvent.setup();
