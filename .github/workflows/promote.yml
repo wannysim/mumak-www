@@ -116,15 +116,17 @@ jobs:
 
           ready=1
           failed=0
-          # --branch를 걸지 않는다: develop/main 어느 쪽의 push run이든 commit으로 특정된다
-          # (PR run은 head SHA가 달라서 이 필터에 안 걸린다).
+          # PR head가 main merge SHA와 같을 수도 있다(릴리스 back-sync).
+          # 그 PR run이 취소되면 최신 completed run만 고르는 방식은 main push의
+          # 성공한 CI/E2E를 가려 production promotion을 잘못 차단한다.
+          # 검증 대상은 같은 SHA의 보호 브랜치 push run으로 제한한다.
           for wf in "CI" "E2E Tests"; do
             conclusion=$(gh run list \
               --repo "${{ github.repository }}" \
               --workflow "$wf" \
               --commit "$SHA" \
-              --json conclusion,status \
-              --jq 'map(select(.status=="completed")) | .[0].conclusion // "pending"')
+              --json conclusion,status,event,headBranch \
+              --jq 'map(select(.event=="push" and (.headBranch=="develop" or .headBranch=="main") and .status=="completed")) | .[0].conclusion // "pending"')
             conclusion=${conclusion:-pending}
             echo "$wf => $conclusion"
             if [ "$conclusion" = "success" ]; then
