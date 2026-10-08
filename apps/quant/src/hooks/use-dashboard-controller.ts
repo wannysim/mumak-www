@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AuthSession, DashboardClient } from '@/lib/dashboard-client';
 import type { DashboardMode, DashboardSnapshot } from '@/lib/dashboard-schema';
+import { episodeDisplayLabel, episodeKey } from '@/lib/episode-display';
 
 type DataStatus = 'idle' | 'loading' | 'ready' | 'empty' | 'error';
 type AuthStatus = 'loading' | 'anonymous' | 'authenticated';
@@ -208,21 +209,15 @@ function useDashboardController(client: DashboardClient) {
   );
 
   const selectEpisode = useCallback(
-    (episodeId: string) => {
-      const snapshots = dataByMode[mode].snapshots.filter(snapshot => snapshot.episodeId === episodeId);
+    (key: string) => {
+      const snapshot = dataByMode[mode].snapshots.find(item => episodeKey(item) === key);
+      if (!snapshot) return;
       setSelectionByMode(current => ({
         ...current,
-        [mode]: { episodeId, month: snapshots[0]?.month ?? null },
+        [mode]: { episodeId: snapshot.episodeId, month: snapshot.month },
       }));
     },
     [dataByMode, mode]
-  );
-
-  const selectMonth = useCallback(
-    (month: string) => {
-      setSelectionByMode(current => ({ ...current, [mode]: { ...current[mode], month } }));
-    },
-    [mode]
   );
 
   const signOut = useCallback(async () => {
@@ -234,16 +229,9 @@ function useDashboardController(client: DashboardClient) {
 
   const selection = selectionByMode[mode];
   const data = dataByMode[mode];
-  const episodes = useMemo(() => {
-    const labelByEpisodeId = new Map<string, string>();
-    for (const snapshot of data.snapshots) {
-      if (!labelByEpisodeId.has(snapshot.episodeId)) labelByEpisodeId.set(snapshot.episodeId, snapshot.label);
-    }
-    return Array.from(labelByEpisodeId, ([id, label]) => ({ id, label }));
-  }, [data.snapshots]);
-  const months = useMemo(
-    () => data.snapshots.filter(snapshot => snapshot.episodeId === selection.episodeId).map(snapshot => snapshot.month),
-    [data.snapshots, selection.episodeId]
+  const episodes = useMemo(
+    () => data.snapshots.map(snapshot => ({ key: episodeKey(snapshot), label: episodeDisplayLabel(snapshot) })),
+    [data.snapshots]
   );
   const selectedSnapshot =
     data.snapshots.find(snapshot => snapshot.episodeId === selection.episodeId && snapshot.month === selection.month) ??
@@ -255,13 +243,10 @@ function useDashboardController(client: DashboardClient) {
     authStatus,
     data,
     episodes,
-    months,
-    selectedEpisodeId: selection.episodeId,
-    selectedMonth: selection.month,
+    selectedEpisodeKey: selectedSnapshot ? episodeKey(selectedSnapshot) : null,
     selectedSnapshot,
     selectMode,
     selectEpisode,
-    selectMonth,
     refresh: () => loadSnapshots(mode),
     requestMagicLink: (email: string) => client.requestMagicLink(email),
     signOut,

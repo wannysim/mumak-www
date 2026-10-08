@@ -78,11 +78,14 @@ function ControllerHarness({ client }: { client: DashboardClient }) {
       <output aria-label="상태">{controller.data.status}</output>
       <output aria-label="라벨">{controller.selectedSnapshot?.label ?? '없음'}</output>
       <label>
-        월
-        <select value={controller.selectedMonth ?? ''} onChange={event => controller.selectMonth(event.target.value)}>
-          {controller.months.map(month => (
-            <option key={month} value={month}>
-              {month}
+        에피소드
+        <select
+          value={controller.selectedEpisodeKey ?? ''}
+          onChange={event => controller.selectEpisode(event.target.value)}
+        >
+          {controller.episodes.map(episode => (
+            <option key={episode.key} value={episode.key}>
+              {episode.label}
             </option>
           ))}
         </select>
@@ -166,7 +169,7 @@ describe('useDashboardController', () => {
     expect(client.requests.filter(mode => mode === 'live')).toEqual(['live']);
   });
 
-  it('switches the selected month without mixing episodes', async () => {
+  it('switches episode-month pairs without mixing strategies', async () => {
     const client = new FakeDashboardClient();
     client.fetchImplementation = async () => [
       snapshot({ month: '2026-09', label: '9월 스냅샷' }),
@@ -176,9 +179,15 @@ describe('useDashboardController', () => {
     render(<ControllerHarness client={client} />);
     await screen.findByText('9월 스냅샷');
 
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: '월' }), '2026-08');
-
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: '에피소드' }),
+      screen.getByRole('option', { name: '2026-08 · 8월 스냅샷' })
+    );
     expect(screen.getByLabelText('라벨')).toHaveTextContent('8월 스냅샷');
-    expect(screen.queryByRole('option', { name: '2026-07' })).not.toBeInTheDocument();
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: '에피소드' }),
+      screen.getByRole('option', { name: '2026-07 · 이전 에피소드' })
+    );
+    expect(screen.getByLabelText('라벨')).toHaveTextContent('이전 에피소드');
   });
 });
