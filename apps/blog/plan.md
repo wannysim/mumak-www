@@ -8,9 +8,9 @@
 
 > **2026-10-15 우선순위 변경:** 사용자 요청으로 사진전 중심의 홈 개편을 보류하고 Design Engineer 학습과 디자인시스템 구축 연습을 재개한다. 아래 홈 방향은 과거 기록이며 현재 구현 요구사항이 아니다. 기존 `Button`·`ContentCard`와 token·상태·접근성 계약을 학습 대상으로 삼을 수 있으며, 사진전 구체화와 관련 설명 녹화는 이번 학습의 선행 조건에서 제외한다. 다음 실습 제안과 진행 방식은 `docs/design-system/NEXT.md`에서 관리한다. 기존 미완 체크박스는 완료로 바꾸지 않는다.
 
-> **같은 날 도구 선택(D-012):** 사용자는 Figma 파일이 없으며 Storybook을 학습 공간으로 만들자고 제안했다. 기존 비교 환경을 시작 안내·포커스 규칙·Button/ContentCard Controls 실습으로 확장한다. 아래 Figma 관련 항목은 후속으로 보류하며 현재 학습의 선행 조건이 아니다. Figma 역량을 완료한 것으로 대체하지 않는다.
+> **같은 날 도구 선택(D-012·D-013):** 사용자는 Figma 파일이 없으며 Storybook을 학습 공간으로 만들자고 제안했다. 시작 안내·포커스 규칙·Button/ContentCard Controls와 전역 테마 전환을 구현·검증했다. 아래 Figma 관련 항목은 후속으로 보류하며 현재 학습의 선행 조건이 아니다. Figma 역량을 완료한 것으로 대체하지 않는다.
 
-목표는 **홈에서 심완이라는 사람에게 호기심을 느끼고, 관심 가는 소재를 구경하다 글·Garden·작업·다른 활동으로 자발적으로 이어지는 경험**을 만드는 것이다. 이 경험의 대표 흐름 하나를 대상으로 디자인 판단, Figma, 토큰, React 구현, 접근성, 시각 회귀, 문서와 마이그레이션을 끝까지 연결한 사례를 만든다.
+현재 목표는 **실제 Button·ContentCard를 통해 사용자 문제, 디자인 판단, token, React 구현, 접근성 검증을 연결한 사례를 만드는 것**이다. Storybook을 관찰·비교 공간으로 사용한다. Figma, 시각 회귀, 지원 범위 확대는 아래 단계별 미완 항목으로 남는다.
 
 2026-09-18 본인 설명에 따라 홈의 목표를 구체화했다. 표현의 놀라움과 재미가 사람에 대한 관심으로 이어져야 한다. 기존의 “콘텐츠 탐색→읽기”는 그 뒤에 선택할 수 있는 경로다. `principles.md`의 시스템 필요성 설명에 근거를 기록했으며, 홈의 소재는 사진전·와인·음악·AI 토큰 사용량으로 좁혔다. 여행·현재 위치는 제외한다. 홈의 큰 사진 한 장으로 먼저 눈길을 끌고, 클릭하면 앞으로 만들 사진 전용 전시 페이지로 이동하는 흐름을 선택했다. 세부 레이아웃과 전시 내부의 상호작용은 아직 정하지 않았다. 아래 기존 지원 대상과 단계별 구현 순서는 사진 중심의 경험에 맞춰 적합성을 재평가한다.
 
@@ -44,7 +44,7 @@
 **`docs/design-system/NEXT.md`를 본다.** 액션 아이템의 단일 소재지다.
 이 절은 단계 단위 진행률만 다루고, 오늘 할 일은 그쪽에서 관리한다.
 
-단계 0에서 기계적으로 끝낼 수 있는 항목과 Q-001 \~ Q-004의 결정 기록, 본인 판단에 따른 원칙 4개 재작성과 시스템 필요성 설명은 닫혔다. Q-003과 Q-004의 후속 구현·실기기 및 가시성 검증, P-4의 본문 간격 비교는 완료를 뜻하지 않는다. 홈의 네 소재와 사진 중심의 첫인상은 정했다. 이후 만든 홈 로컬 시안은 본인 요청으로 모두 원복했다. 목적과 의사결정은 유지하고 시각 디자인은 재검토한다. 레퍼런스와 선호는 `docs/design-system/home-direction.md`에 남겼다. 사진·전시 연결·와인 및 AI 데이터 연동은 미완이며 단계 1 전체를 완료한 것은 아니다. 취향 나열이 자기 과시로 읽힐 수 있다는 첫 비평을 기록했으며, 전체 설명 녹화와 그에 대한 자기 비평은 남아 있다.
+단계 0의 기준선 조사와 Q-001 \~ Q-004 결정, 원칙 4개와 시스템 필요성 설명은 정리됐다. 단계 1에서는 독립 포커스 token·공통 outline을 제품에 적용하고 Storybook 학습 공간·전역 테마·회귀 검증을 구현했다. Q-004의 적용 범위는 Button·ContentCard이며 다른 component와 모든 배치를 완료한 것은 아니다. Q-003 구현, P-4 본문 간격 비교, motion·reduced-motion 등은 남는다. 사진전 중심 홈과 설명 녹화·자기 비평, Figma 대응은 보류하며 현재 학습의 선행 조건에서 제외한다. 단계 0·1 전체 완료를 선언하지 않는다. 당시 상세 진행은 `docs/design-system/history/2026-09-18-checkpoint.md`에 보존했다.
 
 ### 완료 기록
 
@@ -57,20 +57,20 @@
 - [x] **Q-001 — 카드 hover 제목 대비**: large-scale text 예외에 기대지 않고 `accent-foreground`를 선택했다. 검토 중 발견한 `GardenOverview`의 같은 결함도 함께 닫았다. 결정 근거와 되돌리는 조건은 `decision-log.md` D-007.
 - [x] **Q-002 — karaoke radius 차이**: 공유 component의 구현·동작 기반은 유지하고 접근성 요구사항은 공통 원칙으로 다루면서, 선형 모티브와 편집 도구·콘솔 같은 product theme를 위해 별도 radius를 유지한다. 검증되지 않은 읽기 효익은 근거에서 제외했고, wannysim 브랜드 범위가 확장되면 전체 시각 언어 기준으로 재검토한다. 결정은 `decision-log.md` D-008.
 - [x] **Q-003 — viewport 단위 계약**: 전체 화면 surface는 `dvh`, 자체 스크롤하는 보조 panel의 최대 높이는 안정성을 우선해 `svh`를 기본으로 한다. `post-toc`의 `vh` 교체와 상시 그래프 범례를 정보 버튼의 popover/bottom sheet로 바꾸는 구현은 단계 2로 넘겼다. 결정은 `decision-log.md` D-009.
-- [x] **Q-004 — 포커스 소유권 계약**: 공통 foundation이 전역 기본 표시를 제공하고, 가시성 보완이나 조작 범위 표현에 근거가 있는 자체 표시를 예외로 허용한다. foundation·preset을 Storybook으로 사전 검증하고 자동 a11y 검사에 실제 키보드·가시성 확인을 더한다. 결정은 `decision-log.md` D-010이며, 런타임 변경과 새 검증은 후속 단계에 남는다.
+- [x] **Q-004 — 포커스 소유권 계약**: 공통 foundation이 전역 기본 표시를 제공하고, 가시성 보완이나 조작 범위 표현에 근거가 있는 자체 표시를 예외로 허용한다(D-010). 2026-10-15 D-011에서 Button·ContentCard에 구현하고 Storybook 및 Blog/Garden 키보드·대비 검증을 추가했다. 다른 component·배치 검증은 후속이다.
 
 ### 단계 0에서 나온 것 중 다음 단계로 넘어간 항목
 
-| 항목                                               | 성격                                | 갈 곳       |
-| -------------------------------------------------- | ----------------------------------- | ----------- |
-| 기준선 light `--ring` 2.82:1                       | D-011 독립 값 수정·기본 배경 7.92:1 | 단계 1 적용 |
-| foundation·preset 포커스 검증과 자체 표시 계약     | D-010 구현·검증 대기                | 단계 1\~2   |
-| 본문 표면에 `motion-reduce` 없음                   | 반응 축소 미대응                    | 단계 1\~2   |
-| easing 4종 하드코딩, 공유 token 0개                | motion token 후보                   | 단계 1      |
-| `note-card` → `post-card/ui/post-tags` 깊은 import | FSD 규칙 위반                       | 단계 2      |
-| viewport 단위 계약과 그래프 범례 노출 방식         | D-009 구현 대기                     | 단계 2      |
-| `min-h-[50vh]` 3곳, 목록 empty 문구 2곳 복제       | 미추출 recipe                       | 단계 2      |
-| `SwitcherDropdown` 커버리지 33.33%                 | 테스트 공백                         | 단계 2      |
+| 항목                                               | 성격                                 | 갈 곳       |
+| -------------------------------------------------- | ------------------------------------ | ----------- |
+| 기준선 light `--ring` 2.82:1                       | D-011 독립 값 수정·기본 배경 7.92:1  | 단계 1 적용 |
+| foundation·preset 포커스 검증과 자체 표시 계약     | Button·ContentCard 적용, 나머지 후속 | 단계 1\~2   |
+| 본문 표면에 `motion-reduce` 없음                   | 반응 축소 미대응                     | 단계 1\~2   |
+| easing 4종 하드코딩, 공유 token 0개                | motion token 후보                    | 단계 1      |
+| `note-card` → `post-card/ui/post-tags` 깊은 import | FSD 규칙 위반                        | 단계 2      |
+| viewport 단위 계약과 그래프 범례 노출 방식         | D-009 구현 대기                      | 단계 2      |
+| `min-h-[50vh]` 3곳, 목록 empty 문구 2곳 복제       | 미추출 recipe                        | 단계 2      |
+| `SwitcherDropdown` 커버리지 33.33%                 | 테스트 공백                          | 단계 2      |
 
 ## 목차
 
@@ -441,22 +441,23 @@ MVP는 다음 한 흐름으로 제한한다.
 
 기간: 2주차.
 
-2026-09-18 목적 구체화에 따른 재평가: 구현 전에 사진 중심의 홈 탐색 흐름을 구체화하고, 아래 `Button`·`ContentCard` 범위가 그 경험을 검증하는 데 적합한지 확인한다. 기존 컴포넌트의 형태가 원하는 표현을 제한하지 않게 하되, 한 번에 모든 홈 소재를 구현하지는 않는다.
+2026-10-15 재개 범위: 사진전 홈을 보류하고 `Button`·`ContentCard`의 실제 문제를 Storybook에서 비교한다. D-011~D-013 구현은 완료했으며 아래 남은 검증·계약을 한 번에 확대하지 않는다.
 
 목표:
 
-- semantic color/radius/motion 하나의 변경이 Figma→코드→실제 화면→검증으로 이어지는 최소 흐름을 만든다.
-- 생성 패키지가 필요한지 작은 prototype으로 검증한다.
+- semantic color 하나의 선택이 Storybook 비교→코드→실제 화면→검증으로 이어지는 흐름을 만든다. 이후 필요에 따라 motion 등으로 확장한다.
+- 기존 CSS 변수를 원천으로 유지한다. 생성 패키지와 Figma 연결은 현재 필요가 없어 보류한다.
 
 작업:
 
 - [ ] 기존 CSS 변수와 대응하는 primitive/semantic/theme schema 초안을 만든다.
 - [ ] `Button`과 `ContentCard`의 anatomy, variants, states, accessibility를 표로 만든다.
-- [ ] Figma Variables와 두 component의 properties/state를 만든다.
-- [ ] Figma key와 코드 key의 대응표를 작성한다.
-- [ ] 기존 `packages/ui/src/styles/globals.css`를 깨지 않도록 alias 또는 prototype 경계를 정한다.
+- [ ] Figma Variables와 두 component의 properties/state를 만든다 — D-012에 따라 보류.
+- [ ] Figma key와 코드 key의 대응표를 작성한다 — D-012에 따라 보류.
+- [x] 기존 CSS 원천과 실습 경계를 정한다 — 독립 `--ring`, 실제 component·CSS를 읽는 Storybook. 별도 token 사본·생성 package 없음.
 - [ ] keyboard, focus-visible, disabled, loading, target size, reduced-motion을 검증한다.
-- [ ] D-010에 따라 공통 foundation과 지원 테마를 사용하는 최소 Storybook에서 `Button`·`ContentCard`의 preset·포커스 상태를 재현한다. 자동 a11y 검사와 실제 Tab 이동, 표시 대비·잘림·가림 확인을 결합하고 실제 소비 화면의 대표 배치도 확인한다.
+- [x] 공통 foundation을 사용하는 Storybook에서 `Button`·`ContentCard`의 상태·포커스·전역 테마를 재현한다. 실제 Tab 이동·표시 대비와 Blog/Garden 대표 배치를 검증했다. 세부 범위는 `focus-lab.md`·`storybook.md`에 기록했다.
+- [ ] 다른 component와 아직 확인하지 않은 배치의 표시·잘림·가림을 추가 검토한다.
 - [ ] light/dark × mobile/desktop의 최소 visual baseline 4개를 만든다.
 - [ ] 결정 3개와 기각 1개를 `decision-log.md`에 기록한다.
 
@@ -467,12 +468,12 @@ MVP는 다음 한 흐름으로 제한한다.
 - 출력 후보: `packages/design-tokens/dist/css/variables.css`, `dist/ts/tokens.ts`.
 - 아직 두 번째 소비자가 없으면 React Native output은 만들지 않고 key mapping fixture만 둔다.
 - 생성 유지비가 크면 package를 만들지 않고 `packages/ui/src/styles/globals.css`와 구조화된 TS mapping을 단일 원천으로 유지한다.
-- schema 포맷과 Storybook 여부를 정할 때 §5 "보류한 도구 후보"의 `DESIGN.md` 스펙과 `/labs` 갤러리를 같은 자리에서 판정한다.
+- Storybook은 D-012에서 선택·구현했다. schema 생성의 반복 이득이 생기면 §5의 보류 후보를 재평가한다.
 
 검증 기준:
 
 - semantic token 하나를 바꾸면 영향 화면을 예측하고 visual diff에서 확인한다.
-- Figma와 코드 이름·state가 대응표에서 1:1 또는 명시적 예외로 연결된다.
+- Storybook의 token 값·상태가 실제 코드와 연결된다. Figma 이름·state 대응은 재개 시 검증한다.
 - `Button`과 `ContentCard`가 keyboard로 사용 가능하고 focus가 식별된다.
 - 기존 build, unit, design validator에 회귀가 없다.
 
@@ -717,6 +718,8 @@ visual baseline 후보:
 - [x] 시스템 필요성을 사용자 경험 문제로 설명한다.
 
 ### 2주차 — 최소 수직 절편
+
+아래 요일별 목록은 최초 학습 일정의 체크포인트다. 2026-10-15 재개 이후의 구현 완료·보류 상태는 §8 단계 1과 상단 진행 현황을 우선하며, 당장 할 일은 `NEXT.md`를 따른다. Figma·생성 prototype 항목을 현재의 차단 조건으로 사용하지 않는다.
 
 월:
 
