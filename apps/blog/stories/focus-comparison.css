@@ -1,0 +1,19 @@
+/* Historical A only. B uses the real foundation and components, without overrides. */
+[data-focus-baseline] {
+  --ring: oklch(0.7 0.15 45);
+}
+
+.dark [data-focus-baseline] {
+  --ring: oklch(0.7 0.15 50);
+}
+
+[data-focus-baseline] [data-slot='button']:focus-visible {
+  outline-style: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+
+[data-focus-baseline] [data-slot='content-card']:has([data-slot='content-card-link']:focus-visible) {
+  outline-style: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}

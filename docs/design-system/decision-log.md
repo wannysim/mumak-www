@@ -175,6 +175,43 @@
 - 수용한 비용: 모든 소비 앱과 검증 환경이 공통 foundation을 가져와야 한다. 자체 표시의 이유와 검증 범위를 유지해야 하며, 자동 검사 밖의 가시성 확인과 Storybook 운영 비용도 발생한다.
 - 되돌리는 조건: 공통 foundation을 가져올 수 없는 웹 소비자를 지원해야 하거나, 이 계약을 적용한 뒤에도 표시 누락·override 충돌이 반복되어 키보드 위치 식별을 해치면 기본 표시의 소유 위치와 예외 범위를 재검토한다. foundation과 preset 검증으로 충분해진 자체 표시도 유지 근거를 다시 본다.
 
+## D-011. 포커스 비교에서 B를 기본안으로 선택한다
+
+- 상태: 채택·코드 적용 (2026-10-15). 사용자가 B와 독립 포커스 토큰을 선택했다. 배포는 별도다.
+- 문제: 사용자는 키보드로 이동할 때 색과 디자인이 매번 달라지면 현재 포커스를 새로 찾아야 한다고 설명했다. 같은 시각적 단서를 따라갈 수 있어야 한다.
+- 대안: A는 현재 버튼·카드의 서로 다른 ring, B는 버튼·카드·태그의 불투명 2px outline과 2px offset 및 테마별 공통 색이다. 실제 컴포넌트를 Storybook에서 비교했다.
+- 사용자 판단: 비교 화면을 본 뒤 “확실히 B 쪽이 더 나아”라고 답했다. B를 다음 구현의 기본안으로 선택한다. 어떤 변수의 기여가 가장 컸는지, 모든 테마·배경을 직접 확인했는지는 이 답변만으로 확정하지 않는다.
+- 근거와 한계: 사전 측정에서 B의 버튼 외곽선 대비는 지원한 네 배경에서 7.27:1 이상이었다. 사용자 한 명의 비교이며 일반적인 사용성 개선 수치로 해석하지 않는다. 기존 버튼 글자 대비와 reduced-motion 미해결 항목도 남는다.
+- token 결정: 사용자는 서로 다른 역할을 미리 공통화하는 것을 조기 추상화로 보고 분리를 선택했다. 기존 `--ring`을 독립적인 의미 토큰으로 유지하고 light `oklch(0.45 0.15 45)`, dark `oklch(0.85 0.12 50)`를 직접 정의한다. 현재 `--accent-foreground`와 값은 같지만 참조 관계는 없다. 새 token이나 공통 색상 원천은 만들지 않는다.
+- 대안과 비용: alias를 유지하면 색상 갱신 한 번으로 두 역할을 바꿀 수 있지만 텍스트 조정이 포커스 식별성까지 바꾼다. 독립 값은 브랜드 변경 때 각 역할의 적합성을 따로 검토해야 한다. 이번에는 사용 목적과 변경 이유가 다르므로 독립 검토 비용을 수용한다.
+- 구현: `Button`은 자체 반투명 ring과 destructive 포커스 override를 제거하고 전역 2px solid outline·2px offset을 사용한다. `aria-invalid`의 오류 표시는 유지한다. `ContentCard`는 같은 outline을 카드 표면에 표시한다. Storybook B의 override를 제거해 제품 구현을 직접 검증하고 A에만 이전 표현을 재현한다. 강조 텍스트 색을 바꿔도 포커스 색이 유지되는 브라우저 테스트를 추가했다.
+- 범위: 공통 foundation, `Button`, Blog/Garden의 `ContentCard`와 기본 링크. 다른 component의 자체 포커스 override와 `--sidebar-ring`은 이번에 마이그레이션하지 않았다. karaoke/quant의 제품별 `--ring` 값도 유지한다.
+- 유지할 계약: D-010의 전역 기본 표시와 근거 있는 예외 원칙. 카드 제목에 포커스가 오면 카드 범위를, 태그에 오면 태그 범위를 표시한다.
+- 재검토 조건: 실제 소비 화면에서 잘림·가림·배경 대비 문제가 생기거나 빠른 Tab 이동에서 위치 식별이 어려우면 해당 배치와 포커스 전환을 다시 비교한다.
+- 증거: [포커스 실습 기록](./focus-lab.md), `apps/blog/stories/focus-comparison.stories.tsx`와 `focus-comparison.spec.ts`.
+
 ## 열린 질문
 
-없음. Q-001부터 Q-004까지 D-007부터 D-010으로 기록했다. 단계 0의 남은 사용자 판단은 `NEXT.md` A-2부터 이어간다.
+D-011의 token 연결 질문은 독립 유지로 닫았다. 다음은 선택한 규칙을 Figma Variables·상태와 코드로 대응하는 작업이며 현재 액션은 `NEXT.md`에서 관리한다. Q-001부터 Q-004까지의 기존 결정은 D-007부터 D-010에 보존한다.
+
+## D-012. Storybook을 디자인 시스템 학습 공간으로 확장한다
+
+- 상태: 채택 (2026-10-15, 사용자 제안)
+- 문제: 사용할 Figma 파일이 없고, 코드에서 정한 규칙을 어디서 어떻게 관찰할지 구체적인 진입점이 필요하다.
+- 대안: Figma 파일을 먼저 만들기 / 기존 Storybook을 확장하기 / 제품 안에 별도 갤러리 라우트를 만들기.
+- 선택: 기존 `apps/blog` Storybook에 시작 안내·포커스 규칙·Button/ContentCard Controls를 추가하고 기존 A/B 비교와 연결한다. Figma 대응은 후속 보류한다.
+- 근거: 실제 소비 컴포넌트와 CSS를 바로 관찰하고 조작할 수 있다. 이미 설치한 비교 환경을 재사용하며, 제품 라우트와 별도 token 사본을 늘리지 않는다.
+- 비용과 한계: Next/i18n 설정과 예제 문구를 유지해야 한다. Figma 에셋 구축 역량의 증거는 생기지 않는다. 전체 컴포넌트 카탈로그·별도 앱·호스팅·CI job은 현재 범위에 포함하지 않는다.
+- 되돌리는 조건: 여러 앱의 독립 사용이 늘어 blog 의존이 방해되면 분리를 검토한다. 실제 디자인 협업이나 에셋 제작 필요가 생기면 Figma를 추가한다.
+
+## D-013. Light/Dark를 Storybook 전역 툴바에서 전환한다
+
+- 상태: 채택 (2026-10-15, 사용자 개선 제안)
+- 문제: 같은 컴포넌트가 Light/Dark 스토리로 중복되고, 일부 화면에는 개별 테마 선택기까지 있어 전환 위치가 다르다.
+- 대안: 각 화면의 테마 선택기 / 공식 `@storybook/addon-themes` / 내장 `globalTypes`·toolbar와 공통 decorator.
+- 선택: 내장 globals의 `theme`을 단일 선택 상태로 쓰고 공통 decorator에서 `.dark`와 `color-scheme`을 적용한다. CSS token 표와 시작 링크만 React context로 현재 선택을 읽는다. 기존 next-intl decorator와 같은 경계를 사용한다.
+- 근거: 모든 실습에서 같은 위치로 전환하고 스토리 이동에도 선택을 유지한다. 현재 class 기반 CSS에는 추가 의존성이 필요하지 않다. theme은 제품 컴포넌트의 prop이 아니므로 Controls에서 제거한다.
+- 구현: Light/Dark 스토리를 제거하고 Rules·Playground·Compare·States로 정리한다. Disabled·Invalid·Title Only는 컴포넌트 상태 예제로 유지한다. 시작 화면 링크에 locale과 theme을 전달한다.
+- 비용과 한계: 미리보기 테마만 제어하며 Storybook manager 자체의 색을 동기화하지 않는다. portal 기반 컴포넌트를 추가할 때는 decorator 밖으로 나가는 DOM의 테마 상속을 검토한다.
+- 되돌리는 조건: 별도 theme provider·portal·여러 디자인 시스템을 동시에 지원하게 되면 공식 themes addon으로의 전환을 검토한다.
+- 근거 문서: [Toolbars & globals](https://storybook.js.org/docs/essentials/toolbars-and-globals), [Themes addon](https://storybook.js.org/docs/essentials/themes).

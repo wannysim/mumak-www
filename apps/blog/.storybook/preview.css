@@ -1,0 +1,14 @@
+@font-face {
+  font-family: 'Pretendard Lab';
+  src: url('../fonts/PretendardVariableSubset.woff2') format('woff2');
+  font-weight: 45 920;
+  font-display: swap;
+}
+
+:root {
+  --font-pretendard: 'Pretendard Lab', sans-serif;
+}
+
+body {
+  font-family: var(--font-pretendard);
+}

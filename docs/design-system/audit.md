@@ -4,6 +4,8 @@
 >
 > 측정 기준: commit `03f7928`, 2026-08-25. 수치는 전부 이 저장소에서 직접 실행해 얻었고, 재현 명령을 각 절에 적었다.
 
+> 2026-10-15 후속: 아래 표는 당시 기준선을 보존한다. D-011에서 `--ring`을 독립 값으로 수정하고 Button·ContentCard에 공통 outline을 적용했다. 새 기본 배경 대비는 light 7.92:1 / dark 11.58:1이며 적용·검증 범위는 [포커스 실습 기록](./focus-lab.md)에 있다. 다른 component의 자체 표시, sidebar token, reduced-motion은 후속 범위다.
+
 ## 요약
 
 | 영역        | 지금 상태                                                              | 판단                                              |
@@ -73,6 +75,8 @@ cd apps/blog && node scripts/capture-baselines.mjs
 `--primary` 3.48:1과 `--accent-foreground` 7.92:1 / 11.58:1은 `src/shared/ui/wikilink.tsx`와 `linked-notes-section.tsx` 주석에 적힌 값과 정확히 일치한다. 측정 방법이 기존 판단과 같은 자를 쓴다는 뜻이다.
 
 ### 3-1. light `--ring` 2.82:1 (1순위)
+
+**2026-10-15 수정:** `--ring`의 light 값을 `oklch(0.45 0.15 45)`, dark 값을 `oklch(0.85 0.12 50)`로 독립 정의했다. Button은 전역 outline을 사용하고 ContentCard는 카드 표면으로 옮긴 같은 outline을 사용한다. 불투명 2px·offset 2px 기준이며 기본 배경 대비는 7.92:1 / 11.58:1, muted 배경은 7.27:1 / 8.85:1이다. 아래 문단은 수정 전 문제와 영향을 기록한 것이다.
 
 포커스 표시가 WCAG 2.1 SC 1.4.11(비텍스트 대비 3:1)에 미달한다. 영향 범위가 좁지 않다.
 
