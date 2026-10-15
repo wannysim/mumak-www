@@ -15,16 +15,18 @@
 
 6개로 시작한다. 전부 대표 흐름(탐색 → 목록 → 읽기 → 다음 콘텐츠)에 실제로 등장한다.
 
-| component           | 위치                                              | 대표 흐름에서의 역할       | 소비처                             | 현재 테스트        |
-| ------------------- | ------------------------------------------------- | -------------------------- | ---------------------------------- | ------------------ |
-| `Button`            | `packages/ui/src/components/button.tsx`           | 검색·테마·언어·메뉴 트리거 | 5개 앱, blog 내 12곳               | 없음 (packages/ui) |
-| `Badge`             | `packages/ui/src/components/badge.tsx`            | 카테고리·성장단계·태그 칩  | 3개 앱, blog 내 12곳               | 없음 (packages/ui) |
-| `ContentCard`       | `apps/blog/src/shared/ui/content-card.tsx`        | 목록의 주 타깃             | `PostCard`, `NoteCard`             | 5 case / 100%      |
-| `ContentSegmentNav` | `apps/blog/src/shared/ui/content-segment-nav.tsx` | 목록 필터                  | `BlogNav`, `GardenNav`             | 10 case / 100%     |
-| `PageHeader`        | `apps/blog/src/shared/ui/page-header.tsx`         | 화면 정체성 + h1           | blog·garden 인덱스, 태그, 카테고리 | 3 case / 100%      |
-| `ArrowLink`         | `apps/blog/src/shared/ui/arrow-link.tsx`          | 보조 이동 경로             | 인덱스 → 그래프, NextReading 하단  | 3 case / 100%      |
+| component           | 위치                                              | 대표 흐름에서의 역할       | 소비처                             | 현재 테스트                                           |
+| ------------------- | ------------------------------------------------- | -------------------------- | ---------------------------------- | ----------------------------------------------------- |
+| `Button`            | `packages/ui/src/components/button.tsx`           | 검색·테마·언어·메뉴 트리거 | 5개 앱, blog 내 12곳               | Storybook 상태·포커스 + Blog/Garden E2E               |
+| `Badge`             | `packages/ui/src/components/badge.tsx`            | 카테고리·성장단계·태그 칩  | 3개 앱, blog 내 12곳               | 없음 (packages/ui)                                    |
+| `ContentCard`       | `apps/blog/src/shared/ui/content-card.tsx`        | 목록의 주 타깃             | `PostCard`, `NoteCard`             | 단위 5 case + Storybook 슬롯·포커스 + Blog/Garden E2E |
+| `ContentSegmentNav` | `apps/blog/src/shared/ui/content-segment-nav.tsx` | 목록 필터                  | `BlogNav`, `GardenNav`             | 10 case / 100%                                        |
+| `PageHeader`        | `apps/blog/src/shared/ui/page-header.tsx`         | 화면 정체성 + h1           | blog·garden 인덱스, 태그, 카테고리 | 3 case / 100%                                         |
+| `ArrowLink`         | `apps/blog/src/shared/ui/arrow-link.tsx`          | 보조 이동 경로             | 인덱스 → 그래프, NextReading 하단  | 3 case / 100%                                         |
 
 `cardSurfaceClass`(`shared/ui/card-surface.ts`)는 component가 아니라 recipe지만 `ContentCard`와 `GardenOverview` 타일이 공유하는 단일 소스라 `ContentCard` 계약에 포함해 다룬다.
+
+2026-10-15: D-011의 포커스 계약은 Button·ContentCard에 적용했다. Storybook 16개 검사는 포커스·Controls·테마·시작 화면 접근성을 함께 다루며, 모든 대상의 모든 상태를 보증하는 숫자가 아니다. 실제 제품 검증은 Blog/Garden 범위다. 상세 증거·한계는 [focus-lab.md](./focus-lab.md), 도구와 테마는 [storybook.md](./storybook.md)를 따른다. 위 소비처 수와 기존 단위 커버리지는 inventory 기준선이며 현재 전수 재조사 결과가 아니다.
 
 ### 왜 이 6개인가
 
@@ -36,7 +38,7 @@
 - anatomy(구성 요소)와 variant 목록
 - 상태표: default / hover / pressed / focus-visible / disabled / loading / empty
 - 접근성 계약: semantic HTML, 키보드 조작, ARIA, 타깃 크기, 반응 축소
-- D-010 포커스 계약: 공통 foundation 사용, 기본/자체 표시 여부와 예외 이유, 대체 표시 없는 outline 제거 금지. Storybook 자동 a11y 검사와 실제 키보드·대비·잘림·가림 확인의 범위 및 미검증 항목을 기록한다. 단계 1의 `Button`·`ContentCard`부터 적용하며, 현재 구현의 통과를 선언하는 것은 아니다
+- D-010 포커스 계약: 공통 foundation 사용, 기본/자체 표시 여부와 예외 이유, 대체 표시 없는 outline 제거 금지. Button·ContentCard의 D-011 적용·검증은 완료했으며 나머지 대상과 미검증 배치는 남는다. 자동 a11y 검사와 실제 키보드·대비·잘림·가림 확인의 범위를 구분한다
 - do / don't와 탈출구(escape hatch) 사용 시 소비자 책임
 - 계약을 실제로 막는 테스트 (구조는 단위 테스트, 상태는 단계 3 visual baseline)
 
@@ -91,7 +93,7 @@ audit에서 반복이 확인됐지만 단계 1 범위에는 넣지 않는다.
 
 `plan.md` §6을 이 문서 수준으로 다시 적는다. 범위가 새면 여기부터 확인한다.
 
-- 새 독립 docs 앱 또는 전체 UI 카탈로그용 Storybook. D-010의 foundation·preset 포커스 검증용 최소 Storybook은 후속 구현 범위에 포함한다
+- 새 독립 docs 앱 또는 전체 UI 카탈로그용 Storybook. Button·ContentCard의 최소 학습·검증용 Storybook은 D-012에 따라 이미 구현했다
 - Figma 양방향 자동 sync
 - 독립 npm 배포, Changesets, codemod, MCP
 - React Native component 공통화 (native는 의미 이름과 원칙만 공유)
