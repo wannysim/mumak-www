@@ -215,3 +215,14 @@ D-011의 token 연결 질문은 독립 유지로 닫았다. 다음은 선택한 
 - 비용과 한계: 미리보기 테마만 제어하며 Storybook manager 자체의 색을 동기화하지 않는다. portal 기반 컴포넌트를 추가할 때는 decorator 밖으로 나가는 DOM의 테마 상속을 검토한다.
 - 되돌리는 조건: 별도 theme provider·portal·여러 디자인 시스템을 동시에 지원하게 되면 공식 themes addon으로의 전환을 검토한다.
 - 근거 문서: [Toolbars & globals](https://storybook.js.org/docs/essentials/toolbars-and-globals), [Themes addon](https://storybook.js.org/docs/essentials/themes).
+
+## D-014. 기본 버튼에 D 기본색과 E hover를 적용한다
+
+- 상태: 채택 (2026-10-16, 사용자 비교·누락 점검 후 제품 반영 승인)
+- 문제: Light 기본 주황색 버튼의 글자 대비가 3.34:1이며, 배경 opacity를 낮추는 hover에서는 2.65:1로 더 낮아진다. A는 밝지만 기준 미달이고 B는 읽기 쉬워도 어둡게 느껴졌다. D 기본색 선택 후 D hover 변화가 약하다는 관찰이 나왔다.
+- 선택: D 기본 배경 `oklch(0.58 0.18 45)`와 흰 글자, E hover 배경 `oklch(0.52 0.18 45)`를 적용한다. 글자 대비는 기본 4.62:1, hover 5.90:1이다. 기존 pressed 1px 이동과 네이티브 Space/Enter 동작은 유지한다. 동작 줄이기 설정에서는 Button 전환을 생략한다.
+- 범위: 공유 Button의 default variant 색. `--button-background`·`--button-foreground`·`--button-hover`는 브랜드 `--primary`와 독립적으로 선언한다. Dark와 karaoke/quant의 별도 테마는 기존 색을 명시적으로 보존한다. 전환 생략은 Button 공통 기반에 적용한다.
+- 근거: 기본색의 밝은 인상과 읽기 쉬운 글자를 함께 선택하고, hover는 사용자가 변화를 확인했다. 버튼 문제 때문에 링크·배지의 primary 색까지 바꾸지 않는다. 값이 같아도 역할이 다른 token을 조기 공통화하지 않는다.
+- 비용과 한계: 새 버튼 역할 token을 각 테마에서 유지해야 한다. 기본 4.62:1은 4.5:1 기준까지 여유가 작다. 글자 대비 충족이 전체 WCAG 충족을 뜻하지 않으며 loading·실기기 터치 편의성은 별도 후속 범위다.
+- 재검토 조건: 실제 소비 화면에서 대비가 4.5 미만이거나 hover/pressed 구분이 어렵다면 해당 상태를 다시 비교한다.
+- 증거: [버튼 대비 실습 기록](./button-contrast-lab.md), Storybook의 Compare·Refine·Hover와 실제 Button Playground.

@@ -48,6 +48,8 @@
 
 ### 완료 기록
 
+- [x] **버튼 대비 비교 준비** (2026-10-16): PR #633 병합 커밋 `bb64e38`에서 후속 실습을 시작했다. Storybook에 A 현재안·B 배경 조정·C 글자 조정과 실시간 대비 측정을 추가했다. 이후 첫 관찰에서 A의 밝은 인상·B의 가독성을 함께 원한다는 방향을 확인해 D 후속 비교도 추가했다. 사용자는 D 기본색을 선택했지만 hover가 약하다고 지적해 E 비교와 터치 상태 누락을 추가 점검했다. 후속 확인에서 기존 pressed를 유지하고 D 기본색+E hover의 제품 반영을 승인했다. 독립 버튼 token과 reduced-motion 전환 생략을 적용했다(D-014). 단계 1 전체 완료를 뜻하지 않는다. 수치·방법은 `docs/design-system/button-contrast-lab.md`.
+
 - [x] **Storybook 학습 공간** (2026-10-15, D-012): 시작 안내, 실제 CSS 포커스 token, 버튼·카드 Controls와 기존 A/B 비교를 연결했다. Figma 대응은 후속 보류이며 단계 1 전체 완료를 뜻하지 않는다. 실행·범위는 `docs/design-system/storybook.md`.
 - [x] **Storybook 전역 테마** (2026-10-15, D-013): 사용자 제안에 따라 Light/Dark 중복 스토리·개별 theme Controls를 제거하고 내장 툴바 globals로 통합했다. 스토리 이동 시 테마, 전환 시 컴포넌트 상태를 유지한다.
 - [x] **포커스 비교와 B 선택** (2026-10-15): Storybook에서 실제 `Button`·`ContentCard`를 비교한 뒤 사용자가 불투명 2px outline·2px offset의 B를 기본안으로 선택했다(D-011). 이후 독립 `--ring` 유지 결정과 공통 outline 코드 적용을 마쳤다. Figma 대응은 미완이다. 실습 검증 결과는 `docs/design-system/focus-lab.md`에 기록했다.

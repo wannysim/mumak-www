@@ -10,6 +10,7 @@ const lessons = [
   { key: 'button', story: 'components-button--playground' },
   { key: 'card', story: 'components-content-card--playground' },
   { key: 'comparison', story: 'learning-focus-comparison--compare' },
+  { key: 'contrast', story: 'learning-button-contrast--hover' },
 ] as const;
 
 function Start() {
