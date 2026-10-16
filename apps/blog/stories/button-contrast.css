@@ -1,0 +1,36 @@
+/* Preserve the pre-application candidates; product Button uses the selected E tokens. */
+[data-button-contrast] {
+  --button-background: oklch(0.65 0.2 45);
+  --button-foreground: oklch(0.985 0 0);
+  --button-hover: color-mix(in oklab, var(--button-background) 80%, transparent);
+}
+
+[data-button-contrast='deeper'] {
+  --button-background: oklch(0.56 0.18 45);
+  --button-hover: oklch(0.52 0.18 45);
+}
+
+[data-button-contrast='ink'] {
+  --button-foreground: oklch(0.15 0.02 45);
+}
+
+[data-button-contrast='brighter'],
+[data-button-contrast='stronger'] {
+  --button-background: oklch(0.58 0.18 45);
+  --button-foreground: oklch(1 0 0);
+}
+
+[data-button-contrast='brighter'] {
+  --button-hover: oklch(0.56 0.18 45);
+}
+
+[data-button-contrast='stronger'] {
+  --button-hover: oklch(0.52 0.18 45);
+}
+
+/* Dark candidates inherit the product palette; Button's hover utility gates touch. */
+.dark [data-button-contrast] {
+  --button-background: inherit;
+  --button-foreground: inherit;
+  --button-hover: inherit;
+}

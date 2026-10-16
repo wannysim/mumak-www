@@ -31,7 +31,7 @@ for (const locale of ['ko', 'en'] as const) {
       ko ? '직접 만져보는 디자인 시스템' : 'A design system you can try'
     );
     const links = preview.getByRole('list').getByRole('link');
-    await expect(links).toHaveCount(4);
+    await expect(links).toHaveCount(5);
     await expect(
       preview.getByRole('link', { name: ko ? /04 포커스 A\/B 비교/ : /04 Focus A\/B comparison/ })
     ).toHaveAttribute('href', `./?path=/story/learning-focus-comparison--compare&globals=locale:${locale};theme:light`);

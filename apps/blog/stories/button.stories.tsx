@@ -38,7 +38,7 @@ function ButtonPlayground({
         </p>
       </section>
       <p className="leading-relaxed">{t('buttonHint')}</p>
-      <p className="text-sm text-muted-foreground">{t('buttonKnownIssue')}</p>
+      <p className="text-sm text-muted-foreground">{t('buttonContrastSummary')}</p>
     </LabPage>
   );
 }

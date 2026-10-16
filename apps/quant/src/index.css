@@ -15,6 +15,9 @@
   --popover-foreground: #111318;
   --primary: #263cff;
   --primary-foreground: #f8f9ff;
+  --button-background: #263cff;
+  --button-foreground: #f8f9ff;
+  --button-hover: rgb(38 60 255 / 80%);
   --secondary: #dfe4e8;
   --secondary-foreground: #20242a;
   --muted: #dce1e5;
@@ -45,6 +48,9 @@
   --popover-foreground: #f1f3f4;
   --primary: #8390ff;
   --primary-foreground: #111423;
+  --button-background: #8390ff;
+  --button-foreground: #111423;
+  --button-hover: rgb(131 144 255 / 80%);
   --secondary: #25282e;
   --secondary-foreground: #f1f3f4;
   --muted: #25282e;
@@ -72,6 +78,9 @@
     --popover-foreground: #f1f3f4;
     --primary: #8390ff;
     --primary-foreground: #111423;
+    --button-background: #8390ff;
+    --button-foreground: #111423;
+    --button-hover: rgb(131 144 255 / 80%);
     --secondary: #25282e;
     --secondary-foreground: #f1f3f4;
     --muted: #25282e;

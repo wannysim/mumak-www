@@ -28,6 +28,8 @@
 
 2026-10-15: D-011의 포커스 계약은 Button·ContentCard에 적용했다. Storybook 16개 검사는 포커스·Controls·테마·시작 화면 접근성을 함께 다루며, 모든 대상의 모든 상태를 보증하는 숫자가 아니다. 실제 제품 검증은 Blog/Garden 범위다. 상세 증거·한계는 [focus-lab.md](./focus-lab.md), 도구와 테마는 [storybook.md](./storybook.md)를 따른다. 위 소비처 수와 기존 단위 커버리지는 inventory 기준선이며 현재 전수 재조사 결과가 아니다.
 
+2026-10-16: D-014로 기본 Button의 Light 글자 대비(기본 4.62:1 / hover 5.90:1)와 독립 버튼 역할 token을 적용했다. Pressed 1px와 네이티브 키보드 동작은 유지하고, reduced-motion에서는 전환을 생략한다. 색·입력·터치·동작 줄이기의 회귀 검사는 `button-product.spec.ts`와 대비 실습 검사에 둔다. loading·실기기 터치 편의성과 다른 component의 motion 계약까지 완료한 것은 아니다.
+
 ### 왜 이 6개인가
 
 - `Button`, `Badge`: 앱 2곳 이상 사용이 수치로 확인된 7개 중 blog 대표 흐름에 등장하는 둘. `input`/`label`/`textarea`/`card`/`drawer`도 2곳 이상이지만 blog의 탐색-읽기 흐름에 없다.
