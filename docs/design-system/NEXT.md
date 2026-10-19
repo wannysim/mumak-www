@@ -27,15 +27,16 @@
 
 진행 순서: 사용자 문제 → 비교·측정 → 사용자 판단 → 구현 → 검증. 현재 색이 같다는 이유만으로 역할이 다른 token을 공통화하지 않는다.
 
-## 버튼 loading: C 선택 완료, 제품 적용은 후속
+## 버튼 loading: C 선택 후 admin 로그인 적용
 
 사용자는 loading과 타깃 크기를 비교한 뒤 loading 실습 진행에 동의했다. Blog의 기존 페이지 이동 진행 막대와 버튼 요청의 대기 상태는 역할이 다르다.
 
 1. [Storybook 비교](http://127.0.0.1:6006/?path=/story/learning-button-loading--compare&globals=locale:ko;theme:light)를 연다. 실행은 `pnpm --filter blog storybook`.
 2. 기본 1.8초에서 A 문구만 / B spinner+문구 / C 기존 너비 유지+spinner를 비교한다. 이어 0.3초·5초, 실패와 재시도, Space·Enter, Light/Dark를 관찰한다.
 3. 사용자는 C의 너비 유지와 spinner-only를 선택했다. 아래 상태 문구 없이 버튼만 보고도 진행 중임을 인지했다고 확인했다. 선택 근거·비용·재검토 조건은 D-015에 기록했다.
-4. 이번 범위는 실습·선택 기록이다. 공유 API·제품 동작·페이지 이동 loading을 변경하지 않는다. 상세 조건·검증은 [loading 실습 기록](./button-loading-lab.md)에 둔다.
-5. 제품 적용을 재개할 때 실제 사용할 비동기 버튼을 고른다. 그 흐름에서 loading 연결·중복 요청 방지·성공/실패·포커스·원래 크기 유지를 검증하고, reduced-motion 대체 표현과 접근 가능한 상태 전달을 확인한다. 단계 1 전체 완료는 아니다.
+4. 실습·선택 기록은 PR #635에서 develop에 squash merge했다(`913c3ad6`). 이후 사용자 요청으로 admin 로그인 버튼에 C를 적용했다. 공유 Button API와 Blog 페이지 이동 loading은 유지한다. 상세 조건·검증은 [loading 실습 기록](./button-loading-lab.md)에 둔다.
+5. admin 로그인은 기존 전체 너비를 유지하고 spinner-only로 요청 대기를 표시한다. 중복 제출 방지·실패 재시도·성공 시 포커스 이동을 연결했다. reduced-motion에서는 회전을 멈추며 접근 가능한 이름·상태 메시지를 유지한다. 실제 스크린리더 발화와 정적인 표시의 인지 충분성은 수동 확인이 남아 있다.
+6. 다음 학습 후보는 타깃 크기다. admin 발행·로그아웃 등 다른 요청 버튼으로의 확대는 별도 판단한다. 단계 1 전체 완료는 아니다.
 
 ## 남은 범위와 보류
 
