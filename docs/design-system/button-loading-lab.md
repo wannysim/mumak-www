@@ -1,6 +1,6 @@
 # 버튼 loading 비교
 
-2026-10-19. **원래 너비를 유지하는 C의 spinner 표현을 선택했다(D-015).** 제품 적용은 후속이며 단계 1 전체 완료가 아니다. PR #634 병합 커밋 `51a500f`에서 `feature/button-loading-lab`으로 분기했다.
+2026-10-19. **원래 너비를 유지하는 C의 spinner 표현을 선택했다(D-015).** 후속으로 admin 로그인에 적용했다. 단계 1 전체 완료가 아니다. PR #634 병합 커밋 `51a500f`에서 `feature/button-loading-lab`으로 분기했다.
 
 [Storybook 비교](http://127.0.0.1:6006/?path=/story/learning-button-loading--compare&globals=locale:ko;theme:light). 실행은 `pnpm --filter blog storybook`. 시작 화면의 여섯 번째 링크로도 연다.
 
@@ -49,7 +49,7 @@ Blog에는 `src/app/providers/progress-provider.tsx`의 페이지 이동 진행 
 - 방금 실행한 작업은 spinner만으로도 진행 중임을 알 수 있다고 판단했다. 사용자는 아래 상태 문구를 읽은 것이 아니라 버튼만 보고 판단했다고 확인했다.
 - 선택 원칙: “방금 누른 버튼의 spinner로 진행 상태를 전달하고, 상태가 바뀌어도 버튼 크기와 주변 배치를 유지한다.”
 - 대안·비용·되돌릴 조건은 [D-015](./decision-log.md#d-015-버튼-loading은-원래-너비를-유지하는-spinner-표현을-선택한다)에 기록했다. 실습 화면의 아래 문구는 비교 이력으로 남긴다. 이를 보고 판단했다는 근거로 해석하지 않는다.
-- 현재 PR 범위는 실습과 선택 기록이다. 실제 소비처의 요청 연결, 제품 상태 알림과 reduced-motion 대체 표현, 공유 API는 후속 범위다.
+- PR #635의 범위는 실습과 선택 기록이었다. 이후 admin 로그인 요청 연결과 상태 알림은 아래 제품 적용 절에 기록한다. 공유 API와 reduced-motion 대체 표현의 확정은 후속 범위다.
 
 ## 검증
 
@@ -59,7 +59,7 @@ Blog에는 `src/app/providers/progress-provider.tsx`의 페이지 이동 진행 
 
 기존 대비 검사에서도 Storybook addon과 Playwright의 axe가 동시에 실행되어 `Axe is already running` 오류가 발생했다. 테스트 서버의 `STORYBOOK_BROWSER_TEST=1`에서만 addon을 제외하고 Playwright가 axe 실행을 맡는다. 일반 개발 서버·정적 build의 접근성 addon은 유지한다. 검사 대상이나 대비 기준을 완화하지 않았다. 최초 로그는 `/tmp/button-loading-storybook.log`, 중간 검사는 `/tmp/button-loading-targeted.log`다.
 
-제품 동작과 라우트는 변경하지 않는다. 제품 전체 E2E 대신 Storybook 브라우저 검사와 정적 Storybook build를 검증 대상으로 삼는다. 실제 기기 터치 편의성·스크린리더 음성·모든 브라우저는 자동 검사로 보장하지 않는다.
+PR #635에서는 제품 동작과 라우트를 변경하지 않았다. 당시에는 제품 전체 E2E 대신 Storybook 브라우저 검사와 정적 Storybook build를 검증 대상으로 삼았다. 실제 기기 터치 편의성·스크린리더 음성·모든 브라우저는 자동 검사로 보장하지 않는다.
 
 ### 실행 결과
 
@@ -69,3 +69,21 @@ Blog에는 `src/app/providers/progress-provider.tsx`의 페이지 이동 진행 
 - `validate:design`: 160개 파일 통과. 이 검사는 Storybook 후보의 시각적 판단을 대신하지 않는다.
 - 별도 Python Playwright로 개발 서버의 한국어 Light 기본/대기, 영어 Dark 모바일 실패 화면을 조작·캡처했다. pageerror 0건. `/tmp/button-loading-light-idle.png`, `/tmp/button-loading-light-pending.png`, `/tmp/button-loading-dark-mobile-failure.png`를 육안 확인했다.
 - design-reviewer·verifier의 정적 검토에서 차단 항목 없음. 사용자 선호 판단은 위 C 선택으로 기록했으며, 실제 스크린리더 음성 검토는 미실시다.
+
+## 제품 적용: admin 로그인
+
+사용자가 2026-10-19 admin 로그인 적용을 선택했다. PR #635의 실습·C 선택 기록이 develop에 병합된 `913c3ad6`에서 후속 작업을 시작했다.
+
+- 범위: `apps/admin/components/admin-session.tsx`의 로그인 제출 버튼. 기존 `w-full` 너비는 이미 고정돼 있으므로 이 화면에서 너비 흔들림 결함을 고쳤다는 뜻은 아니다. C의 spinner-only와 크기 유지 원칙을 실제 요청에 연결했다.
+- 표현: 원래 문구의 공간을 남긴 채 감추고 기존 공유 `Spinner`를 가운데 겹친다. 대기 문구는 화면에 추가하지 않으며 버튼의 접근 가능한 이름과 별도 `role=status`로 전달한다. reduced-motion에서는 기존 실습과 같이 회전을 멈춘다.
+- 제출: 동기 ref 잠금으로 클릭·Space·Enter·폼 제출 중복을 막는다. 대기 중에는 토큰 입력을 readOnly로 유지하고, 로그인 버튼은 aria-disabled/aria-busy로 상태를 전달하면서 포커스를 유지한다.
+- 완료: 실패 메시지는 기존 상태 영역에 보이고 즉시 재시도할 수 있다. 성공하면 로그인 폼이 사라지므로 로그아웃 버튼으로 포커스를 이동한다. 초기부터 로그인된 페이지에서는 포커스를 강제로 옮기지 않는다.
+- 범위 밖: 공유 Button의 loading API, 이미지 발행·로그아웃 loading, 인증 서버·쿠키 계약, Blog 페이지 진행 표시. 다른 버튼을 공통화하기 전에 실제 요구를 확인한다.
+- 한계: 화면의 폭 보존과 상태 속성을 자동 검사해도 스크린리더의 실제 발화나 정적인 spinner의 인지 충분성은 보증하지 않는다. 두 항목은 수동 관찰 후 필요하면 비교 실습으로 돌아간다.
+
+### admin 적용 검증
+
+- `pnpm turbo run check-types --filter=admin` (의존 task인 제품 build 포함) → `lint` → `format:check` → `test:ci` 통과. lint 경고 0건, Jest 15 suites / 158개 통과. 인증 라우트·세션 회귀 검사를 포함한다.
+- `CI=1 pnpm --filter admin test:e2e --workers=2 --retries=0 --reporter=line`: Chromium·Firefox·WebKit 합계 24개 통과. 로그인 pending·실패·재시도·성공, 입력/버튼 Enter·Space·포인터 중복, 크기·포커스, reduced-motion 및 기존 업로드·세션 보존을 검증했다. 지연 실패는 네트워크 interception으로 제어하고 성공 재시도는 로컬 인증 서버를 사용한다.
+- Python Playwright로 기본·대기·실패, 모바일 reduced-motion을 캡처했다. 대기 화면을 육안 확인했고 pageerror 0건이었다. 실제 토큰이나 외부 인증·R2 요청은 사용하지 않았다.
+- verifier 검토에서 차단 항목 없음. 실제 스크린리더 발화·사용자의 reduced-motion 인지 평가는 미실시다.
