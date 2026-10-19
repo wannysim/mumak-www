@@ -311,7 +311,9 @@
     "cardIntro": "Edit the title and toggle the description and tag in Controls. Observe long titles and missing slots.",
     "cardHint": "Tab to the title to outline the whole card. Tab again to move the indicator to the tag. The title and tag are separate links.",
     "contrastTitle": "Button contrast comparison",
-    "contrastSummary": "Compare color options, interactive states, and measured text contrast."
+    "contrastSummary": "Compare color options, interactive states, and measured text contrast.",
+    "loadingTitle": "Button loading comparison",
+    "loadingSummary": "Compare pending feedback, width changes, repeated input, and success or failure."
   },
   "buttonContrastLab": {
     "title": "Button states and text contrast",
@@ -355,5 +357,39 @@
     "strongerTitle": "E · Adjusted hover",
     "strongerDescription": "The resting appearance matches D. On hover, the orange background becomes darker to make the change larger.",
     "hoverQuestion": "Move the pointer on and off each button. Is E’s change noticeable? Also consider whether the shift from rest to hover feels appropriate."
+  },
+  "buttonLoadingLab": {
+    "title": "Button loading comparison",
+    "intro": "Compare the wait after a save request using the same real Button. After comparison, C was selected for its spinner and preserved width. Product adoption is a follow-up.",
+    "context": "The bar at the top of the blog signals page navigation. Here, we observe work started by one button. This exercise simulates a result after a fixed delay without saving data or navigating.",
+    "conditions": "Shared conditions",
+    "delay": "Wait time",
+    "fast": "Short · 0.3s",
+    "normal": "Default · 1.8s",
+    "slow": "Long · 5s",
+    "outcome": "Outcome",
+    "success": "Success",
+    "failure": "Failure",
+    "startAll": "Run all three",
+    "textTitle": "A · Text only",
+    "textDescription": "Replace Save changes with Saving…. The button width follows the text.",
+    "labeledSpinnerTitle": "B · Spinner and text",
+    "labeledSpinnerDescription": "Show a spinner with Saving…. The button width follows its content.",
+    "spinnerTitle": "C · Spinner only",
+    "spinnerDescription": "Place a spinner where Save changes was. Keep the original button width.",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "loadingStatus": "Saving changes.",
+    "successStatus": "Changes saved.",
+    "failureStatus": "Could not save. Use the same button to try again.",
+    "count": "Requests started: {count}",
+    "observeTitle": "What to observe",
+    "observeFeedback": "Start with the default 1.8s wait and run all three. When did you notice the request had started?",
+    "observeWidth": "Watch the width and label position. How does the change feel at 0.3s and 5s?",
+    "observeInput": "Tab to each button, activate with Space or Enter, and try again while waiting. The request count stays the same, and Tab still moves to another button.",
+    "observeOutcome": "Choose Failure, run a request, then retry with the same button. Is it clear that waiting has ended and you can try again?",
+    "common": "Shared conditions: color, height, focus styling, and status text below each button. While pending, only additional activation is blocked; keyboard focus remains available. Conditions can change once all pending requests finish.",
+    "motion": "Compare Light and Dark too. With the operating system’s reduced motion setting, spinners stop rotating. Observe whether C’s static symbol and the text below still communicate waiting.",
+    "question": "C is the selected direction. The button alone communicated pending work, and preserving its width was preferred. Compare other conditions to see whether that reasoning still holds."
   }
 }

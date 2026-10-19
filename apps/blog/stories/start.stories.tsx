@@ -11,6 +11,7 @@ const lessons = [
   { key: 'card', story: 'components-content-card--playground' },
   { key: 'comparison', story: 'learning-focus-comparison--compare' },
   { key: 'contrast', story: 'learning-button-contrast--hover' },
+  { key: 'loading', story: 'learning-button-loading--compare' },
 ] as const;
 
 function Start() {

@@ -2,7 +2,7 @@
 
 > 현재 액션 아이템의 단일 소재지. 단계별 목표와 진행률은 [plan.md](../../apps/blog/plan.md), 결정 근거는 [decision-log.md](./decision-log.md), 실행 방법은 [storybook.md](./storybook.md)에 둔다.
 
-갱신: 2026-10-16. 단계 1 진행 중. 사진전 중심 홈 개편과 Figma 대응은 보류한다.
+갱신: 2026-10-19. 단계 1 진행 중. 사진전 중심 홈 개편과 Figma 대응은 보류한다.
 
 ## 지금까지 완료한 것
 
@@ -23,9 +23,19 @@
 1. **D 기본색 + E hover 채택:** 사용자가 비교·누락 점검·Space/Enter 동작 확인 후 제품 반영을 승인했다. Light 글자 대비는 기본 4.62:1, hover 5.90:1이다. 결정은 D-014, 측정·검증 범위는 [실습 기록](./button-contrast-lab.md)에 둔다.
 2. 기본 Button은 독립 `--button-background`·`--button-foreground`·`--button-hover`를 사용한다. 브랜드 `--primary`와 다른 variant는 색을 유지한다. Dark 및 karaoke/quant의 별도 테마도 기존 색을 보존한다.
 3. 기존 pressed 1px 이동과 네이티브 키보드 실행을 유지한다. `prefers-reduced-motion: reduce`에서는 Button 전환을 생략한다. 터치의 hover 제한은 제품 utility를 사용한다.
-4. 현재 브랜치의 구현·문서·검증을 정리한 뒤 커밋/PR로 마무리한다. 다음 학습은 loading·타깃 크기 등 남은 계약에서 사용자와 선택한다. 단계 1 전체 완료는 아니다.
+4. PR #634에서 develop에 squash merge 완료했다. 병합 커밋은 `51a500f`다. 이전 “커밋/PR로 마무리”는 병합 전 기록이었다. 단계 1 전체 완료는 아니다.
 
 진행 순서: 사용자 문제 → 비교·측정 → 사용자 판단 → 구현 → 검증. 현재 색이 같다는 이유만으로 역할이 다른 token을 공통화하지 않는다.
+
+## 버튼 loading: C 선택 완료, 제품 적용은 후속
+
+사용자는 loading과 타깃 크기를 비교한 뒤 loading 실습 진행에 동의했다. Blog의 기존 페이지 이동 진행 막대와 버튼 요청의 대기 상태는 역할이 다르다.
+
+1. [Storybook 비교](http://127.0.0.1:6006/?path=/story/learning-button-loading--compare&globals=locale:ko;theme:light)를 연다. 실행은 `pnpm --filter blog storybook`.
+2. 기본 1.8초에서 A 문구만 / B spinner+문구 / C 기존 너비 유지+spinner를 비교한다. 이어 0.3초·5초, 실패와 재시도, Space·Enter, Light/Dark를 관찰한다.
+3. 사용자는 C의 너비 유지와 spinner-only를 선택했다. 아래 상태 문구 없이 버튼만 보고도 진행 중임을 인지했다고 확인했다. 선택 근거·비용·재검토 조건은 D-015에 기록했다.
+4. 이번 범위는 실습·선택 기록이다. 공유 API·제품 동작·페이지 이동 loading을 변경하지 않는다. 상세 조건·검증은 [loading 실습 기록](./button-loading-lab.md)에 둔다.
+5. 제품 적용을 재개할 때 실제 사용할 비동기 버튼을 고른다. 그 흐름에서 loading 연결·중복 요청 방지·성공/실패·포커스·원래 크기 유지를 검증하고, reduced-motion 대체 표현과 접근 가능한 상태 전달을 확인한다. 단계 1 전체 완료는 아니다.
 
 ## 남은 범위와 보류
 
