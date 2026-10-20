@@ -48,6 +48,12 @@
 
 ### 완료 기록
 
+- [x] **포커스·loading 공통 적용 확대** (2026-10-20, D-017): 공유 컨트롤과 복합 표면의 포커스를 같은 utility로 연결하고 Blog 트리·skip link 및 quant override를 이전했다. 공유 LoadingButton을 admin 요청 6종과 Storybook C에서 사용한다. 타깃 C 제품 적용·다른 앱 loading·모든 배치 검증은 별도이며 단계 1 전체 완료가 아니다. 정본은 `interaction-contracts.md`·`support-matrix.md` §7.
+
+- [x] **앞선 개선의 계약·적용 현황 정리** (2026-10-20): 포커스·색·입력 피드백·loading·타깃을 `docs/design-system/interaction-contracts.md`와 `support-matrix.md` §7에 대조했다. 공통 구현과 소비처 이전·검증을 구분하고 Blog 아이콘 및 admin 요청 버튼의 남은 범위를 기록했다. 이전 완료 선언이 아니며 다음 실행 순서는 `NEXT.md`에서 관리한다.
+
+- [x] **버튼 타깃 크기 비교와 C 선택** (2026-10-20): Storybook에서 A 표면/타깃 32px, B 44px/44px, C 32px/44px를 동일 중심 간격으로 비교한다. 영역 표시·클릭·터치·키보드 관찰을 준비했고 사용자가 실제 모바일에서 C를 선택했다(D-016). 제품 크기 변경·공유 API 구현·단계 1 전체 완료는 아니다. 조건·검증은 `docs/design-system/button-target-size-lab.md`.
+
 - [x] **버튼 loading 비교와 C 선택** (2026-10-19): Storybook에서 문구·spinner·너비 유지와 가상 대기·실패·재시도를 비교했다. 사용자는 버튼만 보고도 진행 상태를 인지했고 너비 유지를 선호하여 C를 선택했다(D-015). 후속 사용자 요청으로 admin 로그인에 C를 적용했다. 기존 페이지 이동 진행 막대와 공유 Button API는 유지한다. 관찰·검증 범위는 `docs/design-system/button-loading-lab.md`. 단계 1 전체 완료를 뜻하지 않는다.
 
 - [x] **버튼 대비 비교 준비** (2026-10-16): PR #633 병합 커밋 `bb64e38`에서 후속 실습을 시작했다. Storybook에 A 현재안·B 배경 조정·C 글자 조정과 실시간 대비 측정을 추가했다. 이후 첫 관찰에서 A의 밝은 인상·B의 가독성을 함께 원한다는 방향을 확인해 D 후속 비교도 추가했다. 사용자는 D 기본색을 선택했지만 hover가 약하다고 지적해 E 비교와 터치 상태 누락을 추가 점검했다. 후속 확인에서 기존 pressed를 유지하고 D 기본색+E hover의 제품 반영을 승인했다. 독립 버튼 token과 reduced-motion 전환 생략을 적용했다(D-014). 단계 1 전체 완료를 뜻하지 않는다. 수치·방법은 `docs/design-system/button-contrast-lab.md`.

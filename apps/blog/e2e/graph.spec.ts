@@ -75,10 +75,29 @@ test.describe('Graph Page', () => {
   test('names blog categories with the locale vocabulary, not the raw slug', async ({ page }) => {
     await page.goto('/ko/graph?tab=blog');
 
-    await page.getByRole('button', { name: '필터' }).click();
+    const trigger = page.getByRole('button', { name: '필터' });
+    await trigger.focus();
+    await page.keyboard.press('Enter');
 
     await expect(page.getByRole('option', { name: '에세이' })).toBeVisible();
     await expect(page.getByRole('option', { name: 'essay' })).toHaveCount(0);
+    const search = page.getByRole('combobox');
+    await expect(search).toBeFocused();
+    const surface = page.locator('[data-slot=input-group]').filter({ has: search });
+    await expect(surface).toHaveCSS('outline-width', '2px');
+    await expect(surface).toHaveCSS('outline-offset', '2px');
+    await expect(surface).toHaveCSS('outline-style', 'solid');
+    await expect(search).toHaveCSS('outline-style', 'none');
+    const room = await surface.evaluate(element => {
+      const group = element.getBoundingClientRect();
+      const command = element.closest('[data-slot=command]')!.getBoundingClientRect();
+      return Math.min(group.left - command.left, command.right - group.right, group.top - command.top);
+    });
+    expect(room).toBeGreaterThanOrEqual(4);
+    await search.fill('에세이');
+    await expect(page.getByRole('option', { name: '에세이' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
   });
 
   test('back button leaves the immersive graph for the locale home when there is no in-site history', async ({

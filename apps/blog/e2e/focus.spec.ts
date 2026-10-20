@@ -46,3 +46,48 @@ for (const section of ['blog', 'garden']) {
     }
   }
 }
+
+for (const theme of ['light', 'dark']) {
+  for (const width of [390, 1280]) {
+    test(`${theme}/${width}: skip link and garden tree use the shared outline without clipping`, async ({
+      page,
+      browserName,
+    }) => {
+      const tabKey = browserName === 'webkit' && process.platform === 'darwin' ? 'Alt+Tab' : 'Tab';
+      await page.setViewportSize({ width, height: 900 });
+      await page.addInitScript(value => localStorage.setItem('theme', value), theme);
+      await page.goto('/ko/garden');
+      await page.keyboard.press(tabKey);
+      await expectFocusIndicator(page.getByRole('link', { name: '본문으로 건너뛰기' }));
+      if (width < 768) await page.getByRole('button', { name: '둘러보기' }).click();
+      const tree = page.locator('[data-slot="garden-note-tree"]:visible');
+      const toggle = tree.getByRole('button').first();
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      await toggle.focus();
+      await page.keyboard.press(tabKey);
+      await page.keyboard.press(`Shift+${tabKey}`);
+      await expectFocusIndicator(toggle);
+      const room = await toggle.evaluate(element => {
+        let ancestor = element.parentElement;
+        while (ancestor && getComputedStyle(ancestor).overflowY !== 'auto') ancestor = ancestor.parentElement;
+        if (!ancestor) throw new Error('Missing scroll container');
+        const bounds = element.getBoundingClientRect();
+        const clip = ancestor.getBoundingClientRect();
+        return {
+          left: bounds.left - clip.left,
+          right: clip.right - bounds.right,
+          top: bounds.top - clip.top,
+          bottom: clip.bottom - bounds.bottom,
+        };
+      });
+      for (const margin of Object.values(room)) expect(margin).toBeGreaterThanOrEqual(4);
+      await page.keyboard.press('Enter');
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      await page.keyboard.press(tabKey);
+      // The sibling link follows the disclosure button in the native Tab order.
+      const current = page.locator('a:focus');
+      await expectFocusIndicator(current);
+      await expect(tree.locator('a:focus')).toHaveCount(1);
+    });
+  }
+}

@@ -1,6 +1,10 @@
 # 포커스 비교 실습
 
+> 현재 공통 계약과 제품 적용·미이전·검증 범위는 [인터랙션 계약](./interaction-contracts.md)과 [지원 현황](./support-matrix.md#7-인터랙션-적용-현황)을 참조한다. 아래 실습 결과는 당시 범위의 증거다.
+
 2026-10-15. Design Engineer 학습 재개의 첫 실습. 사진전 중심 홈 개편은 보류한다.
+
+2026-10-20 후속 D-017에서 공유 컨트롤·복합 입력·Blog 트리/skip link·quant의 포커스 override로 이전 범위를 확대했다. 아래 최초 실습과 마지막 후속 검증 기록을 구분한다.
 
 ## 문제와 판단
 
@@ -64,3 +68,23 @@ macOS WebKit의 기본 Tab 탐색은 버튼·링크를 건너뛰므로 새 포�
 - 다른 component의 자체 표시·제품별 theme·reduced-motion은 후속 범위에서 검토한다.
 
 도구 구성은 [Storybook Next.js Vite 문서](https://storybook.js.org/docs/get-started/frameworks/nextjs-vite)와 [접근성 addon 문서](https://storybook.js.org/docs/writing-tests/accessibility-testing)를 확인했다. 설치는 Storybook 10.6.2 기준이다. 전이 의존성 `tsconfck@3.1.6`의 TypeScript peer 범위가 `^5.0.0`이라 저장소의 TypeScript 7.0.2와 경고가 남는다. 실제 타입 검사와 Storybook 실행·빌드 결과를 별도로 확인한다.
+
+## 후속 공통 이전 — D-017
+
+2026-10-20. 사용자가 공유 컨트롤까지 포커스 통일을 요청했다. 전역과 복합 표면이 같은 `focus-outline` utility를 사용하도록 정리하고, 일반 컨트롤의 자체 ring override를 제거했다. Blog 트리·skip link와 quant 차트·알림 닫기도 같은 기반을 사용한다. Garden 트리는 스크롤 경계에 4px 여유를 확보했다.
+
+InputGroup·Command 검색·Combobox chips·OTP·ContentCard는 조작을 대표하는 표면에 표시한다. Menubar 트리거는 공통 outline, 열린 메뉴의 활성 항목은 기존 배경 표시를 사용한다. 오류 ring과 제품별 token 값은 유지한다. 전체 이전 목록과 검증하지 않은 배치는 [지원 현황](./support-matrix.md#7-인터랙션-적용-현황)에 둔다.
+
+`Components / Focus contract / Controls`에서 실제 공유 구현을 관찰한다. 기본 컨트롤과 복합 입력, 오류·disabled 상태, 메뉴 열기·닫기, ko/en·Light/Dark를 함께 확인할 수 있다.
+
+후속 검증:
+
+- admin·Blog·quant·karaoke·mumak-next·mumak-react의 타입·lint·format·단위·빌드 검증. quant Python 검사는 시스템 Python 3.9가 `dataclass(slots=True)`를 지원하지 않아 설치된 Python 3.12로 실행해 57개 통과했다. 머신 설정은 변경하지 않았다.
+- Blog focus·garden·a11y·navigation·theme E2E: 기존 202개 통과·기존 2개 skip, 신규 트리·skip link 검사 12개는 locator 수정 후 별도 재실행에서 통과. Chromium·Firefox·WebKit과 모바일/데스크톱 Light/Dark를 포함한다. 전체 Blog E2E 실행은 아니다.
+- Command 수정 후 Blog를 다시 빌드하고 실제 그래프 필터의 키보드 열기·입력 그룹 outline·4px 외곽 여유·검색·Escape 포커스 복귀를 3브라우저에서 확인했다(3개 통과).
+- admin E2E 33개, quant E2E 66개 통과. 각 앱의 Chromium·Firefox·WebKit 회귀를 확인했다.
+- Storybook 기존 69개 통과. 신규 포커스 검사 8개는 키보드 타이밍 수정 후 별도 재실행에서 통과했다. Radix의 비동기 Radio 포커스 이동은 keydown→선택 확인→keyup으로 검증한다. 아주 짧은 key tap의 동작까지 확인한 결과는 아니다.
+- 정적 Storybook build와 `validate:design` 통과. 실제 스크린리더 발화, 모든 설치 컴포넌트의 소비 배치·잘림, 메뉴 활성 행의 대비를 전수 검증한 것은 아니다.
+- LAN 개발 서버의 실제 Storybook manager에서 Checkbox를 조작하고 Light 갤러리·Dark 복합 입력·모바일 loading C를 캡처해 육안 확인했다. 페이지 오류 0건이며 C의 대기 전후 너비는 동일했다.
+
+검토 과정에서 Command 입력의 숨긴 outline에 대체 표시가 없고 Menubar 트리거도 같은 문제가 있음을 발견했다. 두 곳을 수정하고 새 갤러리의 표면·키보드 검증에 포함했다. 초기 D-011 기록의 “다른 component는 범위 밖”은 당시 범위이며 현재 상태는 D-017을 따른다.

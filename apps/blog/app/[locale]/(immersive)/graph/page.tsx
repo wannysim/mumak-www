@@ -143,7 +143,7 @@ async function GraphAccessibleAlternative({ locale }: { locale: string }) {
         <a
           key={link.href}
           href={link.href}
-          className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-16 focus:z-50 focus:rounded-md focus:border focus:border-border focus:bg-background focus:px-4 focus:py-2 focus:text-foreground focus:ring-2 focus:ring-ring focus:outline-none"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-16 focus:z-50 focus:rounded-md focus:border focus:border-border focus:bg-background focus:px-4 focus:py-2 focus:text-foreground"
         >
           {link.label}
         </a>

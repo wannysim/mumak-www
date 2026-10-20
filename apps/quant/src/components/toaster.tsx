@@ -46,7 +46,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastMessage; onDismiss: () =>
         type="button"
         aria-label="알림 닫기"
         onClick={onDismiss}
-        className="-m-1 shrink-0 p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="-m-1 shrink-0 p-1 text-muted-foreground transition-colors hover:text-foreground"
       >
         <X className="size-4" aria-hidden="true" />
       </button>

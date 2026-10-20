@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
+import { LoadingButton } from '@mumak/ui/components/loading-button';
 import { cn } from '@mumak/ui/lib/utils';
 
 import { LabPage } from './lab-page';
@@ -36,32 +37,22 @@ function LoadingCandidate({
         <p className="text-sm leading-relaxed lg:min-h-20">{t(`${candidate}Description`)}</p>
       </header>
       <div className="flex min-h-20 items-center">
-        <Button
-          type="button"
-          aria-busy={loading}
-          aria-disabled={loading}
-          onClick={onStart}
-          className={cn('relative', loading && 'cursor-wait')}
-        >
-          {candidate === 'spinner' ? (
-            <>
-              <span className={cn(loading && 'invisible')} aria-hidden={loading || undefined}>
-                {t('save')}
-              </span>
-              {loading && (
-                <span className="absolute inset-0 flex items-center justify-center">
-                  {spinner}
-                  <span className="sr-only">{t('saving')}</span>
-                </span>
-              )}
-            </>
-          ) : (
-            <>
-              {loading && candidate === 'labeledSpinner' && spinner}
-              {t(loading ? 'saving' : 'save')}
-            </>
-          )}
-        </Button>
+        {candidate === 'spinner' ? (
+          <LoadingButton type="button" loading={loading} loadingLabel={t('saving')} onClick={onStart}>
+            {t('save')}
+          </LoadingButton>
+        ) : (
+          <Button
+            type="button"
+            aria-busy={loading}
+            aria-disabled={loading}
+            onClick={onStart}
+            className={cn('relative', loading && 'cursor-wait')}
+          >
+            {loading && candidate === 'labeledSpinner' && spinner}
+            {t(loading ? 'saving' : 'save')}
+          </Button>
+        )}
       </div>
       <p role="status" aria-atomic="true" className="min-h-12 text-sm leading-relaxed">
         {attempt.phase !== 'idle' && (

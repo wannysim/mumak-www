@@ -1,5 +1,7 @@
 # 버튼 상태와 글자 대비 비교
 
+> 현재 공통 계약과 제품 적용·미이전·검증 범위는 [인터랙션 계약](./interaction-contracts.md)과 [지원 현황](./support-matrix.md#7-인터랙션-적용-현황)을 참조한다. 아래 실습 결과는 당시 범위의 증거다.
+
 2026-10-16. **D 기본색 + E hover 제품 반영(D-014).** 비교·누락 점검 후 사용자가 반영을 승인했다. 아래 비교·검증 이력의 “미적용”은 제품 반영 전 시점의 기록이다. PR #633의 병합 커밋 `bb64e38`에서 `feature/button-contrast-lab`으로 분기했다.
 
 [Storybook 비교 화면](http://127.0.0.1:6006/?path=/story/learning-button-contrast--compare&globals=locale:ko;theme:light). 실행은 `pnpm --filter blog storybook`.

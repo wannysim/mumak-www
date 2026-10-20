@@ -262,7 +262,7 @@ function PerformanceChart({
             setSelectedIndex(points.length - 1);
           }
         }}
-        className="relative touch-pan-y rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="relative touch-pan-y rounded-md"
       >
         <ChartContainer config={chartConfig} className="h-60 w-full aspect-auto sm:h-80">
           <LineChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 4 }}>

@@ -31,7 +31,19 @@ for (const locale of ['ko', 'en'] as const) {
       ko ? '직접 만져보는 디자인 시스템' : 'A design system you can try'
     );
     const links = preview.getByRole('list').getByRole('link');
-    await expect(links).toHaveCount(6);
+    await expect(links).toHaveCount(8);
+    await expect(
+      preview.getByRole('link', { name: ko ? /08 공통 포커스 계약/ : /08 Shared focus contract/ })
+    ).toHaveAttribute(
+      'href',
+      `./?path=/story/components-focus-contract--controls&globals=locale:${locale};theme:light`
+    );
+    await expect(
+      preview.getByRole('link', { name: ko ? /07 버튼 타깃 크기 비교/ : /07 Button target size comparison/ })
+    ).toHaveAttribute(
+      'href',
+      `./?path=/story/learning-button-target-size--compare&globals=locale:${locale};theme:light`
+    );
     await expect(
       preview.getByRole('link', { name: ko ? /06 버튼 loading 비교/ : /06 Button loading comparison/ })
     ).toHaveAttribute('href', `./?path=/story/learning-button-loading--compare&globals=locale:${locale};theme:light`);

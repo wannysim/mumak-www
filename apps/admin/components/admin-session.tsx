@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Button } from '@mumak/ui/components/button';
 import { Input } from '@mumak/ui/components/input';
 import { Label } from '@mumak/ui/components/label';
-import { Spinner } from '@mumak/ui/components/spinner';
+import { LoadingButton } from '@mumak/ui/components/loading-button';
 
 import { ImageLibrary } from '@/components/image-library';
 import { ImageUploadForm } from '@/components/image-upload-form';
@@ -17,8 +17,10 @@ export function AdminSession({ initialAuthenticated }: { initialAuthenticated: b
   const [token, setToken] = React.useState('');
   const [pending, setPending] = React.useState(false);
   const [message, setMessage] = React.useState('');
-  const loginPending = React.useRef(false);
+  const sessionPending = React.useRef(false);
   const focusAfterLogin = React.useRef(false);
+  const focusAfterLogout = React.useRef(false);
+  const loginInput = React.useRef<HTMLInputElement>(null);
   const logoutButton = React.useRef<HTMLButtonElement>(null);
 
   React.useEffect(() => {
@@ -26,12 +28,16 @@ export function AdminSession({ initialAuthenticated }: { initialAuthenticated: b
       logoutButton.current?.focus();
       focusAfterLogin.current = false;
     }
+    if (!authenticated && focusAfterLogout.current) {
+      loginInput.current?.focus();
+      focusAfterLogout.current = false;
+    }
   }, [authenticated]);
 
   async function login(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!token || loginPending.current) return;
-    loginPending.current = true;
+    if (!token || sessionPending.current) return;
+    sessionPending.current = true;
     setPending(true);
     setMessage('');
     try {
@@ -50,22 +56,26 @@ export function AdminSession({ initialAuthenticated }: { initialAuthenticated: b
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '로그인하지 못했습니다. 다시 시도하세요.');
     } finally {
-      loginPending.current = false;
+      sessionPending.current = false;
       setPending(false);
     }
   }
 
   async function logout() {
+    if (sessionPending.current || uploading) return;
+    sessionPending.current = true;
     setPending(true);
     setMessage('');
     try {
       const response = await fetch('/api/session', { method: 'DELETE', credentials: 'same-origin' });
       if (!response.ok) throw new Error('로그아웃하지 못했습니다. 다시 시도하세요.');
+      focusAfterLogout.current = true;
       setAuthenticated(false);
       setToken('');
     } catch {
       setMessage('로그아웃하지 못했습니다. 다시 시도하세요.');
     } finally {
+      sessionPending.current = false;
       setPending(false);
     }
   }
@@ -82,9 +92,17 @@ export function AdminSession({ initialAuthenticated }: { initialAuthenticated: b
         <>
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">로그인됨</p>
-            <Button ref={logoutButton} type="button" variant="outline" disabled={pending || uploading} onClick={logout}>
+            <LoadingButton
+              ref={logoutButton}
+              type="button"
+              variant="outline"
+              disabled={uploading}
+              loading={pending}
+              loadingLabel="로그아웃 중…"
+              onClick={logout}
+            >
               로그아웃
-            </Button>
+            </LoadingButton>
           </div>
           <div className="flex gap-2" role="group" aria-label="이미지 관리 메뉴">
             <Button
@@ -118,6 +136,7 @@ export function AdminSession({ initialAuthenticated }: { initialAuthenticated: b
           <div className="space-y-2">
             <Label htmlFor="login-token">업로드 토큰</Label>
             <Input
+              ref={loginInput}
               id="login-token"
               type="password"
               autoComplete="off"
@@ -127,32 +146,19 @@ export function AdminSession({ initialAuthenticated }: { initialAuthenticated: b
               onChange={event => setToken(event.target.value)}
             />
           </div>
-          <Button
-            className="relative w-full aria-disabled:cursor-wait"
+          <LoadingButton
+            className="w-full"
             type="submit"
             disabled={!token && !pending}
-            aria-disabled={pending}
-            aria-busy={pending}
+            loading={pending}
+            loadingLabel="로그인 중…"
           >
-            <span className={pending ? 'invisible' : undefined} aria-hidden={pending || undefined}>
-              로그인
-            </span>
-            {pending && (
-              <span className="absolute inset-0 flex items-center justify-center">
-                <Spinner
-                  aria-hidden="true"
-                  role="presentation"
-                  aria-label={undefined}
-                  className="motion-reduce:animate-none"
-                />
-                <span className="sr-only">로그인 중…</span>
-              </span>
-            )}
-          </Button>
+            로그인
+          </LoadingButton>
         </form>
       )}
       <p role="status" aria-atomic="true" className="min-h-5 text-sm text-muted-foreground">
-        {pending && !authenticated ? <span className="sr-only">로그인 중…</span> : message}
+        {pending ? <span className="sr-only">{authenticated ? '로그아웃 중…' : '로그인 중…'}</span> : message}
       </p>
     </div>
   );

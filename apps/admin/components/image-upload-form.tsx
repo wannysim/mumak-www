@@ -7,6 +7,7 @@ import { Checkbox } from '@mumak/ui/components/checkbox';
 import { Field, FieldLabel, FieldLegend, FieldSet } from '@mumak/ui/components/field';
 import { Input } from '@mumak/ui/components/input';
 import { Label } from '@mumak/ui/components/label';
+import { LoadingButton } from '@mumak/ui/components/loading-button';
 import { RadioGroup, RadioGroupItem } from '@mumak/ui/components/radio-group';
 import { Textarea } from '@mumak/ui/components/textarea';
 
@@ -34,13 +35,16 @@ function ImageUploadForm({
   const [message, setMessage] = React.useState('');
   const [uploading, setUploading] = React.useState(false);
 
+  const uploadPending = React.useRef(false);
+
   const canUpload = Boolean(file && (decorative || alt.trim()));
   const selectedFormat = SNIPPET_FORMATS.find(option => option.value === format)!;
   const snippet = publishedImage ? createSnippet(publishedImage, alt, decorative, format) : '';
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!file || !canUpload) return;
+    if (!file || !canUpload || uploadPending.current) return;
+    uploadPending.current = true;
 
     setUploading(true);
     onUploadingChange?.(true);
@@ -58,6 +62,7 @@ function ImageUploadForm({
       }
       setMessage(error instanceof Error ? error.message : '이미지를 발행하지 못했습니다.');
     } finally {
+      uploadPending.current = false;
       setUploading(false);
       onUploadingChange?.(false);
     }
@@ -115,9 +120,16 @@ function ImageUploadForm({
         </div>
       </div>
 
-      <Button className="w-full" type="submit" size="lg" disabled={!canUpload || uploading}>
-        {uploading ? '발행 중…' : '이미지 발행'}
-      </Button>
+      <LoadingButton
+        className="w-full"
+        type="submit"
+        size="lg"
+        disabled={!canUpload}
+        loading={uploading}
+        loadingLabel="발행 중…"
+      >
+        이미지 발행
+      </LoadingButton>
 
       <p aria-live="polite" className="min-h-5 text-sm text-muted-foreground">
         {message}
