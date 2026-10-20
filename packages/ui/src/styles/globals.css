@@ -130,6 +130,11 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* The same focus geometry is used by native targets and composite surfaces. */
+@utility focus-outline {
+  @apply outline-2 outline-solid outline-offset-2 outline-ring;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -138,7 +143,7 @@
     @apply bg-background text-foreground;
   }
   *:focus-visible {
-    @apply outline-2 outline-solid outline-offset-2 outline-ring;
+    @apply focus-outline;
   }
 }
 

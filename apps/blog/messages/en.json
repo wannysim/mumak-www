@@ -313,7 +313,11 @@
     "contrastTitle": "Button contrast comparison",
     "contrastSummary": "Compare color options, interactive states, and measured text contrast.",
     "loadingTitle": "Button loading comparison",
-    "loadingSummary": "Compare pending feedback, width changes, repeated input, and success or failure."
+    "loadingSummary": "Compare pending feedback, width changes, repeated input, and success or failure.",
+    "targetTitle": "Button target size comparison",
+    "targetSummary": "Compare visible sizes and clickable areas for ease of activation.",
+    "focusControlsTitle": "Shared focus contract",
+    "focusControlsSummary": "Inspect the same focus rule across inputs, selectors, tabs and composite inputs."
   },
   "buttonContrastLab": {
     "title": "Button states and text contrast",
@@ -391,5 +395,45 @@
     "common": "Shared conditions: color, height, focus styling, and status text below each button. While pending, only additional activation is blocked; keyboard focus remains available. Conditions can change once all pending requests finish.",
     "motion": "Compare Light and Dark too. With the operating system’s reduced motion setting, spinners stop rotating. Observe whether C’s static symbol and the text below still communicate waiting.",
     "question": "C is the selected direction. The button alone communicated pending work, and preserving its width was preferred. Compare other conditions to see whether that reasoning still holds."
+  },
+  "buttonTargetLab": {
+    "title": "Button target size comparison",
+    "intro": "Explore the visible button separately from its clickable area. C was selected after a real mobile comparison; product sizes have not changed yet.",
+    "conditions": "Comparison conditions",
+    "task": "With target outlines off, press Save in the middle, then alternate Previous and Next. Button centers and icon sizes are identical across candidates. Nothing is saved and no navigation occurs.",
+    "showTargets": "Show clickable areas",
+    "spacing": "Centers 52 CSS px apart · icons 16×16 CSS px. With outlines on, the dashed area accepts clicks and taps.",
+    "currentTitle": "A · Current size",
+    "currentDescription": "The visible button and target are both 32×32, matching the shared Button’s default icon size.",
+    "largerTitle": "B · Enlarge both",
+    "largerDescription": "Both the visible button and target grow to 44×44. The icon stays the same size.",
+    "invisibleTitle": "C · Enlarge target only",
+    "invisibleDescription": "The visible button stays 32×32 while its target grows to 44×44.",
+    "controls": "Previous, save and next exercise",
+    "previous": "Previous",
+    "save": "Save",
+    "next": "Next",
+    "idle": "Your activated button appears here.",
+    "result": "{action} activated · {count} total",
+    "dimensions": "Surface {visible}×{visible} · target {target}×{target} CSS px",
+    "observeTitle": "What to observe",
+    "observePointer": "Can you activate it without aiming precisely? How likely does pressing a neighbor feel?",
+    "observeBoundary": "Show the target outlines and try the edges. C responds outside the visible button. Is that where you expected it to respond?",
+    "observeFocus": "Move with Tab and Shift+Tab, then activate with Space and Enter. Focus surrounds the actual target.",
+    "boundary": "This comparison holds button centers constant. C still occupies 44px, so its invisible padding is not free space. Real layouts must reserve space to prevent neighboring targets from overlapping.",
+    "standard": "Reference: WCAG 2.2 SC 2.5.8 (AA) covers 24×24 CSS px or exceptions such as spacing. SC 2.5.5 (AAA) is the enhanced 44×44 CSS px criterion. This does not mean every button must be 44px to meet AA.",
+    "limits": "Only successful activations are counted. Counts do not measure mis-tap rates or rank candidates. Mobile previews and automated taps do not replace real finger interaction.",
+    "question": "Which feels easier to activate, with natural size and spacing? Separate your mouse observations from any real touch observations."
+  },
+  "focusControlsLab": {
+    "title": "Shared focus contract",
+    "intro": "Use Tab and arrow keys to inspect the shared 2px outline. Error and selection states remain separate from focus.",
+    "controls": "Basic controls",
+    "composites": "Composite inputs",
+    "compositeHint": "Input groups outline their surface; OTP outlines its active slot. Internal buttons outline their own bounds.",
+    "invalid": "Invalid",
+    "disabled": "Disabled",
+    "error": "Focus must remain distinguishable while the error indication is present.",
+    "panel": "Panel {number}"
   }
 }

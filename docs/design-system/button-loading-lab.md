@@ -1,6 +1,10 @@
 # 버튼 loading 비교
 
+> 현재 공통 계약과 제품 적용·미이전·검증 범위는 [인터랙션 계약](./interaction-contracts.md)과 [지원 현황](./support-matrix.md#7-인터랙션-적용-현황)을 참조한다. 아래 실습 결과는 당시 범위의 증거다.
+
 2026-10-19. **원래 너비를 유지하는 C의 spinner 표현을 선택했다(D-015).** 후속으로 admin 로그인에 적용했다. 단계 1 전체 완료가 아니다. PR #634 병합 커밋 `51a500f`에서 `feature/button-loading-lab`으로 분기했다.
+
+2026-10-20 후속 D-017: 공유 `LoadingButton`을 만들고 admin 요청 버튼 6종과 Storybook C를 이전했다. 최초 선택·로그인 적용의 기록은 보존하며, 최신 계약과 적용 범위는 위 정본을 따른다.
 
 [Storybook 비교](http://127.0.0.1:6006/?path=/story/learning-button-loading--compare&globals=locale:ko;theme:light). 실행은 `pnpm --filter blog storybook`. 시작 화면의 여섯 번째 링크로도 연다.
 
@@ -87,3 +91,20 @@ PR #635에서는 제품 동작과 라우트를 변경하지 않았다. 당시에
 - `CI=1 pnpm --filter admin test:e2e --workers=2 --retries=0 --reporter=line`: Chromium·Firefox·WebKit 합계 24개 통과. 로그인 pending·실패·재시도·성공, 입력/버튼 Enter·Space·포인터 중복, 크기·포커스, reduced-motion 및 기존 업로드·세션 보존을 검증했다. 지연 실패는 네트워크 interception으로 제어하고 성공 재시도는 로컬 인증 서버를 사용한다.
 - Python Playwright로 기본·대기·실패, 모바일 reduced-motion을 캡처했다. 대기 화면을 육안 확인했고 pageerror 0건이었다. 실제 토큰이나 외부 인증·R2 요청은 사용하지 않았다.
 - verifier 검토에서 차단 항목 없음. 실제 스크린리더 발화·사용자의 reduced-motion 인지 평가는 미실시다.
+
+## 후속 공통화 — D-017
+
+2026-10-20. 실제 요청의 표현이 소비처별로 복제되지 않도록 `@mumak/ui/components/loading-button`을 추가했다. 기존 Button과 Spinner를 조합하며 `loading`과 필수 `loadingLabel`을 받는다. 원래 children은 레이아웃에 남겨 너비를 유지하고, 대기 중 spinner·접근 가능한 이름·busy/disabled 의미와 클릭 차단을 제공한다. native button 전용이며 기존 Button의 `asChild` API를 바꾸지 않는다.
+
+admin 로그인·로그아웃·발행·새로고침·더 불러오기·재시도 6종과 Storybook C를 같은 구현으로 이전했다. 폼의 직접 제출까지 막는 동기 guard와 상태 안내는 앱이 소유한다. 목록 최초 조회는 버튼 요청과 구분하고, 요청을 시작한 버튼에만 spinner를 표시한다. 실패 후 재시도 버튼을 유지하며 성공 후 버튼이 사라질 때 새로고침으로 포커스를 연결한다. 로그아웃 성공 후에는 로그인 입력으로 이동한다.
+
+발행 단계 안내와 기존 페이지 이동 진행 표시는 유지한다. 받은 목록의 폴더 필터는 동기 동작이고, clipboard pending 모델·다른 앱의 요청 버튼은 아직 이전 범위 밖이다. 공유 API가 생겼다는 이유로 모든 앱의 loading 이전이 완료된 것은 아니다.
+
+검증:
+
+- admin 타입·lint·format·빌드, 단위 16 suites / 163개 통과. 공유 버튼의 ref·native form·중복 방지, 소비 요청의 성공·실패·재시도를 포함한다.
+- admin E2E Chromium·Firefox·WebKit 합계 33개 통과. 로그인과 함께 발행·목록·로그아웃의 대기 너비, 포커스, 중복 요청 차단과 실패 재시도를 확인했다.
+- Storybook 기존 69개 검사에 공유 구현을 사용하는 loading 비교 10개가 포함된다. C의 ko/en·Light/Dark·모바일·reduced-motion·실패 재시도 검증을 유지했다.
+- JSDOM의 파일 업로드 helper와 native required 검증 간 차이로 단위 테스트의 재시도는 직접 form submit을 사용한다. 실제 파일 선택과 버튼 클릭 재시도는 위 3브라우저 E2E로 별도 확인했다.
+
+서버 차원의 요청 중복 방지, 실제 스크린리더 발화와 정적 spinner의 인지 충분성은 이 검증의 완료 범위가 아니다. 공통 계약과 소비처 상태는 [인터랙션 계약](./interaction-contracts.md)·[지원 현황](./support-matrix.md#7-인터랙션-적용-현황)을 따른다.

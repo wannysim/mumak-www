@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { ImageUploadForm } from '../image-upload-form';
@@ -249,4 +249,43 @@ describe('upload authorization and publication failures', () => {
     expect(await screen.findByText('파일이 32 MiB 제한을 넘었습니다.')).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+});
+
+it('guards publishing during C loading and leaves focus ready for retry after failure', async () => {
+  const user = userEvent.setup();
+  let finish!: (response: { ok: boolean; status: number; json: () => Promise<object> }) => void;
+  const fetchSpy = jest.fn().mockImplementation(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      })
+  );
+  Object.defineProperty(global, 'fetch', { configurable: true, value: fetchSpy });
+  try {
+    render(<ImageUploadForm onSessionExpired={jest.fn()} />);
+    await user.upload(screen.getByLabelText('업로드 이미지'), new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' }));
+    await user.type(screen.getByLabelText('대체 텍스트'), '설명');
+    const button = screen.getByRole('button', { name: '이미지 발행' });
+    button.focus();
+    act(() => {
+      fireEvent.submit(button.closest('form')!);
+      fireEvent.submit(button.closest('form')!);
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(button).toHaveAccessibleName('발행 중…');
+    expect(button).toHaveFocus();
+    expect(button).not.toBeDisabled();
+    expect(screen.getByLabelText('업로드 이미지')).toBeDisabled();
+    await user.keyboard('{Enter} ');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ ok: false, status: 500, json: async () => ({}) }));
+    expect(button).toHaveAccessibleName('이미지 발행');
+    expect(button).toHaveFocus();
+    // jsdom's required-file validation does not see user-event's uploaded FileList.
+    fireEvent.submit(button.closest('form')!);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    await act(async () => finish({ ok: false, status: 500, json: async () => ({}) }));
+  } finally {
+    Reflect.deleteProperty(global, 'fetch');
+  }
 });

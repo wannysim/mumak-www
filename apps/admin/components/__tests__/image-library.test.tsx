@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { ImageLibrary } from '../image-library';
@@ -89,4 +89,44 @@ it('handles an empty filtered page that has more results', async () => {
   fetchMock.mockResolvedValue(response([], 'next'));
   render(<ImageLibrary onSessionExpired={jest.fn()} />);
   expect(await screen.findByText('아직 표시할 이미지가 없습니다. 더 불러와 주세요.')).toBeInTheDocument();
+});
+
+it('distinguishes initial loading from refresh, pagination and retry while guarding each request', async () => {
+  const user = userEvent.setup();
+  let finish!: (value: ReturnType<typeof response> | { ok: false }) => void;
+  fetchMock.mockImplementation(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      })
+  );
+  render(<ImageLibrary onSessionExpired={jest.fn()} />);
+  const refresh = screen.getByRole('button', { name: '새로고침' });
+  expect(refresh).toBeDisabled();
+  expect(refresh).toHaveAttribute('aria-busy', 'false');
+  await act(async () => finish(response([file('jpg')], 'next')));
+  await user.click(refresh);
+  expect(refresh).toHaveAccessibleName('새로고침 중…');
+  expect(refresh).toHaveFocus();
+  fireEvent.click(refresh);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  await act(async () => finish(response([file('jpg')], 'next')));
+  const more = screen.getByRole('button', { name: '더 불러오기' });
+  await user.click(more);
+  expect(more).toHaveAccessibleName('더 불러오는 중…');
+  expect(refresh).toHaveAttribute('aria-busy', 'false');
+  expect(refresh).toBeDisabled();
+  fireEvent.click(more);
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  await act(async () => finish({ ok: false }));
+  const retry = screen.getByRole('button', { name: '다시 시도' });
+  await user.click(retry);
+  expect(retry).toHaveFocus();
+  expect(retry).toHaveAccessibleName('재시도 중…');
+  fireEvent.click(retry);
+  expect(fetchMock).toHaveBeenCalledTimes(4);
+  expect(fetchMock.mock.calls[3][0]).toBe('/api/images/library?cursor=next');
+  await act(async () => finish(response([file('webp')])));
+  expect(retry).not.toBeInTheDocument();
+  expect(refresh).toHaveFocus();
 });

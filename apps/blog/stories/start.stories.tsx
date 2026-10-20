@@ -12,6 +12,8 @@ const lessons = [
   { key: 'comparison', story: 'learning-focus-comparison--compare' },
   { key: 'contrast', story: 'learning-button-contrast--hover' },
   { key: 'loading', story: 'learning-button-loading--compare' },
+  { key: 'target', story: 'learning-button-target-size--compare' },
+  { key: 'focusControls', story: 'components-focus-contract--controls' },
 ] as const;
 
 function Start() {

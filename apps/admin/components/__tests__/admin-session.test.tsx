@@ -121,3 +121,34 @@ it('keeps the current session visible when logout fails', async () => {
   expect(await screen.findByText('로그아웃하지 못했습니다. 다시 시도하세요.')).toBeInTheDocument();
   expect(screen.getByText('로그인됨')).toBeInTheDocument();
 });
+
+it('keeps logout focused while pending, guards repeats and focuses login after success', async () => {
+  const user = userEvent.setup();
+  let finish!: (response: { ok: boolean }) => void;
+  const fetchSpy = jest
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        })
+    )
+    .mockResolvedValue({ ok: true });
+  Object.defineProperty(global, 'fetch', { configurable: true, value: fetchSpy });
+  render(<AdminSession initialAuthenticated />);
+  const button = screen.getByRole('button', { name: '로그아웃' });
+  await user.click(button);
+  expect(button).toHaveFocus();
+  expect(button).toHaveAccessibleName('로그아웃 중…');
+  expect(button).toHaveAttribute('aria-busy', 'true');
+  fireEvent.click(button);
+  await user.keyboard('{Enter} ');
+  expect(fetchSpy).toHaveBeenCalledTimes(1);
+  await act(async () => finish({ ok: false }));
+  expect(button).toHaveFocus();
+  expect(button).toHaveAccessibleName('로그아웃');
+  expect(screen.getByRole('status')).toHaveTextContent('로그아웃하지 못했습니다.');
+  await user.click(button);
+  expect(await screen.findByLabelText('업로드 토큰')).toHaveFocus();
+  expect(fetchSpy).toHaveBeenCalledTimes(2);
+});
