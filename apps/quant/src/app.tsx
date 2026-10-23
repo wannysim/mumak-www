@@ -13,6 +13,7 @@ import {
 } from '@mumak/ui/components/select';
 
 import { Panel, SnapshotDashboard } from '@/components/dashboard-sections';
+import { DataContext } from '@/components/data-context';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { TimeZoneProvider, useTimeZone } from '@/components/time-zone-provider';
 import { TimeZoneSelect } from '@/components/time-zone-select';
@@ -62,7 +63,18 @@ function ModeTabs({ mode, onChange }: { mode: DashboardMode; onChange: (mode: Da
           key={value}
           type="button"
           role="tab"
+          id={`mode-${value}`}
+          aria-controls="mode-panel"
+          tabIndex={mode === value ? 0 : -1}
           aria-selected={mode === value}
+          onKeyDown={event => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const next =
+              event.key === 'Home' ? 'paper' : event.key === 'End' ? 'live' : mode === 'paper' ? 'live' : 'paper';
+            onChange(next);
+            document.getElementById(`mode-${next}`)?.focus();
+          }}
           className="min-h-10 px-4 text-sm font-medium text-muted-foreground transition-[color,background-color,transform] duration-150 ease-out aria-selected:bg-primary aria-selected:text-primary-foreground active:scale-[0.97]"
           onClick={() => onChange(value)}
         >
@@ -188,7 +200,7 @@ function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDas
               {snapshot.status === 'pending'
                 ? '시작 대기'
                 : snapshot.status === 'active'
-                  ? '운용 중'
+                  ? '원장 활성'
                   : snapshot.status === 'stopped'
                     ? '중단'
                     : '완료'}
@@ -245,6 +257,17 @@ function ConfiguredApp({ client }: { client: DashboardClient }) {
   const controller = useDashboardController(client);
   const [signOutError, setSignOutError] = useState('');
   let content: React.ReactNode;
+  const { formatDateTime } = useTimeZone();
+  const retry = (
+    <Button
+      type="button"
+      variant="outline"
+      className="mt-4 min-h-11 rounded-none"
+      onClick={() => void controller.refresh()}
+    >
+      다시 조회
+    </Button>
+  );
 
   if (controller.mode === 'live' && controller.authStatus === 'loading') {
     content = <StatePanel title="세션을 확인하고 있습니다.">잠시만 기다려 주세요.</StatePanel>;
@@ -257,7 +280,23 @@ function ConfiguredApp({ client }: { client: DashboardClient }) {
   } else if (controller.data.status === 'error') {
     content = (
       <StatePanel title="운용 내역을 불러오지 못했습니다.">
-        연결 상태를 확인한 뒤 다시 시도해 주세요. 기존 실운용 데이터는 표시하지 않습니다.
+        <p>
+          {controller.data.errorKind === 'schema'
+            ? '응답 형식 또는 데이터 계약을 확인하지 못했습니다.'
+            : controller.data.errorKind === 'access'
+              ? '인증 또는 조회 권한을 확인해 주세요.'
+              : '네트워크 또는 조회 서비스 연결을 확인해 주세요.'}
+        </p>
+        <p>
+          {controller.mode === 'paper'
+            ? '공개 모의 운용 내역을 표시하지 않습니다.'
+            : '기존 실운용 데이터는 표시하지 않습니다.'}
+        </p>
+        <p>
+          최근 성공: {controller.data.lastSuccessAt ? formatDateTime(controller.data.lastSuccessAt) : '없음'} · 실패:{' '}
+          {controller.data.lastFailureAt ? formatDateTime(controller.data.lastFailureAt) : '미확인'}
+        </p>
+        {retry}
       </StatePanel>
     );
   } else if (controller.data.status === 'empty') {
@@ -266,17 +305,24 @@ function ConfiguredApp({ client }: { client: DashboardClient }) {
         title={controller.mode === 'live' ? '실운용 내역이 아직 없습니다.' : '모의 운용 내역이 아직 없습니다.'}
       >
         첫 월간 운용 내역이 저장되면 여기에 표시됩니다.
+        <p>조회 성공 · 저장된 내역 없음</p>
+        {retry}
       </StatePanel>
     );
   } else if (controller.selectedSnapshot) {
     content = (
       <>
         <DashboardToolbar controller={controller} />
+        <DataContext snapshot={controller.selectedSnapshot} query={controller.data} />
         <SnapshotDashboard snapshot={controller.selectedSnapshot} />
       </>
     );
   } else {
-    content = <StatePanel title="표시할 데이터가 없습니다.">선택한 모드에 저장된 운용 내역이 없습니다.</StatePanel>;
+    content = (
+      <StatePanel title="아직 조회하지 않았습니다.">
+        화면이 활성화되면 조회합니다. 숨겨진 화면에서는 조회를 일시정지합니다.{retry}
+      </StatePanel>
+    );
   }
 
   return (
@@ -316,7 +362,14 @@ function ConfiguredApp({ client }: { client: DashboardClient }) {
             {signOutError}
           </p>
         )}
-        <div className="space-y-5 sm:space-y-6">{content}</div>
+        <div
+          id="mode-panel"
+          role="tabpanel"
+          aria-labelledby={`mode-${controller.mode}`}
+          className="space-y-5 sm:space-y-6"
+        >
+          {content}
+        </div>
       </main>
     </>
   );
@@ -329,7 +382,7 @@ function UnconfiguredApp() {
       <AppHeader />
       <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
         <ModeTabs mode={mode} onChange={setMode} />
-        <div className="mt-5">
+        <div id="mode-panel" role="tabpanel" aria-labelledby={`mode-${mode}`} className="mt-5">
           {mode === 'paper' ? (
             <StatePanel title="대시보드가 아직 연결되지 않았습니다.">
               <code>VITE_SUPABASE_URL</code>과 <code>VITE_SUPABASE_ANON_KEY</code>를 배포 환경에 설정해 주세요. 비밀

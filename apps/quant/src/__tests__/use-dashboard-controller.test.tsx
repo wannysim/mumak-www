@@ -1,9 +1,11 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { TEST_ONLY_PAPER_PAYLOAD } from '@/__tests__/fixtures/test-snapshot';
 import { useDashboardController } from '@/hooks/use-dashboard-controller';
 import type { AuthEvent, AuthSession, DashboardClient } from '@/lib/dashboard-client';
+import { DashboardQueryError } from '@/lib/dashboard-query-error';
+import { SnapshotValidationError } from '@/lib/dashboard-schema';
 import type { DashboardMode, DashboardSnapshot } from '@/lib/dashboard-schema';
 
 function snapshot(overrides: Partial<DashboardSnapshot> = {}): DashboardSnapshot {
@@ -95,6 +97,61 @@ function ControllerHarness({ client }: { client: DashboardClient }) {
 }
 
 describe('useDashboardController', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('pauses an aborted hidden request and resumes without accepting its late data', async () => {
+    let visibility: DocumentVisibilityState = 'visible';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+    const client = new FakeDashboardClient();
+    const late = deferred<DashboardSnapshot[]>();
+    client.fetchImplementation = () => late.promise;
+    const { result } = renderHook(() => useDashboardController(client));
+    await waitFor(() => expect(result.current.data.status).toBe('loading'));
+    act(() => {
+      visibility = 'hidden';
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(result.current.data.status).toBe('paused');
+    expect(result.current.data.lastSuccessAt).toBeUndefined();
+    await act(async () => late.resolve([snapshot({ label: 'obsolete' })]));
+    expect(result.current.selectedSnapshot).toBeNull();
+    client.fetchImplementation = async () => [snapshot()];
+    act(() => {
+      visibility = 'visible';
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await waitFor(() => expect(result.current.data.status).toBe('ready'));
+    expect(result.current.data.lastSuccessAt).toBeDefined();
+    expect(result.current.selectedSnapshot?.label).not.toBe('obsolete');
+  });
+
+  it.each([new DashboardQueryError('access'), new SnapshotValidationError('PRIVATE', 'PRIVATE'), new Error('PRIVATE')])(
+    'keeps last success clock but clears economics and raw errors after failure',
+    async error => {
+      const client = new FakeDashboardClient();
+      const { result } = renderHook(() => useDashboardController(client));
+      await waitFor(() => expect(result.current.data.status).toBe('ready'));
+      const success = result.current.data.lastSuccessAt;
+      client.fetchImplementation = async () => {
+        throw error;
+      };
+      await act(async () => {
+        await result.current.refresh();
+      });
+      expect(result.current.data.status).toBe('error');
+      expect(result.current.data.lastSuccessAt).toBe(success);
+      expect(result.current.data.lastFailureAt).toBeDefined();
+      expect(result.current.data.snapshots).toEqual([]);
+      expect(JSON.stringify(result.current.data)).not.toContain('PRIVATE');
+      client.fetchImplementation = async () => [];
+      await act(async () => {
+        await result.current.refresh();
+      });
+      expect(result.current.data.status).toBe('empty');
+      expect(result.current.data.lastFailureAt).toBeUndefined();
+    }
+  );
+
   it('does not request live snapshots for an anonymous visitor', async () => {
     const client = new FakeDashboardClient();
     render(<ControllerHarness client={client} />);
