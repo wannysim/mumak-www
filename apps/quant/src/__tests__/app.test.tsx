@@ -62,6 +62,37 @@ describe('Quant dashboard app', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
+  it('does not call an unqueried hidden page empty', async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    const client = new AppTestClient();
+    render(<App client={client} />);
+    expect(await screen.findByRole('heading', { name: '아직 조회하지 않았습니다.' })).toBeInTheDocument();
+    expect(screen.queryByText(/저장된 운용 내역이 없습니다/)).not.toBeInTheDocument();
+    expect(client.requests).toEqual([]);
+  });
+
+  it('offers retry on confirmed empty and recovers without changing mode', async () => {
+    const client = new AppTestClient();
+    client.snapshots.paper = [];
+    render(<App client={client} />);
+    await screen.findByText('모의 운용 내역이 아직 없습니다.');
+    client.snapshots.paper = [paperSnapshot()];
+    await userEvent.click(screen.getByRole('button', { name: '다시 조회' }));
+    expect(await screen.findByRole('heading', { name: '2026-09 · 테스트 운용 1기' })).toBeInTheDocument();
+  });
+
+  it('offers mode-correct safe retry after a failed public query', async () => {
+    const client = new AppTestClient();
+    client.fetchError = true;
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '운용 내역을 불러오지 못했습니다.' });
+    expect(screen.queryByText(/기존 실운용/)).not.toBeInTheDocument();
+    expect(screen.queryByText('test-only fetch error')).not.toBeInTheDocument();
+    client.fetchError = false;
+    await userEvent.click(screen.getByRole('button', { name: '다시 조회' }));
+    expect(await screen.findByRole('heading', { name: '2026-09 · 테스트 운용 1기' })).toBeInTheDocument();
+  });
+
   it('warns when logout fails while clearing private display', async () => {
     const client = new AppTestClient();
     client.session = { userId: 'owner-1' };

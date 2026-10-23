@@ -1,9 +1,10 @@
 import type { AuthEvent, AuthSession, DashboardClient } from '@/lib/dashboard-client';
+import { DashboardQueryError } from '@/lib/dashboard-query-error';
 import { mapSnapshotRow, type DashboardMode } from '@/lib/dashboard-schema';
 
-type SupabaseError = { message: string };
+type SupabaseError = { message: string; code?: string; status?: number };
 type SupabaseSession = { user: { id: string; email?: string }; [key: string]: unknown };
-type SupabaseResult<T> = { data: T; error: SupabaseError | null };
+type SupabaseResult<T> = { data: T; error: SupabaseError | null; status?: number };
 
 type SupabaseQuery = {
   select: (columns: string) => SupabaseQuery;
@@ -65,14 +66,30 @@ class SupabaseDashboardClient implements DashboardClient {
 
   async fetchSnapshots(mode: DashboardMode, signal: AbortSignal) {
     const table = mode === 'paper' ? 'paper_snapshots' : 'live_snapshots';
-    const { data, error } = await this.supabase
+    const { data, error, status } = await this.supabase
       .from(table)
       .select('episode_id,month,as_of,payload')
       .order('month', { ascending: false })
       .order('as_of', { ascending: false })
       .abortSignal(signal);
-    if (error) throw new Error('운용 내역을 불러오지 못했습니다.');
-    return (data ?? []).map(row => mapSnapshotRow(row, mode));
+    if (error) {
+      if (
+        status === 401 ||
+        status === 403 ||
+        error.status === 401 ||
+        error.status === 403 ||
+        error.code === '42501' ||
+        error.code?.startsWith('PGRST3')
+      ) {
+        throw new DashboardQueryError('access');
+      }
+      if (error.code === '42703' || error.code === '42P01' || error.code?.startsWith('PGRST2')) {
+        throw new DashboardQueryError('schema');
+      }
+      throw new DashboardQueryError('transport');
+    }
+    if (!Array.isArray(data)) throw new DashboardQueryError('schema');
+    return data.map(row => mapSnapshotRow(row, mode));
   }
 
   async requestMagicLink(email: string) {
