@@ -36,13 +36,16 @@
 - LoadingButton은 native button 전용이며 `asChild`를 지원하지 않는다. 대기만으로 native disabled를 켜지 않아 포커스를 유지한다. 폼의 직접 제출까지 막는 동기 guard, 요청·상태 안내·성공 후 포커스는 소비 앱이 소유한다. `loadingLabel`은 live announcement의 대체물이 아니므로 앱에서 status 영역도 연결한다.
 - 공유 API 구현과 모든 앱의 소비처 이전은 별도다. 현재 실제 이전 단위는 admin 로그인·로그아웃·발행·새로고침·더 불러오기·재시도다. 복사와 다른 앱은 현황표의 경계를 따른다.
 
-## 아이콘 타깃 — D-016
+## 아이콘 타깃 — D-016·D-018
 
 - 사용자는 실제 모바일에서 C(표면 32px / 타깃 44px)를 선택했다. 제품 적용 방향은 **시각적 크기와 조작 영역을 분리하고, 아이콘 조작 타깃에 44×44 CSS px를 확보**하는 것이다.
 - 실습의 표면 32px·중심 간격 52px는 비교 조건이다. 제품 표면을 모두 32px로 바꾸거나 52px를 공통 spacing token으로 만들지 않는다.
 - 타깃 공간을 레이아웃에 확보한다. 이웃 타깃과 겹치거나 다른 조작을 가로채는 투명 영역은 허용하지 않는다. 좁은 배치는 간격·정렬·줄바꿈까지 함께 검토한다.
 - 하나의 조작은 하나의 의미 있는 button 또는 link로 유지한다. 안쪽 표면은 별도 상호작용 요소가 아니다. 이름·포커스·hover/pressed/expanded·disabled 상태와 `asChild`의 ref/이벤트 연결을 보존한다.
 - 실제 타깃 크기, 비중첩, 경계 클릭·터치, 키보드, Light/Dark, 좁은 화면을 검증한다. 확대된 영역이 컨테이너 밖에서 잘리거나 이웃 링크를 덮지 않는지 제품 화면에서도 확인한다.
+- 공유 `IconButton`은 native ghost button 전용 조합이다. 실제 레이아웃 타깃은 44px, `surfaceSize="sm"`은 28px 표면, `lg`는 36px 표면이다. 필수 `aria-label`이 조작 이름을 제공하며 표면은 aria-hidden 비조작 span이다. pressed·disabled·ref·이벤트·포커스는 외부 Button이 소유한다. `surfaceClassName`은 그래프의 반투명 표면 같은 역할별 스타일에만 사용한다.
+- Radix Trigger/Close의 `asChild`로 IconButton을 감싸는 조합은 지원한다. IconButton 자체의 `asChild`·anchor·다른 variant는 아직 지원하지 않는다. 링크 소비처는 native 링크 의미를 유지하는 별도 이전 검토가 필요하며 미이전으로 추적한다.
+- 첫 적용 단위는 Blog Navigation·MobileMenu(열기/닫기)·모바일 검색·SwitcherDropdown·ThemeSwitcher placeholder와 GraphToolbar다. 헤더 fallback도 같은 타깃 공간을 확보한다. 기본 Button의 크기와 다른 앱은 변경하지 않는다.
 - 이는 프로젝트의 선택이며 모든 버튼에 대한 WCAG AA 44px 의무라는 뜻이 아니다. 텍스트 버튼·본문 링크·복합 위젯은 역할과 배치를 별도로 검토한다. 실습의 실제 모바일 선호가 모든 소비 화면의 사용성 검증을 대신하지 않는다.
 
 ## 변경을 완료로 기록하는 조건

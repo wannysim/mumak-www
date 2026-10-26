@@ -31,7 +31,10 @@ for (const locale of ['ko', 'en'] as const) {
       ko ? '직접 만져보는 디자인 시스템' : 'A design system you can try'
     );
     const links = preview.getByRole('list').getByRole('link');
-    await expect(links).toHaveCount(8);
+    await expect(links).toHaveCount(9);
+    await expect(
+      preview.getByRole('link', { name: ko ? /09 헤더 배치 비교/ : /09 Header layout comparison/ })
+    ).toHaveAttribute('href', `./?path=/story/learning-header-layout--compare&globals=locale:${locale};theme:light`);
     await expect(
       preview.getByRole('link', { name: ko ? /08 공통 포커스 계약/ : /08 Shared focus contract/ })
     ).toHaveAttribute(

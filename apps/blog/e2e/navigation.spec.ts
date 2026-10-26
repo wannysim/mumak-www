@@ -227,10 +227,10 @@ test.describe('Navigation', () => {
   });
 
   test.describe('Header Navigation', () => {
-    test('should display logo and navigate to home', async ({ page }) => {
+    test('should display Home and navigate to home', async ({ page }) => {
       await page.goto('/ko/blog');
 
-      const logo = page.getByRole('link', { name: 'Wan Sim' });
+      const logo = page.locator('header[data-visible]').getByRole('link', { name: 'Home', exact: true });
       await expect(logo).toBeVisible();
 
       await logo.click();
@@ -299,7 +299,7 @@ test.describe('Navigation', () => {
       // 보정되지 않으면 로고가 옆으로 밀린다. (overlay 스크롤바 환경에서는 항상 통과)
       await page.goto('/ko/blog/essay/retrospect-2025');
 
-      const logo = page.getByRole('link', { name: 'Wan Sim' });
+      const logo = page.locator('header[data-visible]').getByRole('link', { name: 'Home', exact: true });
       await expect(logo).toBeVisible();
       // 열린 드롭다운은 배경에 aria-hidden을 걸어 role 기반 재조회를 막으므로,
       // 접근성 트리와 무관하게 좌표를 읽을 수 있도록 element 핸들을 미리 잡아둔다.

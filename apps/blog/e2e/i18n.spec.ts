@@ -12,7 +12,7 @@ test.describe('i18n - Internationalization', () => {
     await page.goto('/ko');
 
     // Check Korean UI elements
-    await expect(page.getByRole('link', { name: 'Wan Sim' })).toBeVisible();
+    await expect(page.locator('header[data-visible]').getByRole('link', { name: 'Home', exact: true })).toBeVisible();
     await expect(page.getByText('글을 써보고 싶어서 만든 블로그입니다.')).toBeVisible();
     await expect(page.getByText('웹 기술과 사용자 경험에 관심이 많습니다.')).toBeVisible();
     await expect(page.getByText('사사로운 일상부터 개발자로서 고민한 흔적들을 기록하고자 합니다.')).toBeVisible();
@@ -23,7 +23,7 @@ test.describe('i18n - Internationalization', () => {
     await page.goto('/en');
 
     // Check English UI elements
-    await expect(page.getByRole('link', { name: 'Wan Sim' })).toBeVisible();
+    await expect(page.locator('header[data-visible]').getByRole('link', { name: 'Home', exact: true })).toBeVisible();
     await expect(page.getByText('Created this blog to write anything I want.')).toBeVisible();
     await expect(page.getByText("I'm interested in web technologies and user experience.")).toBeVisible();
     await expect(page.getByText("Gonna write about anything from daily life to developer's thoughts.")).toBeVisible();

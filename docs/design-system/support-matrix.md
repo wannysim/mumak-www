@@ -111,18 +111,18 @@ audit에서 반복이 확인됐지만 단계 1 범위에는 넣지 않는다.
 
 ## 7. 인터랙션 적용 현황
 
-2026-10-20 갱신. develop `360995ed` 위 작업 트리에 타깃 선택 기록과 D-017 포커스·loading 공통화가 있다. 아직 병합 전이다. 검증 결과는 각 실습 기록에 두며 구현 적용과 실제 배치 검증을 구분한다.
+2026-10-26 갱신. 타깃 선택 기록과 D-017 포커스·loading 공통화는 PR #637로 develop에 squash merge됐다(`314e01b5`). 이후 헤더 배치 C도 선택했다(D-018). D-018 헤더·연결된 GraphToolbar를 공유 IconButton으로 이전했다. 나머지 소비처는 아래에서 미이전으로 추적한다. 검증 결과는 각 실습 기록에 두며 구현 적용과 실제 배치 검증을 구분한다.
 
 **상태 구분:** 적용 = 구현 존재, 미이전 = 선택한 방향으로 아직 바꾸지 않음, 의도된 차이 = 역할·이유가 있는 차이, 미검증 = 해당 환경의 증거 없음. 적용과 미검증은 동시에 성립할 수 있다.
 
-| 항목                         | 공통 구현·제품 적용                                                                        | 미이전·의도된 차이                                                                           | 검증 근거와 한계                                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| 포커스 D-011·D-017           | 전역·공유 컨트롤 outline, 복합 입력/ContentCard, Blog 트리·skip link와 quant override 적용 | 메뉴 활성 행·비조작 컨테이너·오류 ring은 역할상 예외. 제품별 ring 값 유지                    | [focus-lab](./focus-lab.md)의 갤러리·제품 검증. 모든 설치 컴포넌트·배치의 검증 완료는 아님                            |
-| default 색 D-014             | 공유 `button.tsx`와 `globals.css`의 버튼 역할 token                                        | 다른 variant는 이번 색 변경 대상 밖. karaoke/quant는 같은 역할 token에 기존 제품별 값을 유지 | [대비 기록](./button-contrast-lab.md)의 제품 Button 검사. 모든 소비 화면의 override·실제 배경을 전수 검증한 것은 아님 |
-| pressed·reduced-motion D-014 | Button 공통 기반에 기존 1px pressed와 전환 생략                                            | popup 트리거는 기존 pressed 이동 예외. Button 밖의 motion은 미이전                           | 제품 Button의 입력·터치·reduce 검사. 모든 애니메이션의 계약 완료 아님                                                 |
-| loading D-015·D-017          | 공유 LoadingButton, admin 요청 6종과 Storybook C에 적용                                    | 최초 조회·페이지 이동은 별도 역할. 복사 pending 모델·다른 앱 요청은 아래 경계 참조           | [loading 기록](./button-loading-lab.md)의 단위·Storybook·admin 3브라우저 검증. 실제 발화·정적 spinner 인지는 미검증   |
-| 타깃 D-016                   | Storybook C 선택. 제품에는 아직 미적용, 공통 API 없음                                      | 아래 Blog 아이콘 소비처 모두 미이전. 다른 앱·native는 이번 이전 단위 밖                      | [타깃 기록](./button-target-size-lab.md)의 자동 검사와 사용자 실제 모바일 선호. 제품 배치 검증은 남음                 |
-| 학습 공간 D-012·D-013        | Storybook 시작 안내·공통 globals theme 및 상태 유지                                        | 제품 테마 전환 API를 새로 통합한 작업은 아님                                                 | [Storybook 안내](./storybook.md)의 실행 결과. Figma 대응이나 전체 카탈로그 완료 아님                                  |
+| 항목                         | 공통 구현·제품 적용                                                                        | 미이전·의도된 차이                                                                           | 검증 근거와 한계                                                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 포커스 D-011·D-017           | 전역·공유 컨트롤 outline, 복합 입력/ContentCard, Blog 트리·skip link와 quant override 적용 | 메뉴 활성 행·비조작 컨테이너·오류 ring은 역할상 예외. 제품별 ring 값 유지                    | [focus-lab](./focus-lab.md)의 갤러리·제품 검증. 모든 설치 컴포넌트·배치의 검증 완료는 아님                                                      |
+| default 색 D-014             | 공유 `button.tsx`와 `globals.css`의 버튼 역할 token                                        | 다른 variant는 이번 색 변경 대상 밖. karaoke/quant는 같은 역할 token에 기존 제품별 값을 유지 | [대비 기록](./button-contrast-lab.md)의 제품 Button 검사. 모든 소비 화면의 override·실제 배경을 전수 검증한 것은 아님                           |
+| pressed·reduced-motion D-014 | Button 공통 기반에 기존 1px pressed와 전환 생략                                            | popup 트리거는 기존 pressed 이동 예외. Button 밖의 motion은 미이전                           | 제품 Button의 입력·터치·reduce 검사. 모든 애니메이션의 계약 완료 아님                                                                           |
+| loading D-015·D-017          | 공유 LoadingButton, admin 요청 6종과 Storybook C에 적용                                    | 최초 조회·페이지 이동은 별도 역할. 복사 pending 모델·다른 앱 요청은 아래 경계 참조           | [loading 기록](./button-loading-lab.md)의 단위·Storybook·admin 3브라우저 검증. 실제 발화·정적 spinner 인지는 미검증                             |
+| 타깃 D-016·D-018             | 공유 IconButton, Blog 헤더·모바일 검색·switcher·GraphToolbar 이전                          | 아래 첫 적용 단위 밖의 아이콘·링크는 미이전. 다른 앱·native는 범위 밖                        | [타깃 기록](./button-target-size-lab.md)의 자동 검사와 사용자 실제 모바일 선호. D-018 제품 배치 검증은 [헤더 기록](./header-layout-lab.md) 참조 |
+| 학습 공간 D-012·D-013        | Storybook 시작 안내·공통 globals theme 및 상태 유지                                        | 제품 테마 전환 API를 새로 통합한 작업은 아님                                                 | [Storybook 안내](./storybook.md)의 실행 결과. Figma 대응이나 전체 카탈로그 완료 아님                                                            |
 
 ### 포커스: 공통 이전과 표시 위치 예외
 
@@ -135,23 +135,23 @@ audit에서 반복이 확인됐지만 단계 1 범위에는 넣지 않는다.
 
 ### 타깃: Blog 아이콘 소비처와 함께 바꿔야 할 배치
 
-아래 경로는 `apps/blog/src/` 기준이다. 직접 Button을 사용하는 아이콘 조작과 공유 소비 배치, 확인된 footer native 링크를 조사했다. **현재는 전부 C 미이전**이다. 먼저 헤더 한 군데만 고치는 대신 공통 표현과 연결된 배치를 함께 이전할 단위를 정한다.
+아래 경로는 `apps/blog/src/` 기준이다. 직접 Button을 사용하는 아이콘 조작과 공유 소비 배치, 확인된 footer native 링크를 조사했다. **D-018에서 아래 첫 5개 소비처와 Navigation·NavigationSkeleton·모바일 메뉴 닫기를 이전했다. 나머지 행은 미이전**이다. 공통 IconButton과 연결된 배치를 하나의 적용 단위로 유지한다.
 
-| 소비처                                                      | 현재 크기·역할                                                         | 함께 검토할 부분                                                                   |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `features/site-search/ui/site-search.tsx`                   | 모바일 검색 icon-sm 28px                                               | 헤더의 테마·언어 버튼과 간격, 전역 검색 열기                                       |
-| `widgets/header/ui/mobile-menu.tsx`                         | 메뉴 icon-sm 28px                                                      | `SheetTrigger asChild`, 로고와 간격                                                |
-| `shared/ui/switcher-dropdown.tsx`                           | 테마·언어 icon-sm 28px                                                 | Dropdown trigger, 헤더와 GraphToolbar 양쪽                                         |
-| `features/switch-theme/ui/theme-switcher.tsx`               | hydration 전 28px placeholder                                          | 전환 후 트리거와 같은 레이아웃 크기                                                |
-| `features/graph/ui/graph-toolbar.tsx`                       | 뒤로 36px + 공유 switcher                                              | 오른쪽 gap-1 배치, 포인터 통과 영역, 화면 가장자리                                 |
-| `features/graph/ui/graph-controls.tsx`                      | 검색·필터 36px                                                         | 검색 확장·popover·필터 배지. 검색 아이콘 버튼의 접근 가능한 이름 누락도 확인됨     |
-| `features/graph/ui/graph-legend.tsx`                        | 힌트 닫기 32px                                                         | 음수 margin, 범례 내부 타깃과 경계                                                 |
-| `shared/ui/image-zoom.tsx`                                  | 확대 보기 닫기 32px                                                    | `DialogClose asChild`, 화면 모서리·포커스 복귀                                     |
-| `widgets/garden-sidebar/ui/garden-sidebar.tsx`              | 데스크톱 접기·펼치기 icon-sm 28px                                      | 펼침/접힘 양쪽, sidebar 배치                                                       |
-| `widgets/footer/ui/footer.tsx` + `social-links.tsx` minimal | 실제 Footer의 RSS·소셜 아이콘 링크. 16px 아이콘, 명시적 44px 타깃 없음 | native anchor/Link 배치·gap-6·좁은 화면. 실제 hit box는 브라우저 측정 전           |
-| `widgets/footer/ui/social-links.tsx` compact                | 28px Button 아이콘 링크 recipe                                         | `asChild` anchor. 실제 Footer는 minimal 소비, compact의 제품 소비 여부는 별도 추적 |
+| 소비처                                                      | 현재 크기·역할                                                         | 함께 검토할 부분                                                                        |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `features/site-search/ui/site-search.tsx`                   | 이전: 모바일 검색 44px / 표면 28px                                     | 헤더의 테마·언어 버튼과 간격, 전역 검색 열기                                            |
+| `widgets/header/ui/mobile-menu.tsx`                         | 이전: 메뉴 열기·닫기 44px / 표면 28px                                  | `SheetTrigger asChild`, 로고와 간격                                                     |
+| `shared/ui/switcher-dropdown.tsx`                           | 이전: 테마·언어 44px / 표면 28px                                       | Dropdown trigger, 헤더와 GraphToolbar 양쪽                                              |
+| `features/switch-theme/ui/theme-switcher.tsx`               | 이전: hydration 전에도 44px / 표면 28px                                | 전환 후 트리거와 같은 레이아웃 크기                                                     |
+| `features/graph/ui/graph-toolbar.tsx`                       | 이전: 뒤로 44px / 표면 36px + 공유 switcher                            | 오른쪽 gap-1 배치, 포인터 통과 영역, 화면 가장자리                                      |
+| `features/graph/ui/graph-controls.tsx`                      | 검색·필터 36px                                                         | 타깃 미이전. D-018에서 상단 8px 여유·검색 접근명 보완; 검색 확장·popover·배지 검토 필요 |
+| `features/graph/ui/graph-legend.tsx`                        | 힌트 닫기 32px                                                         | 음수 margin, 범례 내부 타깃과 경계                                                      |
+| `shared/ui/image-zoom.tsx`                                  | 확대 보기 닫기 32px                                                    | `DialogClose asChild`, 화면 모서리·포커스 복귀                                          |
+| `widgets/garden-sidebar/ui/garden-sidebar.tsx`              | 데스크톱 접기·펼치기 icon-sm 28px                                      | 펼침/접힘 양쪽, sidebar 배치                                                            |
+| `widgets/footer/ui/footer.tsx` + `social-links.tsx` minimal | 실제 Footer의 RSS·소셜 아이콘 링크. 16px 아이콘, 명시적 44px 타깃 없음 | native anchor/Link 배치·gap-6·좁은 화면. 실제 hit box는 브라우저 측정 전                |
+| `widgets/footer/ui/social-links.tsx` compact                | 28px Button 아이콘 링크 recipe                                         | `asChild` anchor. 실제 Footer는 minimal 소비, compact의 제품 소비 여부는 별도 추적      |
 
-`Navigation` 오른쪽은 28px 버튼 + gap-2(8px), `GraphToolbar`의 switcher는 28px + gap-1(4px)다. 현재 중심을 유지한 채 영역만 44px로 덮으면 각각 8px·12px가 겹치는 계산이므로, 공간 확보 없이 overlay만 추가할 수 없다. 이는 코드 치수에 따른 계산이며 제품 브라우저 측정 결과는 아니다.
+`Navigation` 오른쪽과 `GraphToolbar` switcher는 실제 레이아웃 타깃 44px + gap-1(4px)로 이전했다. 표면은 28px, 그래프 뒤로 표면은 36px를 유지한다. 기존 중심을 유지한 overlay 대신 레이아웃 공간을 확보한다. IconButton은 Button의 조합으로 관리하며 독립 지원 컴포넌트 재고 수를 늘리지 않는다.
 
 이 표의 경계 밖도 미리 구분한다.
 

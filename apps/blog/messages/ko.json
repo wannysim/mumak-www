@@ -1,6 +1,7 @@
 {
   "common": {
     "home": "홈",
+    "homeNavigation": "Home",
     "blog": "블로그",
     "garden": "가든",
     "all": "전체",
@@ -317,7 +318,9 @@
     "targetTitle": "버튼 타깃 크기 비교",
     "targetSummary": "보이는 크기와 눌리는 영역을 나눠 누르기 편한지 비교합니다.",
     "focusControlsTitle": "공통 포커스 계약",
-    "focusControlsSummary": "입력창·선택기·탭과 복합 입력에서 같은 포커스 규칙을 확인합니다."
+    "focusControlsSummary": "입력창·선택기·탭과 복합 입력에서 같은 포커스 규칙을 확인합니다.",
+    "headerLayoutTitle": "헤더 배치 비교",
+    "headerLayoutSummary": "실제 헤더·GraphToolbar에서 44px 타깃과 Home 메뉴 구성을 비교합니다."
   },
   "buttonContrastLab": {
     "title": "버튼 상태와 글자 대비",
@@ -435,5 +438,35 @@
     "disabled": "비활성",
     "error": "오류 표시가 남아 있어도 현재 포커스를 구분할 수 있어야 합니다.",
     "panel": "패널 {number}"
+  },
+  "headerLayoutLab": {
+    "title": "헤더 배치 비교",
+    "intro": "현재 구성, 터치 영역만 확대한 구성, Home을 메뉴로 옮긴 구성을 직접 비교해보세요.",
+    "conditions": "헤더 높이 64px와 아이콘 크기는 유지합니다. B/C는 아이콘 타깃 44px, 오른쪽 타깃 간격 4px입니다. 화면 폭을 그대로 사용하므로 모바일에서 바로 눌러보세요.",
+    "currentTitle": "A · 현재 구성",
+    "currentDescription": "Wan Sim 홈 링크를 유지합니다. 헤더 아이콘 타깃 28px·간격 8px, 그래프 전환 버튼 간격 4px입니다.",
+    "targetsTitle": "B · 이름 유지 + 44px",
+    "targetsDescription": "이름과 기능 위치를 유지하고 아이콘 타깃을 44px로 넓힙니다. 작은 시각적 표면을 유지하며 가로 공간을 더 사용합니다.",
+    "homeTitle": "C · Home을 메뉴로",
+    "homeDescription": "모바일에서는 이름을 빼고 메뉴 첫 항목에 Home을 둡니다. 데스크톱에서는 Home·블로그·가든 링크를 바로 보여줍니다.",
+    "homeLabel": "Home",
+    "header": "사이트 헤더",
+    "graphToolbar": "GraphToolbar 배치",
+    "back": "블로그로 돌아가기",
+    "showTargets": "아이콘 터치 영역 표시",
+    "sampleContent": "페이지 미리보기",
+    "homeBody": "이름과 소개는 홈 본문에서 만납니다.",
+    "blogBody": "글 목록을 읽다가 홈으로 돌아가는 흐름을 확인해보세요.",
+    "gardenBody": "노트 목록에서도 같은 메뉴를 사용합니다.",
+    "navigated": "{destination} 미리보기로 이동했습니다.",
+    "tryNavigation": "메뉴·검색·홈 링크를 눌러 이동 흐름을 확인해보세요.",
+    "menuHint": "선택하면 이 실습 안의 페이지 미리보기가 바뀝니다.",
+    "searchHint": "배치 실습용 검색입니다. 아래 예제 페이지를 찾고 열 수 있습니다.",
+    "samplePages": "예제 페이지",
+    "observeTitle": "비교할 것",
+    "observeTouch": "B/C의 아이콘 가장자리를 눌러보세요. 옆 버튼을 잘못 누르지 않고 작동하나요?",
+    "observeHome": "글 목록에서 Home으로 돌아가보세요. C에서 메뉴를 한 번 더 여는 과정이 자연스럽나요?",
+    "observeSpace": "A→B는 터치 공간, B→C는 이름 제거의 차이입니다. 여백과 사이트 식별에 어떤 변화가 있나요?",
+    "scope": "공유 Button·Sheet·Dropdown으로 실제 배치를 재현한 실습입니다. 검색 데이터·페이지 이동은 예제이며, 그래프 캔버스는 포함하지 않습니다. 테마·언어 선택은 Storybook 전체에 반영됩니다. C를 선택했으며 같은 IconButton을 제품 헤더와 GraphToolbar에서도 사용합니다."
   }
 }

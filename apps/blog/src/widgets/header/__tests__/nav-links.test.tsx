@@ -7,15 +7,14 @@ import '@testing-library/jest-dom';
 const mockUsePathname = jest.fn(() => '/');
 
 jest.mock('@/src/shared/config/i18n', () => ({
-  Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
-    <a href={href} className={className}>
-      {children}
-    </a>
-  ),
+  Link: ({ children, ...props }: React.ComponentProps<'a'>) => <a {...props}>{children}</a>,
   usePathname: () => mockUsePathname(),
 }));
 
-const items = [{ href: '/blog', label: 'Blog' }];
+const items = [
+  { href: '/', label: 'Home' },
+  { href: '/blog', label: 'Blog' },
+];
 
 describe('NavLinks', () => {
   beforeEach(() => {
@@ -47,4 +46,17 @@ describe('NavLinks', () => {
     expect(blogLink).toHaveClass('hover:bg-muted/50');
     expect(blogLink).not.toHaveClass('bg-muted font-medium');
   });
+});
+
+it.each(['/blog', '/blog/essay/post'])('Home is not active at %s', pathname => {
+  mockUsePathname.mockReturnValue(pathname);
+  render(<NavLinks items={items} />);
+  expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
+  expect(screen.getByRole('link', { name: 'Blog' })).toHaveAttribute('aria-current', 'page');
+});
+it('Home is active only at the root', () => {
+  mockUsePathname.mockReturnValue('/');
+  render(<NavLinks items={items} />);
+  expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+  expect(screen.getByRole('link', { name: 'Blog' })).not.toHaveAttribute('aria-current');
 });

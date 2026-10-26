@@ -1,22 +1,32 @@
 'use client';
 
 import { SearchIcon } from 'lucide-react';
+import type { MouseEventHandler, Ref } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 import { Kbd, KbdGroup } from '@mumak/ui/components/kbd';
 import { cn } from '@mumak/ui/lib/utils';
 
 interface SearchTriggerProps {
-  onClick: () => void;
+  ref?: Ref<HTMLButtonElement>;
+  onClick: MouseEventHandler<HTMLButtonElement>;
   placeholder: string;
   showShortcut?: boolean;
   className?: string;
   ariaLabel?: string;
 }
 
-export function SearchTrigger({ onClick, placeholder, showShortcut = true, className, ariaLabel }: SearchTriggerProps) {
+export function SearchTrigger({
+  ref,
+  onClick,
+  placeholder,
+  showShortcut = true,
+  className,
+  ariaLabel,
+}: SearchTriggerProps) {
   return (
     <Button
+      ref={ref}
       type="button"
       variant="outline"
       size="lg"

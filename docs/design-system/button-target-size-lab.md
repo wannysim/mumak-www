@@ -1,6 +1,6 @@
 # 버튼 타깃 크기 비교
 
-2026-10-20. PR #636의 admin 로그인 C loading 적용이 develop에 병합된 `360995ed`에서 시작했다. Storybook 비교 후 사용자가 실제 모바일에서 C를 선택했다(D-016). 제품 크기 변경·공유 API 구현·단계 1 전체 완료는 아니다.
+2026-10-20. PR #636의 admin 로그인 C loading 적용이 develop에 병합된 `360995ed`에서 시작했다. Storybook 비교 후 사용자가 실제 모바일에서 C를 선택했다(D-016). 이 최초 실습은 제품 크기 변경·공유 API 구현·단계 1 전체 완료를 포함하지 않았다. 이후 D-018에서 공유 IconButton과 Blog 헤더·GraphToolbar를 이전했다. 현재 범위는 [적용 현황](./support-matrix.md#7-인터랙션-적용-현황)을 따른다.
 
 [Storybook 비교](http://127.0.0.1:6006/?path=/story/learning-button-target-size--compare&globals=locale:ko;theme:light). 실행은 `pnpm --filter blog storybook`. 시작 화면의 일곱 번째 링크로도 연다.
 

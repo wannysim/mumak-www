@@ -7,8 +7,8 @@ test.describe('Home Page', () => {
     // 랜딩 페이지에도 단일 h1이 있어야 한다 (문서 개요 / SEO / 히어로 계층).
     await expect(page.getByRole('heading', { level: 1, name: 'Wan Sim' })).toBeVisible();
 
-    // 로고 링크 확인 (Navigation에 있는 "Wan Sim" 텍스트)
-    await expect(page.getByRole('link', { name: 'Wan Sim' })).toBeVisible();
+    // 헤더 Home 링크 확인
+    await expect(page.locator('header[data-visible]').getByRole('link', { name: 'Home', exact: true })).toBeVisible();
 
     // 인트로 3문장은 모든 뷰포트에서 전부 노출된다(클램프·truncate 금지).
     const introText = await page.locator('[data-slot="home-intro"]').textContent();
@@ -113,8 +113,8 @@ test.describe('Home Page', () => {
     await page.goto('/en');
 
     await expect(page.getByRole('heading', { level: 1, name: 'Wan Sim' })).toBeVisible();
-    // 로고 링크 확인 (Navigation에 있는 "Wan Sim" 텍스트)
-    await expect(page.getByRole('link', { name: 'Wan Sim' })).toBeVisible();
+    // 헤더 Home 링크 확인
+    await expect(page.locator('header[data-visible]').getByRole('link', { name: 'Home', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'Latest posts' })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'Latest notes' })).toBeVisible();
     await expect(page.getByRole('link', { name: /Browse all \d+ posts/ })).toBeVisible();
