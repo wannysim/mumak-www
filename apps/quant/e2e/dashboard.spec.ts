@@ -515,6 +515,10 @@ test('hovering a slice shows its symbol, weight, and value next to the arc', asy
   await page.setViewportSize({ width: 1440, height: 1000 });
   await mockAllocationSnapshot(page, 3);
 
+  // 위쪽 성과 차트의 lazy 청크가 skeleton을 교체하면 아래 도넛의 좌표가 바뀐다.
+  // 실제 차트가 준비된 뒤 링 좌표를 잰다. 고정 대기나 hover 재시도로 실패를 숨기지 않는다.
+  await expect(page.getByRole('slider', { name: '성과 시계열 탐색. 좌우 화살표로 시점을 이동합니다.' })).toBeVisible();
+
   const figure = page
     .locator('section')
     .filter({ has: page.getByRole('heading', { name: '보유 종목' }) })
