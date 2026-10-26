@@ -253,11 +253,38 @@ function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDas
   );
 }
 
-function ConfiguredApp({ client }: { client: DashboardClient }) {
-  const controller = useDashboardController(client);
-  const [signOutError, setSignOutError] = useState('');
-  let content: React.ReactNode;
+function QueryErrorPanel({
+  mode,
+  data,
+  retry,
+}: {
+  mode: DashboardMode;
+  data: ReturnType<typeof useDashboardController>['data'];
+  retry: React.ReactNode;
+}) {
   const { formatDateTime } = useTimeZone();
+  return (
+    <StatePanel title="운용 내역을 불러오지 못했습니다.">
+      <p>
+        {data.errorKind === 'schema'
+          ? '응답 형식 또는 데이터 계약을 확인하지 못했습니다.'
+          : data.errorKind === 'access'
+            ? '인증 또는 조회 권한을 확인해 주세요.'
+            : '네트워크 또는 조회 서비스 연결을 확인해 주세요.'}
+      </p>
+      <p>{mode === 'paper' ? '공개 모의 운용 내역을 표시하지 않습니다.' : '기존 실운용 데이터는 표시하지 않습니다.'}</p>
+      <p>
+        최근 성공: {data.lastSuccessAt ? formatDateTime(data.lastSuccessAt) : '없음'} · 실패:{' '}
+        {data.lastFailureAt ? formatDateTime(data.lastFailureAt) : '미확인'}
+      </p>
+      {retry}
+    </StatePanel>
+  );
+}
+
+// Keep query/auth state precedence together, separate from the application shell.
+function DashboardContent({ controller }: { controller: ReturnType<typeof useDashboardController> }) {
+  let content: React.ReactNode;
   const retry = (
     <Button
       type="button"
@@ -278,27 +305,7 @@ function ConfiguredApp({ client }: { client: DashboardClient }) {
       <StatePanel title="운용 내역을 불러오고 있습니다.">페이지가 보이는 동안에만 안전하게 갱신합니다.</StatePanel>
     );
   } else if (controller.data.status === 'error') {
-    content = (
-      <StatePanel title="운용 내역을 불러오지 못했습니다.">
-        <p>
-          {controller.data.errorKind === 'schema'
-            ? '응답 형식 또는 데이터 계약을 확인하지 못했습니다.'
-            : controller.data.errorKind === 'access'
-              ? '인증 또는 조회 권한을 확인해 주세요.'
-              : '네트워크 또는 조회 서비스 연결을 확인해 주세요.'}
-        </p>
-        <p>
-          {controller.mode === 'paper'
-            ? '공개 모의 운용 내역을 표시하지 않습니다.'
-            : '기존 실운용 데이터는 표시하지 않습니다.'}
-        </p>
-        <p>
-          최근 성공: {controller.data.lastSuccessAt ? formatDateTime(controller.data.lastSuccessAt) : '없음'} · 실패:{' '}
-          {controller.data.lastFailureAt ? formatDateTime(controller.data.lastFailureAt) : '미확인'}
-        </p>
-        {retry}
-      </StatePanel>
-    );
+    content = <QueryErrorPanel mode={controller.mode} data={controller.data} retry={retry} />;
   } else if (controller.data.status === 'empty') {
     content = (
       <StatePanel
@@ -324,6 +331,13 @@ function ConfiguredApp({ client }: { client: DashboardClient }) {
       </StatePanel>
     );
   }
+
+  return content;
+}
+
+function ConfiguredApp({ client }: { client: DashboardClient }) {
+  const controller = useDashboardController(client);
+  const [signOutError, setSignOutError] = useState('');
 
   return (
     <>
@@ -368,7 +382,7 @@ function ConfiguredApp({ client }: { client: DashboardClient }) {
           aria-labelledby={`mode-${controller.mode}`}
           className="space-y-5 sm:space-y-6"
         >
-          {content}
+          <DashboardContent controller={controller} />
         </div>
       </main>
     </>

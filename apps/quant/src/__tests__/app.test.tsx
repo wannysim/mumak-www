@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { TEST_ONLY_PAPER_PAYLOAD } from '@/__tests__/fixtures/test-snapshot';
 import { App } from '@/app';
 import type { AuthEvent, AuthSession, DashboardClient } from '@/lib/dashboard-client';
+import { DashboardQueryError } from '@/lib/dashboard-query-error';
 import type { DashboardMode, DashboardSnapshot } from '@/lib/dashboard-schema';
 
 function paperSnapshot(overrides: Partial<DashboardSnapshot> = {}): DashboardSnapshot {
@@ -91,6 +92,32 @@ describe('Quant dashboard app', () => {
     client.fetchError = false;
     await userEvent.click(screen.getByRole('button', { name: '다시 조회' }));
     expect(await screen.findByRole('heading', { name: '2026-09 · 테스트 운용 1기' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['schema', '응답 형식 또는 데이터 계약을 확인하지 못했습니다.'],
+    ['access', '인증 또는 조회 권한을 확인해 주세요.'],
+    ['transport', '네트워크 또는 조회 서비스 연결을 확인해 주세요.'],
+  ] as const)('preserves safe %s errors and mode-specific retry after a previous success', async (kind, message) => {
+    const client = new AppTestClient();
+    client.session = { userId: 'owner-1' };
+    client.snapshots.live = [paperSnapshot({ mode: 'live', source: 'live-ledger' })];
+    const fetch = vi.spyOn(client, 'fetchSnapshots');
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '2026-09 · 테스트 운용 1기' });
+    await userEvent.click(screen.getByRole('tab', { name: '실운용' }));
+    await screen.findByRole('heading', { name: '2026-09 · 테스트 운용 1기' });
+    fetch.mockRejectedValueOnce(new DashboardQueryError(kind));
+    await userEvent.click(screen.getByRole('button', { name: '운용 내역 전체 새로고침' }));
+    await screen.findByRole('heading', { name: '운용 내역을 불러오지 못했습니다.' });
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.getByText('기존 실운용 데이터는 표시하지 않습니다.')).toBeInTheDocument();
+    expect(screen.getByText(/최근 성공:/)).not.toHaveTextContent('최근 성공: 없음');
+    expect(screen.queryByRole('heading', { name: '2026-09 · 테스트 운용 1기' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '다시 조회' }));
+    await screen.findByRole('heading', { name: '2026-09 · 테스트 운용 1기' });
+    expect(client.requests.at(-1)).toBe('live');
+    expect(screen.getByRole('tab', { name: '실운용' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('warns when logout fails while clearing private display', async () => {

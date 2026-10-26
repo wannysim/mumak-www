@@ -17,6 +17,25 @@ function field(label: string) {
 }
 
 describe('DataContext (test-only snapshots)', () => {
+  it('reuses the New York month formatter when query timestamps change', () => {
+    const formatter = vi.spyOn(Intl, 'DateTimeFormat');
+    try {
+      const view = show({ month: '2026-10' }, { ...query, lastSuccessAt: '2026-11-01T03:59:00Z' });
+      expect(field('회차 범위(웹 조회 시점)')).toHaveTextContent('현재 월 기록');
+      const constructions = formatter.mock.calls.length;
+      view.rerender(
+        <DataContext
+          snapshot={{ ...base, month: '2026-10' }}
+          query={{ ...query, lastSuccessAt: '2026-11-01T04:01:00Z' }}
+        />
+      );
+      expect(field('회차 범위(웹 조회 시점)')).toHaveTextContent('과거 기록');
+      expect(formatter.mock.calls).toHaveLength(constructions);
+    } finally {
+      formatter.mockRestore();
+    }
+  });
+
   it('separates historical scope, clocks and unconnected health without inventing decisions', () => {
     show({ holdings: [], fills: [] });
     expect(field('회차 범위(웹 조회 시점)')).toHaveTextContent('과거 기록');

@@ -2,6 +2,12 @@ import { useTimeZone } from '@/components/time-zone-provider';
 import type { ModeData } from '@/hooks/use-dashboard-controller';
 import type { DashboardSnapshot } from '@/lib/dashboard-schema';
 
+const newYorkMonthFormatter = new Intl.DateTimeFormat('en', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+});
+
 function DataContext({ snapshot, query }: { snapshot: DashboardSnapshot; query: ModeData }) {
   const { formatDateTime, timeZone } = useTimeZone();
   const now = Math.max(
@@ -10,11 +16,7 @@ function DataContext({ snapshot, query }: { snapshot: DashboardSnapshot; query: 
   );
 
   // Use formatToParts: locale output ordering must not decide whether a month is historical.
-  const monthParts = new Intl.DateTimeFormat('en', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-  }).formatToParts(new Date(now));
+  const monthParts = newYorkMonthFormatter.formatToParts(new Date(now));
   const nyMonth = `${monthParts.find(part => part.type === 'year')?.value}-${monthParts.find(part => part.type === 'month')?.value}`;
   const period =
     snapshot.month < nyMonth ? '과거 기록' : snapshot.month > nyMonth ? '미래 회차 · 상태 미확인' : '현재 월 기록';
