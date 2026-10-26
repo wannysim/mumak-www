@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AuthSession, DashboardClient } from '@/lib/dashboard-client';
-import type { DashboardMode, DashboardSnapshot } from '@/lib/dashboard-schema';
+import { DashboardQueryError, type QueryErrorKind } from '@/lib/dashboard-query-error';
+import { SnapshotValidationError, type DashboardMode, type DashboardSnapshot } from '@/lib/dashboard-schema';
 import { episodeDisplayLabel, episodeKey } from '@/lib/episode-display';
 
-type DataStatus = 'idle' | 'loading' | 'ready' | 'empty' | 'error';
+type DataStatus = 'idle' | 'paused' | 'loading' | 'ready' | 'empty' | 'error';
 type AuthStatus = 'loading' | 'anonymous' | 'authenticated';
 
 type ModeData = {
   status: DataStatus;
   snapshots: DashboardSnapshot[];
-  message?: string;
+  errorKind?: QueryErrorKind;
+  lastAttemptAt?: string;
+  lastSuccessAt?: string;
+  lastFailureAt?: string;
 };
 
 type ModeSelection = {
@@ -117,8 +121,17 @@ function useDashboardController(client: DashboardClient) {
 
   const loadSnapshots = useCallback(
     async (targetMode: DashboardMode): Promise<RefreshOutcome> => {
-      if (document.visibilityState === 'hidden') return { status: 'skipped' };
       if (targetMode === 'live' && (!session || authStatus !== 'authenticated')) return { status: 'skipped' };
+      if (document.visibilityState === 'hidden') {
+        setDataByMode(current => ({
+          ...current,
+          [targetMode]: {
+            ...current[targetMode],
+            status: current[targetMode].status === 'idle' ? 'paused' : current[targetMode].status,
+          },
+        }));
+        return { status: 'skipped' };
+      }
 
       invalidateRequest(targetMode);
       const revision = requestRevision.current[targetMode];
@@ -126,7 +139,12 @@ function useDashboardController(client: DashboardClient) {
       requestControllers.current[targetMode] = controller;
       setDataByMode(current => ({
         ...current,
-        [targetMode]: { ...current[targetMode], status: 'loading', message: undefined },
+        [targetMode]: {
+          ...current[targetMode],
+          status: 'loading',
+          errorKind: undefined,
+          lastAttemptAt: new Date().toISOString(),
+        },
       }));
 
       try {
@@ -140,7 +158,13 @@ function useDashboardController(client: DashboardClient) {
         }
         setDataByMode(current => ({
           ...current,
-          [targetMode]: { status: snapshots.length === 0 ? 'empty' : 'ready', snapshots },
+          [targetMode]: {
+            ...current[targetMode],
+            status: snapshots.length === 0 ? 'empty' : 'ready',
+            snapshots,
+            lastSuccessAt: new Date().toISOString(),
+            lastFailureAt: undefined,
+          },
         }));
         const selection = nextSelection(snapshots, selectionRef.current[targetMode]);
         setSelectionByMode(current => ({ ...current, [targetMode]: selection }));
@@ -160,9 +184,16 @@ function useDashboardController(client: DashboardClient) {
         setDataByMode(current => ({
           ...current,
           [targetMode]: {
+            ...current[targetMode],
             status: 'error',
             snapshots: [],
-            message: error instanceof Error ? error.message : '운용 내역을 불러오지 못했습니다.',
+            errorKind:
+              error instanceof SnapshotValidationError
+                ? 'schema'
+                : error instanceof DashboardQueryError
+                  ? error.kind
+                  : 'transport',
+            lastFailureAt: new Date().toISOString(),
           },
         }));
         return { status: 'error' };
@@ -184,7 +215,15 @@ function useDashboardController(client: DashboardClient) {
     }, 60_000);
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
-        invalidateRequest(modeRef.current);
+        const targetMode = modeRef.current;
+        invalidateRequest(targetMode);
+        setDataByMode(current => ({
+          ...current,
+          [targetMode]: {
+            ...current[targetMode],
+            status: current[targetMode].status === 'loading' ? 'paused' : current[targetMode].status,
+          },
+        }));
         return;
       }
       void loadSnapshots(modeRef.current);
