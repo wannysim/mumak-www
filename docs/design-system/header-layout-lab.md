@@ -58,3 +58,5 @@ GraphControls는 타깃 36px를 유지하되 위쪽 간격을 8px 확보하고 �
 - 제품 ko/en × Light/Dark 8개 시나리오를 Chromium·Firefox·WebKit에서 실행해 24개 모두 재시도 없이 통과했다. 320/390/640/768/1280px 타깃·비중첩·Home 경로/active·메뉴 닫기/포커스·검색 pointer/shortcut/양방향 breakpoint 복귀·테마/언어 전환·GraphToolbar 인접 간격을 포함한다.
 - 기존 Home·Navigation·i18n·Graph Chromium 회귀 66개 통과.
 - LAN 제품 미리보기에서 모바일/데스크톱·Light/Dark를 직접 확인했다. Chromium 터치 에뮬레이션의 메뉴 가장자리 탭·Home 이동·테마 변경 통과, page error 0건. 실제 휴대폰·스크린리더 검증과 나머지 미이전 소비처는 완료 범위가 아니다.
+
+PR #639의 첫 CI에서는 Codecov patch 47.05%가 기준 80%에 미달했다. 기존 검색 단위 테스트가 CommandDialog를 대체하면서 autofocus callback을 실행하지 않은 것이 원인이었다. 실제 Dialog·검색·단축키를 연결한 포커스 회귀 9개를 추가했다. JSDOM에서는 대상별 가시성만 대체하며 클릭·단축키·원점 초기화·body·원점 제거·양방향 breakpoint 복귀를 검사한다. 추가 후 전체 단위 113 suites / 1,098개 통과, SiteSearch line coverage 98.18%, function coverage 100%를 확인했다. 실제 CSS breakpoint와 브라우저 포커스는 위 E2E 결과로 구분한다.
