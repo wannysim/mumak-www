@@ -41,7 +41,7 @@ test.describe('Graph Page', () => {
   test('should not display header and footer', async ({ page }) => {
     await page.goto('/en/graph');
 
-    await expect(page.getByRole('link', { name: 'Wan Sim' })).not.toBeVisible();
+    await expect(page.locator('header[data-visible]')).toHaveCount(0);
     await expect(page.locator('footer')).not.toBeVisible();
   });
 

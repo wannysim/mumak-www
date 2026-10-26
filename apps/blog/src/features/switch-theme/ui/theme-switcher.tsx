@@ -4,7 +4,7 @@ import { LaptopIcon, MoonIcon, SunIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 
-import { Button } from '@mumak/ui/components/button';
+import { IconButton } from '@mumak/ui/components/icon-button';
 
 import { useHydrated } from '@/src/shared/hooks';
 import { type ThemeValue } from '@/src/shared/lib/theme';
@@ -45,9 +45,9 @@ export function ThemeSwitcher() {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon-sm" aria-label={t('changeTheme')}>
+      <IconButton aria-label={t('changeTheme')}>
         <ThemeIcon />
-      </Button>
+      </IconButton>
     );
   }
 

@@ -71,7 +71,7 @@ Loading 실습 추가 후 전체 Storybook 59개, 정적 Storybook build, Blog �
 
 ## 버튼 타깃 크기 비교
 
-2026-10-20. `Learning / Button target size / Compare`에서 A 32px/32px, B 44px/44px, C 32px/44px의 표면과 실제 타깃을 비교한다. 아이콘 16px·중심 간격 52px는 같고, 영역 표시를 켜서 클릭·터치 경계를 확인한다. 시작 화면의 일곱 번째 링크로도 연다. 사용자는 실제 모바일에서 C를 선택했다(D-016). 제품 적용은 아직 없다.
+2026-10-20. `Learning / Button target size / Compare`에서 A 32px/32px, B 44px/44px, C 32px/44px의 표면과 실제 타깃을 비교한다. 아이콘 16px·중심 간격 52px는 같고, 영역 표시를 켜서 클릭·터치 경계를 확인한다. 시작 화면의 일곱 번째 링크로도 연다. 사용자는 실제 모바일에서 C를 선택했다(D-016). 당시 제품 미적용이었으며 이후 D-018에서 헤더·연결된 GraphToolbar를 이전했다.
 
 WCAG 최소·강화 기준의 구분, 비교 조건·관찰 순서·검증 한계는 [타깃 크기 기록](./button-target-size-lab.md)에 둔다. 이전 loading의 C 선택과 이번 후보 선택은 별개다. 공통 규칙과 적용 범위는 [인터랙션 계약](./interaction-contracts.md)·[지원 현황](./support-matrix.md#7-인터랙션-적용-현황)에서 확인한다.
 
@@ -82,3 +82,7 @@ WCAG 최소·강화 기준의 구분, 비교 조건·관찰 순서·검증 한�
 Loading Compare의 C도 admin 요청 6종과 같은 공유 LoadingButton을 사용한다. A/B는 이전 비교안으로 유지한다. Blog 페이지 이동 진행 표시와 타깃 C의 제품 적용 여부는 별개다.
 
 기존 Storybook 69개와 신규 포커스 8개가 통과했다. 신규 검사는 키보드 타이밍 수정 후 별도 재실행했으므로 한 번의 77개 전체 성공 실행을 의미하지 않는다. 정적 build·제품 검증과 한계는 [포커스 기록](./focus-lab.md#후속-공통-이전--d-017)·[loading 기록](./button-loading-lab.md#후속-공통화--d-017)에 둔다.
+
+## 헤더 배치 비교
+
+시작 화면의 아홉 번째 링크 또는 **Learning / Header layout / Compare**에서 A 현재 구성, B 이름 유지+44px 타깃, C Home을 메뉴로 옮긴 44px 타깃을 비교한다. 메뉴·예제 검색·홈 이동과 Storybook globals 전환을 직접 조작한다. 모바일에서 원래 화면 폭을 사용하며 데스크톱에는 C의 Home 링크를 직접 노출한다. 사용자는 헤더 배치 C를 선택했다(D-018). B/C는 제품 헤더·연결된 GraphToolbar와 같은 공유 IconButton을 사용한다. [비교 조건·검증·구현 경계](./header-layout-lab.md)를 따른다.

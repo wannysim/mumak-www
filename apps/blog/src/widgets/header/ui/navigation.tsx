@@ -4,7 +4,6 @@ import { getCategories } from '@/src/entities/post';
 import { SiteSearch } from '@/src/features/site-search';
 import { LocaleSwitcher } from '@/src/features/switch-locale';
 import { ThemeSwitcher } from '@/src/features/switch-theme';
-import { Link } from '@/src/shared/config/i18n';
 import { ClientErrorBoundary } from '@/src/shared/ui/client-error-boundary';
 
 import { MobileMenu } from './mobile-menu';
@@ -14,6 +13,7 @@ import { NavLinks } from './nav-links';
 // (immersive 라우트 그룹, 풀스크린) 그래서 전역 nav 형제에서 빼고, 각 섹션(blog/garden)
 // 인덱스의 PageHeader 아래 ArrowLink로 해당 탭에 딥링크한다.
 const navItems = [
+  { href: '/', labelKey: 'homeNavigation' },
   { href: '/blog', labelKey: 'blog' },
   { href: '/garden', labelKey: 'garden' },
 ] as const;
@@ -37,14 +37,10 @@ export async function Navigation() {
               <MobileMenu items={items} />
             </div>
 
-            <Link href="/" className="text-xl font-bold">
-              Wan Sim
-            </Link>
-
             <NavLinks items={items} />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <SiteSearch categoryLabels={categoryLabels} />
             <ClientErrorBoundary name="ThemeSwitcher">
               <ThemeSwitcher />

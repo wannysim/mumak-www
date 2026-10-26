@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import * as React from 'react';
 
 import { Button } from '@mumak/ui/components/button';
+import { IconButton } from '@mumak/ui/components/icon-button';
 
 import { usePathname } from '@/src/shared/config/i18n';
 import { useSearchIndex, useSearchPaletteShortcut } from '@/src/shared/hooks';
@@ -52,6 +53,9 @@ function SiteSearchContent({ categoryLabels }: SiteSearchProps) {
   const pathname = usePathname();
 
   const [open, setOpen] = React.useState(false);
+  const mobileTrigger = React.useRef<HTMLButtonElement>(null);
+  const desktopTrigger = React.useRef<HTMLButtonElement>(null);
+  const opener = React.useRef<HTMLElement | null>(null);
   const [expandedToWholeSite, setExpandedToWholeSite] = React.useState(false);
 
   useSearchPaletteShortcut(setOpen);
@@ -116,23 +120,45 @@ function SiteSearchContent({ categoryLabels }: SiteSearchProps) {
   return (
     <>
       <SearchTrigger
-        onClick={() => setOpen(true)}
+        ref={desktopTrigger}
+        onClick={event => {
+          opener.current = event.currentTarget;
+          setOpen(true);
+        }}
         placeholder={t('placeholder')}
         ariaLabel={t('aria')}
         className="hidden h-9 sm:flex sm:w-44 lg:w-56"
       />
-      <Button
+      <IconButton
+        ref={mobileTrigger}
         type="button"
-        variant="ghost"
-        size="icon-sm"
-        onClick={() => setOpen(true)}
+        onClick={event => {
+          opener.current = event.currentTarget;
+          setOpen(true);
+        }}
         aria-label={t('aria')}
         className="sm:hidden"
       >
         <SearchIcon />
-      </Button>
+      </IconButton>
 
       <SearchPalette
+        onOpenAutoFocus={() => {
+          opener.current ??= document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        }}
+        onCloseAutoFocus={event => {
+          event.preventDefault();
+          // Shortcut invocation returns to its origin; responsive triggers may disappear while open.
+          const previous = opener.current;
+          const target =
+            previous && previous !== document.body && previous.isConnected && previous.getClientRects().length
+              ? previous
+              : mobileTrigger.current?.getClientRects().length
+                ? mobileTrigger.current
+                : desktopTrigger.current;
+          target?.focus();
+          opener.current = null;
+        }}
         open={open}
         onOpenChange={setOpen}
         groups={groups}

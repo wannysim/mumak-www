@@ -1,6 +1,7 @@
 {
   "common": {
     "home": "Home",
+    "homeNavigation": "Home",
     "blog": "Blog",
     "garden": "Garden",
     "all": "All",
@@ -317,7 +318,9 @@
     "targetTitle": "Button target size comparison",
     "targetSummary": "Compare visible sizes and clickable areas for ease of activation.",
     "focusControlsTitle": "Shared focus contract",
-    "focusControlsSummary": "Inspect the same focus rule across inputs, selectors, tabs and composite inputs."
+    "focusControlsSummary": "Inspect the same focus rule across inputs, selectors, tabs and composite inputs.",
+    "headerLayoutTitle": "Header layout comparison",
+    "headerLayoutSummary": "Compare 44px targets and Home navigation in header and GraphToolbar layouts."
   },
   "buttonContrastLab": {
     "title": "Button states and text contrast",
@@ -435,5 +438,35 @@
     "disabled": "Disabled",
     "error": "Focus must remain distinguishable while the error indication is present.",
     "panel": "Panel {number}"
+  },
+  "headerLayoutLab": {
+    "title": "Header layout comparison",
+    "intro": "Try the current layout, larger targets with the name retained, and Home moved into the menu.",
+    "conditions": "Header height stays at 64px and icon sizes stay the same. B/C use 44px icon targets with 4px gaps in the right-hand group. Previews use the actual viewport width: try them on your phone.",
+    "currentTitle": "A · Current layout",
+    "currentDescription": "Keep the Wan Sim home link. Header icon targets are 28px with 8px gaps; graph switchers have 4px gaps.",
+    "targetsTitle": "B · Name + 44px",
+    "targetsDescription": "Keep the name and action positions while expanding icon targets to 44px. Small visible surfaces remain, using more horizontal space.",
+    "homeTitle": "C · Home in the menu",
+    "homeDescription": "On mobile, remove the name and put Home first in the menu. On desktop, show Home, Blog and Garden links directly.",
+    "homeLabel": "Home",
+    "header": "Site header",
+    "graphToolbar": "GraphToolbar layout",
+    "back": "Back to Blog",
+    "showTargets": "Show icon touch areas",
+    "sampleContent": "Page preview",
+    "homeBody": "The name and introduction live in the home content.",
+    "blogBody": "Try returning home while browsing the post list.",
+    "gardenBody": "The note list uses the same menu.",
+    "navigated": "Moved to the {destination} preview.",
+    "tryNavigation": "Try the menu, search and home links to explore navigation.",
+    "menuHint": "Selecting a page updates the preview inside this exercise.",
+    "searchHint": "This search is for the layout exercise. Find and open a sample page below.",
+    "samplePages": "Sample pages",
+    "observeTitle": "What to compare",
+    "observeTouch": "Tap the edges of B/C icons. Can you activate the intended action without hitting its neighbour?",
+    "observeHome": "Return Home from the post list. Does opening the menu first in C feel natural?",
+    "observeSpace": "A→B isolates touch space; B→C isolates removal of the name. How do whitespace and site identity change?",
+    "scope": "A layout simulation using shared Button, Sheet and Dropdown components. Search and navigation use samples; the graph canvas is omitted. Theme and language selections update Storybook globals. C was selected; the product header and GraphToolbar use the same IconButton."
   }
 }

@@ -45,6 +45,8 @@ interface SearchPaletteProps {
   // 인덱스를 아직 받지 못한 구간. "결과 없음"과 "아직 못 받았음"은 다른 상태다.
   loading?: boolean;
   loadingText?: string;
+  onOpenAutoFocus?: React.ComponentProps<typeof CommandDialog>['onOpenAutoFocus'];
+  onCloseAutoFocus?: React.ComponentProps<typeof CommandDialog>['onCloseAutoFocus'];
 }
 
 export function SearchPalette({
@@ -59,6 +61,8 @@ export function SearchPalette({
   footer,
   loading = false,
   loadingText,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
 }: SearchPaletteProps) {
   const router = useRouter();
 
@@ -69,7 +73,14 @@ export function SearchPalette({
   };
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} title={title} description={description}>
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description={description}
+      onOpenAutoFocus={onOpenAutoFocus}
+      onCloseAutoFocus={onCloseAutoFocus}
+    >
       <Command>
         <CommandInput placeholder={placeholder} />
         {/* cmdk가 CommandList에 role="listbox"를 직접 박아서 밖에서 못 바꾼다. 그런데 빈
