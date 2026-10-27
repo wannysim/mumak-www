@@ -1,0 +1,309 @@
+@import './book/book.css';
+@import './components/desk-props.css';
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('./assets/fonts/PretendardVariable.woff2') format('woff2-variations');
+  font-weight: 45 920;
+  font-display: swap;
+}
+:root {
+  font-family: 'Pretendard', sans-serif;
+  color: #252525;
+  background: #fff;
+  --desk-paper: #fff;
+  --desk-ink: #252525;
+  --desk-muted: #737373;
+  --book-cover: #f47732;
+  --book-accent: #be123c;
+  --desk-focus: #252525;
+}
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+button {
+  cursor: pointer;
+  font: inherit;
+}
+button:disabled {
+  cursor: default;
+}
+.desk button:focus-visible,
+.book:focus-visible {
+  outline: 2px solid var(--desk-focus);
+  outline-offset: 5px;
+}
+.desk {
+  min-height: 560px;
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--desk-ink);
+  background: var(--desk-paper);
+  padding-top: env(safe-area-inset-top);
+}
+.desk-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  isolation: isolate;
+}
+.desk-footer {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 12px max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left));
+}
+.page-navigation,
+.book-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.book-tools {
+  padding-left: 20px;
+  border-left: 1px solid #e5e5e5;
+}
+.desk-button,
+.nav-arrow {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--desk-ink);
+  transition:
+    background-color 160ms,
+    transform 160ms;
+}
+.desk-button {
+  color: #737373;
+}
+.desk-button:active,
+.nav-arrow:active {
+  transform: translateY(1px);
+}
+.nav-arrow:disabled {
+  color: #b5b5b5;
+}
+.page-counter {
+  min-width: 108px;
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.page-counter > span:first-child {
+  color: var(--book-accent);
+}
+.page-counter > span:last-child {
+  color: var(--desk-muted);
+}
+.desk-message {
+  min-height: 42px;
+  margin: 0;
+  padding: 8px 20px max(16px, env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 11px;
+  color: #737373;
+  line-height: 1.5;
+}
+.photo-dialog,
+.help-dialog {
+  background: #fff;
+  color: #252525;
+  overflow-y: auto;
+}
+.photo-dialog {
+  width: min(92vw, 1080px);
+  max-width: min(92vw, 1080px);
+  padding: 20px;
+  border-radius: 4px;
+  max-height: 92svh;
+}
+.enlarged-photo {
+  display: block;
+  width: 100%;
+  max-height: 72svh;
+  object-fit: contain;
+  background: #fff;
+}
+.dialog-close {
+  position: absolute;
+  right: 28px;
+  top: 28px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  background: #fffffff0;
+  color: #252525;
+  border-radius: 50%;
+}
+.help-dialog {
+  max-width: min(92vw, 520px);
+  max-height: 90svh;
+  padding: 28px;
+}
+.help-dialog [data-slot='dialog-title'] {
+  font-size: 24px;
+  margin-top: 10px;
+}
+.help-list {
+  list-style: disc;
+  padding-left: 20px;
+  display: grid;
+  gap: 12px;
+  line-height: 1.65;
+  font-size: 14px;
+}
+.prototype-note {
+  border-top: 1px solid #e5e5e5;
+  padding-top: 16px;
+  color: #737373;
+  font-size: 12px;
+  line-height: 1.6;
+}
+@media (hover: hover) and (pointer: fine) {
+  .desk-button:hover,
+  .nav-arrow:not(:disabled):hover {
+    background: #f4f4f4;
+    color: #252525;
+  }
+}
+@media (max-width: 550px) {
+  .desk-footer {
+    gap: 8px;
+    padding: 8px 8px 0;
+  }
+  .book-tools {
+    gap: 0;
+    padding-left: 8px;
+  }
+  .page-counter {
+    min-width: 68px;
+  }
+  .page-navigation {
+    gap: 0;
+  }
+  .desk-message {
+    min-height: 56px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+@media (max-height: 520px) {
+  .desk {
+    min-height: 340px;
+  }
+  .desk-footer {
+    padding-top: 0;
+  }
+  .desk-message {
+    min-height: 26px;
+    padding-top: 0;
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
+  }
+}
+@media (horizontal-viewport-segments: 2) {
+  .desk-footer {
+    display: grid;
+    grid-template-columns: env(viewport-segment-width 0 0) env(viewport-segment-width 1 0);
+    padding-left: 0;
+    padding-right: 0;
+    gap: calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0));
+  }
+  .page-navigation,
+  .book-tools {
+    justify-self: center;
+  }
+  .book-tools {
+    border: 0;
+    padding: 0;
+  }
+  .desk-message {
+    width: env(viewport-segment-width 0 0);
+  }
+  .turn-layer {
+    mask-image: linear-gradient(
+      to right,
+      black 0,
+      black calc(50% - var(--hinge-gap) / 2),
+      transparent calc(50% - var(--hinge-gap) / 2),
+      transparent calc(50% + var(--hinge-gap) / 2),
+      black calc(50% + var(--hinge-gap) / 2)
+    );
+  }
+}
+@media (vertical-viewport-segments: 2) {
+  .desk {
+    padding-top: 0;
+  }
+  .desk-stage {
+    flex: none;
+    height: env(viewport-segment-bottom 0 0);
+  }
+  .desk-footer {
+    margin-top: calc(env(viewport-segment-top 0 1) - env(viewport-segment-bottom 0 0) + 16px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk *,
+  .photo-dialog,
+  .help-dialog {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media (horizontal-viewport-segments: 2) {
+  .photo-dialog,
+  .help-dialog {
+    width: calc(env(viewport-segment-width 0 0) - 32px);
+    max-width: calc(env(viewport-segment-width 0 0) - 32px);
+    left: calc(env(viewport-segment-left 0 0) + env(viewport-segment-width 0 0) / 2);
+  }
+}
+@media (vertical-viewport-segments: 2) {
+  .photo-dialog,
+  .help-dialog {
+    top: calc(env(viewport-segment-top 0 0) + env(viewport-segment-height 0 0) / 2);
+    max-height: calc(env(viewport-segment-height 0 0) - 24px);
+  }
+  .enlarged-photo {
+    max-height: calc(env(viewport-segment-height 0 0) - 140px);
+  }
+}
+@media (vertical-viewport-segments: 2) and (max-height: 500px) {
+  .photo-dialog {
+    padding: 8px;
+    gap: 0;
+  }
+  .photo-dialog [data-slot='dialog-title'],
+  .photo-dialog [data-slot='dialog-description'] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .enlarged-photo {
+    max-height: calc(env(viewport-segment-height 0 0) - 40px);
+  }
+  .dialog-close {
+    right: 12px;
+    top: 12px;
+  }
+}

@@ -328,6 +328,15 @@ jobs:
           flags: karaoke
           fail_ci_if_error: false
 
+      - name: Upload stickerbook coverage to Codecov
+        if: hashFiles('coverage-artifacts/coverage-stickerbook/lcov.info') != ''
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-artifacts/coverage-stickerbook/lcov.info
+          flags: stickerbook
+          fail_ci_if_error: false
+
   # Summary job for branch protection. `always()` survives concurrency
   # cancellation, so use `!cancelled()` while still aggregating failed needs.
   # Source: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-cancellation
