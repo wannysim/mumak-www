@@ -70,7 +70,7 @@ export function GardenSidebar({ categories }: GardenSidebarProps) {
               <PanelLeftClose />
             </Button>
           </div>
-          <div id="garden-note-tree" className="-mr-2 flex-1 overflow-y-auto overscroll-contain pr-2">
+          <div id="garden-note-tree" className="-mx-1 flex-1 overflow-y-auto overscroll-contain p-1">
             <TreeContent visibleCategories={visibleCategories} pathname={pathname} />
           </div>
         </div>
@@ -99,7 +99,7 @@ export function GardenSidebar({ categories }: GardenSidebarProps) {
               </SheetTitle>
               <SheetDescription className="sr-only">{t('title')}</SheetDescription>
             </SheetHeader>
-            <div className="-mr-2 flex-1 overflow-y-auto overscroll-contain pr-2">
+            <div className="-mx-1 flex-1 overflow-y-auto overscroll-contain p-1">
               <TreeContent
                 visibleCategories={visibleCategories}
                 pathname={pathname}

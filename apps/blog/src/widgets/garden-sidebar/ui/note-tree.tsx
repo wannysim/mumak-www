@@ -51,7 +51,6 @@ function NoteTreeItem({
         'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors min-w-0',
         'text-sidebar-foreground/85',
         'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
         isActive && 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
       )}
     >
@@ -73,8 +72,7 @@ function NoteTreeItem({
             className={cn(
               'inline-flex size-5 shrink-0 items-center justify-center rounded transition-colors',
               'text-sidebar-foreground/60',
-              'hover:bg-sidebar-border/60 hover:text-sidebar-foreground',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring'
+              'hover:bg-sidebar-border/60 hover:text-sidebar-foreground'
             )}
           >
             <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />

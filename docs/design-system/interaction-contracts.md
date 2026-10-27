@@ -1,0 +1,59 @@
+# 인터랙션 계약
+
+2026-10-20. Storybook에서 선택한 방향을 제품에 반복 적용하기 위한 기준이다. **선택 완료, 공통 구현 완료, 소비처 이전 완료, 검증 완료를 구분한다.** 현재 적용 현황은 [support-matrix.md](./support-matrix.md#7-인터랙션-적용-현황), 다음 작업은 [NEXT.md](./NEXT.md)에서만 관리한다.
+
+## 공통화와 적용 단위
+
+- 같은 역할·동작은 공통 primitive 또는 recipe가 책임진다. 소비처마다 CSS·loading 마크업을 복사해 적용하지 않는다.
+- 값이 같아도 역할과 변경 이유가 다르면 token을 합치지 않는다. `--ring`, 강조 텍스트, 버튼 배경은 독립 역할이다.
+- 소비처는 import 파일뿐 아니라 실제 배치, 반응형 분기, hydration 전 placeholder, `asChild` 연결까지 포함한다.
+- 같은 역할의 소비처를 먼저 열거하고 이전 단위를 정한다. 나누어 적용하면 남은 소비처를 **미이전**으로 기록한다. 기존 코드라는 이유만으로 **의도된 예외**가 되지는 않는다.
+- 예외에는 역할 차이·이유·검증 범위·재검토 조건이 필요하다. 제품별 테마의 값 차이는 역할 계약을 지키면 허용한다.
+
+## 포커스 — D-010·D-011
+
+- 웹 공통 기반은 `packages/ui/src/styles/globals.css`의 독립 `--ring`과 `focus-outline` utility(불투명 2px outline, 2px offset)다. 전역 `*:focus-visible`과 복합 표면이 같은 utility를 사용한다.
+- 기본 표시를 없애려면 같은 상태에서 조작 대상을 식별할 대체 표시가 있어야 한다. `ContentCard`의 제목 포커스를 카드 표면에 표시하는 것이 해당 예다. 태그는 별도 타깃으로 표시한다.
+- D-017에서 공유 컨트롤의 자체 focus ring과 Blog 트리·skip link, quant 차트·알림 닫기 override를 제거했다. InputGroup·Command 검색·Combobox chips·OTP·ContentCard는 같은 규격을 조작 범위에 맞는 표면에 표시한다. Menubar 트리거도 공통 outline을 사용한다. 메뉴 안의 활성 항목 배경, 비조작 컨테이너, 오류 ring은 별도 역할로 유지한다.
+- Tab/Shift+Tab 도달, 네이티브 조작, Light/Dark에서 대비·잘림·가림을 확인한다. 자동 axe 통과만으로 포커스 가시성 검증을 대체하지 않는다.
+
+## 버튼 색과 입력 피드백 — D-014
+
+- default Button은 `--button-background`, `--button-foreground`, `--button-hover`를 사용한다. 소비처가 default 색을 직접 복제하거나 override하면 별도 검토 대상이다.
+- 공통 Light 값의 글자 대비는 기본 4.62:1, hover 5.90:1이다. 이는 측정한 색 조합의 결과이며 다른 테마·배경·variant 전체의 보증이 아니다.
+- 다른 variant와 karaoke/quant의 테마 색은 각각의 역할을 유지한다. 같은 값으로 통일하기 위해 `--primary`와 버튼 역할을 연결하지 않는다.
+- 기존 pressed 1px 이동과 popup 트리거 예외, 네이티브 Space/Enter 동작을 유지한다. Button의 reduced-motion에서는 전환을 생략한다. 링크로 합성한 경우 링크의 네이티브 키보드 동작을 따른다.
+
+## 요청 버튼 loading — D-015
+
+- 사용자가 시작한 버튼 작업의 기본 방향은 **원래 너비 유지 + spinner-only**다. 시각적으로 문구를 숨겨도 접근 가능한 작업 이름과 대기 상태를 전달한다.
+- loading은 단순한 비활성 상태와 다르다. 중복 요청을 실제 이벤트 처리에서 막고, 실패 후 재시도와 성공 후 포커스 위치를 정한다. `aria-disabled`만으로 중복 실행이 막힌다고 가정하지 않는다.
+- locale·문구·배치가 달라도 너비가 보존되는지 확인한다. 비활성 처리 방식은 포커스 유지와 폼 동작을 고려해 결정한다.
+- reduced-motion에서도 대기를 전달해야 한다. 공유 LoadingButton의 회전 중단은 현재 구현이며, 정적인 표시의 인지 충분성과 스크린리더 실제 발화는 아직 검증되지 않았다.
+- 장기 작업의 단계·오류 안내는 버튼 밖에서도 필요할 수 있다. spinner-only 선택은 모든 상태 문구를 제거하라는 뜻이 아니다.
+- 페이지 이동, 최초 데이터 조회, 여러 작업이 공유하는 loading은 버튼 요청과 먼저 구분한다. 모든 비동기 동작을 일괄 spinner로 바꾸지 않는다.
+- 공유 `LoadingButton`은 `loading`·필수 `loadingLabel`을 받아 Button과 Spinner를 조합한다. 원래 children의 레이아웃을 유지하고 대기 이름·`aria-busy`·`aria-disabled`·반복 클릭 차단을 제공한다. 기본 Button API는 유지한다.
+- LoadingButton은 native button 전용이며 `asChild`를 지원하지 않는다. 대기만으로 native disabled를 켜지 않아 포커스를 유지한다. 폼의 직접 제출까지 막는 동기 guard, 요청·상태 안내·성공 후 포커스는 소비 앱이 소유한다. `loadingLabel`은 live announcement의 대체물이 아니므로 앱에서 status 영역도 연결한다.
+- 공유 API 구현과 모든 앱의 소비처 이전은 별도다. 현재 실제 이전 단위는 admin 로그인·로그아웃·발행·새로고침·더 불러오기·재시도다. 복사와 다른 앱은 현황표의 경계를 따른다.
+
+## 아이콘 타깃 — D-016·D-018
+
+- 사용자는 실제 모바일에서 C(표면 32px / 타깃 44px)를 선택했다. 제품 적용 방향은 **시각적 크기와 조작 영역을 분리하고, 아이콘 조작 타깃에 44×44 CSS px를 확보**하는 것이다.
+- 실습의 표면 32px·중심 간격 52px는 비교 조건이다. 제품 표면을 모두 32px로 바꾸거나 52px를 공통 spacing token으로 만들지 않는다.
+- 타깃 공간을 레이아웃에 확보한다. 이웃 타깃과 겹치거나 다른 조작을 가로채는 투명 영역은 허용하지 않는다. 좁은 배치는 간격·정렬·줄바꿈까지 함께 검토한다.
+- 하나의 조작은 하나의 의미 있는 button 또는 link로 유지한다. 안쪽 표면은 별도 상호작용 요소가 아니다. 이름·포커스·hover/pressed/expanded·disabled 상태와 `asChild`의 ref/이벤트 연결을 보존한다.
+- 실제 타깃 크기, 비중첩, 경계 클릭·터치, 키보드, Light/Dark, 좁은 화면을 검증한다. 확대된 영역이 컨테이너 밖에서 잘리거나 이웃 링크를 덮지 않는지 제품 화면에서도 확인한다.
+- 공유 `IconButton`은 native ghost button 전용 조합이다. 실제 레이아웃 타깃은 44px, `surfaceSize="sm"`은 28px 표면, `lg`는 36px 표면이다. 필수 `aria-label`이 조작 이름을 제공하며 표면은 aria-hidden 비조작 span이다. pressed·disabled·ref·이벤트·포커스는 외부 Button이 소유한다. `surfaceClassName`은 그래프의 반투명 표면 같은 역할별 스타일에만 사용한다.
+- Radix Trigger/Close의 `asChild`로 IconButton을 감싸는 조합은 지원한다. IconButton 자체의 `asChild`·anchor·다른 variant는 아직 지원하지 않는다. 링크 소비처는 native 링크 의미를 유지하는 별도 이전 검토가 필요하며 미이전으로 추적한다.
+- 첫 적용 단위는 Blog Navigation·MobileMenu(열기/닫기)·모바일 검색·SwitcherDropdown·ThemeSwitcher placeholder와 GraphToolbar다. 헤더 fallback도 같은 타깃 공간을 확보한다. 기본 Button의 크기와 다른 앱은 변경하지 않는다.
+- 이는 프로젝트의 선택이며 모든 버튼에 대한 WCAG AA 44px 의무라는 뜻이 아니다. 텍스트 버튼·본문 링크·복합 위젯은 역할과 배치를 별도로 검토한다. 실습의 실제 모바일 선호가 모든 소비 화면의 사용성 검증을 대신하지 않는다.
+
+## 변경을 완료로 기록하는 조건
+
+1. 비교안·사용자 선택·비용·재검토 조건이 결정 로그에 있다.
+2. 공통 구현의 소유 위치와 같은 역할의 소비처 목록을 정했다.
+3. 적용 단위 안의 소비처를 함께 이전하고, 밖에 남은 곳과 이유를 현황표에 적었다.
+4. Storybook에서 공통 상태를 검사하고 실제 제품의 대표 배치·키보드·반응형을 확인했다. 실행하지 않은 검증은 구분해 남겼다.
+5. 계약·적용 현황·테스트·다음 작업을 같은 변경에서 갱신했다.
+
+실습 통과만으로 제품 이전을 완료 처리하지 않는다. PR 리뷰에서는 인라인 복제·공통 구현 우회·새 소비처 누락을 확인한다. 이 절차는 문서와 리뷰 기준이며, 모든 drift를 자동 검출하는 lint/CI 규칙이 생겼다는 뜻은 아니다.

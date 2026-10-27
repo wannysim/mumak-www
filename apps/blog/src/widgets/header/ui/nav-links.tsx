@@ -13,7 +13,7 @@ interface NavLinksProps {
 
 export function NavLinks({ items }: NavLinksProps) {
   const pathname = usePathname();
-  const isActive = (href: string) => pathname.startsWith(href);
+  const isActive = (href: string) => pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
 
   return (
     <div className="hidden md:flex items-center gap-4">
@@ -21,7 +21,8 @@ export function NavLinks({ items }: NavLinksProps) {
         <Link
           key={item.href}
           href={item.href}
-          className={`px-3 py-2 text-sm rounded-md transition-colors ${
+          aria-current={isActive(item.href) ? 'page' : undefined}
+          className={`flex min-h-11 items-center px-3 py-2 text-sm rounded-md transition-colors ${
             isActive(item.href) ? 'bg-muted font-medium' : 'hover:bg-muted/50'
           }`}
         >

@@ -45,3 +45,4 @@ content/**/.obsidian/
 
 # design tooling scratch output
 .impeccable/
+/storybook-static/

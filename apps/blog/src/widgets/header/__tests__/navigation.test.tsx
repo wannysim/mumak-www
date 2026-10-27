@@ -12,6 +12,7 @@ jest.mock('next-intl/server', () => ({
   getTranslations: jest.fn(async () => (key: string) => {
     const translations: Record<string, string> = {
       blog: '블로그',
+      homeNavigation: 'Home',
       essay: '에세이',
       articles: '아티클',
       notes: '노트',
@@ -74,11 +75,13 @@ describe('Navigation', () => {
     mockLocaleSwitcher.mockImplementation(() => <div data-testid="locale-switcher">LocaleSwitcher</div>);
   });
 
-  it('should render logo', async () => {
+  it('puts Home in both navigation menus instead of a logo link', async () => {
     const jsx = await Navigation();
     render(jsx);
 
-    expect(screen.getByRole('link', { name: 'Wan Sim' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Wan Sim' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('nav-links')).toHaveTextContent('Home');
+    expect(screen.getByTestId('mobile-menu')).toHaveTextContent('Home');
   });
 
   it('should render desktop navigation links via NavLinks', async () => {

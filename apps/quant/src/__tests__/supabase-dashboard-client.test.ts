@@ -82,6 +82,50 @@ describe('SupabaseDashboardClient', () => {
     expect(calls.table).toBe('live_snapshots');
   });
 
+  it.each([
+    [{ message: 'PRIVATE', code: '42501' }, 403, 'access'],
+    [{ message: 'PRIVATE', code: 'PGRST301' }, 401, 'access'],
+    [{ message: 'PRIVATE', code: '42703' }, 400, 'schema'],
+    [{ message: 'PRIVATE', code: '42P01' }, 400, 'schema'],
+    [{ message: 'PRIVATE', code: 'PGRST205' }, 404, 'schema'],
+    [{ message: 'PRIVATE' }, 503, 'transport'],
+  ] as const)('classifies a failed query safely: %j', async (error, status, kind) => {
+    const { supabase } = createSupabaseFake();
+    supabase.from = () => ({
+      select() {
+        return this;
+      },
+      order() {
+        return this;
+      },
+      async abortSignal() {
+        return { data: null, error, status };
+      },
+    });
+    const client = new SupabaseDashboardClient(supabase, 'https://quant.example.test');
+    await expect(client.fetchSnapshots('paper', new AbortController().signal)).rejects.toMatchObject({ kind });
+    await expect(client.fetchSnapshots('paper', new AbortController().signal)).rejects.not.toThrow('PRIVATE');
+  });
+
+  it('rejects a null success body instead of claiming an empty database', async () => {
+    const { supabase } = createSupabaseFake();
+    supabase.from = () => ({
+      select() {
+        return this;
+      },
+      order() {
+        return this;
+      },
+      async abortSignal() {
+        return { data: null, error: null };
+      },
+    });
+    const client = new SupabaseDashboardClient(supabase, 'https://quant.example.test');
+    await expect(client.fetchSnapshots('paper', new AbortController().signal)).rejects.toMatchObject({
+      kind: 'schema',
+    });
+  });
+
   it('requests OTP without creating unknown users', async () => {
     const { supabase, calls } = createSupabaseFake();
     const client = new SupabaseDashboardClient(supabase, 'https://quant.example.test');

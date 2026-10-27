@@ -11,11 +11,7 @@ jest.mock('next-intl', () => ({
 const mockUsePathname = jest.fn(() => '/');
 
 jest.mock('@/src/shared/config/i18n', () => ({
-  Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
-    <a href={href} className={className}>
-      {children}
-    </a>
-  ),
+  Link: ({ children, ...props }: React.ComponentProps<'a'>) => <a {...props}>{children}</a>,
   usePathname: () => mockUsePathname(),
 }));
 
@@ -29,7 +25,10 @@ jest.mock('@mumak/ui/components/sheet', () => ({
   SheetClose: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-const items = [{ href: '/blog', label: 'Blog' }];
+const items = [
+  { href: '/', label: 'Home' },
+  { href: '/blog', label: 'Blog' },
+];
 
 describe('MobileMenu', () => {
   beforeEach(() => {
@@ -66,4 +65,17 @@ describe('MobileMenu', () => {
     expect(blogLink).toHaveClass('text-muted-foreground');
     expect(blogLink).not.toHaveClass('text-foreground');
   });
+});
+
+it.each(['/blog', '/blog/essay/post'])('Home is not active at %s', pathname => {
+  mockUsePathname.mockReturnValue(pathname);
+  render(<MobileMenu items={items} />);
+  expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
+  expect(screen.getByRole('link', { name: 'Blog' })).toHaveAttribute('aria-current', 'page');
+});
+it('Home is active only at the root', () => {
+  mockUsePathname.mockReturnValue('/');
+  render(<MobileMenu items={items} />);
+  expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+  expect(screen.getByRole('link', { name: 'Blog' })).not.toHaveAttribute('aria-current');
 });

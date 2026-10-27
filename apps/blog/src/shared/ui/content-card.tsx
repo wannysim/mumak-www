@@ -27,7 +27,7 @@ export function ContentCard({ href, title, meta, description, tags, footer }: Co
       className={cn(
         cardSurfaceClass,
         'group relative p-5',
-        'has-[[data-slot=content-card-link]:focus-visible]:ring-2 has-[[data-slot=content-card-link]:focus-visible]:ring-ring'
+        'has-[[data-slot=content-card-link]:focus-visible]:focus-outline'
       )}
     >
       <div className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">{meta}</div>

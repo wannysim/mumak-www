@@ -75,7 +75,7 @@ function GraphControls({
   const labelFor = (key: string) => optionLabels[key] ?? (key.split(':').slice(1).join(':') || key);
 
   return (
-    <div className="absolute top-14 left-3 z-10 flex flex-col gap-2">
+    <div className="absolute top-16 left-3 z-10 flex flex-col gap-2">
       <div className="hidden md:block relative max-w-xs">
         <SearchIcon className="pointer-events-none absolute z-10 left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -106,6 +106,7 @@ function GraphControls({
             size="icon"
             className="h-9 w-9 bg-background/80 backdrop-blur-sm"
             onClick={() => setSearchExpanded(true)}
+            aria-label={labels.search}
           >
             <SearchIcon className="h-4 w-4" />
           </Button>

@@ -233,7 +233,7 @@ Blog와 Garden은 같은 사이트의 sibling 섹션이다. 두 섹션의 대응
 - visual regression(`toHaveScreenshot`)은 미도입. 도입 시 기존 `blog` E2E 안에 포함해 새 GitHub check를 늘리지 않는다.
 - 디자인시스템 작업의 기준선·지원 범위·예외·결정 기록은 `docs/design-system/`에 있다. 계획은 `apps/blog/plan.md`.
 - 홈서버 이관 경위와 배포·운영 런북(Cloudflare, NPM, promote → GHCR → Watchtower)은 `apps/blog/docs/home-server-migration.md`에 있다. `plan.md`와 다른 문서다.
-- 확인된 미해결 결함: light 모드 `--ring` 대비 2.82:1(비텍스트 최소치 3:1 미달). axe는 포커스 표시 대비를 평가하지 않아 스캔이 통과해도 남는다. `docs/design-system/audit.md` 참조.
+- 포커스 기본안(D-011): 독립 `--ring` 값과 불투명 2px outline·2px offset을 사용한다. `Button`은 전역 foundation, `ContentCard`는 제목 포커스의 카드 표면 표시를 사용한다. 기존 light `--ring` 2.82:1은 기본 배경 7.92:1로 수정했다. 다른 component의 자체 override와 sidebar token은 미이전이다. 검증 범위·남은 버튼 글자 대비 문제는 `docs/design-system/focus-lab.md` 참조.
 
 ---
 

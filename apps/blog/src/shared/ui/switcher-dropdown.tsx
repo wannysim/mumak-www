@@ -2,7 +2,6 @@
 
 import { LucideIcon } from 'lucide-react';
 
-import { Button } from '@mumak/ui/components/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +9,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@mumak/ui/components/dropdown-menu';
+import { IconButton } from '@mumak/ui/components/icon-button';
 
 type SwitcherOption<Value extends string> = {
   value: Value;
@@ -37,9 +37,9 @@ export function SwitcherDropdown<Value extends string>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label={ariaLabel}>
+        <IconButton aria-label={ariaLabel}>
           <TriggerIcon className="size-4" aria-hidden />
-        </Button>
+        </IconButton>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" sideOffset={8}>

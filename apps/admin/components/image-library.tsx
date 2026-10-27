@@ -5,6 +5,7 @@ import * as React from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 import { Input } from '@mumak/ui/components/input';
+import { LoadingButton } from '@mumak/ui/components/loading-button';
 
 import {
   formatBytes,
@@ -66,17 +67,40 @@ function LibraryFileCard({ file }: { file: LibraryFile }) {
 
 export function ImageLibrary({ onSessionExpired }: { onSessionExpired: () => void }) {
   const [page, setPage] = React.useState<ImageLibraryPage>({ files: [], cursor: null });
-  const [request, setRequest] = React.useState<{ cursor?: string }>({});
+  const [request, setRequest] = React.useState<{ cursor?: string; trigger?: 'refresh' | 'more' | 'retry' }>({});
   const [prefix, setPrefix] = React.useState('blog/');
   const [loading, setLoading] = React.useState(true);
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState('');
+  const requestPending = React.useRef(true);
+  const refreshButton = React.useRef<HTMLButtonElement>(null);
+  const pendingButton = React.useRef<HTMLButtonElement | null>(null);
+
+  function requestPage(trigger: 'refresh' | 'more' | 'retry', button: HTMLButtonElement) {
+    if (requestPending.current) return;
+    requestPending.current = true;
+    pendingButton.current = button;
+    if (trigger === 'refresh') setPrefix('blog/');
+    setLoading(true);
+    setRequest({
+      cursor: trigger === 'more' ? (page.cursor ?? undefined) : trigger === 'retry' ? request.cursor : undefined,
+      trigger,
+    });
+  }
+
+  React.useEffect(() => {
+    if (loading) return;
+    if (pendingButton.current && !pendingButton.current.isConnected && document.activeElement === document.body) {
+      refreshButton.current?.focus();
+    }
+    pendingButton.current = null;
+  }, [loading]);
 
   React.useEffect(() => {
     const controller = new AbortController();
     async function load() {
+      requestPending.current = true;
       setLoading(true);
-      setError('');
       try {
         const query = request.cursor ? `?${new URLSearchParams({ cursor: request.cursor })}` : '';
         const response = await fetch(`/api/images/library${query}`, {
@@ -98,11 +122,15 @@ export function ImageLibrary({ onSessionExpired }: { onSessionExpired: () => voi
             : next.files,
           cursor: next.cursor,
         }));
+        setError('');
         setLoaded(true);
       } catch {
         if (!controller.signal.aborted) setError('이미지 목록을 불러오지 못했습니다. 다시 시도하세요.');
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted) {
+          requestPending.current = false;
+          setLoading(false);
+        }
       }
     }
     void load();
@@ -121,17 +149,17 @@ export function ImageLibrary({ onSessionExpired }: { onSessionExpired: () => voi
         <h2 id="library-title" className="text-lg font-semibold">
           이미지 보관함
         </h2>
-        <Button
+        <LoadingButton
+          ref={refreshButton}
           type="button"
           variant="outline"
-          disabled={loading}
-          onClick={() => {
-            setPrefix('blog/');
-            setRequest({});
-          }}
+          disabled={loading && request.trigger !== 'refresh'}
+          loading={loading && request.trigger === 'refresh'}
+          loadingLabel="새로고침 중…"
+          onClick={event => requestPage('refresh', event.currentTarget)}
         >
           새로고침
-        </Button>
+        </LoadingButton>
       </div>
       <p className="text-sm text-muted-foreground">
         이미지마다 폴더 하나에 JPEG·WebP 파일이 저장됩니다. 같은 이미지의 재업로드는 기존 폴더를 사용합니다.
@@ -163,9 +191,16 @@ export function ImageLibrary({ onSessionExpired }: { onSessionExpired: () => voi
       {error && (
         <div role="alert" className="space-y-2">
           <p>{error}</p>
-          <Button type="button" variant="outline" onClick={() => setRequest({ ...request })}>
+          <LoadingButton
+            type="button"
+            variant="outline"
+            disabled={loading && request.trigger !== 'retry'}
+            loading={loading && request.trigger === 'retry'}
+            loadingLabel="재시도 중…"
+            onClick={event => requestPage('retry', event.currentTarget)}
+          >
             다시 시도
-          </Button>
+          </LoadingButton>
         </div>
       )}
       {loaded && !loading && !error && files.length === 0 && (
@@ -205,9 +240,16 @@ export function ImageLibrary({ onSessionExpired }: { onSessionExpired: () => voi
         ))}
       </ul>
       {page.cursor && (
-        <Button type="button" variant="outline" disabled={loading} onClick={() => setRequest({ cursor: page.cursor! })}>
+        <LoadingButton
+          type="button"
+          variant="outline"
+          disabled={loading && request.trigger !== 'more'}
+          loading={loading && request.trigger === 'more'}
+          loadingLabel="더 불러오는 중…"
+          onClick={event => requestPage('more', event.currentTarget)}
+        >
           더 불러오기
-        </Button>
+        </LoadingButton>
       )}
     </section>
   );

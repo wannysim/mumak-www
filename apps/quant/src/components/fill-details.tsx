@@ -25,7 +25,7 @@ function FillDetails({ fill, currency }: { fill: DashboardFill; currency: string
                 type="button"
                 variant={fill.side === 'buy' ? 'destructive' : 'default'}
                 size="xs"
-                className="h-6 w-14 shrink-0 rounded-sm md:h-8 md:w-16"
+                className="h-11 w-14 shrink-0 rounded-sm md:h-8 md:w-16"
                 aria-label={label}
               >
                 <span className="text-xs md:text-[0.8rem]">{fill.side === 'buy' ? '매수' : '매도'}</span>
