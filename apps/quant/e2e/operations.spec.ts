@@ -102,16 +102,41 @@ async function connect(page: Page) {
   return state;
 }
 
-for (const width of [320, 390, 1440]) {
-  test(`producer SQL API UI, keyboard and responsive ${width}px`, async ({ page }, info) => {
-    const errors: string[] = [];
-    page.on('pageerror', error => errors.push(error.message));
-    page.on('console', message => {
-      if (message.type() === 'error') errors.push(message.text());
+type CspViolation = { directive: string; blockedURI: string };
+type ObservedWindow = Window & { operationsCspViolations: CspViolation[] };
+
+async function observeErrors(page: Page) {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  await page.addInitScript(() => {
+    const observed = window as ObservedWindow;
+    observed.operationsCspViolations = [];
+    document.addEventListener('securitypolicyviolation', event => {
+      observed.operationsCspViolations.push({ directive: event.effectiveDirective, blockedURI: event.blockedURI });
     });
+  });
+  const violations = () => page.evaluate(() => (window as ObservedWindow).operationsCspViolations);
+  return {
+    errors,
+    violations,
+    async assertClean() {
+      expect(await violations()).toEqual([]);
+      expect(errors).toEqual([]);
+    },
+  };
+}
+
+for (const width of [320, 390, 1440]) {
+  test(`producer SQL API UI, keyboard and responsive ${width}px`, async ({ page, browser }, info) => {
+    const observed = await observeErrors(page);
+    const { errors } = observed;
     await page.setViewportSize({ width, height: 1000 });
     await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: width === 390 ? 'dark' : 'light' });
     await connect(page);
+    await observed.assertClean();
     const panel = page.getByRole('region', { name: 'PAPER 전략과 일별 운영' });
     await expect(panel.getByRole('option', { name: '선정 · 미제공' })).toHaveJSProperty('disabled', true);
     await expect(panel.getByRole('list', { name: '일별 자동화 단계' }).getByRole('listitem')).toHaveCount(7);
@@ -143,9 +168,45 @@ for (const width of [320, 390, 1440]) {
         }))
     );
     if (overflow.length) console.log('overflow elements', JSON.stringify(overflow));
-    await panel.screenshot({ path: info.outputPath(`operations-${width}.png`) });
+    await observed.assertClean();
+    await test.step('auxiliary visual evidence in an independent context', async () => {
+      // Screenshot preparation may inject a style blocked by WebKit's CSP. Never
+      // capture on the acceptance page or clear/filter either observer's errors.
+      const captureContext = await browser.newContext({
+        baseURL: new URL(page.url()).origin,
+        bypassCSP: false,
+        viewport: { width, height: 1000 },
+        reducedMotion: 'reduce',
+        colorScheme: width === 390 ? 'dark' : 'light',
+      });
+      try {
+        const capturePage = await captureContext.newPage();
+        const capture = await observeErrors(capturePage);
+        await connect(capturePage);
+        const capturePanel = capturePage.getByRole('region', { name: 'PAPER 전략과 일별 운영' });
+        await capturePanel.locator('summary').filter({ hasText: '공식·배분·위험 규칙' }).click();
+        await capture.assertClean();
+        try {
+          await capturePanel.screenshot({ path: info.outputPath(`operations-${width}.png`) });
+        } finally {
+          // Flush queued CSP events before recording unfiltered tool diagnostics.
+          await capturePage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0))));
+          await info.attach(`operations-${width}-capture-diagnostics`, {
+            contentType: 'application/json',
+            body: JSON.stringify({
+              scope: 'auxiliary screenshot only; not product CSP acceptance',
+              errors: capture.errors,
+              violations: await capture.violations(),
+            }),
+          });
+        }
+      } finally {
+        await captureContext.close();
+      }
+    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(errors).toEqual([]);
+    await observed.assertClean();
     expect(writes).toBe(0);
   });
 }
@@ -171,5 +232,33 @@ test('operation failure is isolated, retry clears error, month switch and LIVE c
   await expect(page.getByRole('heading', { name: '실운용 내역 로그인' })).toBeVisible();
   await expect(panel).toHaveCount(0);
   expect(state.requests).toBe(calls);
+  expect(writes).toBe(0);
+});
+
+test('product CSP observer rejects an inline style injected during a user action', async ({ page }) => {
+  const observed = await observeErrors(page);
+  await connect(page);
+  await observed.assertClean();
+  const search = page.getByRole('region', { name: 'PAPER 전략과 일별 운영' }).getByRole('searchbox');
+  // A deliberately faulty application handler, not screenshot tooling. Exercise
+  // the same observer/assertion as the acceptance cases after a real UI action.
+  await search.evaluate(element => {
+    element.addEventListener(
+      'input',
+      () => {
+        const style = document.createElement('style');
+        style.textContent = ':root { --operations-csp-probe: blocked; }';
+        document.head.append(style);
+      },
+      { once: true }
+    );
+  });
+  await search.fill('ETF');
+  await expect(page.getByRole('list', { name: '후보 목록' }).getByRole('listitem')).toHaveCount(1);
+  await expect.poll(observed.violations).toEqual([{ directive: 'style-src-elem', blockedURI: 'inline' }]);
+  expect(
+    await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--operations-csp-probe'))
+  ).toBe('');
+  await expect(observed.assertClean()).rejects.toThrow();
   expect(writes).toBe(0);
 });

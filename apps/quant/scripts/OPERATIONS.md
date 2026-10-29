@@ -68,6 +68,14 @@ SQL은 service-only RPC를 통해서만 쓴다. 브라우저 anon/authenticated�
 
 `test_operations_adapter.py --synthetic-preview`는 합성 saved-source를 실제 exporter로 투영한다. operations E2E는 이를 실제 PGLite/004/service RPC에 넣고 DB행을 readback해 HTTP localroute로 실제 앱에 보낸다. 외부 네트워크/production DB가 아니다. SQL tests는 revision/noop/stale/conflict/role deny/legacy LIVE를 검증한다. shared invalid corpus를 Python/TS/SQL이 모두 거부해야 한다. 실saved-source dry-run은 별도 내부 evidence이며 합성 E2E를 실운용 결과로 소개하지 않는다.
 
+### 제품 CSP 검증과 보조 시각 증거
+
+operations E2E의 기능·keyboard·responsive·no-write 검증은 원 페이지에서 수행한다. CSP 이벤트와 pageerror/console error를 초기 탐색부터 기록하고, 사용자 동작 전후 및 보조 캡처가 끝난 뒤에도 원 페이지가 깨끗한지 검사한다. 오류 배열을 지우거나 필터링하지 않는다. 실제 입력 동작의 handler에 차단 대상 inline style을 주입하는 음성 대조는 같은 제품 검증기가 위반을 거부하고 스타일도 적용되지 않음을 확인한다.
+
+스크린샷은 별도 browser context에서 합성 자료를 다시 열어 공식 상세를 펼친 뒤 수집하는 보조 증거다. viewport·색상·reduced-motion을 맞추고 CSP 우회는 사용하지 않는다. WebKit의 캡처 준비 과정은 SDK가 임시 inline style을 삽입해 CSP에 차단되는 알려진 제약이 있다. 각 `operations-<width>-capture-diagnostics` JSON attachment에 캡처 컨텍스트의 오류와 CSP 이벤트를 필터 없이 별도 보존한다. 보조 캡처의 완료는 그 컨텍스트의 CSP/console 무오류 또는 제품 수용검증을 뜻하지 않는다. 앱 CSP header, SDK/vendor, 브라우저 및 retry 정책은 변경하지 않는다.
+
+기존 기능시험은 유지하며 CSP 음성 대조를 추가했다. 변경 후 전체 inventory는 CI 모드의 `playwright test --list`로 다시 집계한다. 320/390/1440px 보조 캡처 단계는 별도 시험 수로 더하지 않으며, 실행 결과와 capture diagnostics는 구분해 보고한다.
+
 ## 복구
 
 front 문제이면 frontend rollback으로 기존 재무 v1 화면으로 돌아간다. 독립 publisher를 먼저 중단하는 운영 변경은 별도 승인한다. sidecar table은 additive이므로 즉시 DROP/delete하지 않는다. frontend rollback 및 publish 중단 후에도 기존 금융 경로는 그대로 유지한다. 손상 row는 임의 수정/삭제 대신 원본 보존·정정 receipt와 CAS 절차로 다룬다. 운영 부재 상태를 숨기려고 LIVE/RLS/service key 정책을 완화하지 않는다.
