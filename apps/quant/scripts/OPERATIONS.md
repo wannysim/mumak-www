@@ -68,6 +68,16 @@ SQL은 service-only RPC를 통해서만 쓴다. 브라우저 anon/authenticated�
 
 `test_operations_adapter.py --synthetic-preview`는 합성 saved-source를 실제 exporter로 투영한다. operations E2E는 이를 실제 PGLite/004/service RPC에 넣고 DB행을 readback해 HTTP localroute로 실제 앱에 보낸다. 외부 네트워크/production DB가 아니다. SQL tests는 revision/noop/stale/conflict/role deny/legacy LIVE를 검증한다. shared invalid corpus를 Python/TS/SQL이 모두 거부해야 한다. 실saved-source dry-run은 별도 내부 evidence이며 합성 E2E를 실운용 결과로 소개하지 않는다.
 
+### 독립 PostgreSQL 경쟁·부분/모호 발행 검증
+
+`test:ci` → `test:paper`의 unittest discovery는 `test_operations_concurrency.py`도 필수 실행한다. 테스트가 생성한 격리 cluster에 shipped 001–004만 적용하며 TCP listener와 외부 DB URL은 사용하지 않는다. PostgreSQL server/client binaries가 없으면 skip하지 않고 실패한다. CI의 설치된 `pg_config --bindir`를 기본 사용한다. 로컬에서는 사용자 추출 binaries의 절대 경로를 `QUANT_TEST_PG_BIN`, 필요한 동적 library 경로를 `QUANT_TEST_PG_LIBRARY_DIR`로 명시할 수 있다. 운영 DB·자격증명을 넣지 않는다.
+
+월/세션의 absent insert와 existing update 각각은 독립 psql transaction 두 개를 열어 실제 lock/blocking PID를 관찰한 뒤 commit한다. winner 한 개, loser CAS conflict, revision/payload/summary/source/stored metadata, noop 및 anon/authenticated SELECT-only를 assertion으로 검사한다. 실제 publisher와 durable 합성 transport는 월 성공 뒤 세션 실패, POST commit 후 응답 유실, GET 실패에서 행 보존·자동 POST 재시도 없음·정확 readback 뒤 명시 CAS/noop 복구·재무 sentinel 불변을 검증한다. month/session을 새 원자 거래로 묶지 않는다.
+
+`operations-resilience.spec.ts`는 실제 Supabase SDK의 반복 503/backoff와 pending 취소, hidden/월/LIVE/명시 retry/poll 세대 폐기, abort를 무시한 늦은 응답, 재무·다른 운영 query 격리와 명시 복구를 합성 HTTP로 검사한다. 보류 transport에는 제품 SLA/새 timeout을 발명하지 않고 입력 전환에 따른 실제 AbortSignal 및 fetch settle을 assertion한다. 네트워크 fault의 원 console 오류는 attachment에 보존하고 503·운영 endpoint 귀속을 확인한다. CSP/pageerror/write는 계속 0이어야 하며 기존 제품 clean observer는 수정하지 않는다.
+
+에피소드 선택기는 기존 엄격한 style CSP에서 runtime style 삽입을 하지 않는 native select다. 전체 라벨은 별도 wrap 표시하고 native control은 label/키보드/터치 의미를 유지한다. 이는 CSP 완화나 공유 Select/SDK 변경이 아니다. 기존 월전환/overflow/포커스/차트 기대값은 유지하고 DOM listbox 전용 조작만 native 선택과 ArrowUp/Down·Escape 검증으로 바꾼다.
+
 ### 제품 CSP 검증과 보조 시각 증거
 
 operations E2E의 기능·keyboard·responsive·no-write 검증은 원 페이지에서 수행한다. CSP 이벤트와 pageerror/console error를 초기 탐색부터 기록하고, 사용자 동작 전후 및 보조 캡처가 끝난 뒤에도 원 페이지가 깨끗한지 검사한다. 오류 배열을 지우거나 필터링하지 않는다. 실제 입력 동작의 handler에 차단 대상 inline style을 주입하는 음성 대조는 같은 제품 검증기가 위반을 거부하고 스타일도 적용되지 않음을 확인한다.

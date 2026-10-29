@@ -223,8 +223,7 @@ test('operation failure is isolated, retry clears error, month switch and LIVE c
   await panel.getByRole('button', { name: '이 영역 다시 조회' }).click();
   await expect(page.getByText('TEST000', { exact: true })).toBeVisible();
   const picker = page.getByRole('combobox', { name: '에피소드', exact: true });
-  await picker.click();
-  await page.getByRole('option', { name: '2026-08 · 8월 합성 시험' }).click();
+  await picker.selectOption({ label: '2026-08 · 8월 합성 시험' });
   await expect(panel).toContainText('이 월의 일별 운영 기록이 없습니다.');
   await expect(page.getByText('TEST000', { exact: true })).toHaveCount(0);
   await page.getByRole('tab', { name: '실운용' }).click();

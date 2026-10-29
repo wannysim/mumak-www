@@ -43,6 +43,16 @@ describe('display time zones', () => {
     expect(timeZoneOffset('America/New_York', new Date('2026-07-15'))).toBe('GMT-4');
   });
 
+  it('reuses offset formatters without freezing the date-dependent DST offset', () => {
+    const formatter = vi.spyOn(Intl, 'DateTimeFormat');
+    expect(timeZoneOffset('America/Chicago', new Date('2026-01-15'))).toBe('GMT-6');
+    expect(timeZoneOffset('Asia/Tokyo', new Date('2026-01-15'))).toBe('GMT+9');
+    const constructions = formatter.mock.calls.length;
+    expect(timeZoneOffset('America/Chicago', new Date('2026-07-15'))).toBe('GMT-5');
+    expect(timeZoneOffset('Asia/Tokyo', new Date('2026-07-15'))).toBe('GMT+9');
+    expect(formatter.mock.calls).toHaveLength(constructions);
+  });
+
   it('preserves fractional-hour offsets', () => {
     expect(timeZoneOffset('Asia/Kolkata', new Date('2026-09-21'))).toBe('GMT+5:30');
     expect(createDateFormatters('Asia/Kolkata').formatDateTime('2026-09-21T00:00:00Z')).toBe('9월 21일 05:30');

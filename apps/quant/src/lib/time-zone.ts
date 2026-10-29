@@ -30,12 +30,15 @@ function clientTimeZone() {
   return DEFAULT_TIME_ZONE;
 }
 
+const OFFSET_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+
 function timeZoneOffset(timeZone: string, at = new Date()) {
-  return (
-    new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' })
-      .formatToParts(at)
-      .find(part => part.type === 'timeZoneName')?.value ?? 'GMT'
-  );
+  let formatter = OFFSET_FORMATTERS.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' });
+    OFFSET_FORMATTERS.set(timeZone, formatter);
+  }
+  return formatter.formatToParts(at).find(part => part.type === 'timeZoneName')?.value ?? 'GMT';
 }
 
 function timeZoneLabel(timeZone: string) {

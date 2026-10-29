@@ -3,14 +3,6 @@ import { useState } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 import { Input } from '@mumak/ui/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@mumak/ui/components/select';
 
 import { Panel, SnapshotDashboard } from '@/components/dashboard-sections';
 import { DataContext } from '@/components/data-context';
@@ -218,24 +210,27 @@ function DashboardToolbar({ controller }: { controller: ReturnType<typeof useDas
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
         <div className="grid min-w-0 gap-1.5 text-xs text-muted-foreground">
           <label htmlFor="episode-select">에피소드</label>
-          <Select value={controller.selectedEpisodeKey ?? ''} onValueChange={controller.selectEpisode}>
-            <SelectTrigger
+          {/* Native options preserve keyboard/touch semantics without runtime style
+              injection, which the unchanged style-src 'self' policy must reject. */}
+          <div className="relative flex min-h-11 min-w-0 items-center gap-2 border border-input bg-background px-3 py-2 text-sm text-foreground focus-within:outline-2 focus-within:outline-primary">
+            <span data-slot="select-value" aria-hidden="true" className="min-w-0 flex-1 break-words">
+              {controller.episodes.find(episode => episode.key === controller.selectedEpisodeKey)?.label}
+            </span>
+            <span aria-hidden="true">⌄</span>
+            <select
               id="episode-select"
               aria-label="에피소드"
-              className="min-h-11 w-full rounded-none text-left whitespace-normal data-[size=default]:h-auto [&_[data-slot=select-value]]:line-clamp-none [&_[data-slot=select-value]]:break-words"
+              value={controller.selectedEpisodeKey ?? ''}
+              onChange={event => controller.selectEpisode(event.target.value)}
+              className="absolute inset-0 h-full w-full min-w-0 cursor-pointer appearance-none overflow-hidden opacity-0"
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" className="max-w-[calc(100vw-2rem)]">
-              <SelectGroup>
-                {controller.episodes.map(episode => (
-                  <SelectItem key={episode.key} value={episode.key} className="whitespace-normal break-words">
-                    {episode.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+              {controller.episodes.map(episode => (
+                <option key={episode.key} value={episode.key}>
+                  {episode.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <Button
           type="button"
