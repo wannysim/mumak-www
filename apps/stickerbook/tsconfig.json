@@ -2,8 +2,7 @@
   "extends": "@mumak/typescript-config/react-vite.json",
   "compilerOptions": {
     "paths": {
-      "@/*": ["./src/*"],
-      "@mumak/ui/*": ["../../packages/ui/src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src", "vite.config.ts", "vitest.config.js", "playwright.config.ts"],
