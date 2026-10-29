@@ -273,11 +273,18 @@ for (const width of [320, 390, 768, 1440]) {
     await page.keyboard.press('Escape');
 
     const chartPanel = page.locator('section').filter({ has: page.getByRole('heading', { name: '성과 추이' }) });
+    // Check the default latest point before exploring: scrolling must not put the chart under the selector's pointer.
+    await page.mouse.move(0, 0);
     const bounds = await chartBounds(page);
     await expect(chartPanel.getByRole('status')).toContainText('$100,300.00');
     await expect(chartPanel.getByRole('status')).toContainText('+0.30%');
     await expect(chartPanel.getByRole('radio')).toHaveCount(0);
     expect(bounds.height).toBeLessThan(350);
+
+    // Explicit exploration still selects history; neutral positioning must not disable hover behavior.
+    await page.mouse.move(bounds.x + 4, bounds.y + bounds.height / 2);
+    await expect(chartPanel.getByRole('status')).toContainText('$100,000.00');
+    await expect(chartPanel.getByRole('status')).toContainText('0.00%');
 
     const fills = page.locator('section').filter({ has: page.getByRole('heading', { name: '최근 체결' }) });
     await expect(fills.getByRole('button', { name: /체결 상세/ })).toHaveCount(20);
