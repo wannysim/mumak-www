@@ -11,4 +11,4 @@
 | photos/night.jpg    | https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=85 |
 | photos/deer.jpg     | https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=1200&q=85 |
 
-`fox.svg`는 이 프로토타입을 위해 작성한 임시 여우 일러스트다. 사용자의 fursona를 묘사한 것으로 취급하지 않는다.
+디자인 초기화(2026-10-29) 이후 이 JPG들은 보존된 콘텐츠 자산이며 현재 화면에서는 사용하지 않는다. 임시 여우 SVG와 전용 서체는 제거했다. 실제 fursona 자산은 아직 제공되지 않았다.
