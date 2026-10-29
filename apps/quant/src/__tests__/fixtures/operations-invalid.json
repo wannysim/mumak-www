@@ -1,0 +1,121 @@
+[
+  {
+    "name": "activation alone cannot cite policy registration",
+    "base": "month",
+    "changes": [
+      [
+        ["strategies", "value", 0, "activationObservedAt"],
+        { "availability": "recorded", "value": "2026-09-18T14:00:00+00:00", "evidenceIds": ["policy"] }
+      ]
+    ]
+  },
+  {
+    "name": "policy registration cannot prove runtime activation",
+    "base": "month",
+    "changes": [
+      [["strategies", "value", 0, "authority"], "runtime-receipt"],
+      [
+        ["strategies", "value", 0, "activationObservedAt"],
+        { "availability": "recorded", "value": "2026-09-18T14:00:00+00:00", "evidenceIds": ["policy"] }
+      ]
+    ]
+  },
+  {
+    "name": "quality history count exceeds universe",
+    "base": "session",
+    "changes": [
+      [
+        ["stages", 5, "quality"],
+        {
+          "availability": "recorded",
+          "evidenceIds": ["policy"],
+          "value": {
+            "historyValid": { "availability": "recorded", "value": 3, "evidenceIds": ["policy"] },
+            "historyCoverage": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+            "historyGatePass": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+            "decisionVerified": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+            "closeVerified": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+            "ledgerReconciled": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+            "policyIntegrity": { "availability": "unsupported", "value": null, "evidenceIds": [] }
+          }
+        }
+      ]
+    ]
+  },
+  {
+    "name": "stage cannot outrun its referenced evidence",
+    "base": "session",
+    "changes": [
+      [["stages", 0, "status"], "succeeded"],
+      [["stages", 0, "evidenceIds"], ["policy"]],
+      [["stages", 0, "evidenceAt"], "2026-09-18T14:01:00+00:00"]
+    ]
+  },
+  {
+    "name": "sub-millisecond evidence mismatch",
+    "base": "month",
+    "changes": [[["sourceAsOf"], "2026-09-18T14:00:00.000001+00:00"]]
+  },
+  {
+    "name": "hour rollover",
+    "base": "month",
+    "changes": [[["evidence", 0, "observedAt"], "2026-09-18T24:00:00+00:00"]]
+  },
+  { "name": "year zero", "base": "month", "changes": [[["strategies", "value", 0, "sessionFrom"], "0000-09-18"]] },
+  {
+    "name": "exact ratio above one",
+    "base": "month",
+    "changes": [[["strategies", "value", 0, "rules", "stockCap"], "1.0000000000000001"]]
+  },
+  {
+    "name": "improvement wrong month",
+    "base": "month",
+    "changes": [
+      [
+        ["improvement"],
+        {
+          "availability": "recorded",
+          "evidenceIds": ["policy"],
+          "value": {
+            "cycleMonth": "2026-10",
+            "candidateVersion": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+            "stages": [
+              { "id": "research", "status": "not-recorded", "evidenceAt": null, "reasonCode": null, "evidenceIds": [] },
+              { "id": "research", "status": "not-recorded", "evidenceAt": null, "reasonCode": null, "evidenceIds": [] },
+              { "id": "research", "status": "not-recorded", "evidenceAt": null, "reasonCode": null, "evidenceIds": [] },
+              { "id": "research", "status": "not-recorded", "evidenceAt": null, "reasonCode": null, "evidenceIds": [] }
+            ],
+            "outcome": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+            "effectiveFrom": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+            "activationObservedAt": { "availability": "unsupported", "value": null, "evidenceIds": [] }
+          }
+        }
+      ]
+    ]
+  },
+  {
+    "name": "missing universe count",
+    "base": "session",
+    "changes": [[["counts", "universe"], { "availability": "unsupported", "value": null, "evidenceIds": [] }]]
+  },
+  {
+    "name": "missing eligible count",
+    "base": "session",
+    "changes": [[["counts", "collectorEligible"], { "availability": "unsupported", "value": null, "evidenceIds": [] }]]
+  },
+  {
+    "name": "ranked flags unavailable",
+    "base": "session",
+    "changes": [[["counts", "ranked"], { "availability": "recorded", "value": 0, "evidenceIds": ["policy"] }]]
+  },
+  {
+    "name": "selected flags unavailable",
+    "base": "session",
+    "changes": [[["counts", "selected"], { "availability": "recorded", "value": 0, "evidenceIds": ["policy"] }]]
+  },
+  {
+    "name": "watched flags unavailable",
+    "base": "session",
+    "changes": [[["counts", "watched"], { "availability": "recorded", "value": 0, "evidenceIds": ["policy"] }]]
+  }
+]

@@ -14,6 +14,7 @@ import {
 
 import { Panel, SnapshotDashboard } from '@/components/dashboard-sections';
 import { DataContext } from '@/components/data-context';
+import { OperationsPanel } from '@/components/operations-panel';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { TimeZoneProvider, useTimeZone } from '@/components/time-zone-provider';
 import { TimeZoneSelect } from '@/components/time-zone-select';
@@ -283,7 +284,13 @@ function QueryErrorPanel({
 }
 
 // Keep query/auth state precedence together, separate from the application shell.
-function DashboardContent({ controller }: { controller: ReturnType<typeof useDashboardController> }) {
+function DashboardContent({
+  controller,
+  client,
+}: {
+  controller: ReturnType<typeof useDashboardController>;
+  client: DashboardClient;
+}) {
   let content: React.ReactNode;
   const retry = (
     <Button
@@ -320,6 +327,14 @@ function DashboardContent({ controller }: { controller: ReturnType<typeof useDas
     content = (
       <>
         <DashboardToolbar controller={controller} />
+        {controller.mode === 'paper' && (
+          <OperationsPanel
+            key={`${controller.selectedSnapshot.episodeId}:${controller.selectedSnapshot.month}`}
+            client={client.operations}
+            episodeId={controller.selectedSnapshot.episodeId}
+            month={controller.selectedSnapshot.month}
+          />
+        )}
         <DataContext snapshot={controller.selectedSnapshot} query={controller.data} />
         <SnapshotDashboard snapshot={controller.selectedSnapshot} />
       </>
@@ -382,7 +397,7 @@ function ConfiguredApp({ client }: { client: DashboardClient }) {
           aria-labelledby={`mode-${controller.mode}`}
           className="space-y-5 sm:space-y-6"
         >
-          <DashboardContent controller={controller} />
+          <DashboardContent controller={controller} client={client} />
         </div>
       </main>
     </>

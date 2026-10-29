@@ -1,0 +1,74 @@
+{
+  "contract": "paper-operations/v1",
+  "mode": "paper",
+  "episodeId": "synthetic-paper",
+  "month": "2026-09",
+  "sourceAsOf": "2026-09-18T14:00:00+00:00",
+  "exportedAt": "2026-09-18T14:01:00+00:00",
+  "evidence": [
+    {
+      "id": "policy",
+      "kind": "policy-registration",
+      "evidenceAt": "2026-09-18T14:00:00+00:00",
+      "observedAt": "2026-09-18T14:00:00+00:00"
+    }
+  ],
+  "recordType": "month",
+  "improvement": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+  "strategies": {
+    "availability": "recorded",
+    "evidenceIds": ["policy"],
+    "value": [
+      {
+        "version": "broad-us-paper-v2",
+        "labelCode": "broad-us-low-frequency-trend",
+        "authority": "preserved-policy",
+        "sessionFrom": "2026-09-18",
+        "sessionThrough": "2026-09-30",
+        "effectiveFrom": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+        "effectiveTo": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+        "activationObservedAt": { "availability": "unsupported", "value": null, "evidenceIds": [] },
+        "variant": "base",
+        "ruleSet": "broad-us-v2",
+        "evidenceIds": ["policy"],
+        "rules": {
+          "universeType": "dated-spy-proxy-plus-selected-etfs",
+          "nominalUniverseEquities": 503,
+          "nominalUniverseEtfs": 20,
+          "minPriceUsd": "5",
+          "minMeanDollarVolumeUsd": "20000000",
+          "liquidityWindow": 20,
+          "historyWindow": 200,
+          "minUniverseCoverage": "0.95",
+          "requiredHoldingsCoverage": "1",
+          "returnWindows": [63, 126],
+          "smaWindow": 120,
+          "volatilityWindow": 63,
+          "volatilityDof": 1,
+          "priceBasis": "adjusted-close-signal_nominal-close-liquidity",
+          "positiveScoreRequired": true,
+          "maxPositions": 8,
+          "stockCap": "0.1",
+          "etfCap": "0.2",
+          "sectorCap": "0.3",
+          "underlyingCompanyCap": "0.1",
+          "minCash": "0.2",
+          "inverseVolBudget": "0.8",
+          "budgetDivisor": "1.002",
+          "sizingNavFactor": "0.997",
+          "wholeSharesOnly": true,
+          "dailyLossStop": "0.01",
+          "monthlyLossStop": "0.3",
+          "commissionBps": "10",
+          "slippageBps": "5",
+          "selectionCadence": "daily-preopen",
+          "entryCadence": "initial-and-monday",
+          "recoveryCadence": "none",
+          "entryWindowOpenMinutes": 15,
+          "entryWindowCloseMinutes": 75,
+          "quoteSlotMinutes": 15
+        }
+      }
+    ]
+  }
+}
