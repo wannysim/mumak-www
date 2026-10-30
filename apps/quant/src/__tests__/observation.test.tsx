@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { execFileSync } from 'node:child_process';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { RiskObservations, PriceRail, freshness } from '../components/risk-observations';
@@ -49,6 +50,22 @@ it('accepts the real Python-produced synthetic projection and rejects every shar
       })(),
     }).toEqual({ name, rejected: true });
   }
+});
+it('accepts the small positive proxy from an optional saved symbol_plan through the real Python exporter', () => {
+  const produced: unknown = JSON.parse(
+    execFileSync('python3', ['-B', 'scripts/test_symbol_projection.py', '--synthetic-preview'], {
+      encoding: 'utf8',
+    })
+  );
+  const parsed = parseObservation(produced);
+  expect(parsed.origin).toBe('synthetic');
+  expect(parsed.symbols.value).toHaveLength(1);
+  expect(parsed.symbols.value![0]).toMatchObject({
+    symbol: 'TEST',
+    state: 'monitor',
+    targetQuantity: 1,
+    exposureProxy: '0.00000002',
+  });
 });
 it('shows source-bound account and symbol observations, typed reasons and display-only distance, not live installation', async () => {
   const c = client();

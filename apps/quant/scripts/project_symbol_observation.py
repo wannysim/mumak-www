@@ -52,8 +52,9 @@ def project_symbols(saved, *, valid_until, evidence_id):
         nav=cash+sum(Decimal(x['qty'])*positive(context['prices'][s]) for s,x in positions.items())
         if nav<=0: raise ValueError('Invalid saved NAV')
         gamma=positive(config['gamma']) if config['strategy_id']=='C' else None
-        base.update(state=status,reason=reason,inputConfidence='validated',entryPrice=str(entry),sigmaEntry=str(sigma),highWater=str(high),mark=str(mark),stopThreshold=str(threshold),
-                    exposureProxy=str(Decimal(p['qty'])*mark/nav*sigma) if gamma else None,gamma=str(gamma) if gamma else None,targetQuantity=target,
+        # The public decimal contract rejects exponent notation; preserve Decimal precision.
+        base.update(state=status,reason=reason,inputConfidence='validated',entryPrice=format(entry,'f'),sigmaEntry=format(sigma,'f'),highWater=format(high,'f'),mark=format(mark,'f'),stopThreshold=format(threshold,'f'),
+                    exposureProxy=format(Decimal(p['qty'])*mark/nav*sigma,'f') if gamma else None,gamma=format(gamma,'f') if gamma else None,targetQuantity=target,
                     reentry='same-session-blocked' if action or state['same_session_buy_block']==context['session_ny'] else 'regular-entry-only')
         rows.append(base)
     return rows
