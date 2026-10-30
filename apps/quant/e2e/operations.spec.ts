@@ -60,6 +60,10 @@ async function connect(page: Page) {
       await route.fulfill({ json: [financial, older] });
       return;
     }
+    if (url.pathname === '/rest/v1/paper_observations') {
+      await route.fulfill({ json: [] });
+      return;
+    }
     const table = url.pathname.split('/').at(-1);
     if (!['paper_operation_months', 'paper_operation_sessions'].includes(table ?? '')) {
       await route.abort();
@@ -142,7 +146,7 @@ for (const width of [320, 390, 1440]) {
     await expect(panel.getByRole('list', { name: '일별 자동화 단계' }).getByRole('listitem')).toHaveCount(7);
     await expect(panel).toContainText('데이터 수집 · 완료');
     await expect(panel).toContainText('PAPER 실행 · 기록 없음');
-    await expect(page.getByText('DB 적재 확인')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'DB 적재 확인' })).toBeVisible();
     const formula = panel.locator('summary').filter({ hasText: '공식·배분·위험 규칙' });
     await formula.focus();
     await formula.press('Enter');

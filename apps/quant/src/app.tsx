@@ -328,6 +328,7 @@ function DashboardContent({
             client={client.operations}
             episodeId={controller.selectedSnapshot.episodeId}
             month={controller.selectedSnapshot.month}
+            financialAsOf={controller.selectedSnapshot.asOf}
           />
         )}
         <DataContext snapshot={controller.selectedSnapshot} query={controller.data} />

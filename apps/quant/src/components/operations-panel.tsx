@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useCallback, useState } from 'rea
 import { Button } from '@mumak/ui/components/button';
 import { Input } from '@mumak/ui/components/input';
 
+import { RiskObservations } from '@/components/risk-observations';
 import { useTimeZone } from '@/components/time-zone-provider';
 import { useOperationsQuery, type QueryState } from '@/hooks/use-operations-controller';
 import type { OperationsClient } from '@/lib/operations-client';
@@ -168,9 +169,9 @@ function StrategyDetails({ strategy }: { strategy: Strategy }) {
           {r.nominalUniverseEtfs}. ETF 상한은 상품 검증/거래 허용의 증거가 아닙니다.
         </p>
         <p>
-          위험 규칙: 이전종가 NAV 대비 일간 손실 {r.dailyLossStop}, 월간 누적 {r.monthlyLossStop} buy-stop. 현재 위험
-          통과 여부와 별개입니다. 가정 비용: 편도 수수료 {r.commissionBps}bps·슬리피지 {r.slippageBps}bps. 실제 브로커
-          비용이 아닙니다.
+          위험 규칙: 이전종가 NAV 대비 일간 손실 {r.dailyLossStop}, 월간 누적 {r.monthlyLossStop} 계좌 전체 방어. 현재
+          위험 통과 여부와 별개입니다. 가정 비용: 편도 수수료 {r.commissionBps}bps·슬리피지 {r.slippageBps}bps. 실제
+          브로커 비용이 아닙니다.
         </p>
         <p>
           정기 진입: 최초/월요일 개장+{r.entryWindowOpenMinutes}–{r.entryWindowCloseMinutes}분. 장중 관측: 보유·실행
@@ -496,10 +497,12 @@ function OperationsPanelContent({
   client,
   episodeId,
   month,
+  financialAsOf,
 }: {
   client: OperationsClient | undefined;
   episodeId: string;
   month: string;
+  financialAsOf?: string;
 }) {
   const loadMonth = useCallback(
     (signal: AbortSignal) => client!.fetchMonth(episodeId, month, signal),
@@ -519,6 +522,7 @@ function OperationsPanelContent({
         <h3 className="text-base font-semibold">전략과 일별 운영</h3>
         <span className="text-xs text-muted-foreground">PAPER ONLY · {month} · 뉴욕 세션 기준</span>
       </div>
+      <RiskObservations client={client} episodeId={episodeId} month={month} financialAsOf={financialAsOf} />
       {!client ? (
         <p className="mt-3 text-sm text-muted-foreground">
           운영 조회 연결이 제공되지 않았습니다. 재무 내역은 독립적으로 표시합니다.

@@ -1,3 +1,4 @@
+import { parseObservation, type Observation } from './observation-schema';
 import {
   parseOperations,
   parseSummary,
@@ -16,6 +17,7 @@ class OperationsError extends Error {
 type Row<T> = { payload: T; revision: number; sourceAsOf: string; storedAt: string };
 type SummaryRow = { summary: SessionSummary; revision: number; sourceAsOf: string; storedAt: string };
 type OperationsClient = {
+  fetchObservation?: (episode: string, month: string, signal: AbortSignal) => Promise<Row<Observation> | null>;
   fetchMonth: (episode: string, month: string, signal: AbortSignal) => Promise<Row<MonthOperations> | null>;
   fetchSessions: (episode: string, month: string, signal: AbortSignal) => Promise<SummaryRow[]>;
   fetchSession: (
@@ -59,22 +61,30 @@ class SupabaseOperationsClient implements OperationsClient {
     episode: string,
     month: string,
     signal: AbortSignal,
-    type: 'month' | 'list' | 'session',
+    type: 'month' | 'list' | 'session' | 'observation',
     session?: string
   ) {
     let query = this.supabase
-      .from(type === 'month' ? 'paper_operation_months' : 'paper_operation_sessions')
+      .from(
+        type === 'observation'
+          ? 'paper_observations'
+          : type === 'month'
+            ? 'paper_operation_months'
+            : 'paper_operation_sessions'
+      )
       .select(
         type === 'list'
           ? 'session,revision,source_as_of,stored_at,summary'
           : type === 'month'
             ? 'episode_id,month,revision,source_as_of,stored_at,payload'
-            : 'episode_id,month,session,revision,source_as_of,stored_at,summary,payload'
+            : type === 'observation'
+              ? 'episode_id,month,session,revision,source_as_of,stored_at,payload'
+              : 'episode_id,month,session,revision,source_as_of,stored_at,summary,payload'
       )
       .eq('episode_id', episode)
       .eq('month', month);
     if (session) query = query.eq('session', session);
-    if (type === 'list') query = query.order('session', { ascending: false });
+    if (type === 'list' || type === 'observation') query = query.order('session', { ascending: false });
     try {
       const { data, error, status } = await query.abortSignal(signal);
       if (error)
@@ -97,6 +107,47 @@ class SupabaseOperationsClient implements OperationsClient {
     } catch (error) {
       if (error instanceof OperationsError) throw error;
       throw new OperationsError('transport');
+    }
+  }
+  async fetchObservation(episode: string, month: string, signal: AbortSignal): Promise<Row<Observation> | null> {
+    const rows = await this.rows(episode, month, signal, 'observation');
+    try {
+      if (rows.length > 31) throw new Error();
+      const parsed = rows.map(value => {
+        const row = record(value, [
+          'episode_id',
+          'month',
+          'session',
+          'revision',
+          'source_as_of',
+          'stored_at',
+          'payload',
+        ]);
+        const payload = parseObservation(row.payload);
+        const meta = metadata(row);
+        if (
+          row.episode_id !== episode ||
+          row.month !== month ||
+          payload.episodeId !== episode ||
+          payload.month !== month ||
+          row.session !== payload.session ||
+          time(payload.sourceAsOf) !== time(meta.sourceAsOf)
+        )
+          throw new Error();
+        return { payload, ...meta };
+      });
+      if (new Set(parsed.map(r => r.payload.session)).size !== parsed.length) throw new Error();
+      return (
+        parsed.toSorted((a, b) =>
+          time(a.sourceAsOf) > time(b.sourceAsOf)
+            ? -1
+            : time(a.sourceAsOf) < time(b.sourceAsOf)
+              ? 1
+              : b.payload.session.localeCompare(a.payload.session)
+        )[0] ?? null
+      );
+    } catch {
+      throw new OperationsError('schema');
     }
   }
   async fetchMonth(episode: string, month: string, signal: AbortSignal): Promise<Row<MonthOperations> | null> {

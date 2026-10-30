@@ -17,32 +17,32 @@ def instant(value):
     return result
 
 
-def check(value, schema):
+def check(value, schema, contract=CONTRACT):
     def require(condition):
         if not condition:
             raise ValueError('Invalid public operations')
     if isinstance(schema, dict):
         require(isinstance(value, dict) and set(value) == set(schema))
         for key, child in schema.items():
-            check(value[key], child)
+            check(value[key], child, contract)
     elif isinstance(schema, list):
         require(isinstance(value, list) and schema[1] <= len(value) <= schema[2])
         for child in value:
-            check(child, schema[0])
+            check(child, schema[0], contract)
     elif schema.endswith('?'):
         if value is not None:
-            check(value, schema[:-1])
+            check(value, schema[:-1], contract)
     elif schema.startswith('fact:'):
-        check(value, CONTRACT['definitions']['fact'])
+        check(value, contract['definitions']['fact'], contract)
         if value['availability'] == 'recorded':
             require(len(value['evidenceIds']) > 0)
-            check(value['value'], schema[5:])
+            check(value['value'], schema[5:], contract)
         else:
             require(value['value'] is None)
-    elif schema in CONTRACT['definitions']:
-        check(value, CONTRACT['definitions'][schema])
-    elif schema in CONTRACT['enums']:
-        require(isinstance(value, str) and value in CONTRACT['enums'][schema])
+    elif schema in contract['definitions']:
+        check(value, contract['definitions'][schema], contract)
+    elif schema in contract['enums']:
+        require(isinstance(value, str) and value in contract['enums'][schema])
     elif schema in ('count', 'positive'):
         require(type(value) is int and (1 if schema == 'positive' else 0) <= value <= 9007199254740991)
     elif schema == 'bool':

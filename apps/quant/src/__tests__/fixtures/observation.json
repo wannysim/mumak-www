@@ -1,0 +1,207 @@
+{
+  "payload": {
+    "contract": "paper-observability/v1",
+    "mode": "paper",
+    "origin": "synthetic",
+    "episodeId": "synthetic-paper",
+    "month": "2026-09",
+    "session": "2026-09-18",
+    "sourceAsOf": "2026-09-18T14:00:00+00:00",
+    "effectiveFrom": "2026-09-18T13:30:00+00:00",
+    "effectiveThrough": "2026-09-18T20:00:00+00:00",
+    "exportedAt": "2026-09-18T14:01:00+00:00",
+    "evidence": [
+      {
+        "id": "ingest",
+        "kind": "ingest-readback",
+        "evidenceAt": "2026-09-18T14:00:00+00:00",
+        "observedAt": "2026-09-18T14:01:00+00:00"
+      },
+      {
+        "id": "schedule",
+        "kind": "schedule-receipt",
+        "evidenceAt": "2026-09-18T14:00:00+00:00",
+        "observedAt": "2026-09-18T14:01:00+00:00"
+      },
+      {
+        "id": "collection",
+        "kind": "collector-receipt",
+        "evidenceAt": "2026-09-18T14:00:00+00:00",
+        "observedAt": "2026-09-18T14:01:00+00:00"
+      },
+      {
+        "id": "publication",
+        "kind": "publication-receipt",
+        "evidenceAt": "2026-09-18T14:00:00+00:00",
+        "observedAt": "2026-09-18T14:01:00+00:00"
+      },
+      {
+        "id": "decision",
+        "kind": "decision-record",
+        "evidenceAt": "2026-09-18T14:00:00+00:00",
+        "observedAt": "2026-09-18T14:01:00+00:00"
+      },
+      {
+        "id": "risk",
+        "kind": "risk-record",
+        "evidenceAt": "2026-09-18T14:00:00+00:00",
+        "observedAt": "2026-09-18T14:01:00+00:00"
+      }
+    ],
+    "ingest": {
+      "availability": "recorded",
+      "value": {
+        "snapshotAsOf": "2026-09-18T13:59:00+00:00",
+        "readbackAt": "2026-09-18T14:00:00+00:00",
+        "status": "verified"
+      },
+      "evidenceIds": ["ingest"]
+    },
+    "schedule": {
+      "availability": "recorded",
+      "value": {
+        "opensAt": "2026-09-18T13:30:00+00:00",
+        "closesAt": "2026-09-18T20:00:00+00:00",
+        "nextExpectedAt": "2026-09-18T14:15:00+00:00",
+        "expectedBy": "2026-09-18T14:20:00+00:00"
+      },
+      "evidenceIds": ["schedule"]
+    },
+    "collection": {
+      "availability": "recorded",
+      "value": {
+        "assessedAt": "2026-09-18T14:00:00+00:00",
+        "validUntil": "2026-09-18T14:15:00+00:00",
+        "status": "succeeded",
+        "reason": "receipt-confirmed"
+      },
+      "evidenceIds": ["collection"]
+    },
+    "publication": {
+      "availability": "recorded",
+      "value": {
+        "assessedAt": "2026-09-18T14:00:00+00:00",
+        "validUntil": "2026-09-18T14:15:00+00:00",
+        "status": "failed",
+        "reason": "execution-failed"
+      },
+      "evidenceIds": ["publication"]
+    },
+    "decision": {
+      "availability": "recorded",
+      "value": {
+        "at": "2026-09-18T14:00:00+00:00",
+        "strategyVersion": "synthetic-C-k3",
+        "action": "sell",
+        "reason": "symbol-trim"
+      },
+      "evidenceIds": ["decision"]
+    },
+    "account": {
+      "availability": "recorded",
+      "value": {
+        "assessedAt": "2026-09-18T14:00:00+00:00",
+        "validUntil": "2026-09-18T14:15:00+00:00",
+        "state": "clear",
+        "reason": "none",
+        "dailyReturn": "-0.002",
+        "monthlyReturn": "0.02",
+        "dailyStop": "0.01",
+        "monthlyStop": "0.30"
+      },
+      "evidenceIds": ["risk"]
+    },
+    "symbols": {
+      "availability": "recorded",
+      "value": [
+        {
+          "assessedAt": "2026-09-18T14:00:00+00:00",
+          "validUntil": "2026-09-18T14:15:00+00:00",
+          "inputConfidence": "validated",
+          "entryPrice": "100",
+          "sigmaEntry": "0.02",
+          "highWater": "110",
+          "mark": "106",
+          "stopThreshold": "103.4",
+          "exposureProxy": "0.004",
+          "gamma": "0.003",
+          "quantity": 10,
+          "targetQuantity": 7,
+          "reentry": "same-session-blocked",
+          "evidenceIds": ["risk"],
+          "symbol": "TESTA",
+          "state": "trim",
+          "reason": "symbol-trim"
+        },
+        {
+          "assessedAt": "2026-09-18T14:00:00+00:00",
+          "validUntil": "2026-09-18T14:15:00+00:00",
+          "inputConfidence": "validated",
+          "entryPrice": "100",
+          "sigmaEntry": "0.02",
+          "highWater": "110",
+          "mark": "108",
+          "stopThreshold": "103.4",
+          "exposureProxy": "0.002",
+          "gamma": "0.003",
+          "quantity": 10,
+          "targetQuantity": 10,
+          "reentry": "regular-entry-only",
+          "evidenceIds": ["risk"],
+          "symbol": "TESTB",
+          "state": "monitor",
+          "reason": "none"
+        },
+        {
+          "assessedAt": "2026-09-18T14:00:00+00:00",
+          "validUntil": "2026-09-18T14:15:00+00:00",
+          "inputConfidence": "unknown",
+          "entryPrice": null,
+          "sigmaEntry": null,
+          "highWater": null,
+          "mark": null,
+          "stopThreshold": null,
+          "exposureProxy": null,
+          "gamma": null,
+          "quantity": 10,
+          "targetQuantity": null,
+          "reentry": "hold-blocked",
+          "evidenceIds": ["risk"],
+          "symbol": "TESTC",
+          "state": "unknown",
+          "reason": "unknown"
+        }
+      ],
+      "evidenceIds": ["risk"]
+    }
+  },
+  "invalid": [
+    ["private-field", [[["account", "value", "secret"], "PRIVATE"]]],
+    ["live", [[["mode"], "live"]]],
+    ["wrong-month", [[["month"], "2026-10"]]],
+    ["wrong-ny-session", [[["session"], "2026-09-19"]]],
+    ["orphan", [[["symbols", "evidenceIds"], ["missing"]]]],
+    ["wrong-kind", [[["account", "evidenceIds"], ["collection"]]]],
+    ["future-observation", [[["evidence", 0, "observedAt"], "2026-09-19T14:00:00+00:00"]]],
+    ["source-clock", [[["sourceAsOf"], "2026-09-18T13:59:00+00:00"]]],
+    ["inverted-scope", [[["effectiveThrough"], "2026-09-18T13:00:00+00:00"]]],
+    ["expired-lease", [[["account", "value", "validUntil"], "2026-09-18T14:00:00+00:00"]]],
+    ["clear-with-breach", [[["account", "value", "dailyReturn"], "-0.01"]]],
+    ["unknown-clear", [[["account", "value", "dailyReturn"], null]]],
+    ["changed-limit", [[["account", "value", "dailyStop"], "0.01000000000000000001"]]],
+    ["stop-without-reason", [[["account", "value", "state"], "stopped"]]],
+    ["unknown-with-clear-reason", [[["account", "value", "state"], "unknown"]]],
+    ["invalid-price", [[["symbols", "value", 0, "mark"], "NaN"]]],
+    ["missing-input", [[["symbols", "value", 0, "mark"], null]]],
+    ["unknown-active", [[["symbols", "value", 0, "inputConfidence"], "unknown"]]],
+    ["negative-price", [[["symbols", "value", 0, "mark"], "-1"]]],
+    ["no-trim", [[["symbols", "value", 0, "targetQuantity"], 10]]],
+    ["exit-not-zero", [[["symbols", "value", 0, "state"], "full-exit"]]],
+    ["increase-target", [[["symbols", "value", 0, "targetQuantity"], 11]]],
+    ["wrong-assessment", [[["symbols", "value", 0, "assessedAt"], "2026-09-18T14:00:01+00:00"]]],
+    ["duplicate-symbol", [[["symbols", "value", 1, "symbol"], "TESTA"]]],
+    ["reversed-schedule", [[["schedule", "value", "closesAt"], "2026-09-18T13:00:00+00:00"]]],
+    ["future-financial-source", [[["ingest", "value", "snapshotAsOf"], "2026-09-19T13:00:00+00:00"]]],
+    ["raw-reason", [[["decision", "value", "reason"], "/private/runtime"]]]
+  ]
+}

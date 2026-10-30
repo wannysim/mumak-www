@@ -108,6 +108,10 @@ async function connect(page: Page, fault: Kind | null = null) {
       await route.fulfill({ json: [financial, older] });
       return;
     }
+    if (url.pathname === '/rest/v1/paper_observations') {
+      await route.fulfill({ json: [] });
+      return;
+    }
     const table = url.pathname.split('/').at(-1);
     if (table !== 'paper_operation_months' && table !== 'paper_operation_sessions') {
       unexpected.push(url.pathname);

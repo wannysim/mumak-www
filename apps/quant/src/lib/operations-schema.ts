@@ -149,29 +149,29 @@ function time(value: unknown): bigint {
   const micros = (value.split('.')[1]?.split('+')[0] ?? '').padEnd(6, '0');
   return BigInt(Date.parse(`${value.slice(0, 19)}+00:00`)) * 1000n + BigInt(micros);
 }
-function validate(value: unknown, schema: Schema): void {
+function validate(value: unknown, schema: Schema, vocabulary = { definitions, enums }): void {
   if (Array.isArray(schema)) {
     assert(Array.isArray(value) && value.length >= Number(schema[1]) && value.length <= Number(schema[2]));
     assert(typeof schema[0] === 'string');
-    for (const child of value) validate(child, schema[0]);
+    for (const child of value) validate(child, schema[0], vocabulary);
   } else if (typeof schema === 'object') {
     object(value);
     assert(
       Object.keys(value).length === Object.keys(schema).length &&
         Object.keys(schema).every(key => Object.hasOwn(value, key))
     );
-    for (const [key, child] of Object.entries(schema)) validate(value[key], child);
+    for (const [key, child] of Object.entries(schema)) validate(value[key], child, vocabulary);
   } else if (schema.endsWith('?')) {
-    if (value !== null) validate(value, schema.slice(0, -1));
+    if (value !== null) validate(value, schema.slice(0, -1), vocabulary);
   } else if (schema.startsWith('fact:')) {
-    validate(value, definitions.fact!);
+    validate(value, vocabulary.definitions.fact!, vocabulary);
     object(value);
     if (value.availability === 'recorded') {
       assert(Array.isArray(value.evidenceIds) && value.evidenceIds.length > 0);
-      validate(value.value, schema.slice(5));
+      validate(value.value, schema.slice(5), vocabulary);
     } else assert(value.value === null);
-  } else if (definitions[schema]) validate(value, definitions[schema]!);
-  else if (enums[schema]) assert(typeof value === 'string' && enums[schema]!.includes(value));
+  } else if (vocabulary.definitions[schema]) validate(value, vocabulary.definitions[schema]!, vocabulary);
+  else if (vocabulary.enums[schema]) assert(typeof value === 'string' && vocabulary.enums[schema]!.includes(value));
   else if (schema === 'count' || schema === 'positive')
     assert(typeof value === 'number' && Number.isSafeInteger(value) && value >= (schema === 'positive' ? 1 : 0));
   else if (schema === 'bool') assert(typeof value === 'boolean');
@@ -330,6 +330,8 @@ function parseSummary(value: unknown): SessionSummary {
   return summary;
 }
 export {
+  validate,
+  validateReferences,
   parseOperations,
   parseSummary,
   time,
