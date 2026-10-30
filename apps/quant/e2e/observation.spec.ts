@@ -92,7 +92,49 @@ for (const width of [320, 390, 1440])
     await summary.press('Escape');
     await expect(summary).toBeFocused();
     await page.mouse.move(0, 0);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const layout = await page.evaluate(() => {
+      // Preserve the original measurement before any failure-only inspection.
+      const scrollWidth = document.documentElement.scrollWidth;
+      const viewportWidth = innerWidth;
+      const fits = scrollWidth <= viewportWidth;
+      if (fits) return { fits };
+
+      // No text, attributes, financial values, or full DOM/trace dump.
+      const describe = (element: Element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName.toLowerCase(),
+          classes: Array.from(element.classList)
+            .filter(token => /^[a-zA-Z0-9_-]{1,64}$/.test(token))
+            .slice(0, 8),
+          rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+        };
+      };
+      const overflow = [];
+      for (const element of document.body.querySelectorAll('*')) {
+        const rect = element.getBoundingClientRect();
+        if (rect.width > 0 && (rect.right > viewportWidth || rect.left < 0)) overflow.push(describe(element));
+        if (overflow.length === 8) break;
+      }
+      return {
+        fits,
+        scrollWidth,
+        viewportWidth,
+        scrollX,
+        scrollY,
+        detailsOpen: Array.from(document.querySelectorAll('details'), element => element.open).slice(0, 8),
+        focus: document.activeElement ? describe(document.activeElement) : null,
+        overflow,
+      };
+    });
+    if (!layout.fits)
+      await info.attach(`observation-${width}-layout-failure`, {
+        body: JSON.stringify(layout),
+        contentType: 'application/json',
+      });
+    // The CI workflow uploads artifacts only if the job fails. Keep the same
+    // bounded failure data in the assertion message if a later retry succeeds.
+    expect(layout.fits, layout.fits ? undefined : `layout-failure: ${JSON.stringify(layout)}`).toBe(true);
     expect(await page.locator('html').getAttribute('data-csp-error')).toBeNull();
     expect(errors).toEqual([]);
     expect(writes).toBe(0);
