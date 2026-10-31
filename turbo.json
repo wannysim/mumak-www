@@ -57,6 +57,18 @@
         "SPOTIFY_REFRESH_TOKEN"
       ]
     },
+    "interview#build": {
+      "passThroughEnv": [
+        "INTERVIEW_ORIGIN",
+        "INTERVIEW_TOKEN_SHA256",
+        "INTERVIEW_SESSION_SECRET",
+        "INTERVIEW_STORE_KEY",
+        "UPSTASH_REDIS_REST_URL",
+        "UPSTASH_REDIS_REST_TOKEN",
+        "KV_REST_API_URL",
+        "KV_REST_API_TOKEN"
+      ]
+    },
     "admin#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$"],

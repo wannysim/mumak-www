@@ -274,6 +274,15 @@ jobs:
           flags: blog
           fail_ci_if_error: false
 
+      - name: Upload interview coverage to Codecov
+        if: hashFiles('coverage-artifacts/coverage-interview/lcov.info') != ''
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-artifacts/coverage-interview/lcov.info
+          flags: interview
+          fail_ci_if_error: false
+
       - name: Upload admin coverage to Codecov
         if: hashFiles('coverage-artifacts/coverage-admin/lcov.info') != ''
         uses: codecov/codecov-action@v7

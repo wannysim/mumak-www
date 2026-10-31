@@ -64,13 +64,14 @@ Turborepo 기반 모노레포. 공유 패키지는 `packages/`, 앱은 `apps/`�
 | `@mumak/shared`            | 플랫폼 무관 공유 로직 (hooks, utils, types, api) |
 | `@mumak/typescript-config` | TypeScript 설정                                  |
 
-| 앱                  | 설명                              |
-| ------------------- | --------------------------------- |
-| `apps/admin`        | 내부 이미지 발행 도구             |
-| `apps/mumak-next`   | Next.js App Router                |
-| `apps/mumak-react`  | React + Vite                      |
-| `apps/blog`         | 블로그 (FSD + MDX)                |
-| `apps/mumak-native` | Expo (React Native + expo-router) |
+| 앱                  | 설명                                    |
+| ------------------- | --------------------------------------- |
+| `apps/interview`    | 개인 면접 연습 공간 (Next.js, E2E 3008) |
+| `apps/admin`        | 내부 이미지 발행 도구                   |
+| `apps/mumak-next`   | Next.js App Router                      |
+| `apps/mumak-react`  | React + Vite                            |
+| `apps/blog`         | 블로그 (FSD + MDX)                      |
+| `apps/mumak-native` | Expo (React Native + expo-router)       |
 
 각 앱/패키지의 세부 규칙은 해당 디렉터리의 `AGENTS.md`를 참조.
 
@@ -380,7 +381,7 @@ import { mockUser } from '@/test/mocks';
 - Next.js 앱을 Portless hostname으로 접근할 때는 해당 hostname을 앱의 `next.config.mjs` `allowedDevOrigins`에 추가한다. 누락되면 dev-only endpoint/HMR cross-origin 차단 때문에 hydration 이후 클라이언트 인터랙션이 깨져 보일 수 있다.
 - Portless 적용 중 클라이언트 기능이 함께 죽어 보이면 dev resource 차단과 앱 코드의 hydration/runtime 오류를 분리해서 본다. Spotify/search/theme/locale 같은 선택적 클라이언트 위젯은 `ClientErrorBoundary` 등으로 실패 단위를 작게 유지한다.
 - `start`, `start:e2e`, `preview:e2e`, Playwright `webServer` 포트는 CI/E2E용 고정 포트로 유지한다. Portless는 로컬 `dev` 전용이고 E2E 서버와 섞지 않는다.
-- 현재 E2E 포트는 `mumak-next: 3000`, `mumak-react: 3001`, `blog: 3002`, `mumak-native: 3003`, `lattice: 3004`, `karaoke: 3005`, `admin: 3006`이다. 새 앱을 추가하면 중복되지 않게 배정한다.
+- 현재 E2E 포트는 `mumak-next: 3000`, `mumak-react: 3001`, `blog: 3002`, `mumak-native: 3003`, `lattice: 3004`, `karaoke: 3005`, `admin: 3006`, `quant: 3007`, `interview: 3008`이다. 새 앱을 추가하면 중복되지 않게 배정한다.
 - dev proxy 상태가 꼬이면 `pnpm exec portless proxy stop` 후 다시 앱 `dev` 스크립트를 실행한다.
 
 ---
