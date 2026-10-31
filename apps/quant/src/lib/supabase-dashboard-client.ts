@@ -1,6 +1,7 @@
 import type { AuthEvent, AuthSession, DashboardClient } from '@/lib/dashboard-client';
 import { DashboardQueryError } from '@/lib/dashboard-query-error';
 import { mapSnapshotRow, type DashboardMode } from '@/lib/dashboard-schema';
+import type { OperationsClient } from '@/lib/operations-client';
 
 type SupabaseError = { message: string; code?: string; status?: number };
 type SupabaseSession = { user: { id: string; email?: string }; [key: string]: unknown };
@@ -48,7 +49,8 @@ function mapAuthEvent(event: string): AuthEvent {
 class SupabaseDashboardClient implements DashboardClient {
   constructor(
     private readonly supabase: SupabaseLike,
-    private readonly redirectOrigin: string
+    private readonly redirectOrigin: string,
+    readonly operations?: OperationsClient
   ) {}
 
   async getSession() {

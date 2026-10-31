@@ -67,21 +67,10 @@ function DataContext({ snapshot, query }: { snapshot: DashboardSnapshot; query: 
             · {clock(query.lastSuccessAt, '미조회')}
           </dd>
         </div>
-        <div>
-          <dt>DB 적재 확인</dt>
-          <dd>미연결</dd>
-        </div>
-        <div>
-          <dt>시장 일정·수집·발행 건강상태</dt>
-          <dd>미연결 · 정상/장애 판단 불가</dd>
-        </div>
+
         <div>
           <dt>최근 체결 시각</dt>
           <dd>{clock(lastFill, '저장된 체결 없음')}</dd>
-        </div>
-        <div>
-          <dt>최근 판단·현재 위험상태</dt>
-          <dd>미연결 · 보유/체결 수로 추정하지 않음</dd>
         </div>
       </dl>
       <p className="mt-3 text-muted-foreground">

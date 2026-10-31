@@ -173,9 +173,11 @@ describe('Quant dashboard app', () => {
     render(<App client={client} />);
     await screen.findByRole('heading', { level: 2, name: '2026-10 · 미국 주식 저빈도 추세 모의운용' });
     expect(screen.queryByRole('combobox', { name: '조회 월' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('combobox', { name: '에피소드' }));
     expect(screen.getByRole('option', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('option', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' }));
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: '에피소드' }),
+      screen.getByRole('option', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' })
+    );
     expect(
       screen.getByRole('heading', { level: 2, name: '2026-09 · 미국 주식 저빈도 추세 모의운용' })
     ).toBeInTheDocument();
@@ -215,8 +217,10 @@ describe('Quant dashboard app', () => {
     expect(screen.getByText('보유 종목이 없습니다.')).toBeInTheDocument();
     expect(screen.getByText('최근 체결이 없습니다.')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('combobox', { name: '에피소드' }));
-    await userEvent.click(screen.getByRole('option', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' }));
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: '에피소드' }),
+      screen.getByRole('option', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' })
+    );
 
     expect(screen.getByRole('heading', { name: '2026-09 · 미국 주식 저빈도 추세 모의운용' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '보유 종목' })).toBeInTheDocument();

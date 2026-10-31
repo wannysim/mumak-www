@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 import type { DashboardClient } from '@/lib/dashboard-client';
+import { SupabaseOperationsClient, type SupabaseOperationsLike } from '@/lib/operations-client';
 import { publicConfiguration, type PublicEnvironment } from '@/lib/public-configuration';
 import { SupabaseDashboardClient, type SupabaseLike } from '@/lib/supabase-dashboard-client';
 
@@ -17,7 +18,11 @@ function createDashboardClient(environment: PublicEnvironment, redirectOrigin: s
       persistSession: true,
     },
   });
-  return new SupabaseDashboardClient(supabase as unknown as SupabaseLike, redirectOrigin);
+  return new SupabaseDashboardClient(
+    supabase as unknown as SupabaseLike,
+    redirectOrigin,
+    new SupabaseOperationsClient(supabase as unknown as SupabaseOperationsLike)
+  );
 }
 
 export { createDashboardClient, type PublicEnvironment };

@@ -40,10 +40,10 @@ describe('DataContext (test-only snapshots)', () => {
     show({ holdings: [], fills: [] });
     expect(field('회차 범위(웹 조회 시점)')).toHaveTextContent('과거 기록');
     expect(screen.getByText(/가상 자금 · 실계좌 아님/)).toBeInTheDocument();
-    expect(field('DB 적재 확인')).toHaveTextContent('미연결');
-    expect(field('시장 일정·수집·발행 건강상태')).toHaveTextContent('정상/장애 판단 불가');
+    expect(screen.queryByText('DB 적재 확인')).not.toBeInTheDocument();
+    expect(screen.queryByText('시장 일정·수집·발행 건강상태')).not.toBeInTheDocument();
     expect(field('최근 체결 시각')).toHaveTextContent('저장된 체결 없음');
-    expect(field('최근 판단·현재 위험상태')).toHaveTextContent('미연결');
+    expect(screen.queryByText('최근 판단·현재 위험상태')).not.toBeInTheDocument();
     expect(screen.queryByText(/HOLD/)).not.toBeInTheDocument();
   });
 

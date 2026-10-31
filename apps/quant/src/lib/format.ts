@@ -31,31 +31,52 @@ function numeric(decimal: string | null): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+const MONEY_FORMATTERS = new Map<string, Intl.NumberFormat>();
+
 function formatMoney(decimal: string | null, currency = 'USD') {
   const value = numeric(decimal);
   if (value === null) return '—';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+  let formatter = MONEY_FORMATTERS.get(currency);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    MONEY_FORMATTERS.set(currency, formatter);
+  }
+  return formatter.format(value);
 }
+
+const COMPACT_MONEY_FORMATTERS = new Map<string, Intl.NumberFormat>();
 
 // 축 눈금 전용 축약 표기. $101,250.50 대신 $101.3K로 적어 Y축 폭을 줄인다.
 function formatMoneyCompact(value: number, currency = 'USD') {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(value);
+  let formatter = COMPACT_MONEY_FORMATTERS.get(currency);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    });
+    COMPACT_MONEY_FORMATTERS.set(currency, formatter);
+  }
+  return formatter.format(value);
 }
+
+const DECIMAL_FORMATTERS = new Map<number, Intl.NumberFormat>();
 
 function formatDecimal(decimal: string | null, maximumFractionDigits = 4) {
   const value = numeric(decimal);
   if (value === null) return '—';
-  return new Intl.NumberFormat('ko-KR', { maximumFractionDigits }).format(value);
+  let formatter = DECIMAL_FORMATTERS.get(maximumFractionDigits);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat('ko-KR', { maximumFractionDigits });
+    DECIMAL_FORMATTERS.set(maximumFractionDigits, formatter);
+  }
+  return formatter.format(value);
 }
 
 function formatPercent(decimal: string | null) {
