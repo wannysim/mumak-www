@@ -100,21 +100,25 @@ it.each([20, 21, 41])('makes all %i fills reachable in newest-first pages', asyn
     expect(screen.queryByRole('navigation', { name: '체결 내역 페이지' })).not.toBeInTheDocument();
     return;
   }
-  expect(screen.getByRole('button', { name: '이전' })).toBeDisabled();
+  // Keep the accessible-role/name/visibility checks, but search the pagination
+  // landmark instead of recomputing names for every fill button in the page.
+  const pagination = within(screen.getByRole('navigation', { name: '체결 내역 페이지' }));
+  expect(pagination.getByRole('button', { name: '이전' })).toBeDisabled();
   for (let page = 1; page < Math.ceil(count / 20); page++)
-    await user.click(screen.getByRole('button', { name: '다음' }));
-  expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    await user.click(pagination.getByRole('button', { name: '다음' }));
+  expect(pagination.getByRole('button', { name: '다음' })).toBeDisabled();
   expect(screen.getAllByRole('button', { name: 'T0 매수 체결 상세' })).toHaveLength(2);
-  await user.click(screen.getByRole('button', { name: '이전' }));
-  expect(screen.getByRole('button', { name: '다음' })).toBeEnabled();
+  await user.click(pagination.getByRole('button', { name: '이전' }));
+  expect(pagination.getByRole('button', { name: '다음' })).toBeEnabled();
 });
 
 it('resets the page when changing month and clamps when refreshed fills shrink', async () => {
   const user = userEvent.setup();
   const data = fillsSnapshot(41);
   const { rerender } = render(<SnapshotDashboard snapshot={data} />);
-  await user.click(screen.getByRole('button', { name: '다음' }));
-  await user.click(screen.getByRole('button', { name: '다음' }));
+  const pagination = within(screen.getByRole('navigation', { name: '체결 내역 페이지' }));
+  await user.click(pagination.getByRole('button', { name: '다음' }));
+  await user.click(pagination.getByRole('button', { name: '다음' }));
   rerender(<SnapshotDashboard snapshot={{ ...data, fills: data.fills.slice(0, 21) }} />);
   expect(screen.getByText('2 / 2 페이지')).toBeInTheDocument();
   rerender(<SnapshotDashboard snapshot={{ ...data, month: '2026-08' }} />);

@@ -105,9 +105,10 @@ for (const width of [320, 390, 1280]) {
     await page.goto('/');
     const context = page.getByRole('region', { name: '자료 출처와 조회 상태' });
     await expect(context).toContainText('공개 모의 운용 · 가상 자금 · 실계좌 아님');
-    await expect(context).toContainText('DB 적재 확인미연결');
-    await expect(context).toContainText('정상/장애 판단 불가');
-    await expect(context).toContainText('최근 판단·현재 위험상태미연결');
+    await expect(context).not.toContainText('DB 적재 확인');
+    await expect(context).not.toContainText('최근 판단·현재 위험상태');
+    await expect(page.getByRole('region', { name: 'PAPER 전략과 일별 운영' })).toContainText('전략과 일별 운영');
+    await expect(context).toContainText('내보냄·웹 조회 성공은');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (width < 768) {
       const fill = page.getByRole('button', { name: 'TEST 매수 체결 상세' });

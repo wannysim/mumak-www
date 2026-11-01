@@ -1,0 +1,17 @@
+{
+  "extends": "@mumak/typescript-config/nextjs.json",
+  "compilerOptions": {
+    "types": ["node", "jest", "react", "react-dom"],
+    "paths": {
+      "@/*": ["./*"],
+      "@mumak/ui/*": ["../../packages/ui/src/*"]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": ["next-env.d.ts", "next.config.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

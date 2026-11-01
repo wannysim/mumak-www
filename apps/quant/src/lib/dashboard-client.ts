@@ -1,4 +1,5 @@
 import type { DashboardMode, DashboardSnapshot } from '@/lib/dashboard-schema';
+import type { OperationsClient } from '@/lib/operations-client';
 
 type AuthEvent = 'INITIAL_SESSION' | 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'USER_UPDATED';
 
@@ -8,6 +9,7 @@ type AuthSession = {
 };
 
 type DashboardClient = {
+  operations?: OperationsClient;
   getSession: () => Promise<AuthSession | null>;
   onAuthStateChange: (listener: (event: AuthEvent, session: AuthSession | null) => void) => () => void;
   fetchSnapshots: (mode: DashboardMode, signal: AbortSignal) => Promise<DashboardSnapshot[]>;

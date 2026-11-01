@@ -1,0 +1,46 @@
+{
+  "name": "interview",
+  "version": "1.23.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name interview.mumak next dev",
+    "build": "next build",
+    "start": "next start --port 3008",
+    "start:e2e": "next start --port 3008",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "check-types": "node ../../node_modules/typescript-go/bin/tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "test:e2e": "sh ../../scripts/playwright-e2e.sh",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "clean": "rm -rf .next .turbo coverage test-results playwright-report node_modules/.cache",
+    "setup:local": "node scripts/setup-local.mjs"
+  },
+  "dependencies": {
+    "@mumak/ui": "workspace:*",
+    "lucide-react": "^1.49.0",
+    "next": "^16.3.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@mumak/playwright-config": "workspace:*",
+    "@mumak/typescript-config": "workspace:*",
+    "@playwright/test": "1.63.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "jest": "^30.5.2",
+    "typescript": "^7.0.2"
+  }
+}

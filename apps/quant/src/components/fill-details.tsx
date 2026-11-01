@@ -10,7 +10,6 @@ import type { DashboardFill } from '@/lib/dashboard-schema';
 import { fillAmount, fillTotal, formatDecimal, formatMoney } from '@/lib/format';
 
 function FillDetails({ fill, currency }: { fill: DashboardFill; currency: string }) {
-  const { formatDateTime } = useTimeZone();
   const [open, setOpen] = useState(false);
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const label = `${fill.symbol} ${fill.side === 'buy' ? '매수' : '매도'} 체결 상세`;
@@ -42,31 +41,38 @@ function FillDetails({ fill, currency }: { fill: DashboardFill; currency: string
           aria-label={label}
           className="max-w-[calc(100vw-2rem)] whitespace-normal break-words"
         >
-          <p className="font-semibold">
-            {fill.symbol} {fill.side === 'buy' ? '매수' : '매도'} 체결
-          </p>
-          <p className="text-xs text-muted-foreground">{formatDateTime(fill.at)}</p>
-          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
-            <dt className="text-muted-foreground">수량</dt>
-            <dd className="text-right tabular-nums">{formatDecimal(fill.quantity)}주</dd>
-            <dt className="text-muted-foreground">체결 단가</dt>
-            <dd className="text-right tabular-nums">{formatMoney(fill.price, currency)}</dd>
-            <dt className="text-muted-foreground">체결 금액</dt>
-            <dd className="text-right tabular-nums">{formatMoney(fillAmount(fill), currency)}</dd>
-            <dt className="text-muted-foreground">수수료</dt>
-            <dd className="text-right tabular-nums">{formatMoney(fill.commission, currency)}</dd>
-            <dt className="text-muted-foreground">{fill.side === 'buy' ? '총 매수 지출' : '순매도 수령액'}</dt>
-            <dd className="text-right font-medium tabular-nums">{formatMoney(fillTotal(fill), currency)}</dd>
-          </dl>
-          <div className="border-t border-border pt-3">
-            <p className="mb-1 text-xs font-medium">결정 근거</p>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {fill.reason ?? '기록된 결정 근거가 없습니다.'}
-            </p>
-          </div>
+          <FillDetailsBody fill={fill} currency={currency} />
         </PopoverContent>
       </Popover>
     </TooltipProvider>
+  );
+}
+
+function FillDetailsBody({ fill, currency }: { fill: DashboardFill; currency: string }) {
+  const { formatDateTime } = useTimeZone();
+  return (
+    <>
+      <p className="font-semibold">
+        {fill.symbol} {fill.side === 'buy' ? '매수' : '매도'} 체결
+      </p>
+      <p className="text-xs text-muted-foreground">{formatDateTime(fill.at)}</p>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
+        <dt className="text-muted-foreground">수량</dt>
+        <dd className="text-right tabular-nums">{formatDecimal(fill.quantity)}주</dd>
+        <dt className="text-muted-foreground">체결 단가</dt>
+        <dd className="text-right tabular-nums">{formatMoney(fill.price, currency)}</dd>
+        <dt className="text-muted-foreground">체결 금액</dt>
+        <dd className="text-right tabular-nums">{formatMoney(fillAmount(fill), currency)}</dd>
+        <dt className="text-muted-foreground">수수료</dt>
+        <dd className="text-right tabular-nums">{formatMoney(fill.commission, currency)}</dd>
+        <dt className="text-muted-foreground">{fill.side === 'buy' ? '총 매수 지출' : '순매도 수령액'}</dt>
+        <dd className="text-right font-medium tabular-nums">{formatMoney(fillTotal(fill), currency)}</dd>
+      </dl>
+      <div className="border-t border-border pt-3">
+        <p className="mb-1 text-xs font-medium">결정 근거</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">{fill.reason ?? '기록된 결정 근거가 없습니다.'}</p>
+      </div>
+    </>
   );
 }
 

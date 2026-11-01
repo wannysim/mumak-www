@@ -1,0 +1,8 @@
+**/.env*
+**/.local-access-key
+**/.next
+**/node_modules
+**/coverage
+**/test-results
+**/playwright-report
+**/.turbo
