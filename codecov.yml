@@ -39,6 +39,9 @@ flag_management:
   default_rules:
     carryforward: true
   individual_flags:
+    - name: interview
+      paths:
+        - apps/interview/
     - name: admin
       paths:
         - apps/admin/components/

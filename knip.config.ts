@@ -3,6 +3,10 @@ import type { KnipConfig } from 'knip';
 const config: KnipConfig = {
   jest: false,
   workspaces: {
+    'apps/interview': {
+      entry: ['app/**/*.{ts,tsx}', 'jest.config.mjs', 'lib/__tests__/*.test.ts', 'e2e/*.spec.ts', 'scripts/*.mjs'],
+      project: ['**/*.{ts,tsx,mjs}'],
+    },
     'apps/admin': {
       entry: [
         'app/**/*.{ts,tsx}',

@@ -14,6 +14,10 @@
 # 어느 앱도 의존하지 않는 package가 바뀌면 안전을 위해 전체 앱을 검증한다.
 
 apps:
+  - app: interview
+    type: next
+    hasE2E: true
+
   - app: admin
     type: next
     hasE2E: true
