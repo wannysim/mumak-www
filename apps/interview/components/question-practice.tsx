@@ -1,8 +1,9 @@
-import { ArrowLeft, ArrowRight, Bookmark, Check, Clock3, Pause, Play } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Clock3, Pause, Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 
+import { ReviewToggle } from '@/components/review-toggle';
 import type { Question } from '@/lib/curriculum';
 import { recordAttempt, remainingSeconds, type Progress } from '@/lib/progress';
 import { saveProgress } from '@/lib/progress-store';
@@ -32,7 +33,6 @@ export function QuestionPractice({
     };
   }, []);
   const seconds = session ? remainingSeconds(session, now) : 0;
-  const saved = progress.review.includes(question.id);
   function check() {
     if (selected === null || checked) return;
     setChecked(true);
@@ -60,19 +60,7 @@ export function QuestionPractice({
           <ArrowLeft aria-hidden />
           문제 목록
         </Button>
-        <button
-          aria-pressed={saved}
-          onClick={() =>
-            saveProgress(p => ({
-              ...p,
-              review: saved ? p.review.filter(id => id !== question.id) : [...p.review, question.id],
-            }))
-          }
-          className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs text-primary"
-        >
-          <Bookmark className={`size-4 ${saved ? 'fill-primary' : ''}`} aria-hidden />
-          {saved ? '저장됨' : '다시 보기'}
-        </button>
+        <ReviewToggle id={question.id} progress={progress} />
       </div>
       {session && (
         <div className="mb-7 rounded-xl border bg-white p-4">

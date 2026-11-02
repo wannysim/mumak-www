@@ -58,7 +58,13 @@
       ]
     },
     "interview#build": {
+      // `pkg#build`는 base `build`를 병합이 아니라 대체한다. outputs를 빼면 로그만 캐시돼 cache hit 시
+      // .next가 복원되지 않고, test:e2e의 `next start`가 production build를 찾지 못한다. admin#build와 같이 명시한다.
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "next-env.d.ts", "*.tsbuildinfo"],
       "passThroughEnv": [
+        "NODE_ENV",
         "INTERVIEW_ORIGIN",
         "INTERVIEW_TOKEN_SHA256",
         "INTERVIEW_SESSION_SECRET",

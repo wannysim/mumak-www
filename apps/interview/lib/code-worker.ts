@@ -17,7 +17,15 @@ function walk(head) {
   return nodes;
 }
 function check(condition, message) { if (!condition) throw new Error(message); }
-async function runLinkedTest(solve, args, mode) {
+async function runStructuredTest(solve, args, mode) {
+  if (mode === 'events') {
+    const first = new Map();
+    for (const event of args[0]) if (!first.has(event.id)) first.set(event.id, event);
+    const expected = [...first.values()];
+    const output = await solve(...args);
+    check(Array.isArray(output) && output.length === expected.length && output.every((event, i) => event === expected[i]), 'ID별 최초 이벤트 객체와 순서를 그대로 유지하세요.');
+    return output;
+  }
   if (mode === 'list' || mode === 'deque') {
     const result = await solve(...args);
     check(result && typeof result === 'object', 'head, tail, size를 가진 객체를 반환하세요.');
@@ -69,7 +77,7 @@ self.onmessage = async ({ data }) => {
           active--; completed[index]++; return index;
         });
         output = await solve(tasks, args[1]);
-      } else if (test.mode) { output = await runLinkedTest(solve, args, test.mode); }
+      } else if (test.mode) { output = await runStructuredTest(solve, args, test.mode); }
       else { output = await solve(...args); }
       const matches = equal(output, test.expected);
       const unchanged = JSON.stringify(args) === before;

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@mumak/ui/components/button';
 
 import { ExplanationNotes } from '@/components/explanation-notes';
+import { ReviewToggle } from '@/components/review-toggle';
 import { runCode, type RunResult } from '@/lib/code-runner';
 import type { CodeProblem } from '@/lib/curriculum';
 import { recordAttempt, type Progress } from '@/lib/progress';
@@ -41,10 +42,13 @@ export function CodePractice({
   }
   return (
     <div>
-      <Button variant="ghost" onClick={back} className="mb-7 -ml-3 h-11">
-        <ArrowLeft aria-hidden />
-        문제 목록
-      </Button>
+      <div className="mb-7 flex items-center justify-between gap-2">
+        <Button variant="ghost" onClick={back} className="-ml-3 h-11">
+          <ArrowLeft aria-hidden />
+          문제 목록
+        </Button>
+        <ReviewToggle id={problem.id} progress={progress} />
+      </div>
       <p className="mb-4 text-xs font-semibold text-[#95601f]">
         {problem.category} · {problem.difficulty} · 약 {problem.minutes}분
       </p>

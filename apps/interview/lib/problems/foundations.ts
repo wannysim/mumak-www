@@ -63,6 +63,7 @@ export const foundationProblems: CodeProblem[] = [
     tests: [
       {
         label: '최초 이벤트 유지',
+        mode: 'events',
         args: [
           [
             { id: 'a', value: 1 },
@@ -75,9 +76,10 @@ export const foundationProblems: CodeProblem[] = [
           { id: 'b', value: 2 },
         ],
       },
-      { label: '빈 배열', args: [[]], expected: [] },
+      { label: '빈 배열', args: [[]], expected: [], mode: 'events' },
       {
         label: '특수한 문자열 ID',
+        mode: 'events',
         args: [
           [
             { id: '__proto__', value: 1 },
