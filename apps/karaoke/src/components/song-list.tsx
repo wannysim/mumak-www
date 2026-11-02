@@ -1,6 +1,7 @@
 import { DragDropProvider } from '@dnd-kit/react';
 import { isSortable, useSortable } from '@dnd-kit/react/sortable';
 import { GripVertical, Pencil } from 'lucide-react';
+import { flushSync } from 'react-dom';
 
 import { Button } from '@mumak/ui/components/button';
 import { DrawerClose } from '@mumak/ui/components/drawer';
@@ -121,7 +122,8 @@ export function SongList({
         const [moved] = next.splice(source.initialIndex, 1);
         if (!moved || source.index < 0 || source.index >= songs.length) return;
         next.splice(source.index, 0, moved);
-        onReorder(next);
+        // dnd-kit wraps callbacks in a transition; commit storage before the drawer can close or reload.
+        flushSync(() => onReorder(next));
         if (keyboardHandle) requestAnimationFrame(() => keyboardHandle.focus());
       }}
     >

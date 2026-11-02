@@ -17,6 +17,7 @@ describe('SearchTrigger', () => {
 
     expect(screen.getByText('⌘')).toBeInTheDocument();
     expect(screen.getByText('K')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Search' })).toHaveAttribute('aria-keyshortcuts', 'Meta+K Control+K');
   });
 
   it('hides the shortcut hint when showShortcut is false', () => {
@@ -24,6 +25,7 @@ describe('SearchTrigger', () => {
 
     expect(screen.queryByText('⌘')).not.toBeInTheDocument();
     expect(screen.queryByText('K')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Search' })).not.toHaveAttribute('aria-keyshortcuts');
   });
 
   it('fires onClick when clicked', async () => {

@@ -43,7 +43,7 @@
     "lint-staged": "^17.6.0",
     "oxfmt": "^0.71.0",
     "oxlint": "^1.90.0",
-    "portless": "^0.15.6",
+    "portless": "^0.15.12",
     "turbo": "^2.11.10",
     "typescript": "^7.0.2",
     "typescript-go": "npm:typescript@7.0.2"
@@ -65,6 +65,6 @@
     }
   },
   "engines": {
-    "node": ">=24.11.1"
+    "node": ">=24.22.2"
   }
 }

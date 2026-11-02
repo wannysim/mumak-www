@@ -26,7 +26,7 @@ Next.js App Router + TypeScript + next-intl로 구성된 다국어 MDX 블로그
 
 ## 개발 환경
 
-- Node.js 24.11.1+
+- Node.js 24.22.2+
 - pnpm
 
 ## 설치 및 실행

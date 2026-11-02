@@ -22,7 +22,7 @@ Expo + expo-router 기반 모바일 앱.
 
 ## 개발 환경
 
-- Node.js 24.11.1+
+- Node.js 24.22.2+
 - pnpm
 - iOS: Xcode 16+
 - Android: Android Studio + JDK 17+
