@@ -5,6 +5,7 @@ import {
   parseProgress,
   recordAttempt,
   remainingSeconds,
+  resumableCodeProblems,
   understoodIds,
 } from '../progress';
 
@@ -79,6 +80,25 @@ describe('durable practice records', () => {
     expect(parseProgress(JSON.stringify(right))).toEqual(right);
     expect(understoodIds(right).has('event-loop')).toBe(true);
     expect(understoodIds(recordAttempt(right, 'event-loop', false, 400)).has('event-loop')).toBe(false);
+  });
+  it('resumes only code problems with real work, in curriculum order', () => {
+    const [starter, padded, blank, edited, planned, blankPlan] = codeProblems;
+    const progress = {
+      ...emptyProgress(),
+      drafts: {
+        [starter!.id]: starter!.starter,
+        [padded!.id]: `\n${padded!.starter}\n  `,
+        [blank!.id]: '  \n',
+        [edited!.id]: '// 이어 쓸 코드',
+      },
+      notes: { [`${planned!.id}:plan`]: '경계 조건 먼저', [`${blankPlan!.id}:plan`]: '   ' },
+    };
+    expect(resumableCodeProblems(progress).map(problem => problem.id)).toEqual([edited!.id, planned!.id]);
+    expect(resumableCodeProblems(emptyProgress())).toEqual([]);
+    // A reset draft with a remaining plan still has work to resume.
+    expect(
+      resumableCodeProblems({ ...progress, notes: { [`${starter!.id}:plan`]: '계획' } }).map(problem => problem.id)
+    ).toEqual([starter!.id, edited!.id]);
   });
   it('bounds attempt history', () => {
     let p = emptyProgress();

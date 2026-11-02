@@ -207,3 +207,44 @@ test('a damaged selected outbox remains recoverable while the server is offline'
   expect(await page.evaluate(() => localStorage.getItem('next-stop:outbox:v1:damaged-offline'))).toBe('{');
   expect(writes).toBe(0);
 });
+
+test('a new tab skips an unreadable orphan outbox and leaves its raw value untouched', async ({ page }) => {
+  const cloud = cloudFixture();
+  cloud.document.progress.notes['ownership:0'] = '서버에 저장된 메모';
+  await cloud.attach(page);
+  await page.addInitScript(() => localStorage.setItem('next-stop:outbox:v1:unreadable-orphan', '{'));
+  await openNotes(page);
+  await expect(page.getByLabel('01문제와 맥락')).toHaveValue('서버에 저장된 메모');
+  expect(await page.evaluate(() => localStorage.getItem('next-stop:outbox:v1:unreadable-orphan'))).toBe('{');
+  expect(cloud.document.progress.notes['ownership:0']).toBe('서버에 저장된 메모');
+});
+
+test('an unreadable outbox can never replace the server record with an empty placeholder', async ({ page }) => {
+  const cloud = cloudFixture();
+  cloud.document.progress.notes['ownership:0'] = '서버에 저장된 메모';
+  await cloud.attach(page);
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('unreadable-online-seeded')) return;
+    sessionStorage.setItem('unreadable-online-seeded', 'true');
+    sessionStorage.setItem('next-stop:tab:v1', 'unreadable-online');
+    localStorage.setItem('next-stop:outbox:v1:unreadable-online', '{');
+  });
+  await page.goto('/');
+  await page.getByLabel('접속 키', { exact: true }).fill('e2e-only-key-never-for-production-12345678');
+  await page.getByRole('button', { name: '연습실 들어가기' }).click();
+  await expect(page.getByLabel('동기화 상태')).toHaveText('기록 선택 필요');
+  await expect(page.getByRole('heading', { name: '어떤 기록으로 이어갈까요?' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '이 기기 기록으로 교체' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '이 기기 초안 백업' })).toHaveCount(0);
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: '서버 기록 사용' }).click();
+  await expect(page.getByLabel('동기화 상태')).toHaveText('서버 저장 완료');
+  await page
+    .getByRole('navigation')
+    .filter({ visible: true })
+    .getByRole('button', { name: '내 이야기', exact: true })
+    .click();
+  await page.getByRole('button', { name: /내가 끝까지 책임진 문제/ }).click();
+  await expect(page.getByLabel('01문제와 맥락')).toHaveValue('서버에 저장된 메모');
+  expect(cloud.document.progress.notes['ownership:0']).toBe('서버에 저장된 메모');
+});

@@ -32,7 +32,7 @@ const tabs = [
 ] as const;
 
 export function PracticeApp() {
-  const { progress, ready, error, blocked, status, conflict } = useProgress();
+  const { progress, ready, error, blocked, unreadableLocal, status, conflict } = useProgress();
   const [view, updateView] = useState<View>({ tab: 'today' });
   const [minutes, setMinutes] = useState(5);
   const [logoutError, setLogoutError] = useState('');
@@ -176,7 +176,9 @@ export function PracticeApp() {
             <section className="mb-6 rounded-2xl border bg-white p-5">
               <h2 className="font-bold">어떤 기록으로 이어갈까요?</h2>
               <p className="mt-2 text-sm leading-6">
-                먼저 기록 탭에서 이 기기의 초안을 백업해 주세요. 서버 기록을 사용하면 이 기기의 초안이 교체됩니다.
+                {unreadableLocal
+                  ? '이 기기의 초안을 읽지 못해 서버 기록을 덮어쓸 수 없어요. 서버 기록으로 이어가 주세요.'
+                  : '먼저 기록 탭에서 이 기기의 초안을 백업해 주세요. 서버 기록을 사용하면 이 기기의 초안이 교체됩니다.'}
               </p>
               <details className="my-4 text-xs">
                 <summary className="cursor-pointer py-3">서버 기록 확인</summary>
@@ -185,9 +187,11 @@ export function PracticeApp() {
                 </pre>
               </details>
               <div className="flex flex-wrap gap-3">
-                <button className="min-h-11 text-primary underline" onClick={() => setView({ tab: 'records' })}>
-                  이 기기 초안 백업
-                </button>
+                {!unreadableLocal && (
+                  <button className="min-h-11 text-primary underline" onClick={() => setView({ tab: 'records' })}>
+                    이 기기 초안 백업
+                  </button>
+                )}
                 <button
                   className="min-h-11 text-primary underline"
                   onClick={() => {
@@ -197,15 +201,17 @@ export function PracticeApp() {
                 >
                   서버 기록 사용
                 </button>
-                <button
-                  className="min-h-11 text-primary underline"
-                  onClick={() => {
-                    if (window.confirm('모든 기기에서 사용할 서버 기록을 이 기기의 초안으로 교체할까요?'))
-                      resolveConflict(true);
-                  }}
-                >
-                  이 기기 기록으로 교체
-                </button>
+                {!unreadableLocal && (
+                  <button
+                    className="min-h-11 text-primary underline"
+                    onClick={() => {
+                      if (window.confirm('모든 기기에서 사용할 서버 기록을 이 기기의 초안으로 교체할까요?'))
+                        resolveConflict(true);
+                    }}
+                  >
+                    이 기기 기록으로 교체
+                  </button>
+                )}
               </div>
             </section>
           )}

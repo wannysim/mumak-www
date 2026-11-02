@@ -1,9 +1,10 @@
-import { ArrowLeft, Bookmark, CheckCircle2, ChevronDown, Play, RotateCcw, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, Play, RotateCcw, XCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 
 import { ExplanationNotes } from '@/components/explanation-notes';
+import { ReviewToggle } from '@/components/review-toggle';
 import { runCode, type RunResult } from '@/lib/code-runner';
 import type { CodeProblem } from '@/lib/curriculum';
 import { recordAttempt, type Progress } from '@/lib/progress';
@@ -18,7 +19,6 @@ export function CodePractice({
   progress: Progress;
   back: () => void;
 }) {
-  const saved = progress.review.includes(problem.id);
   const code = progress.drafts[problem.id] ?? problem.starter;
   const [result, setResult] = useState<RunResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -47,21 +47,7 @@ export function CodePractice({
           <ArrowLeft aria-hidden />
           문제 목록
         </Button>
-        <button
-          aria-pressed={saved}
-          onClick={() =>
-            saveProgress(p => ({
-              ...p,
-              review: p.review.includes(problem.id)
-                ? p.review.filter(id => id !== problem.id)
-                : [...p.review, problem.id],
-            }))
-          }
-          className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs text-primary"
-        >
-          <Bookmark className={`size-4 ${saved ? 'fill-primary' : ''}`} aria-hidden />
-          {saved ? '저장됨' : '다시 보기'}
-        </button>
+        <ReviewToggle id={problem.id} progress={progress} />
       </div>
       <p className="mb-4 text-xs font-semibold text-[#95601f]">
         {problem.category} · {problem.difficulty} · 약 {problem.minutes}분

@@ -14,8 +14,8 @@ import { useState } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 
-import { codeProblems, questions, resources } from '@/lib/curriculum';
-import { localDateKey, understoodIds, type Progress } from '@/lib/progress';
+import { questions, resources } from '@/lib/curriculum';
+import { localDateKey, resumableCodeProblems, understoodIds, type Progress } from '@/lib/progress';
 
 export function Today({
   progress,
@@ -36,13 +36,7 @@ export function Today({
 }) {
   const [todayKey] = useState(() => localDateKey(Date.now()));
   const solved = understoodIds(progress);
-  const drafts = codeProblems.filter(problem => {
-    const draft = progress.drafts[problem.id];
-    return (
-      (draft !== undefined && draft.trim().length > 0 && draft !== problem.starter) ||
-      (progress.notes[`${problem.id}:plan`]?.trim().length ?? 0) > 0
-    );
-  });
+  const resumable = resumableCodeProblems(progress);
   const done = questions.filter(q => solved.has(q.id)).length;
   const today = progress.attempts.filter(a => localDateKey(a.at) === todayKey).length;
   return (
@@ -122,7 +116,7 @@ export function Today({
           </text>
         </svg>
       </section>
-      {drafts.length > 0 && (
+      {resumable.length > 0 && (
         <section className="mt-7 rounded-2xl border bg-white p-5 sm:p-6" aria-labelledby="resume-code-title">
           <h2 id="resume-code-title" className="text-lg font-bold">
             코드·메모 이어가기
@@ -131,7 +125,7 @@ export function Today({
             저장된 코드와 화이트보드 메모를 바로 열어요. 다른 기기의 초안은 서버 저장이 끝난 뒤 표시돼요.
           </p>
           <ul className="mt-3 divide-y">
-            {drafts.slice(0, 3).map(problem => (
+            {resumable.slice(0, 3).map(problem => (
               <li key={problem.id}>
                 <button
                   onClick={() => openCode(problem.id)}
