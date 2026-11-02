@@ -90,7 +90,7 @@ export function AccessGate({ configured }: { configured: boolean }) {
           <p className="mt-8 text-xs leading-5 text-muted-foreground">
             공개되지 않는 개인 공간입니다.
             <br />
-            연습 기록과 메모는 현재 기기의 브라우저에 저장돼요.
+            같은 접속 키로 로그인하면 서버에 저장된 기록을 이어갈 수 있어요. 미전송 초안은 이 브라우저에 보관돼요.
           </p>
         </div>
       </section>

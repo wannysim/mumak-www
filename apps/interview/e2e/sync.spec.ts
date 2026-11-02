@@ -129,3 +129,81 @@ test('unsupported storage locking cannot be bypassed by manual sync or reset', a
   expect(await page.evaluate(() => localStorage.getItem(''))).toBeNull();
   expect(calls).toBe(0);
 });
+
+test('a damaged orphan outbox does not prevent recovering another tab draft', async ({ page }) => {
+  const cloud = cloudFixture();
+  await cloud.attach(page);
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('audit-orphans-seeded')) return;
+    sessionStorage.setItem('audit-orphans-seeded', 'true');
+    localStorage.setItem('next-stop:outbox:v1:damaged', '{');
+    localStorage.setItem(
+      'next-stop:outbox:v1:recoverable',
+      JSON.stringify({
+        revision: null,
+        progress: {
+          version: 1,
+          attempts: [],
+          review: [],
+          drafts: {},
+          notes: { 'ownership:0': '닫힌 탭에서 복구할 초안' },
+          session: null,
+        },
+        pending: null,
+        updatedAt: Date.now(),
+      })
+    );
+  });
+  await openNotes(page);
+  await expect(page.getByLabel('01문제와 맥락')).toHaveValue('닫힌 탭에서 복구할 초안');
+  expect(cloud.document.progress.notes['ownership:0']).toBe('닫힌 탭에서 복구할 초안');
+  expect(await page.evaluate(() => localStorage.getItem('next-stop:outbox:v1:damaged'))).toBe('{');
+});
+
+test('storage read failure leaves the protected records screen accessible', async ({ page }) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => {
+      throw new DOMException('Storage unavailable', 'SecurityError');
+    };
+  });
+  let calls = 0;
+  await page.route('**/api/progress', route => {
+    calls++;
+    return route.fulfill({ status: 503 });
+  });
+  await page.goto('/');
+  await page.getByLabel('접속 키', { exact: true }).fill('e2e-only-key-never-for-production-12345678');
+  await page.getByRole('button', { name: '연습실 들어가기' }).click();
+  await expect(page.getByRole('button', { name: '기록 복원·초기화 열기' })).toBeVisible();
+  await page.getByRole('button', { name: '기록 복원·초기화 열기' }).click();
+  await expect(page.getByRole('button', { name: '백업 가져오기' })).toBeVisible();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: '전체 기록 초기화' }).click();
+  await expect(page.getByRole('status')).toContainText('먼저 서버 연결');
+  expect(calls).toBe(0);
+});
+
+test('a damaged selected outbox remains recoverable while the server is offline', async ({ page }) => {
+  await page.addInitScript(() => {
+    sessionStorage.setItem('next-stop:tab:v1', 'damaged-offline');
+    localStorage.setItem('next-stop:outbox:v1:damaged-offline', '{');
+  });
+  let writes = 0;
+  await page.route('**/api/progress', route => {
+    if (route.request().method() === 'PUT') writes++;
+    return route.fulfill({ status: 503 });
+  });
+  await page.goto('/');
+  await page.getByLabel('접속 키', { exact: true }).fill('e2e-only-key-never-for-production-12345678');
+  await page.getByRole('button', { name: '연습실 들어가기' }).click();
+  await expect(page.getByLabel('동기화 상태')).toHaveText('연결 대기 · 기기 초안 보관');
+  await page.getByRole('button', { name: '기록 복원·초기화 열기' }).click();
+  await expect(page.getByRole('button', { name: '백업 가져오기' })).toBeVisible();
+  await page.getByRole('button', { name: '지금 동기화' }).click();
+  await expect(page.getByRole('button', { name: '백업 가져오기' })).toBeVisible();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: '전체 기록 초기화' }).click();
+  await expect(page.getByRole('status')).toContainText('먼저 서버 연결');
+  expect(await page.evaluate(() => localStorage.getItem('next-stop:outbox:v1:damaged-offline'))).toBe('{');
+  expect(writes).toBe(0);
+});

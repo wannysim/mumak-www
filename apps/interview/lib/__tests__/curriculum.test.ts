@@ -4,6 +4,7 @@ import type { RunResult } from '../code-runner';
 import { workerSource } from '../code-worker';
 import { codeProblems, questions, type CodeTest } from '../curriculum';
 import { categories, difficulties } from '../problems/types';
+import { emptyProgress, parseProgress } from '../progress';
 
 // Only checked-in, authored examples run here. User submissions run in the browser sandbox.
 async function evaluate(code: string, tests: CodeTest[]): Promise<RunResult> {
@@ -46,6 +47,25 @@ describe('authored curriculum and real grading harness', () => {
     expect(Boolean(starter.error) || starter.results.some(r => !r.passed)).toBe(true);
   });
   it.each([
+    ['window-min-sum', problem('window-min-sum').solution.replace('while (sum >= target)', 'if (sum >= target)')],
+    ['window-min-sum', problem('window-min-sum').solution.replace('sum >= target', 'sum > target')],
+    [
+      'window-k-distinct',
+      problem('window-k-distinct').solution.replace(
+        'if (counts.get(leaving) === 0) counts.delete(leaving);',
+        'counts.delete(leaving);'
+      ),
+    ],
+    ['window-k-distinct', problem('window-k-distinct').solution.replace('(counts.get(char) || 0) + 1', '1')],
+    [
+      'events',
+      'function solve(events) { const seen = new Set(); return events.filter(event => { if (seen.has(event.id)) return false; seen.add(event.id); return true; }).map(event => ({...event})); }',
+    ],
+    ['window-cover', problem('window-cover').solution.replace('right - left + 1 < size', 'right - left + 1 <= size')],
+    [
+      'tree-level',
+      'function solve(root) { if (!root) return []; const children = [root.left, root.right].filter(Boolean); return children.length ? [[root.value], children.map(node => node.value)] : [[root.value]]; }',
+    ],
     [
       'list-reverse',
       'function solve(head) { const values=[]; while(head){values.push(head.value);head=head.next;} return values.reduce((next,value)=>({value,next}),null); }',
@@ -100,6 +120,58 @@ describe('authored curriculum and real grading harness', () => {
     }
     for (const [id, tests] of Object.entries(cases))
       expectPass(await evaluate(problem(id).solution, tests), tests.length);
+  });
+  it('matches independent exhaustive models for the two bridge windows', async () => {
+    const minimumTests: CodeTest[] = [];
+    const distinctTests: CodeTest[] = [];
+    for (let length = 0; length <= 4; length++) {
+      for (let seed = 0; seed < 3 ** length; seed++) {
+        let digits = seed;
+        const values = Array.from({ length }, () => {
+          const value = (digits % 3) + 1;
+          digits = Math.floor(digits / 3);
+          return value;
+        });
+        const text = values.map(value => String.fromCharCode(96 + value)).join('');
+        for (let target = 1; target <= 8; target++) {
+          let best = Infinity;
+          for (let left = 0; left < length; left++) {
+            for (let right = left + 1; right <= length; right++) {
+              if (values.slice(left, right).reduce((sum, value) => sum + value, 0) >= target)
+                best = Math.min(best, right - left);
+            }
+          }
+          minimumTests.push({
+            label: `${seed}/${length}/${target}`,
+            args: [values, target],
+            expected: best === Infinity ? 0 : best,
+          });
+        }
+        for (let k = 0; k <= 4; k++) {
+          let best = 0;
+          for (let left = 0; left < length; left++) {
+            for (let right = left + 1; right <= length; right++) {
+              if (new Set(text.slice(left, right)).size <= k) best = Math.max(best, right - left);
+            }
+          }
+          distinctTests.push({ label: `${seed}/${length}/${k}`, args: [text, k], expected: best });
+        }
+      }
+    }
+    expectPass(await evaluate(problem('window-min-sum').solution, minimumTests), minimumTests.length);
+    expectPass(await evaluate(problem('window-k-distinct').solution, distinctTests), distinctTests.length);
+  });
+  it('keeps version-one backups compatible and accepts new exercise drafts and plans', () => {
+    const legacy = { ...emptyProgress(), drafts: { cart: 'function solve() {}' }, notes: { 'cart:plan': '기존 메모' } };
+    expect(parseProgress(JSON.stringify(legacy))).toEqual(legacy);
+    const expanded = {
+      ...legacy,
+      attempts: [{ id: 'window-min-sum', correct: true, at: 1 }],
+      review: ['window-k-distinct'],
+      drafts: { ...legacy.drafts, 'window-min-sum': 'function solve() {}', 'window-k-distinct': 'function solve() {}' },
+      notes: { ...legacy.notes, 'window-min-sum:plan': '최소 길이', 'window-k-distinct:plan': '최대 길이' },
+    };
+    expect(parseProgress(JSON.stringify(expanded))).toEqual(expanded);
   });
   it('checks every prefix of list/deque operations, including transient endpoint transitions', async () => {
     const listOps = [

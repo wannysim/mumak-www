@@ -63,7 +63,7 @@ function schedule() {
 function fail(error: unknown) {
   const expired = error instanceof Error && error.message === '401';
   publish({
-    ready: initialized || localReady,
+    ready: initialized || localReady || snapshot.blocked,
     blocked: snapshot.blocked,
     status: 'offline',
     error:
@@ -170,6 +170,22 @@ async function claimOutbox(id: string) {
       .catch(reject);
   });
 }
+function outboxUpdatedAt(key: string) {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(key) ?? 'null');
+    return value &&
+      typeof value === 'object' &&
+      'updatedAt' in value &&
+      typeof value.updatedAt === 'number' &&
+      Number.isFinite(value.updatedAt)
+      ? value.updatedAt
+      : 0;
+  } catch {
+    // A damaged or concurrently removed candidate must not block all draft recovery.
+    // Keep the raw record untouched; normal parsing protects it if it is selected.
+    return 0;
+  }
+}
 async function load() {
   loading = true;
   if (!navigator.locks) {
@@ -185,9 +201,7 @@ async function load() {
     let tab = previousTab && (await claimOutbox(previousTab)) ? previousTab : null;
     if (!tab) {
       const candidates = Object.keys(localStorage).filter(key => key.startsWith(OUTBOX_PREFIX));
-      for (const candidate of candidates.toSorted(
-        (a, b) => JSON.parse(localStorage.getItem(b)!).updatedAt - JSON.parse(localStorage.getItem(a)!).updatedAt
-      )) {
+      for (const candidate of candidates.toSorted((a, b) => outboxUpdatedAt(b) - outboxUpdatedAt(a))) {
         const id = candidate.slice(OUTBOX_PREFIX.length);
         if (await claimOutbox(id)) {
           tab = id;
@@ -234,7 +248,7 @@ async function load() {
     };
   }
   if (dirty && localReady) persist();
-  publish({ ready: localReady });
+  publish({ ready: localReady || snapshot.blocked });
   void synchronize();
 }
 function wake() {

@@ -14,7 +14,7 @@ import { useState } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 
-import { questions, resources } from '@/lib/curriculum';
+import { codeProblems, questions, resources } from '@/lib/curriculum';
 import { localDateKey, understoodIds, type Progress } from '@/lib/progress';
 
 export function Today({
@@ -30,12 +30,19 @@ export function Today({
   minutes: number;
   setMinutes: (minutes: number) => void;
   start: () => void;
-  openCode: () => void;
+  openCode: (id?: string) => void;
   openStories: () => void;
   openReview: () => void;
 }) {
   const [todayKey] = useState(() => localDateKey(Date.now()));
   const solved = understoodIds(progress);
+  const drafts = codeProblems.filter(problem => {
+    const draft = progress.drafts[problem.id];
+    return (
+      (draft !== undefined && draft.trim().length > 0 && draft !== problem.starter) ||
+      (progress.notes[`${problem.id}:plan`]?.trim().length ?? 0) > 0
+    );
+  });
   const done = questions.filter(q => solved.has(q.id)).length;
   const today = progress.attempts.filter(a => localDateKey(a.at) === todayKey).length;
   return (
@@ -115,6 +122,32 @@ export function Today({
           </text>
         </svg>
       </section>
+      {drafts.length > 0 && (
+        <section className="mt-7 rounded-2xl border bg-white p-5 sm:p-6" aria-labelledby="resume-code-title">
+          <h2 id="resume-code-title" className="text-lg font-bold">
+            코드·메모 이어가기
+          </h2>
+          <p className="mt-2 text-xs leading-6 text-muted-foreground">
+            저장된 코드와 화이트보드 메모를 바로 열어요. 다른 기기의 초안은 서버 저장이 끝난 뒤 표시돼요.
+          </p>
+          <ul className="mt-3 divide-y">
+            {drafts.slice(0, 3).map(problem => (
+              <li key={problem.id}>
+                <button
+                  onClick={() => openCode(problem.id)}
+                  className="flex min-h-14 w-full items-center justify-between gap-3 py-3 text-left text-sm font-semibold hover:text-primary"
+                >
+                  <span>{problem.title}</span>
+                  <ArrowRight className="size-4 shrink-0 text-primary" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button onClick={() => openCode()} className="mt-2 min-h-11 text-xs font-semibold text-primary underline">
+            전체 코드 문제 보기
+          </button>
+        </section>
+      )}
       <div className="my-8 grid grid-cols-3 divide-x border-y py-5">
         <div className="px-2 sm:px-5">
           <p className="text-xs text-muted-foreground">오늘의 연습</p>
@@ -161,7 +194,7 @@ export function Today({
           <ArrowUpRight aria-hidden className="size-4 text-muted-foreground" />
         </button>
         <button
-          onClick={openCode}
+          onClick={() => openCode()}
           className="group flex items-start gap-4 rounded-2xl border bg-white p-5 text-left transition-colors hover:border-primary/40"
         >
           <span className="rounded-xl bg-[#fff2da] p-3 text-[#95601f]">

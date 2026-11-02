@@ -242,7 +242,7 @@ export function PracticeApp() {
                 minutes={minutes}
                 setMinutes={setMinutes}
                 start={start}
-                openCode={() => setView({ tab: 'library', filter: '코드 작성' })}
+                openCode={id => setView(id ? { tab: 'library', code: id } : { tab: 'library', filter: '코드 작성' })}
                 openStories={() => setView({ tab: 'stories' })}
                 openReview={() => setView({ tab: 'library', filter: '다시 보기' })}
               />
