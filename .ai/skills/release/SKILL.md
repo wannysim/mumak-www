@@ -150,7 +150,7 @@ gh run view <promote-run-id> --json headSha,conclusion,jobs,url
 
 같은 SHA에 promote run이 여러 개 생긴다. CI, E2E, 그 외 workflow가 각각 끝날 때마다 `workflow_run`이 깨어나고 concurrency group이 앞선 run을 취소하기 때문이다. `cancelled`나 `skipped` run은 실패가 아니다. **모든 run이 `completed`가 된 뒤** 그중 `success`인 run 하나를 근거로 삼아라. 취소된 run을 완료로 세고 일찍 판정하지 마라.
 
-GHCR promotion 경로에 없는 앱은 이 run으로 판정할 수 없다. admin은 Vercel Git 연동으로 `main` push 시 Production이 배포되므로 merge commit의 커밋 상태(`Vercel – mumak-www-admin`)로 따로 확인하라.
+GHCR promotion 경로에 없는 앱은 이 run으로 판정할 수 없다. admin과 interview는 Vercel Git 연동으로 `main` push 시 Production이 배포되므로 merge commit의 커밋 상태(`Vercel – mumak-www-admin`, `Vercel – mumak-www-interview`)로 따로 확인하라. interview는 `main` 외 브랜치를 배포하지 않으므로 이 상태가 release 반영의 유일한 근거다.
 
 ```bash
 gh api "repos/wannysim/mumak-www/commits/$release_sha/status" \

@@ -70,14 +70,16 @@
 
 [조사 근거와 범위](docs/curriculum-research.md)에 공식 자료, 난이도 선정 이유, 실제 출제와의 구분을 기록했다. 외부의 확정되지 않은 출제 빈도를 표시하지 않는다. JSX 렌더링·자유 그림판·복잡도 자동 증명은 지원하지 않는다.
 
-## 재배포
+## 배포
 
-이 앱 전용 Vercel 프로젝트에 연결한 저장소 루트에서 다음을 실행한다. CLI가 앱 디렉터리의 리전 설정도 읽도록 경로를 명시한다. 프로젝트 기본 함수 리전도 `hnd1`로 설정한다.
+Vercel 프로젝트를 GitHub 저장소에 연결했고 production branch는 `main`이다. `vercel.json`의 `git.deploymentEnabled`가 `main` 외 브랜치와 PR 배포를 막으므로 운영 반영 시점은 release PR의 `main` merge다. develop 병합만으로는 운영이 바뀌지 않는다. Vercel은 Root Directory의 `vercel.json`을 읽어 함수 리전 `hnd1`을 적용한다.
+
+긴급 재배포는 저장소 루트에서 CLI로 한다. CLI가 앱 디렉터리의 설정을 읽도록 경로를 명시한다.
 
 ```sh
 vercel deploy --prod --yes --archive=tgz --local-config apps/interview/vercel.json
 ```
 
-운영 인증/DB 값은 Vercel의 Production 환경에만 설정하며 Preview에는 운영 기록을 연결하지 않는다. Git 자동 배포 연결은 설정하지 않았다. PR 병합과 별개로 위 명령으로 검증된 소스를 배포한다. 롤백은 Vercel의 이전 정상 배포를 복원하되, 새 문제 기록을 모르는 이전 버전은 엄격한 스키마 검증으로 읽기를 거부할 수 있으므로 기능 확장 전후 데이터 호환성을 먼저 확인한다.
+운영 인증/DB 값은 Vercel의 Production 환경에만 설정하며 Preview에는 운영 기록을 연결하지 않는다. 롤백은 Vercel의 이전 정상 배포를 복원하되, 새 문제 기록을 모르는 이전 버전은 엄격한 스키마 검증으로 읽기를 거부할 수 있으므로 기능 확장 전후 데이터 호환성을 먼저 확인한다.
 
-운영 주소: https://mumak-www-interview.vercel.app
+운영 주소: https://interview.wannysim.com (Cloudflare DNS only CNAME). `INTERVIEW_ORIGIN`도 이 값이어야 한다. 세션 서명에 origin이 들어가므로 바꾸면 모든 기기에서 다시 로그인하고, 브라우저에 남은 미전송 초안은 이전 주소에서만 보인다.
