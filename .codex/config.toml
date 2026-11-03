@@ -1,0 +1,5 @@
+# 프로젝트 MCP — 신뢰한 프로젝트에서만 로드된다. 버전은 .mcp.json·skills-lock.json 과 함께 올린다.
+[mcp_servers.rea]
+command = "npx"
+args = ["-y", "rea-agents@6.8.0", "mcp"]
+startup_timeout_sec = 30
