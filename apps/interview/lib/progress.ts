@@ -96,6 +96,14 @@ export function recordAttempt(progress: Progress, id: string, correct: boolean, 
     review: correct ? progress.review.filter(item => item !== id) : [...new Set([...progress.review, id])],
   };
 }
+/** Code problems with real work to resume: edited code or a whiteboard plan. Curriculum order, not recency. */
+export function resumableCodeProblems(progress: Progress) {
+  return codeProblems.filter(problem => {
+    const code = progress.drafts[problem.id]?.trim() ?? '';
+    const plan = progress.notes[`${problem.id}:plan`]?.trim() ?? '';
+    return (code !== '' && code !== problem.starter.trim()) || plan !== '';
+  });
+}
 export function understoodIds(progress: Progress) {
   const latest = new Map(progress.attempts.map(attempt => [attempt.id, attempt.correct]));
   return new Set([...latest].filter(([, correct]) => correct).map(([id]) => id));

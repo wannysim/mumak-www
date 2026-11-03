@@ -24,6 +24,9 @@ async function tab(page: Page, title: string) {
 test('gate rejects wrong keys and disallows cross-origin session creation', async ({ page, request }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '다시, 나의 페이스로' })).toBeVisible();
+  await expect(
+    page.getByText('같은 접속 키로 로그인하면 서버에 저장된 기록을 이어갈 수 있어요.', { exact: false })
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: '5분 연습 출발' })).toHaveCount(0);
   await page.getByLabel('접속 키', { exact: true }).fill('wrong');
   await page.getByRole('button', { name: '연습실 들어가기' }).click();

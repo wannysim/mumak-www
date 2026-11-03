@@ -98,6 +98,77 @@ export const algorithmProblems: CodeProblem[] = [
     diagram: '문자   a b b a\nright  0 1 2 3\nleft   0 0 2 2\n유지: [left, right] 안에는 중복 없음',
   },
   {
+    id: 'window-min-sum',
+    title: '목표 합을 채우는 가장 짧은 구간',
+    category: '슬라이딩 윈도우',
+    difficulty: '실전',
+    minutes: 20,
+    description:
+      '양의 정수 배열에서 합이 target 이상인 연속 구간의 최소 길이를 구하세요. 고정 길이 창에서 가변 길이 창으로 넘어가는 연습입니다.',
+    contract:
+      'solve(values, target) → number. values는 길이 0~100000인 양의 정수 배열, target은 양의 안전 정수. 전체 합도 안전 정수. 빈 구간은 제외하며 가능한 구간이 없으면 0. 입력 불변. 목표 시간 O(n).',
+    starter: 'function solve(values, target) {\n  // 창을 늘리는 때와 줄이는 때를 구분해 보세요.\n}',
+    hint: '1. 오른쪽 값을 더하면 합은 커지고, 왼쪽 값을 빼면 작아집니다(양수 조건). 2. 목표를 채운 동안 현재 길이를 기록하고 왼쪽을 계속 줄이세요. 3. 한 번만 줄이는 if가 아니라 while이 필요한 입력을 찾아보세요.',
+    solution:
+      'function solve(values, target) {\n  let left = 0, sum = 0, best = Infinity;\n  for (let right = 0; right < values.length; right++) {\n    sum += values[right];\n    while (sum >= target) {\n      best = Math.min(best, right - left + 1);\n      sum -= values[left++];\n    }\n  }\n  return best === Infinity ? 0 : best;\n}',
+    complexity:
+      '시간 O(n), 추가 공간 O(1). 각 값은 창에 한 번 들어오고 한 번 나갑니다. while이 중첩돼도 두 포인터의 총 이동은 O(n)입니다.',
+    steps: [
+      '연속 구간과 부분수열을 구분하고 O(n²) 완전탐색부터 설명',
+      '합이 충분할 때 답을 기록한 다음 축소하는 이유',
+      '음수가 있으면 단조성이 깨지는 반례 찾기',
+    ],
+    followups: [
+      '[1,-1,5], target=5에서도 이 풀이가 맞을까요? 왜 양수 계약이 필요한가요?',
+      '최소 길이뿐 아니라 구간의 시작·끝 위치도 반환하려면?',
+    ],
+    diagram:
+      'values=[1,2,3,4], target=6\nright=2: [1,2,3] 합6 → 길이3 기록\n  1을 빼면 [2,3] 합5: 축소 중단\nright=3: [2,3,4] 합9 → 길이3 기록\n  2를 빼면 [3,4] 합7 → 길이2 기록\n  3을 빼면 [4] 합4: 축소 중단\n답 2. 조건을 만족하는 동안 여러 번 줄여야 합니다.',
+    tests: [
+      { label: '여러 번 축소', args: [[1, 2, 3, 4], 6], expected: 2 },
+      { label: '목표와 같은 단일 값', args: [[1, 7, 2], 7], expected: 1 },
+      { label: '목표보다 큰 단일 값', args: [[8], 7], expected: 1 },
+      { label: '전체 구간만 가능', args: [[1, 2, 3], 6], expected: 3 },
+      { label: '도달 불가', args: [[1, 2], 4], expected: 0 },
+      { label: '빈 배열', args: [[], 1], expected: 0 },
+    ],
+  },
+  {
+    id: 'window-k-distinct',
+    title: '최대 K종 문자를 담는 구간',
+    category: '슬라이딩 윈도우',
+    difficulty: '실전',
+    minutes: 25,
+    description:
+      '서로 다른 문자가 최대 k종인 가장 긴 연속 구간의 길이를 구하세요. 중복 허용과 문자별 개수 관리를 익혀 최소 포함 구간으로 연결합니다.',
+    contract:
+      'solve(text, k) → number. ASCII 문자열, 길이 0~100000, k는 0 이상의 정수. 문자의 총개수가 아니라 서로 다른 종류 수를 제한합니다. 빈 문자열 또는 k=0이면 0. 입력 불변. 목표 시간 O(n).',
+    starter: 'function solve(text, k) {\n  // 창 안에 남은 각 문자의 개수를 관리하세요.\n}',
+    hint: '1. Set만 있으면 같은 문자가 창에 몇 개 남았는지 알 수 없습니다. 2. Map<문자,개수>로 더하고 빼며 0이 된 키를 지우세요. 3. 종류 수가 k보다 큰 동안 줄인 뒤 유효한 창의 길이를 기록하세요.',
+    solution:
+      'function solve(text, k) {\n  const counts = new Map();\n  let left = 0, best = 0;\n  for (let right = 0; right < text.length; right++) {\n    const char = text[right];\n    counts.set(char, (counts.get(char) || 0) + 1);\n    while (counts.size > k) {\n      const leaving = text[left++];\n      counts.set(leaving, counts.get(leaving) - 1);\n      if (counts.get(leaving) === 0) counts.delete(leaving);\n    }\n    best = Math.max(best, right - left + 1);\n  }\n  return best;\n}',
+    complexity: '시간 O(n), 추가 공간 O(min(n, ASCII 문자 집합 크기)). left와 right는 뒤로 가지 않습니다.',
+    steps: [
+      '최대 K종과 정확히 K종의 차이를 예시로 확인',
+      '빈도 0일 때만 키를 지우는 불변식 설명',
+      '유효하지 않은 창은 답에 반영하지 않고 먼저 축소',
+    ],
+    followups: [
+      '정확히 k종인 부분문자열의 개수는 atMost(k)−atMost(k−1)로 어떻게 구할까요?',
+      '최소 포함 구간은 조건을 만족할 때 줄이는데, 이 문제는 왜 위반할 때 줄이나요?',
+    ],
+    diagram:
+      'text="eceba", k=2\n"e" → {e:1}, 길이1\n"ec" → {e:1,c:1}, 길이2\n"ece" → {e:2,c:1}, 길이3\n"eceb" → 3종이라 축소\n  첫 e 제거: {e:1,c:1,b:1}, 여전히 3종\n  c 제거: {e:1,b:1}, 창 "eb" 유효\n다음 a에서도 축소. 최대 길이는 3입니다.',
+    tests: [
+      { label: '같은 문자가 남은 창', args: ['eceba', 2], expected: 3 },
+      { label: '한 종류의 반복', args: ['aaaa', 1], expected: 4 },
+      { label: '최대이지 정확히 K종은 아님', args: ['aa', 3], expected: 2 },
+      { label: '뒤쪽의 최장 구간', args: ['abaccc', 2], expected: 4 },
+      { label: '허용 종류 영', args: ['abc', 0], expected: 0 },
+      { label: '빈 문자열', args: ['', 2], expected: 0 },
+    ],
+  },
+  {
     id: 'window-cover',
     title: '필요한 문자를 덮는 최소 구간',
     category: '슬라이딩 윈도우',
@@ -140,8 +211,8 @@ export const algorithmProblems: CodeProblem[] = [
       },
       {
         label: '동률 왼쪽',
-        args: ['baxb', 'ab'],
-        expected: 'ba',
+        args: ['abxba', 'ab'],
+        expected: 'ab',
       },
     ],
   },
@@ -381,6 +452,25 @@ export const algorithmProblems: CodeProblem[] = [
       'DOM 트리 탐색에서 방문 조건은 어떻게 달라질까요?',
     ],
     tests: [
+      {
+        label: '세 레벨과 형제별 자식',
+        args: [
+          {
+            value: 1,
+            left: {
+              value: 2,
+              left: { value: 4, left: null, right: null },
+              right: { value: 5, left: null, right: null },
+            },
+            right: {
+              value: 3,
+              left: null,
+              right: { value: 6, left: null, right: null },
+            },
+          },
+        ],
+        expected: [[1], [2, 3], [4, 5, 6]],
+      },
       {
         label: '두 레벨',
         args: [

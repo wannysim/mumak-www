@@ -25,28 +25,34 @@ export function SearchTrigger({
   ariaLabel,
 }: SearchTriggerProps) {
   return (
-    <Button
-      ref={ref}
-      type="button"
-      variant="outline"
-      size="lg"
-      onClick={onClick}
-      aria-label={ariaLabel}
-      className={cn(
-        'w-full justify-between gap-2 px-3 font-normal text-muted-foreground hover:text-foreground',
-        className
-      )}
-    >
-      <span className="inline-flex items-center gap-2">
-        <SearchIcon className="size-4" />
-        <span className="truncate text-sm">{placeholder}</span>
-      </span>
+    <div data-slot="search-trigger" className={cn('relative shrink-0', className)}>
+      <Button
+        ref={ref}
+        type="button"
+        variant="outline"
+        size="lg"
+        onClick={onClick}
+        aria-label={ariaLabel}
+        aria-keyshortcuts={showShortcut ? 'Meta+K Control+K' : undefined}
+        className={cn(
+          'w-full justify-between gap-2 px-3 font-normal text-muted-foreground hover:text-foreground',
+          showShortcut && 'md:pr-18'
+        )}
+      >
+        <span className="inline-flex items-center gap-2">
+          <SearchIcon className="size-4" />
+          <span className="truncate text-sm">{placeholder}</span>
+        </span>
+      </Button>
       {showShortcut && (
-        <KbdGroup className="hidden md:inline-flex">
+        <KbdGroup
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 right-3 hidden -translate-y-1/2 md:inline-flex"
+        >
           <Kbd>⌘</Kbd>
           <Kbd>K</Kbd>
         </KbdGroup>
       )}
-    </Button>
+    </div>
   );
 }

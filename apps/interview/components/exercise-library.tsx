@@ -46,9 +46,27 @@ export function ExerciseLibrary({
       </p>
       <details className="mb-5 rounded-2xl border bg-white p-5">
         <summary className="cursor-pointer text-sm font-semibold">추천 순서 · 윈도우와 연결 리스트 집중 훈련</summary>
+        <div className="mt-4 space-y-2 text-xs leading-6 text-muted-foreground">
+          <p>
+            기초가 낯설다면 장바구니의 합계 누적 → 이벤트의 Set·참조 보존부터 시작하세요. 합계는 지금까지 더한 값, Set은
+            본 적 있는 값, Map은 값별 개수나 위치를 기억합니다.
+          </p>
+          <p>
+            창은 연속한 [left, right] 구간이고 길이는 right − left + 1입니다. 고정 창은 들어온 값을 더하고 나간 값을
+            뺍니다. 가변 창은 조건에 따라 왼쪽을 여러 번 움직입니다.
+          </p>
+          <p>
+            최소 길이는 조건을 만족하는 동안 답을 기록하고 축소합니다. 최대 길이는 조건을 위반하는 동안 축소한 뒤 답을
+            기록합니다. 각 문제의 예시 그림에서 한 칸씩 따라가 보세요.
+          </p>
+        </div>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           {[
-            { name: '슬라이딩 윈도우', ids: ['window-fixed', 'window-unique', 'window-cover'] },
+            { name: '기초 준비', ids: ['cart', 'events'] },
+            {
+              name: '슬라이딩 윈도우',
+              ids: ['window-fixed', 'window-min-sum', 'window-unique', 'window-k-distinct', 'window-cover'],
+            },
             {
               name: '링크드 리스트',
               ids: ['list-basic', 'list-reverse', 'list-cycle', 'list-deque', 'lru-cache', 'list-random'],
@@ -106,7 +124,7 @@ export function ExerciseLibrary({
             value={category}
             onChange={e => {
               setCategory(e.target.value);
-              setFilter('코드 작성');
+              setFilter(current => (current === '다시 보기' ? current : '코드 작성'));
             }}
             className="mt-2 h-12 w-full rounded-xl border bg-white px-3 text-sm"
           >
@@ -121,7 +139,7 @@ export function ExerciseLibrary({
             value={difficulty}
             onChange={e => {
               setDifficulty(e.target.value);
-              setFilter('코드 작성');
+              setFilter(current => (current === '다시 보기' ? current : '코드 작성'));
             }}
             className="mt-2 h-12 w-full rounded-xl border bg-white px-3 text-sm"
           >
@@ -177,6 +195,9 @@ export function ExerciseLibrary({
               </p>
               <h2 className="text-sm font-semibold sm:text-base">{p.title}</h2>
             </div>
+            {progress.review.includes(p.id) && (
+              <Bookmark className="size-4 shrink-0 text-primary" aria-label="다시 보기" />
+            )}
             {solved.has(p.id) && <CheckCircle2 className="size-4 text-[#386e54]" aria-label="통과함" />}
             <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           </button>

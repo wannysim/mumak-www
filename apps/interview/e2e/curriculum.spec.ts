@@ -111,3 +111,79 @@ test('aggregate size guard keeps the last valid record and exports an importable
   await page.getByLabel('기록 백업 파일').setInputFiles(path!);
   await expect(page.getByRole('status')).toContainText('백업을 불러왔어요');
 });
+
+test('code review bookmarks survive devices and code facets stay within the review queue', async ({
+  page,
+  browser,
+}) => {
+  const cloud = cloudFixture();
+  await cloud.attach(page);
+  await login(page);
+  const problem = codeProblems.find(item => item.id === 'window-fixed')!;
+  await page.getByRole('button', { name: new RegExp(problem.title) }).click();
+  await page.getByRole('button', { name: '다시 보기', exact: true }).click();
+  await expect(page.getByRole('button', { name: '저장됨', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('동기화 상태')).toHaveText('서버 저장 완료');
+  expect(cloud.document.progress.attempts).toEqual([]);
+
+  const secondContext = await browser.newContext();
+  try {
+    const second = await secondContext.newPage();
+    await cloud.attach(second);
+    await login(second);
+    await second.getByRole('button', { name: '다시 보기', exact: true }).click();
+    await second.getByLabel('코드 분야').selectOption(problem.category);
+    await expect(second.getByRole('button', { name: '다시 보기', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await expect(second.getByRole('status').filter({ hasText: '1개 표시' })).toBeVisible();
+    await expect(second.getByRole('button', { name: new RegExp(problem.title) })).toBeVisible();
+
+    await second.getByRole('button', { name: '다시 보기', exact: true }).click();
+    await second.getByLabel('코드 난이도').selectOption(problem.difficulty);
+    await expect(second.getByRole('button', { name: '다시 보기', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await expect(second.getByRole('status').filter({ hasText: '1개 표시' })).toBeVisible();
+    await second.getByRole('button', { name: new RegExp(problem.title) }).click();
+    await second.getByRole('button', { name: '저장됨', exact: true }).click();
+    await expect(second.getByRole('button', { name: '다시 보기', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    );
+    await expect(second.getByLabel('동기화 상태')).toHaveText('서버 저장 완료');
+    await library(second);
+    await second.getByRole('button', { name: '다시 보기', exact: true }).click();
+    await expect(second.getByRole('heading', { name: '아직 다시 볼 문제가 없어요' })).toBeVisible();
+  } finally {
+    await secondContext.close();
+  }
+  await page.getByRole('button', { name: '지금 동기화', exact: true }).click();
+  await expect(page.getByRole('button', { name: '다시 보기', exact: true })).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('foundations and bridge windows form an ordered learning path', async ({ page }) => {
+  await cloudFixture().attach(page);
+  await login(page);
+  await page.getByText('추천 순서 · 윈도우와 연결 리스트 집중 훈련', { exact: true }).click();
+  await expect(page.getByText(/기초가 낯설다면 장바구니의 합계 누적/)).toBeVisible();
+  await expect(page.getByRole('button', { name: '기초 준비 1단계 열기' })).toHaveText(/장바구니 합계 계산/);
+  await expect(page.getByRole('button', { name: '기초 준비 2단계 열기' })).toHaveText(/중복 이벤트 정리/);
+  const titles = [
+    '연속 k일 최대 매출',
+    '목표 합을 채우는 가장 짧은 구간',
+    '중복 없는 가장 긴 구간',
+    '최대 K종 문자를 담는 구간',
+    '필요한 문자를 덮는 최소 구간',
+  ];
+  for (const [index, title] of titles.entries())
+    await expect(page.getByRole('button', { name: `슬라이딩 윈도우 ${index + 1}단계 열기` })).toHaveText(
+      `${index + 1}. ${title}`
+    );
+  await page.getByRole('button', { name: '슬라이딩 윈도우 2단계 열기' }).click();
+  await expect(page.getByRole('heading', { name: titles[1], exact: true })).toBeVisible();
+  await page.getByText('막혔다면 예시 그림 보기', { exact: true }).click();
+  await expect(page.getByText(/values=\[1,2,3,4\], target=6/)).toBeVisible();
+});

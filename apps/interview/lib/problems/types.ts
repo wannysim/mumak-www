@@ -15,7 +15,7 @@ export type CodeTest = {
   args: unknown[];
   expected: unknown;
   queue?: boolean;
-  mode?: 'list' | 'reverse' | 'cycle' | 'copy-random' | 'deque';
+  mode?: 'events' | 'list' | 'reverse' | 'cycle' | 'copy-random' | 'deque';
 };
 export type CodeProblem = {
   id: string;

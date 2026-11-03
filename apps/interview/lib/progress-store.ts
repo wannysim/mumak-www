@@ -9,6 +9,8 @@ type Snapshot = {
   ready: boolean;
   error: string;
   blocked: boolean;
+  /** Local state failed to load, so the in-memory record is a placeholder that must never replace the server. */
+  unreadableLocal: boolean;
   status: 'loading' | 'saved' | 'saving' | 'offline' | 'conflict';
   conflict: CloudProgress | null;
 };
@@ -17,6 +19,7 @@ const initial: Snapshot = {
   ready: false,
   error: '',
   blocked: false,
+  unreadableLocal: false,
   status: 'loading',
   conflict: null,
 };
@@ -63,7 +66,7 @@ function schedule() {
 function fail(error: unknown) {
   const expired = error instanceof Error && error.message === '401';
   publish({
-    ready: initialized || localReady,
+    ready: initialized || localReady || snapshot.blocked,
     blocked: snapshot.blocked,
     status: 'offline',
     error:
@@ -90,7 +93,9 @@ function conflict(document: CloudProgress) {
     blocked: true,
     status: 'conflict',
     conflict: document,
-    error: '다른 기기의 기록과 달라요. 이 기기의 초안은 보관했어요. 백업 후 사용할 기록을 선택해 주세요.',
+    error: snapshot.unreadableLocal
+      ? '이 기기의 초안을 읽지 못했어요. 서버 기록은 바꾸지 않았어요. 서버 기록으로 이어가 주세요.'
+      : '다른 기기의 기록과 달라요. 이 기기의 초안은 보관했어요. 백업 후 사용할 기록을 선택해 주세요.',
   });
 }
 export async function synchronize() {
@@ -170,6 +175,16 @@ async function claimOutbox(id: string) {
       .catch(reject);
   });
 }
+function outboxUpdatedAt(key: string) {
+  try {
+    const updatedAt: unknown = JSON.parse(localStorage.getItem(key) ?? 'null')?.updatedAt;
+    return typeof updatedAt === 'number' && Number.isFinite(updatedAt) ? updatedAt : 0;
+  } catch {
+    // A damaged or concurrently removed candidate must not block all draft recovery.
+    // Keep the raw record untouched; normal parsing protects it if it is selected.
+    return 0;
+  }
+}
 async function load() {
   loading = true;
   if (!navigator.locks) {
@@ -184,10 +199,15 @@ async function load() {
     const previousTab = sessionStorage.getItem(TAB_KEY);
     let tab = previousTab && (await claimOutbox(previousTab)) ? previousTab : null;
     if (!tab) {
-      const candidates = Object.keys(localStorage).filter(key => key.startsWith(OUTBOX_PREFIX));
-      for (const candidate of candidates.toSorted(
-        (a, b) => JSON.parse(localStorage.getItem(b)!).updatedAt - JSON.parse(localStorage.getItem(a)!).updatedAt
-      )) {
+      // Read each timestamp once: re-reading inside the comparator could see another tab's write mid-sort.
+      const candidates = Object.keys(localStorage)
+        .filter(key => key.startsWith(OUTBOX_PREFIX))
+        .map(key => ({ key, updatedAt: outboxUpdatedAt(key) }))
+        // Never adopt an unreadable orphan: it holds nothing recoverable, and adopting it would block this tab
+        // with an empty placeholder record. Leave its raw value untouched.
+        .filter(candidate => candidate.updatedAt > 0)
+        .toSorted((a, b) => b.updatedAt - a.updatedAt);
+      for (const { key: candidate } of candidates) {
         const id = candidate.slice(OUTBOX_PREFIX.length);
         if (await claimOutbox(id)) {
           tab = id;
@@ -230,11 +250,12 @@ async function load() {
       ...snapshot,
       ready: true,
       blocked: true,
+      unreadableLocal: true,
       error: '기존 데이터를 보호하기 위해 저장을 멈췄어요. 기록을 백업한 뒤 복원해 주세요.',
     };
   }
   if (dirty && localReady) persist();
-  publish({ ready: localReady });
+  publish({ ready: localReady || snapshot.blocked });
   void synchronize();
 }
 function wake() {
@@ -284,7 +305,7 @@ export function saveProgress(update: (value: Progress) => Progress, force = fals
   }
   if (same(progress, snapshot.progress) && !snapshot.blocked) return true;
   dirty = true;
-  publish({ progress, ready: true, blocked: false, status: 'saving' });
+  publish({ progress, ready: true, blocked: false, unreadableLocal: false, status: 'saving' });
   persist();
   publish({ error: localError });
   schedule();
@@ -292,7 +313,8 @@ export function saveProgress(update: (value: Progress) => Progress, force = fals
 }
 export function resolveConflict(keepLocal: boolean) {
   const remote = snapshot.conflict;
-  if (!remote) return;
+  // An unreadable local state is an empty placeholder; pushing it would wipe the record on every device.
+  if (!remote || (keepLocal && snapshot.unreadableLocal)) return;
   revision = remote.revision;
   pending = null;
   dirty = keepLocal;
@@ -300,6 +322,7 @@ export function resolveConflict(keepLocal: boolean) {
     progress: keepLocal ? snapshot.progress : remote.progress,
     conflict: null,
     blocked: false,
+    unreadableLocal: false,
     status: keepLocal ? 'saving' : 'saved',
     error: '',
   });
