@@ -1,9 +1,10 @@
 # Stickerbook
 
-사진 전시 앱의 컨셉과 개발 기반. **2026-10-29 기존 디자인과 화면·인터랙션 구현을 제거했다. 현재 실행 화면은 빈 흰 바탕이다.**
+인터랙티브 개인 홈페이지(닫힌 3D 책 → 펼쳐서 탐색)의 컨셉과 개발 기반. **2026-10-29 기존 디자인과 화면·인터랙션 구현을 제거했다. 현재 실행 화면은 빈 흰 바탕이다.**
 
-- [plan.md](./plan.md): 유지할 컨셉과 사용자 선호
+- [plan.md](./plan.md): 유지할 컨셉, 사용자 선호, ryo.lu 레퍼런스
 - [NEXT.md](./NEXT.md): 다음 세션의 시작점
+- [tech-research.md](./tech-research.md): 3D 책·곡면 넘김·글자 선명도·스티커·WebAssembly 기술 조사와 스파이크 계획
 - [implementation.md](./implementation.md): 남겨둔 개발 기반과 이전 실험의 교훈
 - [public/assets.md](./public/assets.md): 보존한 샘플 JPG 출처
 
