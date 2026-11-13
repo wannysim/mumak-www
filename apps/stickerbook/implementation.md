@@ -5,7 +5,7 @@
 ## 유지한 기반
 
 - React + TypeScript + Vite, `@/` alias, Tailwind v4 빌드 연결.
-- Portless 개발 주소 `stickerbook.mumak.localhost:1355`, 빌드/preview 스크립트, Playwright 서버 포트 3008.
+- Portless 개발 주소 `stickerbook.mumak.localhost:1355`, 빌드/preview 스크립트, Playwright 서버 포트 3009.
 - 공통 TypeScript·Playwright 설정, Oxc lint·format, Vitest·Testing Library와 coverage, Chromium·Firefox·WebKit E2E.
 - 모노레포 앱 매트릭스·Codecov 등록. JPG 6개와 출처 문서는 콘텐츠 자산으로 보존하며 화면에는 렌더링하지 않는다.
 

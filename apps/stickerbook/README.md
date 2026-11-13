@@ -31,6 +31,6 @@ CI=1 pnpm --filter stickerbook exec playwright test --workers=2
 pnpm exec knip --workspace apps/stickerbook
 ```
 
-Vitest는 앱 마운트, Playwright는 빌드된 앱의 데스크톱·모바일 부팅을 확인한다. E2E 서버는 `3008`에서 실행하며 dev 서버를 재사용하지 않는다. 기존 책·스티커·사진 확대 기능의 테스트는 해당 구현과 함께 제거했다.
+Vitest는 앱 마운트, Playwright는 빌드된 앱의 데스크톱·모바일 부팅을 확인한다. E2E 서버는 `3009`에서 실행하며 dev 서버를 재사용하지 않는다. 기존 책·스티커·사진 확대 기능의 테스트는 해당 구현과 함께 제거했다.
 
 앱 CI 매트릭스와 coverage 등록은 유지한다. PR·병합·배포는 수행하지 않았다.
