@@ -75,6 +75,7 @@ Turborepo 기반 모노레포. 공유 패키지는 `packages/`, 앱은 `apps/`�
 | `apps/mumak-react`  | React + Vite                            |
 | `apps/blog`         | 블로그 (FSD + MDX)                      |
 | `apps/mumak-native` | Expo (React Native + expo-router)       |
+| `apps/stickerbook`  | 인터랙티브 개인 홈페이지 (React + Vite) |
 
 각 앱/패키지의 세부 규칙은 해당 디렉터리의 `AGENTS.md`를 참조.
 
@@ -341,7 +342,7 @@ test.describe('Home Page', () => {
 
 ### 이 저장소의 E2E 관점
 
-- `apps/admin`, `apps/blog`, `apps/mumak-next`, `apps/mumak-react`, `apps/mumak-native`가 Playwright E2E 대상.
+- `.github/app-config/apps.yml`에서 `hasE2E: true`인 앱이 Playwright E2E 대상이다. 현재는 `apps/admin`, `apps/blog`, `apps/interview`, `apps/karaoke`, `apps/lattice`, `apps/mumak-native`, `apps/mumak-next`, `apps/mumak-react`, `apps/quant`, `apps/stickerbook`이다.
 - E2E는 빌드 결과 기반 서버 실행을 전제로 한다.
 - `playwright.config.*`, `e2e/**`, 라우팅, 레이아웃, 메타데이터, UI 상호작용 변경 시 E2E 필요성을 적극 검토한다.
 - `apps/blog`는 standalone 기반 경로를 사용하므로, 로컬 실패 시 `apps/blog/.next` 상태도 확인한다.

@@ -2,9 +2,12 @@
 
 인터랙티브 개인 홈페이지(닫힌 3D 책 → 펼쳐서 탐색)의 컨셉과 개발 기반. **2026-10-29 기존 디자인과 화면·인터랙션 구현을 제거했다. 현재 실행 화면은 빈 흰 바탕이다.**
 
-- [plan.md](./plan.md): 유지할 컨셉, 사용자 선호, ryo.lu 레퍼런스
+- [plan.md](./plan.md): 유지할 컨셉, 사용자 선호, ryo.lu·georgehatton.com 레퍼런스
 - [NEXT.md](./NEXT.md): 다음 세션의 시작점
-- [tech-research.md](./tech-research.md): 3D 책·곡면 넘김·글자 선명도·스티커·WebAssembly 기술 조사와 스파이크 계획
+- [open-decisions.md](./open-decisions.md): 무엇을 언제 누가 정해야 하는지 모은 결정 대기 목록
+- [tech-research.md](./tech-research.md): 3D 책·곡면 넘김·글자 선명도·스티커·WebAssembly 기술 조사, 스파이크 계획, 사진·Spotify 데이터 경로
+- [spikes.md](./spikes.md): 스파이크 측정 항목·후보 임계값, 테스트·운영 제안, 결과 기록
+- [AGENTS.md](./AGENTS.md): 이 앱에서 작업하는 에이전트용 경계 요약
 - [implementation.md](./implementation.md): 남겨둔 개발 기반과 이전 실험의 교훈
 - [public/assets.md](./public/assets.md): 보존한 샘플 JPG 출처
 
