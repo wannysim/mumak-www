@@ -16,9 +16,11 @@ import {
   SPIN_DECAY_TIME_MS,
   SPIN_STOP_DEG_PER_MS,
   spinAngleAt,
+  spinFromVelocity,
   spinOrientation,
   spinStopMs,
   startSpin,
+  spinVelocity,
   stepSpin,
   touchGuardInsets,
 } from '../spin';
@@ -241,5 +243,22 @@ describe('spin inertia', () => {
     expect(advanceSpin(first, 516).elapsedMs).toBe(16);
     expect(advanceSpin(first, 400)).toMatchObject({ lastTime: 500, elapsedMs: 0 });
     expect(advanceSpin(advanceSpin(first, 516), 548).elapsedMs).toBe(48);
+  });
+
+  it('should hand an angular velocity over to the same inertia and report the speed left', () => {
+    // 화살표를 다 뗄 때: 끄는 방향 벡터(deg/ms)로 시작하고 지난 프레임 시각에서 이어 간다.
+    const handed = spinFromVelocity(IDENTITY_QUAT, { x: 0, y: -0.06 }, 700);
+    if (handed === null) {
+      throw new Error('spin expected');
+    }
+    expect(handed).toMatchObject({ speed: 0.06, lastTime: 700, elapsedMs: 0 });
+    expect(spinVelocity(handed).x).toBeCloseTo(0);
+    expect(spinVelocity(handed).y).toBeCloseTo(-0.06);
+    expect(spinVelocity(stepSpin(handed, SPIN_DECAY_TIME_MS)).y).toBeCloseTo(-0.06 * Math.exp(-1));
+    // 멈춘 뒤로는 빠르기가 없다.
+    expect(spinVelocity(stepSpin(handed, spinStopMs(handed)))).toEqual({ x: 0, y: 0 });
+    expect(spinFromVelocity(IDENTITY_QUAT, { x: SPIN_STOP_DEG_PER_MS / 2, y: 0 }, null)).toBeNull();
+    // 끌기로 던진 관성도 같은 빠르기 규칙이다: 1px/ms × 0.4°/px.
+    expect(spinVelocity(spinFrom(flick)).x).toBeCloseTo(DEGREES_PER_DRAG_PX);
   });
 });

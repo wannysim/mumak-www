@@ -15,7 +15,12 @@ type OpenScene = Extract<BookScene, { phase: 'open' | 'turning' | 'closing' }>;
 const geometry = computeOpenGeometry({ width: 1440, height: 900 }, 'spread');
 const openScene: Extract<BookScene, { phase: 'open' }> = { phase: 'open', view: { layout: 'spread', spread: 1 } };
 
-function renderSpread(scene: OpenScene = openScene, reducedMotion = false, at: OpenGeometry = geometry) {
+function renderSpread(
+  scene: OpenScene = openScene,
+  reducedMotion = false,
+  at: OpenGeometry = geometry,
+  takeFocus = true
+) {
   const onBookEvent = vi.fn<(event: BookEvent) => void>();
   render(
     <BookSpread
@@ -23,6 +28,7 @@ function renderSpread(scene: OpenScene = openScene, reducedMotion = false, at: O
       geometry={at}
       pageCount={8}
       reducedMotion={reducedMotion}
+      takeFocus={takeFocus}
       onBookEvent={onBookEvent}
       className="extra"
       style={{ opacity: 0.5 }}
@@ -58,6 +64,21 @@ describe('BookSpread', () => {
     expect(region).toHaveClass('book-stage', 'extra');
     expect(region).toHaveStyle({ opacity: '0.5' });
     expect(region.style.getPropertyValue('--turn-gutter')).toBe(`${geometry.book.x}px`);
+  });
+
+  it('should leave focus on the page when asked not to take it, and still turn with the arrows from there', () => {
+    // 문서 단위 키로 펼쳤다(포커스가 body). 책에 포커스 표시가 생기지 않게 옮기지 않는다.
+    const { region, onBookEvent } = renderSpread(openScene, false, geometry, false);
+    expect(region).not.toHaveFocus();
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    expect(onBookEvent).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'turn-click', direction: 'forward' }));
+    // 입력칸의 화살표는 글자 커서 몫이다.
+    const input = document.createElement('input');
+    document.body.append(input);
+    fireEvent.keyDown(input, { key: 'ArrowLeft' });
+    input.remove();
+    expect(onBookEvent).toHaveBeenCalledTimes(1);
   });
 
   it('should send the click height for pointer clicks and no point for keyboard activation', () => {
@@ -223,6 +244,7 @@ describe('BookSpread', () => {
         geometry={single}
         pageCount={8}
         reducedMotion
+        takeFocus
         onBookEvent={vi.fn()}
       />
     );

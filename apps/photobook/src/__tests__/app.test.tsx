@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { App } from '@/app';
 import { OPEN_HANDOFF_DURATION_MS, REDUCED_MOTION_CROSSFADE_MS } from '@/model/book/opening';
-import { KEY_ROTATION_DURATION_MS } from '@/model/book/rotation';
 import { renderedFacingFace } from '@/test/book-faces';
 import { resizeViewport, stubReducedMotion } from '@/test/browser';
 
@@ -43,7 +42,9 @@ function advance(ms: number) {
   });
 }
 
+/** Tab으로 책에 온 키보드 사용자처럼 책 버튼에 포커스를 두고 Enter로 펼친다. 포커스는 책 영역으로 옮겨진다. */
 function openWithEnter() {
+  openBookButton().focus();
   fireEvent.keyDown(openBookButton(), { key: 'Enter' });
   advance(2000);
   return bookRegion();
@@ -97,17 +98,50 @@ describe('App', () => {
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
-  it('should turn the closed book with the arrow keys', () => {
+  it('should turn the closed book while an arrow key is held, wherever the focus is', () => {
+    useFakeFrames();
     stubReducedMotion(true);
     render(<App />);
-    fireEvent.keyDown(openBookButton(), { key: 'ArrowRight' });
+    // 누르고 있는 동안만 돈다(동작 줄이기면 가속·관성 없이 60°/s). 1.5초면 약 90°라 책등이 정면에 온다.
+    // 책에 포커스가 없어도(body) 받는다.
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    expect(closedStage()).toHaveAttribute('data-motion', 'key');
+    advance(1500);
+    fireEvent.keyUp(document.body, { key: 'ArrowRight' });
+    expect(closedStage()).toHaveAttribute('data-motion', 'rest');
     expect(shownFace()).toBe('spine');
     fireEvent.keyDown(openBookButton(), { key: 'ArrowLeft' });
-    fireEvent.keyDown(openBookButton(), { key: 'ArrowLeft' });
+    advance(3000);
+    fireEvent.keyUp(openBookButton(), { key: 'ArrowLeft' });
     expect(shownFace()).toBe('fore');
     expect(folio()).toBeNull();
     fireEvent.keyDown(openBookButton(), { key: 'Tab' });
     expect(openBookButton()).toBeInTheDocument();
+  });
+
+  it('should work from the page without focusing the book: Enter opens, arrows turn, Esc closes', () => {
+    useFakeFrames();
+    stubReducedMotion(true);
+    render(<App />);
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: 'Enter' });
+    advance(2000);
+    expect(bookRegion()).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('01–02쪽');
+    // 포커스를 책으로 옮기지 않는다. 그래서 책에 포커스 표시가 생기지 않는다(2026-11-16 사용자 결정).
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    advance(1000);
+    expect(folio()).toHaveTextContent('03–04/08');
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    advance(1000);
+    expect(folio()).toHaveTextContent('01–02/08');
+    pressEscape();
+    advance(1000);
+    expect(screen.queryByRole('region', { name: '펼친 책' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('책을 덮었다, 앞표지');
+    expect(document.activeElement).toBe(document.body);
   });
 
   it('should open with Enter, move focus into the book and announce the first spread once', () => {
@@ -218,6 +252,7 @@ describe('App', () => {
     useFakeFrames();
     stubReducedMotion(false);
     render(<App />);
+    openBookButton().focus();
     fireEvent.keyDown(openBookButton(), { key: ' ' });
     expect(closedStage()).toHaveAttribute('data-phase', 'opening');
     expect(openBookButton()).toHaveAttribute('aria-disabled', 'true');
@@ -267,10 +302,13 @@ describe('App', () => {
     stubReducedMotion(false);
     render(<App />);
     fireEvent.keyDown(openBookButton(), { key: 'ArrowRight' });
-    fireEvent.keyDown(openBookButton(), { key: 'ArrowRight' });
-    // 키 회전도 프레임 시각으로 돈다.
+    // 키 회전도 프레임 시각으로 돈다. 약 3.3초 누르면 반 바퀴쯤 돌아 뒷면이 보이고, 떼면 조금 더 돌다 선다.
     expect(shownFace()).toBe('front');
-    advance(KEY_ROTATION_DURATION_MS + 100);
+    advance(3300);
+    fireEvent.keyUp(openBookButton(), { key: 'ArrowRight' });
+    expect(closedStage()).toHaveAttribute('data-motion', 'spin');
+    advance(1000);
+    expect(closedStage()).toHaveAttribute('data-motion', 'rest');
     expect(shownFace()).toBe('back');
     fireEvent.keyDown(openBookButton(), { key: 'Enter' });
     advance(50);
@@ -287,6 +325,10 @@ describe('App', () => {
     render(<App />);
     fireEvent.keyDown(openBookButton(), { key: 'ArrowRight' });
     expect(closedStage()).toHaveAttribute('data-motion', 'key');
+    advance(1500);
+    fireEvent.keyUp(openBookButton(), { key: 'ArrowRight' });
+    // 떼면 관성으로 돌다가, 동작 줄이기로 바뀌면 다음 프레임에 그 자리에 선다.
+    expect(closedStage()).toHaveAttribute('data-motion', 'spin');
     motion.set(true);
     advance(16);
     expect(closedStage()).toHaveAttribute('data-motion', 'rest');
@@ -388,7 +430,7 @@ describe('App', () => {
   });
 
   describe('closing the book again', () => {
-    it('should close to the front with Esc from anywhere, move focus to the closed book and announce once', () => {
+    it('should close to the front with Esc from anywhere and announce once, leaving focus on the page when it was there', () => {
       useFakeFrames();
       stubReducedMotion(true);
       render(<App />);
@@ -406,9 +448,11 @@ describe('App', () => {
       advance(REDUCED_MOTION_CROSSFADE_MS);
       expect(screen.queryByRole('region', { name: '펼친 책' })).not.toBeInTheDocument();
       expect(folio()).toBeNull();
-      expect(openBookButton()).toHaveFocus();
+      // 포커스가 body에서 Esc를 눌렀으니 사라진 노드가 없다. 책으로 옮기지 않아 포커스 표시가 생기지 않는다.
+      expect(document.activeElement).toBe(document.body);
       expect(screen.getByRole('status')).toHaveTextContent('책을 덮었다, 앞표지');
       // 닫힌 책에서는 Esc가 아무 일도 하지 않는다.
+      openBookButton().focus();
       pressEscape(openBookButton());
       advance(500);
       expect(screen.getByRole('status')).toHaveTextContent('책을 덮었다, 앞표지');

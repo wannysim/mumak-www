@@ -4,8 +4,11 @@ import { preload } from 'react-dom';
 import { photoSourceOf } from '@/content/pages';
 import { COVER_BACK_LINES, COVER_TAGLINE, coverDescription, PERSON_NAME, UI_TEXT } from '@/content/temporary';
 import { BookPage } from '@/features/book-spread/book-page';
+import { useDocumentKeyDown } from '@/hooks/use-document-key-down';
+import { useHeldArrows } from '@/hooks/use-held-arrows';
 import { useSafeAreaInsets } from '@/hooks/use-safe-area-insets';
 import { joinClassNames } from '@/lib/class-names';
+import { isActivationTarget } from '@/lib/keyboard-focus';
 import type { BookEvent, ClosedMotion } from '@/model/book/book-state';
 import { initialView } from '@/model/book/book-state';
 import type { ClosedPlacement, OpenGeometry } from '@/model/book/geometry';
@@ -94,7 +97,9 @@ const EDGE_FACES: readonly Exclude<BookFace, 'front' | 'back'>[] = ['spine', 'fo
  *   끌지 않고 뗀 탭이 책을 원근 투영한 다각형 안이면 펼친다(spin.ts가 판정). 빈 곳 탭은 아무 일도 하지 않는다.
  * - 면은 책 안쪽부터 DOM에 둔다: 덮이는 쪽(under)을 표지 판보다 먼저 그려, 3D 정렬 대신 DOM 순서로 칠하는 엔진
  *   (Playwright 헤드리스 Firefox·WebKit에서 관찰)과 판이 거의 닫혀 두 면이 1px 간격으로 붙는 순간(Chromium)에도 판이 위에 온다.
- * - 키보드·보조 기술은 투영 다각형을 감싼 버튼 하나로 받는다: Enter·Space는 펼침, 화살표는 90° 회전.
+ * - 키보드·보조 기술은 투영 다각형을 감싼 버튼 하나로 받는다: Enter·Space는 펼침.
+ * - 닫힌 상태면 포커스가 책에 없어도(body) Enter·Space로 펼치고, 화살표는 누르는 동안 돈다(use-held-arrows.ts, key-spin.ts).
+ *   다른 컨트롤에 포커스가 있으면 Enter·Space는 그 컨트롤 몫이다. 2026-11-16 사용자 결정(책에 포커스 표시가 생기지 않게).
  *   포인터 클릭은 위 판별이 맡으므로 버튼의 포인터 click은 쓰지 않는다.
  * - 펼치거나 덮는 동안(transition)에는 버튼이 aria-disabled이고 포인터를 받지 않는다.
  *   전환 자세(opening.ts·closing.ts)의 표지 판·이동·넘겨주기 투명도를 그대로 그린다. 앞표지와 뒤표지가 각각 책등을 축으로 도는 판이다.
@@ -128,6 +133,16 @@ function ClosedBook({
   const gestureRef = React.useRef<SpinGesture>(IDLE_SPIN_GESTURE);
   const touchInsets = touchGuardInsets(useSafeAreaInsets());
   const interactive = phase === 'closed';
+  useHeldArrows(interactive, direction => onBookEvent({ type: 'key-spin', direction, reducedMotion }));
+  useDocumentKeyDown(event => {
+    if (!interactive || event.defaultPrevented || event.isComposing || isActivationTarget(event.target)) {
+      return;
+    }
+    if (closedBookKeyAction(event) === 'open') {
+      event.preventDefault();
+      onBookEvent({ type: 'open', reducedMotion });
+    }
+  });
 
   const pose: TransitionPose = transition?.pose ?? {
     orientation,
@@ -199,15 +214,9 @@ function ClosedBook({
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
-    const action = closedBookKeyAction(event);
-    if (action === null) {
-      return;
-    }
-    event.preventDefault();
-    if (action.type === 'open') {
+    if (closedBookKeyAction(event) === 'open') {
+      event.preventDefault();
       onBookEvent({ type: 'open', reducedMotion });
-    } else {
-      onBookEvent({ type: 'rotate-step', rotation: action.rotation, reducedMotion });
     }
   }
 

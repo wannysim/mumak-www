@@ -3,7 +3,9 @@ import { preload } from 'react-dom';
 
 import { photoSourceOf } from '@/content/pages';
 import { UI_TEXT } from '@/content/temporary';
+import { useDocumentKeyDown } from '@/hooks/use-document-key-down';
 import { joinClassNames } from '@/lib/class-names';
+import { isTextEntry } from '@/lib/keyboard-focus';
 import type { BookEvent, BookScene } from '@/model/book/book-state';
 import { closingSideAt, turnBaseView } from '@/model/book/book-state';
 import type { OpenGeometry } from '@/model/book/geometry';
@@ -101,14 +103,16 @@ function buttonLabel(direction: TurnDirection, closeSide: CoverSide | null): str
  *   넘김이 입력 주인이 되면 누른 요소에 포인터를 붙잡아, 손을 뗀 곳이 러닝 헤드 위든 창 밖이든 pointerup을 받는다.
  *   버튼을 누르지 않은 move가 오거나(놓친 pointerup) 포인터를 잃으면 각각 놓기·취소로 본다.
  *   드래그 뒤 버튼에 오는 click은 넘김으로 보지 않는다.
- * - ←/→는 책 영역 안에 포커스가 있을 때만 받는다. 자동 착지 중에 오면 지금 장을 착지시키고 이어서 넘긴다(book-state.ts).
- * - 펼친 직후 포커스는 책 영역으로 옮긴다(닫힌 책 버튼이 사라지므로).
+ * - ←/→는 포커스가 책에 없어도(문서 전체) 받는다(2026-11-16 사용자 결정). 자동 착지 중에 오면 지금 장을 착지시키고 이어서
+ *   넘긴다(book-state.ts).
+ * - 펼친 직후 포커스는 takeFocus일 때만 책 영역으로 옮긴다(사라질 닫힌 책 버튼에 포커스가 있었을 때).
  */
 function BookSpread({
   scene,
   geometry,
   pageCount,
   reducedMotion,
+  takeFocus,
   onBookEvent,
   className,
   style,
@@ -118,6 +122,8 @@ function BookSpread({
   geometry: OpenGeometry;
   pageCount: number;
   reducedMotion: boolean;
+  /** 나타날 때 책 영역으로 포커스를 옮길지(App이 펼치기를 일으킨 입력 때의 포커스로 정한다). */
+  takeFocus: boolean;
   onBookEvent: (event: BookEvent) => void;
 }) {
   const sectionRef = React.useRef<HTMLElement | null>(null);
@@ -126,9 +132,16 @@ function BookSpread({
   const suppressClickRef = React.useRef(false);
   const { layout } = geometry;
 
-  const attachSection = React.useCallback((node: HTMLElement | null) => {
-    sectionRef.current = node;
-    node?.focus({ preventScroll: true });
+  // 나타날 때 takeFocus면(펼치기를 일으킨 입력 때 사라질 닫힌 책 버튼에 포커스가 있었다. Tab으로 온 키보드·보조 기술 사용자)
+  // 책 영역으로 포커스를 옮긴다. 포커스가 body였으면(문서 단위 키·포인터로 쓰는 중) 옮기지 않아 책에 포커스 표시가 생기지
+  // 않는다(2026-11-16 사용자 결정, tech-research.md 7장 공통 규칙 "포커스된 노드가 사라지기 전에 옮긴다").
+  const focusIfAsked = React.useEffectEvent(() => {
+    if (takeFocus) {
+      sectionRef.current?.focus({ preventScroll: true });
+    }
+  });
+  React.useEffect(() => {
+    focusIfAsked();
   }, []);
 
   // 어느 방향이든 넘길 장이 있으면 넘기고, 끝이면 덮는다. 그래서 받을 수 있는지는 방향과 무관하다.
@@ -173,14 +186,19 @@ function BookSpread({
     turnByClick(direction, fromPointer ? toBookLocal({ x: event.clientX, y: event.clientY }, geometry) : null);
   }
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+  // ←/→는 포커스가 책에 없어도(body·러닝 헤드) 넘긴다(2026-11-16 사용자 결정, tech-research.md 7장 공통 규칙 "키 범위").
+  // 입력칸·편집 영역의 화살표는 글자 커서 몫이다.
+  useDocumentKeyDown(event => {
+    if (event.defaultPrevented || isTextEntry(event.target)) {
+      return;
+    }
     const action = openBookKeyAction(event);
     if (action === null) {
       return;
     }
     event.preventDefault();
     turnByClick(action === 'next' ? 'forward' : 'backward', null);
-  }
+  });
 
   function stepGesture(event: React.PointerEvent<HTMLElement>, gestureEvent: GestureEvent) {
     const wasPressed = gestureRef.current.phase === 'pressed';
@@ -252,9 +270,9 @@ function BookSpread({
   const layers = describePageLayers(scene, geometry, reducedMotion);
 
   return (
-    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- ←/→와 넘김 드래그는 책 영역(region) 안에서만 받는다(tech-research.md 7장 공통 규칙 "키 범위"). 클릭 대안은 안의 네이티브 버튼이다.
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- 넘김 드래그는 책 영역(region) 안에서만 받는다. ←/→는 문서 단위로 받는다(tech-research.md 7장 공통 규칙 "키 범위"). 클릭 대안은 안의 네이티브 버튼이다.
     <section
-      ref={attachSection}
+      ref={sectionRef}
       tabIndex={-1}
       aria-label={UI_TEXT.bookRegion}
       className={joinClassNames(
@@ -265,7 +283,6 @@ function BookSpread({
       data-phase={scene.phase}
       data-motion={reducedMotion ? 'reduced' : 'full'}
       style={{ ...style, '--turn-gutter': `${geometry.book.x}px` } as React.CSSProperties}
-      onKeyDown={handleKeyDown}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={event => stepGesture(event, { type: 'up', pointerId: event.pointerId, point: pointOf(event) })}

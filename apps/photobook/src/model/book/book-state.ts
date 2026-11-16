@@ -18,21 +18,14 @@ import {
 } from './closing';
 import type { OpenGeometry } from './geometry';
 import { isSamePageSize, turnFrame } from './geometry';
+import type { KeySpin } from './key-spin';
+import { advanceKeySpin, keySpinOrientation, keySpinTarget, keySpinVelocity, startKeySpin } from './key-spin';
 import type { OpeningTimeline } from './opening';
 import { createOpeningTimeline, isOpeningDone } from './opening';
-import type { CoverSide, KeyRotation, KeyTurn, Orientation } from './rotation';
-import {
-  advanceKeyTurn,
-  INITIAL_ORIENTATION,
-  isKeyTurnDone,
-  keyTurnOrientation,
-  restOrientation,
-  rotateByDrag,
-  rotateByKeyStep,
-  startKeyTurn,
-} from './rotation';
+import type { CoverSide, Orientation } from './rotation';
+import { INITIAL_ORIENTATION, restOrientation, rotateByDrag } from './rotation';
 import type { Spin } from './spin';
-import { advanceSpin, isSpinDone, spinOrientation, startSpin } from './spin';
+import { advanceSpin, isSpinDone, spinFromVelocity, spinOrientation, spinVelocity, startSpin } from './spin';
 import type { TurnSession, TurnSetup } from './turn-session';
 import {
   advanceTurn,
@@ -52,10 +45,11 @@ import {
  * open ─close·끝에서 넘김→ closing(side) ─frame…→ closed(쉬는 자세)        (2026-11-16 사용자 결정 A)
  *
  * 닫힌 책(closed)
- * - 자세는 쿼터니언(rotation.ts)이고 motion이 움직임이다: rest, spin(놓은 뒤 관성), key(키보드 90° 전환).
+ * - 자세는 쿼터니언(rotation.ts)이고 motion이 움직임이다: rest, spin(놓은 뒤 관성), key(화살표를 누르는 동안 회전).
  *   끌기(spin-drag)는 화면 기준 축에 변화량을 더한다. 누르면(spin-grab) 돌던 책이 그 자리에 선다.
- *   키보드 회전 중 다시 누르면 진행 중인 전환의 끝 자세에서 한 단계 더 간다(누를 때마다 한 면).
- * - 동작 줄이기면 관성 없이 놓은 자리에 서고, 키보드 회전은 바로 바뀐다. 도는 중에 동작 줄이기로 바뀌면 다음 프레임에 선다.
+ *   누른 화살표 조합이 바뀌면(key-spin) 지금 자세·빠르기에서 이어 돌고, 다 떼면 그 빠르기로 관성에 넘긴다(key-spin.ts).
+ * - 동작 줄이기면 관성 없이 놓은 자리에 서고, 화살표는 누르는 동안만 가속 없이 돈다. 관성으로 도는 중에 동작 줄이기로
+ *   바뀌면 다음 프레임에 선다.
  * - 덮고 나면 닫힌 책은 덮은 표지의 쉬는 자세(rotation.ts restOrientation)를 기억한다. 뒤표지로 덮으면 뒷면이 보인다.
  *
  * 펼침·넘김
@@ -90,7 +84,7 @@ import {
 export type ClosedMotion =
   | { readonly type: 'rest' }
   | { readonly type: 'spin'; readonly spin: Spin }
-  | { readonly type: 'key'; readonly turn: KeyTurn };
+  | { readonly type: 'key'; readonly spin: KeySpin };
 
 type ClosingStage =
   | { readonly type: 'drag'; readonly drag: CoverDrag }
@@ -142,7 +136,8 @@ export type BookEvent =
   | { readonly type: 'spin-grab' }
   | { readonly type: 'spin-drag'; readonly delta: Vec2 }
   | { readonly type: 'spin-release'; readonly delta: Vec2; readonly velocity: Vec2; readonly reducedMotion: boolean }
-  | { readonly type: 'rotate-step'; readonly rotation: KeyRotation; readonly reducedMotion: boolean }
+  /** 누르고 있는 화살표 조합이 바뀌었다. direction은 그 방향 합(keyboard.ts arrowDirection), 다 뗐으면 0이다. */
+  | { readonly type: 'key-spin'; readonly direction: Vec2; readonly reducedMotion: boolean }
   | { readonly type: 'open'; readonly reducedMotion: boolean }
   | {
       readonly type: 'close';
@@ -485,15 +480,33 @@ function closedFrame(scene: ClosedScene, time: number, reducedMotion: boolean): 
     };
   }
   if (motion.type === 'key') {
-    if (reducedMotion) {
-      return { phase: 'closed', orientation: motion.turn.to, motion: REST };
-    }
-    const turn = advanceKeyTurn(motion.turn, time);
-    return isKeyTurnDone(turn)
-      ? { phase: 'closed', orientation: turn.to, motion: REST }
-      : { phase: 'closed', orientation: keyTurnOrientation(turn), motion: { type: 'key', turn } };
+    const spin = advanceKeySpin(motion.spin, time);
+    return { phase: 'closed', orientation: keySpinOrientation(spin), motion: { type: 'key', spin } };
   }
   return scene;
+}
+
+/** 닫힌 책이 지금 도는 빠르기(끄는 방향 벡터, deg/ms)와 지난 프레임 시각. 화살표 조합이 바뀔 때 이어 갈 값이다. */
+function closedVelocity(motion: ClosedMotion): { readonly velocity: Vec2; readonly lastTime: number | null } {
+  switch (motion.type) {
+    case 'spin':
+      return { velocity: spinVelocity(motion.spin), lastTime: motion.spin.lastTime };
+    case 'key':
+      return { velocity: keySpinVelocity(motion.spin), lastTime: motion.spin.lastTime };
+    default:
+      return { velocity: { x: 0, y: 0 }, lastTime: null };
+  }
+}
+
+/** 누른 화살표가 바뀌었다. 누른 게 있으면 지금 자세·빠르기에서 그쪽으로 돌고, 다 뗐으면 관성으로 돌다 멈춘다. */
+function changeKeySpin(closed: ClosedScene, direction: Vec2, reducedMotion: boolean): ClosedScene {
+  const current = closedVelocity(closed.motion);
+  const target = keySpinTarget(direction);
+  if (target.x === 0 && target.y === 0) {
+    const spin = reducedMotion ? null : spinFromVelocity(closed.orientation, current.velocity, current.lastTime);
+    return { ...closed, motion: spin === null ? REST : { type: 'spin', spin } };
+  }
+  return { ...closed, motion: { type: 'key', spin: startKeySpin(closed.orientation, current, target, reducedMotion) } };
 }
 
 function closingFrame(state: BookState, scene: ClosingScene, time: number, reducedMotion: boolean): BookState {
@@ -569,14 +582,8 @@ export function reduceBook(state: BookState, event: BookEvent): BookState {
         const spin = event.reducedMotion ? null : startSpin(orientation, event.velocity);
         return { phase: 'closed', orientation, motion: spin === null ? REST : { type: 'spin', spin } };
       });
-    case 'rotate-step':
-      return onClosed(state, closed => {
-        const base = closed.motion.type === 'key' ? closed.motion.turn.to : closed.orientation;
-        const to = rotateByKeyStep(base, event.rotation);
-        return event.reducedMotion
-          ? { phase: 'closed', orientation: to, motion: REST }
-          : { ...closed, motion: { type: 'key', turn: startKeyTurn(closed.orientation, to) } };
-      });
+    case 'key-spin':
+      return onClosed(state, closed => changeKeySpin(closed, event.direction, event.reducedMotion));
     case 'open':
       return scene.phase === 'closed'
         ? withScene(state, {

@@ -3,12 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type { Quat, Vec3 } from '../quaternion';
 import {
   angleBetweenQuat,
-  conjugateQuat,
-  CUBE_ORIENTATIONS,
   dotQuat,
   IDENTITY_QUAT,
   multiplyQuat,
-  nearestCubeOrientation,
   normalizeQuat,
   quatFromAxisAngle,
   quatToMatrix,
@@ -59,11 +56,6 @@ describe('quaternion', () => {
     expect(normalized).toEqual(IDENTITY_QUAT);
   });
 
-  it('should undo a rotation with its conjugate', () => {
-    const q = normalizeQuat(multiplyQuat(quatFromAxisAngle(X_AXIS, 40), quatFromAxisAngle(Y_AXIS, 75)));
-    expect(rotationGap(multiplyQuat(conjugateQuat(q), q), IDENTITY_QUAT)).toBeLessThan(1e-10);
-  });
-
   it('should measure the shortest angle between orientations', () => {
     expect(angleBetweenQuat(IDENTITY_QUAT, quatFromAxisAngle(Y_AXIS, 90))).toBeCloseTo(90);
     expect(angleBetweenQuat(IDENTITY_QUAT, quatFromAxisAngle(Y_AXIS, 270))).toBeCloseTo(90);
@@ -106,30 +98,5 @@ describe('quaternion', () => {
     expect(toCssMatrix3d(quatFromAxisAngle(Y_AXIS, 90))).toBe(
       'matrix3d(0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1)'
     );
-  });
-
-  describe('cube orientations', () => {
-    it('should list the 24 distinct axis-aligned orientations', () => {
-      expect(CUBE_ORIENTATIONS).toHaveLength(24);
-      for (const [index, a] of CUBE_ORIENTATIONS.entries()) {
-        expect(Math.sqrt(dotQuat(a, a))).toBeCloseTo(1);
-        for (const b of CUBE_ORIENTATIONS.slice(index + 1)) {
-          expect(Math.abs(dotQuat(a, b))).toBeLessThan(0.99);
-        }
-        // 축 정렬: 행렬 원소가 모두 -1, 0, 1이다.
-        for (const value of quatToMatrix(a)) {
-          expect(Math.min(Math.abs(value), Math.abs(Math.abs(value) - 1))).toBeLessThan(1e-12);
-        }
-      }
-    });
-
-    it('should snap to the nearest one', () => {
-      expect(nearestCubeOrientation(quatFromAxisAngle(Y_AXIS, 10))).toBe(IDENTITY_QUAT);
-      expect(
-        rotationGap(nearestCubeOrientation(quatFromAxisAngle(Y_AXIS, 80)), quatFromAxisAngle(Y_AXIS, 90))
-      ).toBeLessThan(1e-10);
-      const tilted = multiplyQuat(quatFromAxisAngle(X_AXIS, 100), quatFromAxisAngle(Y_AXIS, -20));
-      expect(rotationGap(nearestCubeOrientation(tilted), quatFromAxisAngle(X_AXIS, 90))).toBeLessThan(1e-10);
-    });
   });
 });

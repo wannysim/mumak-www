@@ -23,8 +23,8 @@ import type { OpenGeometry } from '../geometry';
 import { computeOpenGeometry } from '../geometry';
 import { openingDuration, REDUCED_MOTION_CROSSFADE_MS } from '../opening';
 import type { Quat } from '../quaternion';
-import { dotQuat } from '../quaternion';
-import { INITIAL_ORIENTATION, KEY_ROTATION_DURATION_MS, restOrientation, rotateByDrag } from '../rotation';
+import { angleBetweenQuat, dotQuat } from '../quaternion';
+import { INITIAL_ORIENTATION, restOrientation, rotateByDrag } from '../rotation';
 
 const PAGE_COUNT = 8;
 const spread = computeOpenGeometry({ width: 1440, height: 900 }, 'spread');
@@ -79,9 +79,7 @@ describe('book state', () => {
       const open = openSpread();
       expect(run(open, { type: 'spin-drag', delta: { x: 10, y: 0 } })).toBe(open);
       expect(run(open, { type: 'spin-grab' })).toBe(open);
-      expect(run(open, { type: 'rotate-step', rotation: { axis: 'horizontal', step: 1 }, reducedMotion: true })).toBe(
-        open
-      );
+      expect(run(open, { type: 'key-spin', direction: { x: 1, y: 0 }, reducedMotion: true })).toBe(open);
     });
 
     it('should do nothing on frames and resizes while resting', () => {
@@ -367,6 +365,18 @@ describe('book state', () => {
       return { type: 'spin-release', delta: { x: 0, y: 0 }, velocity: { x: velocityX, y: 0 }, reducedMotion };
     }
 
+    /** 누르고 있는 화살표 방향(합). (0, 0)은 다 뗀 것이다. */
+    function hold(x: number, y: number, reducedMotion = false): BookEvent {
+      return { type: 'key-spin', direction: { x, y }, reducedMotion };
+    }
+
+    function keySpinOf(state: BookState) {
+      if (state.scene.phase !== 'closed' || state.scene.motion.type !== 'key') {
+        throw new Error('key spin expected');
+      }
+      return state.scene.motion.spin;
+    }
+
     it('should rotate on screen axes while dragging and do nothing on a grab at rest', () => {
       expect(run(closed, { type: 'spin-grab' })).toBe(closed);
       const dragged = run(
@@ -424,23 +434,75 @@ describe('book state', () => {
       expect(run(closed, release(0.001)).scene).toMatchObject({ motion: { type: 'rest' } });
     });
 
-    it('should animate key steps, chain a second press from the first target and jump with reduced motion', () => {
-      const step: BookEvent = { type: 'rotate-step', rotation: { axis: 'horizontal', step: 1 }, reducedMotion: false };
-      const turning = run(closed, step);
-      expect(turning.scene).toMatchObject({ motion: { type: 'key' } });
-      expect(facingFace(orientationOf(turning))).toBe('front');
-      const twice = run(turning, frame(0), frame(100), step);
-      const landed = runFrames(twice, spread, 200);
-      expect(facingFace(orientationOf(landed))).toBe('back');
-      expect(landed.scene).toMatchObject({ motion: { type: 'rest' } });
-      const done = run(turning, frame(0), frame(KEY_ROTATION_DURATION_MS));
-      expect(facingFace(orientationOf(done))).toBe('spine');
-      const instant = run(closed, { ...step, reducedMotion: true });
-      expect(instant.scene).toMatchObject({ motion: { type: 'rest' } });
-      expect(facingFace(orientationOf(instant))).toBe('spine');
-      const switched = run(turning, frame(0), frame(16, spread, true));
-      expect(switched.scene).toMatchObject({ motion: { type: 'rest' } });
-      expect(facingFace(orientationOf(switched))).toBe('spine');
+    it('should keep turning slowly while an arrow is held and coast to a stop after release', () => {
+      const holding = run(closed, hold(1, 0));
+      expect(holding.scene).toMatchObject({ motion: { type: 'key' } });
+      expect(needsFrames(holding.scene)).toBe(true);
+      // 출발은 부드럽다: 처음 200ms는 일정 빠르기(60°/s)로 돈 12°보다 덜 돈다.
+      const early = run(holding, frame(0), frame(200));
+      expect(angleBetweenQuat(orientationOf(early), INITIAL_ORIENTATION)).toBeLessThan(12 / 2);
+      // 1.8초쯤 누르고 있으면 약 90° 돌아 책등이 정면에 온다. 누르는 동안은 서지 않는다.
+      const turned = run(holding, frame(0), frame(1800));
+      expect(facingFace(orientationOf(turned))).toBe('spine');
+      expect(turned.scene).toMatchObject({ motion: { type: 'key' } });
+      // 다 떼면 그 빠르기로 관성에 넘겨 조금 더 돌다 선다.
+      const released = run(turned, hold(0, 0));
+      expect(released.scene).toMatchObject({ motion: { type: 'spin' } });
+      expect(orientationOf(released)).toBe(orientationOf(turned));
+      const rested = runFrames(released, spread, 1800);
+      expect(rested.scene).toMatchObject({ motion: { type: 'rest' } });
+      const coast = angleBetweenQuat(orientationOf(rested), orientationOf(turned));
+      expect(coast).toBeGreaterThan(5);
+      expect(coast).toBeLessThan(20);
+    });
+
+    it('should turn at the same speed diagonally', () => {
+      const straight = run(closed, hold(1, 0), frame(0), frame(1000));
+      const diagonal = run(closed, hold(1, 1), frame(0), frame(1000));
+      expect(angleBetweenQuat(orientationOf(diagonal), INITIAL_ORIENTATION)).toBeCloseTo(
+        angleBetweenQuat(orientationOf(straight), INITIAL_ORIENTATION),
+        0
+      );
+    });
+
+    it('should carry on from the current speed when the arrows change or while coasting', () => {
+      // 오른쪽으로 돌다가 아래 화살표를 더하면 지금 자세와 빠르기에서 이어 간다(자세가 튀지 않는다).
+      const right = run(closed, hold(1, 0), frame(0), frame(500));
+      const both = run(right, hold(1, 1));
+      expect(orientationOf(both)).toBe(orientationOf(right));
+      expect(keySpinOf(both).initial.x).toBeCloseTo(0.06 * (1 - Math.exp(-500 / 250)));
+      expect(keySpinOf(both).lastTime).toBe(500);
+      // 끌어서 던진 관성 중에 누르면 그 관성 빠르기(1px/ms × 0.4°/px × e^(-100/250))에서 이어 간다.
+      const coasting = run(closed, release(1), frame(0), frame(100));
+      const pressed = run(coasting, hold(1, 0));
+      expect(orientationOf(pressed)).toBe(orientationOf(coasting));
+      expect(keySpinOf(pressed).initial.x).toBeCloseTo(0.4 * Math.exp(-100 / 250));
+    });
+
+    it.each([1000 / 120, 1000 / 60, 1000 / 30])('should hold-turn to the same pose with frames every %f ms', dtMs => {
+      let state = run(closed, hold(1, 1), frame(0));
+      for (let time = dtMs; time < 900 - 1e-6; time += dtMs) {
+        state = run(state, frame(time));
+      }
+      state = run(state, frame(900));
+      expectSameRotation(orientationOf(state), orientationOf(run(closed, hold(1, 1), frame(0), frame(900))));
+      expect(state.scene).toMatchObject({ motion: { type: 'key' } });
+    });
+
+    it('should turn only while held, without easing, with reduced motion', () => {
+      const holding = run(closed, hold(0, -1, true), frame(0), frame(1000));
+      // 가속 없이 60°/s.
+      expect(angleBetweenQuat(orientationOf(holding), INITIAL_ORIENTATION)).toBeCloseTo(60, 6);
+      const released = run(holding, hold(0, 0, true));
+      expect(released.scene).toEqual({
+        phase: 'closed',
+        orientation: orientationOf(holding),
+        motion: { type: 'rest' },
+      });
+      // 누르자마자 떼면(그린 프레임이 없으면) 돌 빠르기가 없어 그 자리에 선다.
+      expect(run(closed, hold(1, 0), hold(0, 0)).scene).toMatchObject({ motion: { type: 'rest' } });
+      // 누르는 중에 붙잡으면 선다.
+      expect(run(holding, { type: 'spin-grab' }).scene).toMatchObject({ motion: { type: 'rest' } });
     });
 
     it('should open from the pose the book was spun to', () => {

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookEvent } from '@/model/book/book-state';
@@ -175,24 +175,98 @@ describe('ClosedBook', () => {
     );
   });
 
-  it('should open from keyboard or assistive technology activation and rotate with all four arrows', () => {
+  it('should open from keyboard or assistive technology activation', () => {
     const { button, onBookEvent } = renderClosedBook();
     fireEvent.click(button, { detail: 0 });
     fireEvent.keyDown(button, { key: 'Enter' });
     fireEvent.keyDown(button, { key: ' ' });
-    expect(eventTypes(onBookEvent)).toEqual(['open', 'open', 'open']);
-    onBookEvent.mockClear();
-    for (const key of ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown']) {
-      fireEvent.keyDown(button, { key });
-    }
-    expect(onBookEvent.mock.calls.map(([event]) => (event.type === 'rotate-step' ? event.rotation : null))).toEqual([
-      { axis: 'horizontal', step: 1 },
-      { axis: 'horizontal', step: -1 },
-      { axis: 'vertical', step: -1 },
-      { axis: 'vertical', step: 1 },
-    ]);
-    fireEvent.keyDown(button, { key: 'ArrowRight', metaKey: true });
     fireEvent.keyDown(button, { key: 'Tab' });
+    expect(eventTypes(onBookEvent)).toEqual(['open', 'open', 'open']);
+  });
+
+  it('should open with Enter or Space from the page, but leave them to other controls', () => {
+    const { onBookEvent } = renderClosedBook();
+    fireEvent.keyDown(document.body, { key: 'Enter' });
+    fireEvent.keyDown(document.body, { key: ' ' });
+    expect(eventTypes(onBookEvent)).toEqual(['open', 'open']);
+    // 다른 컨트롤의 Enter, 한글 조합 중의 Enter, 단축키는 받지 않는다.
+    const other = document.createElement('button');
+    document.body.append(other);
+    fireEvent.keyDown(other, { key: 'Enter' });
+    other.remove();
+    fireEvent.keyDown(document.body, { key: 'Enter', isComposing: true });
+    fireEvent.keyDown(document.body, { key: 'Enter', metaKey: true });
+    expect(onBookEvent).toHaveBeenCalledTimes(2);
+    cleanup();
+    // 펼치는 중에는 받지 않는다.
+    const opening = renderClosedBook({ phase: 'opening', transition: transition({}) });
+    fireEvent.keyDown(document.body, { key: 'Enter' });
+    expect(opening.onBookEvent).not.toHaveBeenCalled();
+  });
+
+  it('should turn while arrows are held anywhere on the page, combining them and ignoring key repeats', () => {
+    const { button, onBookEvent } = renderClosedBook();
+    const directions = () =>
+      onBookEvent.mock.calls.map(([event]) => (event.type === 'key-spin' ? event.direction : event.type));
+    // 포커스가 책에 없어도(body) 받는다.
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    // 누르고 있는 동안 오는 자동 반복은 무시한다.
+    fireEvent.keyDown(document.body, { key: 'ArrowRight', repeat: true });
+    // 책 버튼에 포커스가 있어도 같은 입력이다(한 번만 받는다).
+    fireEvent.keyDown(button, { key: 'ArrowUp' });
+    fireEvent.keyUp(document.body, { key: 'ArrowRight' });
+    fireEvent.keyUp(button, { key: 'ArrowUp' });
+    // 누르지 않은 키를 떼는 것은 상관없다.
+    fireEvent.keyUp(document.body, { key: 'ArrowDown' });
+    fireEvent.keyUp(document.body, { key: 'Enter' });
+    expect(directions()).toEqual([
+      { x: 1, y: 0 },
+      { x: 1, y: -1 },
+      { x: 0, y: -1 },
+      { x: 0, y: 0 },
+    ]);
+    const keyEvent = createEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    fireEvent(document.body, keyEvent);
+    // 화살표가 페이지를 스크롤하지 않는다.
+    expect(keyEvent.defaultPrevented).toBe(true);
+  });
+
+  it('should leave arrows to text fields, already handled keys and a book that is not closed', () => {
+    const { onBookEvent } = renderClosedBook();
+    const input = document.createElement('input');
+    document.body.append(input);
+    fireEvent.keyDown(input, { key: 'ArrowLeft' });
+    input.remove();
+    const handled = createEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    handled.preventDefault();
+    fireEvent(document.body, handled);
+    expect(onBookEvent).not.toHaveBeenCalled();
+    cleanup();
+    // 펼치는 중에는 받지 않는다.
+    const opening = renderClosedBook({ phase: 'opening', transition: transition({}) });
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    expect(opening.onBookEvent).not.toHaveBeenCalled();
+  });
+
+  it('should let go of held arrows when the window loses focus or on a command key, and leave shortcuts alone', () => {
+    const { onBookEvent } = renderClosedBook();
+    const lastDirection = () => {
+      const last = onBookEvent.mock.calls.at(-1)?.[0];
+      return last?.type === 'key-spin' ? last.direction : null;
+    };
+    fireEvent.keyDown(document.body, { key: 'ArrowDown' });
+    fireEvent.blur(window);
+    expect(lastDirection()).toEqual({ x: 0, y: 0 });
+    // 이미 다 뗐으면 다시 알리지 않는다.
+    fireEvent.blur(window);
+    expect(onBookEvent).toHaveBeenCalledTimes(2);
+    // macOS는 Meta를 누른 동안 keyup을 보내지 않아 Meta를 누르면 다 뗀 것으로 본다. 단축키 자체는 가로채지 않는다.
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    fireEvent.keyDown(document.body, { key: 'Meta', metaKey: true });
+    expect(lastDirection()).toEqual({ x: 0, y: 0 });
+    const shortcut = createEvent.keyDown(document.body, { key: 'ArrowRight', metaKey: true });
+    fireEvent(document.body, shortcut);
+    expect(shortcut.defaultPrevented).toBe(false);
     expect(onBookEvent).toHaveBeenCalledTimes(4);
   });
 

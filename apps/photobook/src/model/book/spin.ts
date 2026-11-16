@@ -196,7 +196,10 @@ export function reduceSpinGesture(
   };
 }
 
-/** 놓은 뒤 관성. base는 놓은 순간 자세, axis는 화면 축, speed는 처음 각속도(deg/ms). */
+/**
+ * 놓은 뒤 관성. base는 놓은 순간 자세, axis는 화면 축, speed는 처음 각속도(deg/ms).
+ * 끌기를 놓을 때(startSpin)와 화살표 키를 다 뗄 때(spinFromVelocity, key-spin.ts) 시작한다.
+ */
 export type Spin = {
   readonly base: Orientation;
   readonly axis: Vec3;
@@ -206,14 +209,35 @@ export type Spin = {
   readonly elapsedMs: number;
 };
 
-/** 놓을 때의 화면 속도(px/ms)로 관성을 시작한다. 정지 임계 이하면 null(그 자리에 멈춘다). */
-export function startSpin(base: Orientation, velocity: Vec2): Spin | null {
-  const pixelSpeed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
-  const speed = Math.min(pixelSpeed * DEGREES_PER_DRAG_PX, MAX_SPIN_DEG_PER_MS);
+/**
+ * 각속도로 관성을 시작한다. angularVelocity는 끄는 방향 벡터이고 길이가 각속도(deg/ms)다(rotation.ts screenRotation과
+ * 같은 방향 규칙). lastTime은 이어 갈 지난 프레임 시각이고, 없으면 첫 프레임은 지금 자세 그대로 둔다.
+ * 정지 임계 이하면 null(그 자리에 멈춘다).
+ */
+export function spinFromVelocity(base: Orientation, angularVelocity: Vec2, lastTime: number | null): Spin | null {
+  const size = Math.hypot(angularVelocity.x, angularVelocity.y);
+  const speed = Math.min(size, MAX_SPIN_DEG_PER_MS);
   if (speed <= SPIN_STOP_DEG_PER_MS) {
     return null;
   }
-  return { base, axis: { x: -velocity.y, y: velocity.x, z: 0 }, speed, lastTime: null, elapsedMs: 0 };
+  // 축은 끄는 방향에 수직인 화면 축(단위 벡터)이다.
+  const axis = { x: -angularVelocity.y / size, y: angularVelocity.x / size, z: 0 };
+  return { base, axis, speed, lastTime, elapsedMs: 0 };
+}
+
+/** 놓을 때의 화면 속도(px/ms)로 관성을 시작한다. 정지 임계 이하면 null(그 자리에 멈춘다). */
+export function startSpin(base: Orientation, velocity: Vec2): Spin | null {
+  return spinFromVelocity(base, { x: velocity.x * DEGREES_PER_DRAG_PX, y: velocity.y * DEGREES_PER_DRAG_PX }, null);
+}
+
+/** 지금 각속도(끄는 방향 벡터, deg/ms). 멈춘 뒤로는 0이다. 관성으로 돌던 중에 키를 누르면 이 빠르기에서 이어 간다. */
+export function spinVelocity(spin: Spin): Vec2 {
+  const axisLength = Math.hypot(spin.axis.x, spin.axis.y);
+  if (axisLength === 0 || isSpinDoneAt(spin, spin.elapsedMs)) {
+    return ZERO;
+  }
+  const speed = spin.speed * Math.exp(-spin.elapsedMs / SPIN_DECAY_TIME_MS);
+  return { x: (spin.axis.y / axisLength) * speed, y: (-spin.axis.x / axisLength) * speed };
 }
 
 /** 각속도가 정지 임계에 닿는 시각(ms). */

@@ -1,16 +1,12 @@
 import type { Vec2 } from '@/model/fold';
 
-import { OPEN_EASING } from './easing';
 import type { Quat, Vec3 } from './quaternion';
 import {
-  conjugateQuat,
   IDENTITY_QUAT,
   multiplyQuat,
-  nearestCubeOrientation,
   normalizeQuat,
   quatFromAxisAngle,
   rotateVec3,
-  slerpQuat,
   X_AXIS,
   Y_AXIS,
 } from './quaternion';
@@ -31,7 +27,7 @@ export type CoverSide = 'front' | 'back';
 export type BookFace = 'front' | 'spine' | 'back' | 'fore' | 'top' | 'bottom';
 
 /**
- * 닫힌 책을 쉬게 둘 때의 기울기(시안 closed-a `rotateX(-8deg) rotateY(-11deg)`). 첫 화면, 덮은 뒤, 키보드 회전이 쉬는 자세에
+ * 닫힌 책을 쉬게 둘 때의 기울기(시안 closed-a `rotateX(-8deg) rotateY(-11deg)`). 첫 화면과 덮은 뒤 쉬는 자세에
  * 같은 기울기를 건다. 임시, open-decisions G0 "닫힌 책 형태"·G3 "닫힌 책 회전 범위와 감각".
  */
 const PRESENTATION_PITCH_DEG = -8;
@@ -49,10 +45,6 @@ export const INITIAL_ORIENTATION: Orientation = PRESENTATION_TILT;
 
 /** 끌기 1 CSS px당 회전 각도. 임시, open-decisions G3 "닫힌 책 회전 범위와 감각". */
 export const DEGREES_PER_DRAG_PX = 0.4;
-
-/** 키보드 화살표 한 번에 도는 각도와 시간. 임시, tech-research.md 7장 U1·open-decisions G3 "닫힌 책 회전 범위와 감각". */
-const KEY_ROTATION_STEP_DEG = 90;
-export const KEY_ROTATION_DURATION_MS = 400;
 
 /** 표지 판이 완전히 열렸을 때 책등을 축으로 돈 각도. 정해진 기하(펼친 책 옆 쪽 자리에 눕는다). */
 const COVER_OPEN_DEG = 180;
@@ -86,10 +78,17 @@ export function restOrientation(side: CoverSide): Orientation {
   return side === 'front' ? PRESENTATION_TILT : normalizeQuat(multiplyQuat(PRESENTATION_TILT, BACK_TURN));
 }
 
+/**
+ * 화면 기준 회전. angle은 끄는 방향 벡터이고 길이가 각도(deg)다: 그 방향으로 끈 것처럼 돈다(축은 방향에 수직인 화면 축).
+ * 끌기·관성·키보드 회전이 같은 방향 규칙을 쓴다.
+ */
+export function screenRotation(angle: Vec2): Quat {
+  return quatFromAxisAngle({ x: -angle.y, y: angle.x, z: 0 }, Math.sqrt(angle.x * angle.x + angle.y * angle.y));
+}
+
 /** 화면에서 delta(CSS px)만큼 끌 때 더할 회전. 축은 끈 방향에 수직인 화면 축이다. */
 export function dragRotation(delta: Vec2): Quat {
-  const distance = Math.sqrt(delta.x * delta.x + delta.y * delta.y);
-  return quatFromAxisAngle({ x: -delta.y, y: delta.x, z: 0 }, distance * DEGREES_PER_DRAG_PX);
+  return screenRotation({ x: delta.x * DEGREES_PER_DRAG_PX, y: delta.y * DEGREES_PER_DRAG_PX });
 }
 
 /** 지금 자세에 화면 기준 끌기 회전을 더한다. */
@@ -99,50 +98,6 @@ export function rotateByDrag(orientation: Orientation, delta: Vec2): Orientation
     return orientation;
   }
   return normalizeQuat(multiplyQuat(dragRotation(delta), orientation));
-}
-
-/** 키보드 회전. 'horizontal' 1은 →(오른쪽으로 끈 것과 같다), 'vertical' 1은 ↓(아래로 끈 것과 같다). */
-export type KeyRotation = {
-  readonly axis: 'horizontal' | 'vertical';
-  readonly step: 1 | -1;
-};
-
-/**
- * 한 면이 정면에 서도록 맞춘 뒤 화면 축으로 90° 돈다. 기울기(PRESENTATION_TILT)를 빼고 가장 가까운 축 정렬 자세를 찾아
- * 돌린 다음 기울기를 다시 건다. 그래서 몇 번을 눌러도 오차가 쌓이지 않고 늘 같은 기울기로 한 면을 보인다.
- */
-export function rotateByKeyStep(orientation: Orientation, rotation: KeyRotation): Orientation {
-  const aligned = nearestCubeOrientation(multiplyQuat(conjugateQuat(PRESENTATION_TILT), orientation));
-  const direction = rotation.axis === 'horizontal' ? { x: rotation.step, y: 0 } : { x: 0, y: rotation.step };
-  const turn = quatFromAxisAngle({ x: -direction.y, y: direction.x, z: 0 }, KEY_ROTATION_STEP_DEG);
-  return normalizeQuat(multiplyQuat(PRESENTATION_TILT, multiplyQuat(turn, aligned)));
-}
-
-/** 키보드 회전 전환. 경과 시간으로만 자세를 정한다(주사율 무관). */
-export type KeyTurn = {
-  readonly from: Orientation;
-  readonly to: Orientation;
-  /** 첫 프레임 시각. 아직 그리지 않았으면 null. */
-  readonly startTime: number | null;
-  readonly elapsedMs: number;
-};
-
-export function startKeyTurn(from: Orientation, to: Orientation): KeyTurn {
-  return { from, to, startTime: null, elapsedMs: 0 };
-}
-
-export function advanceKeyTurn(turn: KeyTurn, time: number): KeyTurn {
-  const startTime = turn.startTime ?? time;
-  return { ...turn, startTime, elapsedMs: Math.max(time - startTime, 0) };
-}
-
-/** 이징은 이전 CSS 전환(400ms cubic-bezier(.16,1,.3,1))과 같다. */
-export function keyTurnOrientation(turn: KeyTurn): Orientation {
-  return slerpQuat(turn.from, turn.to, OPEN_EASING(Math.min(turn.elapsedMs / KEY_ROTATION_DURATION_MS, 1)));
-}
-
-export function isKeyTurnDone(turn: KeyTurn): boolean {
-  return turn.startTime !== null && turn.elapsedMs >= KEY_ROTATION_DURATION_MS;
 }
 
 export function faceNormal(face: BookFace): Vec3 {

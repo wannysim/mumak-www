@@ -9,6 +9,7 @@ import { useDocumentKeyDown } from '@/hooks/use-document-key-down';
 import { useFrameLoop } from '@/hooks/use-frame-loop';
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion';
 import { useViewportSize } from '@/hooks/use-viewport-size';
+import { hasFocusedElement } from '@/lib/keyboard-focus';
 import type { Announcement, BookEvent, BookScene } from '@/model/book/book-state';
 import {
   canClose,
@@ -119,23 +120,38 @@ export function App() {
 
   useFrameLoop(needsFrames(scene), time => dispatch({ type: 'frame', time, geometry, reducedMotion }));
 
+  // 사용자 입력으로 생긴 사건은 그때 앱 안 요소에 포커스가 있었는지 함께 적어 둔다(펼친 뒤·덮은 뒤 포커스 이동).
+  // 동작 줄이기 펼침이나 손으로 덮기를 놓을 때는 사라질 요소가 같은 렌더에서 빠져, 효과가 돌 때는 이미 포커스가 body라서다.
+  // 포커스가 body였으면(문서 단위 키·포인터로 쓰는 중) 옮기지 않아 책에 포커스 표시가 생기지 않는다(2026-11-16 사용자 결정).
+  const [focusInApp, setFocusInApp] = React.useState(false);
+  function send(event: BookEvent) {
+    setFocusInApp(hasFocusedElement());
+    dispatch(event);
+  }
+
   const closeToFront: BookEvent = { type: 'close', side: 'front', geometry, reducedMotion };
   useDocumentKeyDown(event => {
     if (documentKeyAction(event) === 'close' && !event.defaultPrevented && canClose(state.scene)) {
       event.preventDefault();
-      dispatch(closeToFront);
+      send(closeToFront);
     }
   });
 
   // 덮기 전환이 시작되면 사라질 펼친 책(과 덮은 뒤 글자로 바뀌는 러닝 헤드 이름) 대신 닫힌 책 버튼에 포커스를 둔다.
-  // 버튼은 전환 중 aria-disabled로 이미 그려져 있다. 덮은 알림이 새로 쓰일 때(착지) 한 번 더 확인한다. 첫 화면에서는 옮기지 않는다
+  // 버튼은 전환 중 aria-disabled로 이미 그려져 있다. 덮은 알림이 새로 쓰일 때(착지) 한 번 더 확인한다
   // (tech-research.md 7장 공통 규칙 "포커스된 노드가 사라지기 전에 옮긴다", 책 닫기 행).
+  // 덮기를 일으킨 입력 때 포커스가 body였으면 옮기지 않는다(사라질 노드가 없다).
   const closingStarted = scene.phase === 'closing' && scene.stage.type === 'transition';
   const closedSerial = announcement?.kind === 'closed' ? announcement.serial : null;
   const closedBookFocusKey = closingStarted ? 'closing' : closedSerial;
+  const focusClosedBook = React.useEffectEvent(() => {
+    if (focusInApp) {
+      closedButtonRef.current?.focus({ preventScroll: true });
+    }
+  });
   React.useEffect(() => {
     if (closedBookFocusKey !== null) {
-      closedButtonRef.current?.focus({ preventScroll: true });
+      focusClosedBook();
     }
   }, [closedBookFocusKey]);
 
@@ -149,9 +165,7 @@ export function App() {
         parts={runningHeadParts(viewport, layout)}
         folio={pageFolio?.folio ?? null}
         folioReading={pageFolio?.reading ?? null}
-        nameAction={
-          scene.phase === 'closed' ? null : { disabled: !canClose(scene), onPress: () => dispatch(closeToFront) }
-        }
+        nameAction={scene.phase === 'closed' ? null : { disabled: !canClose(scene), onPress: () => send(closeToFront) }}
       />
       <main aria-label="Photobook" className="min-h-svh">
         {spread === null ? null : (
@@ -160,7 +174,8 @@ export function App() {
             geometry={geometry}
             pageCount={PAGE_COUNT}
             reducedMotion={reducedMotion}
-            onBookEvent={dispatch}
+            takeFocus={focusInApp}
+            onBookEvent={send}
             style={spread.style}
           />
         )}
@@ -174,7 +189,7 @@ export function App() {
             motion={scene.phase === 'closed' ? scene.motion.type : 'rest'}
             reducedMotion={reducedMotion}
             buttonRef={closedButtonRef}
-            onBookEvent={dispatch}
+            onBookEvent={send}
           />
         ) : null}
       </main>

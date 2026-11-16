@@ -4,9 +4,8 @@ import { facingFace } from '@/test/book-faces';
 
 import type { Quat } from '../quaternion';
 import { dotQuat, IDENTITY_QUAT, multiplyQuat, quatFromAxisAngle, rotateVec3, X_AXIS, Y_AXIS } from '../quaternion';
-import type { BookFace, KeyRotation } from '../rotation';
+import type { BookFace } from '../rotation';
 import {
-  advanceKeyTurn,
   coverAngleDeg,
   DEGREES_PER_DRAG_PX,
   dragRotation,
@@ -14,14 +13,10 @@ import {
   facingOf,
   facingOrientation,
   INITIAL_ORIENTATION,
-  isKeyTurnDone,
   isTurnedAway,
-  KEY_ROTATION_DURATION_MS,
-  keyTurnOrientation,
   restOrientation,
   rotateByDrag,
-  rotateByKeyStep,
-  startKeyTurn,
+  screenRotation,
 } from '../rotation';
 
 function expectSameRotation(actual: Quat, expected: Quat) {
@@ -35,11 +30,6 @@ function yaw(degrees: number): Quat {
 function pitch(degrees: number): Quat {
   return quatFromAxisAngle(X_AXIS, degrees);
 }
-
-const RIGHT: KeyRotation = { axis: 'horizontal', step: 1 };
-const LEFT: KeyRotation = { axis: 'horizontal', step: -1 };
-const UP: KeyRotation = { axis: 'vertical', step: -1 };
-const DOWN: KeyRotation = { axis: 'vertical', step: 1 };
 
 describe('rotation', () => {
   it('should start from the closed-a pose with the front cover facing the viewer', () => {
@@ -89,48 +79,21 @@ describe('rotation', () => {
     });
   });
 
-  describe('key steps', () => {
-    it('should face the spine, back and fore edge one step at a time and keep the presentation tilt', () => {
-      const spine = rotateByKeyStep(INITIAL_ORIENTATION, RIGHT);
-      expectSameRotation(spine, multiplyQuat(INITIAL_ORIENTATION, yaw(90)));
-      expect(facingFace(spine)).toBe('spine');
-      const back = rotateByKeyStep(spine, RIGHT);
-      expect(facingFace(back)).toBe('back');
-      expectSameRotation(back, restOrientation('back'));
-      expect(facingFace(rotateByKeyStep(INITIAL_ORIENTATION, LEFT))).toBe('fore');
+  describe('screen rotation', () => {
+    it('should turn the way the given drag direction points, by its length in degrees', () => {
+      // 오른쪽으로 90°면 책등이, 위로 90°면 아랫면이, 아래로 90°면 윗면이 정면에 온다(화살표 키와 같은 방향).
+      expectSameRotation(screenRotation({ x: 90, y: 0 }), yaw(90));
+      expect(facingFace(multiplyQuat(screenRotation({ x: 90, y: 0 }), INITIAL_ORIENTATION))).toBe('spine');
+      expect(facingFace(multiplyQuat(screenRotation({ x: -90, y: 0 }), INITIAL_ORIENTATION))).toBe('fore');
+      expect(facingFace(multiplyQuat(screenRotation({ x: 0, y: -90 }), INITIAL_ORIENTATION))).toBe('bottom');
+      expect(facingFace(multiplyQuat(screenRotation({ x: 0, y: 90 }), INITIAL_ORIENTATION))).toBe('top');
+      expect(screenRotation({ x: 0, y: 0 })).toBe(IDENTITY_QUAT);
     });
 
-    it('should show the bottom with up and the top with down', () => {
-      expect(facingFace(rotateByKeyStep(INITIAL_ORIENTATION, UP))).toBe('bottom');
-      expect(facingFace(rotateByKeyStep(INITIAL_ORIENTATION, DOWN))).toBe('top');
-    });
-
-    it('should snap a free pose to the nearest face before stepping', () => {
-      const free = multiplyQuat(INITIAL_ORIENTATION, multiplyQuat(yaw(20), pitch(-15)));
-      expectSameRotation(rotateByKeyStep(free, RIGHT), rotateByKeyStep(INITIAL_ORIENTATION, RIGHT));
-      let pose = INITIAL_ORIENTATION;
-      for (let index = 0; index < 4; index += 1) {
-        pose = rotateByKeyStep(pose, RIGHT);
-      }
-      expectSameRotation(pose, INITIAL_ORIENTATION);
-      expect(facingFace(pose)).toBe('front');
-    });
-
-    it('should animate a key turn by elapsed time only', () => {
-      const to = rotateByKeyStep(INITIAL_ORIENTATION, RIGHT);
-      const turn = startKeyTurn(INITIAL_ORIENTATION, to);
-      expect(isKeyTurnDone(turn)).toBe(false);
-      const started = advanceKeyTurn(turn, 1000);
-      expect(started).toMatchObject({ startTime: 1000, elapsedMs: 0 });
-      expect(keyTurnOrientation(started)).toBe(INITIAL_ORIENTATION);
-      const middle = advanceKeyTurn(started, 1000 + KEY_ROTATION_DURATION_MS / 2);
-      expect(facingOf(keyTurnOrientation(middle), faceNormal('front'))).toBeLessThan(
-        facingOf(INITIAL_ORIENTATION, faceNormal('front'))
-      );
-      const done = advanceKeyTurn(started, 1000 + KEY_ROTATION_DURATION_MS);
-      expect(isKeyTurnDone(done)).toBe(true);
-      expect(keyTurnOrientation(done)).toBe(to);
-      expect(advanceKeyTurn(started, 900).elapsedMs).toBe(0);
+    it('should match a drag scaled by the degrees per pixel', () => {
+      const drag = dragRotation({ x: 30, y: -40 });
+      const scaled = screenRotation({ x: 30 * DEGREES_PER_DRAG_PX, y: -40 * DEGREES_PER_DRAG_PX });
+      expect(Math.abs(dotQuat(drag, scaled))).toBeCloseTo(1, 9);
     });
   });
 

@@ -441,6 +441,29 @@ test.describe('Photobook', () => {
     });
   }
 
+  test('works with the keyboard from the page without putting focus on the book', async ({ page }) => {
+    const errors = collectPageErrors(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    const book = page.getByRole('button', { name: '책 펼치기' });
+    await expect(book).toBeVisible();
+    // 첫 화면 그대로(포커스가 body) Enter로 펼친다. 책으로 포커스를 옮기지 않아 포커스 표시가 생기지 않는다.
+    await page.keyboard.press('Enter');
+    const region = page.getByRole('region', { name: '펼친 책' });
+    await expect(page.getByRole('status')).toHaveText('01–02쪽');
+    await expect(region).not.toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('status')).toHaveText('03–04쪽');
+    await page.keyboard.press('ArrowLeft');
+    await expect(folio(page)).toContainText('01–02/08');
+    await page.keyboard.press('Escape');
+    await expect(closedStage(page)).toHaveAttribute('data-phase', 'closed');
+    await expect(page.getByRole('status')).toHaveText('책을 덮었다, 앞표지');
+    await expect(book).not.toBeFocused();
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
   test.describe('closed book rotation', () => {
     test('turns the book by dragging empty space, any way, and opens only on a tap on the book', async ({ page }) => {
       const errors = collectPageErrors(page);
@@ -485,21 +508,28 @@ test.describe('Photobook', () => {
       await page.mouse.up();
     });
 
-    test('shows the top and the bottom of the book with the arrow keys', async ({ page }) => {
+    test('turns the book slowly while an arrow key is held anywhere and coasts to a stop after release', async ({
+      page,
+    }) => {
       await page.setViewportSize({ width: 1280, height: 800 });
       await page.goto('/');
-      const book = page.getByRole('button', { name: '책 펼치기' });
       const front = await renderedBookSize(page);
       const height = async () => (await renderedBookSize(page)).height;
-      await book.focus();
-      // 위아래로 90° 돌면 높이만 크게 준다(책밑이 정면). 어느 쪽으로 도는지는 단위 테스트(rotation.test.ts)가 본다.
-      await page.keyboard.press('ArrowUp');
-      await expect.poll(height).toBeLessThan(front.height / 2);
+      // 책에 포커스를 두지 않아도(첫 화면 그대로) 받는다.
+      await expect(page.getByRole('button', { name: '책 펼치기' })).not.toBeFocused();
+      // 위 화살표를 누르고 있으면 책이 위로 천천히 넘어가 높이만 크게 준다(책밑이 정면). 누르는 동안은 서지 않는다.
+      // 계속 돌아 다시 커지기 전에 잡도록 자주 잰다. 어느 쪽으로 도는지는 단위 테스트(rotation.test.ts)가 본다.
+      await page.keyboard.down('ArrowUp');
+      await expect(closedStage(page)).toHaveAttribute('data-motion', 'key');
+      await expect.poll(height, { intervals: [50] }).toBeLessThan(front.height / 2);
       expect((await renderedBookSize(page)).width).toBeGreaterThan(front.width * 0.8);
-      await page.keyboard.press('ArrowDown');
-      await expect.poll(height).toBeGreaterThan(front.height * 0.8);
-      await page.keyboard.press('ArrowDown');
-      await expect.poll(height).toBeLessThan(front.height / 2);
+      await expect(closedStage(page)).toHaveAttribute('data-motion', 'key');
+      // 떼면 관성으로 조금 더 돌다 선다. 선 뒤로는 프레임이 지나도 자세가 그대로다.
+      await page.keyboard.up('ArrowUp');
+      await expect(closedStage(page)).toHaveAttribute('data-motion', 'rest', { timeout: 5000 });
+      const rested = await bookTransform(page);
+      await nextFrames(page);
+      expect(await bookTransform(page)).toBe(rested);
     });
 
     test('keeps spinning for a moment after a flick and then stops', async ({ page }) => {
@@ -614,7 +644,10 @@ test.describe('Photobook', () => {
       await page.mouse.click(text.right + 40, nameBox.y + nameBox.height / 2);
       await nextFrames(page);
       await expect(reopened).toHaveAttribute('data-phase', 'open');
-      await name.click();
+      // 키보드로 이름 버튼에 와서 누르면 사라질 이름 버튼 대신 닫힌 책으로 포커스가 간다. 마우스 클릭은 브라우저마다
+      // 버튼에 포커스를 주는지가 달라(WebKit은 주지 않는다) 포커스가 body면 옮기지 않는다(tech-research.md 7장 공통 규칙).
+      await name.focus();
+      await page.keyboard.press('Enter');
       await expectClosedOn(page, '앞표지');
       // 닫힌 책에서 이름은 버튼이 아니다.
       await expect(page.getByRole('banner').getByRole('button')).toHaveCount(0);

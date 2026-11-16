@@ -70,11 +70,6 @@ export function normalizeQuat(q: Quat): Quat {
   return { w: q.w / length, x: q.x / length, y: q.y / length, z: q.z / length };
 }
 
-/** 역회전(단위 쿼터니언의 켤레). */
-export function conjugateQuat(q: Quat): Quat {
-  return { w: q.w, x: -q.x, y: -q.y, z: -q.z };
-}
-
 export function dotQuat(a: Quat, b: Quat): number {
   return a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z;
 }
@@ -158,46 +153,4 @@ export function toCssMatrix3d(q: Quat): string {
   const m = quatToMatrix(q);
   const columns = [m[0], m[3], m[6], 0, m[1], m[4], m[7], 0, m[2], m[5], m[8], 0, 0, 0, 0, 1];
   return `matrix3d(${columns.map(roundForCss).join(', ')})`;
-}
-
-const HALF_SQRT2 = Math.SQRT1_2;
-
-/**
- * 면이 축에 맞게 놓이는 24가지 자세(정육면체 회전군). 순서: 그대로, 축마다 180°, 축마다 ±90°, 면 대각선 180°, 몸 대각선 ±120°.
- * 키보드 회전이 한 면을 정면에 맞춰 세울 때 쓴다(rotation.ts).
- */
-export const CUBE_ORIENTATIONS: readonly Quat[] = (() => {
-  const s = HALF_SQRT2;
-  const list: Quat[] = [
-    IDENTITY_QUAT,
-    { w: 0, x: 1, y: 0, z: 0 },
-    { w: 0, x: 0, y: 1, z: 0 },
-    { w: 0, x: 0, y: 0, z: 1 },
-  ];
-  for (const sign of [1, -1]) {
-    list.push({ w: s, x: sign * s, y: 0, z: 0 }, { w: s, x: 0, y: sign * s, z: 0 }, { w: s, x: 0, y: 0, z: sign * s });
-    list.push({ w: 0, x: s, y: sign * s, z: 0 }, { w: 0, x: s, y: 0, z: sign * s }, { w: 0, x: 0, y: s, z: sign * s });
-  }
-  for (const sx of [1, -1]) {
-    for (const sy of [1, -1]) {
-      for (const sz of [1, -1]) {
-        list.push({ w: 0.5, x: 0.5 * sx, y: 0.5 * sy, z: 0.5 * sz });
-      }
-    }
-  }
-  return list;
-})();
-
-/** 가장 가까운 축 정렬 자세. 같은 거리면 CUBE_ORIENTATIONS 순서에서 앞의 것. */
-export function nearestCubeOrientation(q: Quat): Quat {
-  let best = CUBE_ORIENTATIONS[0] as Quat;
-  let bestDot = -1;
-  for (const candidate of CUBE_ORIENTATIONS) {
-    const dot = Math.abs(dotQuat(q, candidate));
-    if (dot > bestDot + 1e-12) {
-      best = candidate;
-      bestDot = dot;
-    }
-  }
-  return best;
 }
