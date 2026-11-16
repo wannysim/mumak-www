@@ -45,10 +45,6 @@ apps:
     type: vite
     hasE2E: true
 
-  - app: quant
-    type: vite
-    hasE2E: true
-
   - app: mumak-native
     type: expo
     hasE2E: true # web export(react-native-web) 기반 Playwright E2E
