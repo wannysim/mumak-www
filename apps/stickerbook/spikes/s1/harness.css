@@ -1,0 +1,252 @@
+/*
+ * 하네스 화면 스타일. 시험 쪽(.s1-page)은 all: initial로 이 문서의 상속값을 끊으므로
+ * 여기 규칙은 h- 접두사 클래스와 하네스 요소에만 건다. 전역 * 선택자를 쓰지 않는다.
+ */
+:root {
+  --h-bg: #f3f3f3;
+  --h-surface: #ffffff;
+  --h-line: #c4c4c4;
+  --h-text: #1d1d1d;
+  --h-muted: #5c5c5c;
+  --h-error-bg: #fbeaea;
+  --h-error-line: #b54040;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  padding: 16px;
+  background: var(--h-bg);
+  color: var(--h-text);
+  font:
+    13px/1.45 system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}
+
+.h-header h1 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.h-note {
+  margin: 0;
+  max-width: 80ch;
+  color: var(--h-muted);
+}
+
+.h-errors {
+  margin: 12px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--h-error-line);
+  background: var(--h-error-bg);
+}
+
+.h-errors p {
+  margin: 0;
+}
+
+.h-errors[hidden],
+.h-json-fallback[hidden],
+.h-stage-note[hidden] {
+  display: none;
+}
+
+.h-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--h-line);
+  background: var(--h-surface);
+}
+
+.h-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.h-group-label {
+  color: var(--h-muted);
+}
+
+.h-controls button {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--h-line);
+  border-radius: 4px;
+  background: var(--h-surface);
+  color: var(--h-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.h-controls button[aria-pressed='true'] {
+  border-color: var(--h-text);
+  background: var(--h-text);
+  color: var(--h-surface);
+}
+
+.h-controls input[type='number'] {
+  width: 5.5em;
+  font: inherit;
+}
+
+.h-controls select {
+  font: inherit;
+}
+
+.h-status {
+  color: var(--h-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.h-json-fallback {
+  flex-basis: 100%;
+  min-height: 160px;
+  font:
+    12px/1.4 ui-monospace,
+    Menlo,
+    monospace;
+}
+
+.h-panels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+/*
+ * 패널 폭은 무대 폭으로 정하고 설명 글은 그 안에서 줄바꿈한다. 넓은 화면에서 세 패널이 한 줄에 놓인다.
+ * 안쪽 여백 8px은 기기 픽셀 스냅 이동(최대 4 CSS px, main.ts)과 무대 테두리가 옆 요소에 겹치지 않게 둔다.
+ * 패널을 스크롤 상자(overflow)로 만들지 않는다. 폰에서 쪽이 화면보다 넓으면 패널이 합성 스크롤 레이어가 되고,
+ * headless Chromium 153(412×915, DSF 2.625)은 캔버스를 정수 기기 px에 두어도 다시 샘플링했다. 대신 문서가 가로로 스크롤된다.
+ */
+.h-panel {
+  box-sizing: border-box;
+  width: min-content;
+  padding: 8px;
+}
+
+.h-panel h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+/*
+ * 무대 테두리를 캔버스에서 띄운다. 소수 DPR에서 붙어 있으면 테두리가 캔버스 첫·끝 행에 번져
+ * 스크린샷 회색 픽셀 수(S1-2)에 측정 대상과 무관한 값이 섞인다.
+ */
+.h-stage {
+  position: relative;
+  outline: 1px dashed var(--h-line);
+  outline-offset: 2px;
+}
+
+.h-canvas {
+  display: block;
+}
+
+.h-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.h-stage-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 16px;
+  color: var(--h-muted);
+  text-align: center;
+}
+
+.h-caption {
+  margin: 10px 0 0;
+  color: var(--h-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.h-section {
+  margin-top: 24px;
+}
+
+.h-section h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.h-section h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.h-magnifiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.h-magnifiers figure {
+  margin: 0;
+}
+
+.h-magnifiers canvas {
+  display: block;
+  outline: 1px solid var(--h-line);
+  image-rendering: pixelated;
+}
+
+.h-magnifiers figcaption {
+  margin-top: 4px;
+  color: var(--h-muted);
+}
+
+.h-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.h-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--h-surface);
+  font-variant-numeric: tabular-nums;
+}
+
+.h-table th,
+.h-table td {
+  padding: 3px 8px;
+  border: 1px solid var(--h-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.h-table td {
+  overflow-wrap: anywhere;
+}
+
+.h-log {
+  max-height: 320px;
+  margin: 0;
+  padding: 8px 8px 8px 3em;
+  overflow: auto;
+  border: 1px solid var(--h-line);
+  background: var(--h-surface);
+  font:
+    12px/1.45 ui-monospace,
+    Menlo,
+    monospace;
+}

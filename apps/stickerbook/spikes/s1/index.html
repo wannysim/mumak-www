@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="data:," />
+    <title>S1 비교 하네스</title>
+    <link rel="stylesheet" href="./harness.css" />
+  </head>
+  <body>
+    <header class="h-header">
+      <h1>S1 비교 하네스 · 회색 플레이스홀더, 시안 아님</h1>
+      <p class="h-note">
+        측정 도구다(tech-research.md 1장, spikes.md S1). 쪽 크기·서체·문구·색은 모두 임시값이며 디자인 결정이 아니다.
+        성능 수치는 실기기에서 잰 값만 쓴다. 주소 쿼리:
+        <code>?w=400&amp;h=560&amp;scale=auto|1|2|3&amp;font=&lt;woff2 URL&gt;</code>
+      </p>
+    </header>
+
+    <div id="errors" class="h-errors" role="alert" hidden></div>
+
+    <section class="h-controls" aria-label="설정">
+      <div class="h-group" role="group" aria-labelledby="size-label">
+        <span id="size-label" class="h-group-label">쪽 CSS 크기(임시)</span>
+        <label>폭 <input id="page-width" type="number" min="120" max="1600" step="1" inputmode="numeric" /></label>
+        <label>높이 <input id="page-height" type="number" min="120" max="2400" step="1" inputmode="numeric" /></label>
+      </div>
+      <div class="h-group" role="group" aria-labelledby="scale-label">
+        <span id="scale-label" class="h-group-label">래스터 배율</span>
+        <button type="button" data-scale="auto" aria-pressed="true">자동(DPR)</button>
+        <button type="button" data-scale="1" aria-pressed="false">1</button>
+        <button type="button" data-scale="2" aria-pressed="false">2</button>
+        <button type="button" data-scale="3" aria-pressed="false">3</button>
+      </div>
+      <label class="h-group">
+        <span class="h-group-label">SVG 크기</span>
+        <select id="svg-sizing">
+          <option value="draw-scale">고유 크기 = CSS, drawImage로 확대</option>
+          <option value="viewbox-scale">고유 크기 = 백킹, viewBox로 확대</option>
+        </select>
+      </label>
+      <div class="h-group" role="group" aria-labelledby="filter-label">
+        <span id="filter-label" class="h-group-label">텍스처 필터</span>
+        <button type="button" data-filter="linear" aria-pressed="true">LINEAR</button>
+        <button type="button" data-filter="nearest" aria-pressed="false">NEAREST</button>
+      </div>
+      <label class="h-group"><input id="measure-finish" type="checkbox" /> 측정: texImage2D 뒤 gl.finish()</label>
+      <label class="h-group"><input id="overlay" type="checkbox" /> 겹쳐 보기(패널 3을 패널 1 위에)</label>
+      <div class="h-group" role="group" aria-labelledby="blink-label">
+        <span id="blink-label" class="h-group-label">깜빡임</span>
+        <button id="blink" type="button" aria-pressed="false">깜빡임 시작 (B)</button>
+        <label>주기 <input id="blink-interval" type="number" min="50" max="5000" step="50" value="500" /> ms</label>
+        <span id="blink-status" class="h-status" aria-live="polite"></span>
+      </div>
+      <div class="h-group">
+        <button id="reraster" type="button">다시 래스터</button>
+        <button id="pixel-compare" type="button">1:1 픽셀 비교(드로잉 버퍼)</button>
+        <button id="reset-measures" type="button">측정 초기화</button>
+        <button id="copy-json" type="button">결과 JSON 복사</button>
+        <span id="copy-status" class="h-status" aria-live="polite"></span>
+      </div>
+      <textarea id="json-fallback" class="h-json-fallback" aria-label="결과 JSON" readonly hidden></textarea>
+    </section>
+
+    <main class="h-panels">
+      <section class="h-panel" aria-labelledby="dom-title">
+        <h2 id="dom-title">1 · DOM 원본</h2>
+        <div id="dom-stage" class="h-stage"></div>
+        <p id="dom-caption" class="h-caption"></p>
+      </section>
+      <section class="h-panel" aria-labelledby="raster-title">
+        <h2 id="raster-title">2 · foreignObject → 2D 캔버스</h2>
+        <div id="raster-stage" class="h-stage"></div>
+        <p id="raster-caption" class="h-caption"></p>
+      </section>
+      <section class="h-panel" aria-labelledby="gl-title">
+        <h2 id="gl-title">3 · WebGL2 텍스처</h2>
+        <div id="gl-stage" class="h-stage">
+          <canvas id="gl-canvas" class="h-canvas" role="img" aria-label="WebGL2 텍스처 출력"></canvas>
+          <p id="gl-overlay-note" class="h-stage-note" hidden>겹쳐 보기 중: 이 캔버스는 패널 1 위에 있다.</p>
+          <p id="gl-failure" class="h-stage-note" hidden></p>
+        </div>
+        <p id="gl-caption" class="h-caption"></p>
+      </section>
+    </main>
+
+    <section class="h-section" aria-labelledby="magnifier-title">
+      <h2 id="magnifier-title">돋보기 · 기기 픽셀 4배, 최근접</h2>
+      <p id="magnifier-caption" class="h-note">세 패널 위에서 포인터를 움직이면 그 자리를 확대한다.</p>
+      <div class="h-magnifiers">
+        <figure>
+          <canvas id="magnifier-raster" role="img" aria-label="패널 2 원본 확대"></canvas>
+          <figcaption>패널 2 원본(2D 캔버스 픽셀)</figcaption>
+        </figure>
+        <figure>
+          <canvas id="magnifier-gl" role="img" aria-label="패널 3 출력 확대"></canvas>
+          <figcaption>패널 3 출력(WebGL 드로잉 버퍼 픽셀)</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="h-section" aria-labelledby="results-title">
+      <h2 id="results-title">측정</h2>
+      <p id="pixel-compare-result" class="h-note">1:1 픽셀 비교: 아직 안 함</p>
+      <p class="h-note">
+        1:1 픽셀 비교는 2D 원본과 WebGL 드로잉 버퍼만 비교한다. 화면에서의 1:1은 캔버스가 정수 기기 px에 놓일 때만
+        성립하므로 "래스터" 표의 문서 위치 행을 함께 보고, 실제 화면은 기기 스크린샷으로 확인한다.
+      </p>
+      <div class="h-tables">
+        <div>
+          <h3>구간 시간(performance.measure)</h3>
+          <p id="measure-scope" class="h-note"></p>
+          <table id="measure-table" class="h-table"></table>
+        </div>
+        <div>
+          <h3>래스터</h3>
+          <table id="raster-table" class="h-table"></table>
+        </div>
+        <div>
+          <h3>환경</h3>
+          <table id="env-table" class="h-table"></table>
+        </div>
+      </div>
+    </section>
+
+    <section class="h-section" aria-labelledby="log-title">
+      <h2 id="log-title">재래스터 트리거·사건 로그(최신이 위)</h2>
+      <ol id="log" class="h-log" reversed></ol>
+    </section>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,140 @@
+/*
+ * 펼친 책 중 Tailwind로 쓰기 어려운 것(겹친 그림자·그늘 그라디언트·clip 밖 그림자·포커스 표시·keyframes)만 둔다.
+ * 화면 배치(px)는 src/model/book/geometry.ts가 계산해 인라인으로 넣는다.
+ * 종이 두께 선·그늘·그림자는 시안(mockups/still spread-a, phone-a) 값을 옮긴 임시값이다(open-decisions G0).
+ *
+ * 입력 범위(임시, tech-research.md 0장 입력 통일·7장 U3 사진 보기):
+ * - touch-action: none과 글자 선택 막기는 책(.book)과 넘김 버튼에만 건다. 책 바깥 여백에서는 핀치 확대·글자 선택이 된다.
+ * - 끄는 동안(data-phase='turning')에는 책 영역 전체에서 글자 선택을 막는다.
+ */
+.book {
+  -webkit-touch-callout: none;
+}
+
+/* 책 영역 자체의 포커스: 책 아래 가장자리를 따라 가는 선 하나. 모양은 임시(tech-research.md 7장 U8). */
+.book-stage:focus-visible {
+  outline: none;
+}
+
+.book-stage:focus-visible .book::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 -0.75rem;
+  height: 2px;
+  background: var(--foreground);
+  pointer-events: none;
+}
+
+/*
+ * 바깥 가장자리에 남은 쪽 두께를 가는 선 두 줄로, 그 아래 아주 옅은 그림자(시안 spread-a).
+ * 펼침 끝에 3D 책(같은 테두리·그림자를 그린다, closed-book.css)과 겹치는 동안은 --chrome-reveal로 들인다(app.tsx).
+ */
+.book__chrome {
+  opacity: var(--chrome-reveal, 1);
+}
+
+.book[data-layout='spread'] .book__chrome {
+  box-shadow:
+    0 0 0 1px var(--border),
+    -3px 0 0 0 var(--background),
+    3px 0 0 0 var(--background),
+    -4px 0 0 0 var(--border),
+    4px 0 0 0 var(--border),
+    -6px 0 0 0 var(--background),
+    6px 0 0 0 var(--background),
+    -7px 0 0 0 var(--border),
+    7px 0 0 0 var(--border),
+    0 28px 56px -36px var(--shade-firm);
+}
+
+.book[data-layout='single'] .book__chrome {
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 24px 48px -32px var(--shade-firm);
+}
+
+/*
+ * 날개(넘어가는 장의 다른 면)는 흰 종이 위 흰 종이라 윤곽이 없으면 보이지 않는다. 아주 옅은 그림자를 둔다.
+ * clip-path는 같은 요소의 filter까지 자르므로 그림자는 바깥 층에 건다. 임시, open-decisions G0 그림자.
+ */
+.page-layer[data-role='flap'] {
+  filter: drop-shadow(0 0 0.5px var(--shade-firm)) drop-shadow(0 6px 10px var(--shade-soft));
+}
+
+/* 가운데 접힘 그늘: 사진 위로도 은은하게 지나간다(시안 spread-a). 닫힌 책 안쪽 면(closed-book.css)도 같은 값이다. */
+.book__fold-shade {
+  background: linear-gradient(
+    to right,
+    transparent 43%,
+    var(--shade-faint) 48%,
+    var(--shade-soft) 49.8%,
+    var(--shade-firm) 50%,
+    var(--shade-soft) 50.2%,
+    var(--shade-faint) 52%,
+    transparent 57%
+  );
+}
+
+/*
+ * 동작 줄이기: 단추·키 넘김은 바로 바꾸고 새로 나타나는 쪽을 짧게 투명도로 들인다. 투명도 변화는 WCAG 2.3.3의 모션 애니메이션이 아니다.
+ * 시간은 임시, open-decisions G2 "reduced motion에서 드래그 넘김 중 보이는 것"(7장 U7).
+ * keyframes에 from만 두어 끝값은 요소의 값(끄는 동안 윗장에 거는 인라인 opacity)을 따른다.
+ */
+.book-stage[data-motion='reduced'] .page-layer {
+  animation: sb-appear 160ms ease-out backwards;
+}
+
+@keyframes sb-appear {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * 넘김 버튼 표시: 얇은 선 화살표 1rem(시안 flip-hint). 화면 가장자리에서 1.5rem, 책 바깥 여백이 좁으면 여백 가운데.
+ * 펼침 끝에는 책 테두리와 함께 --chrome-reveal로 들인다. 배치·표시는 임시, open-decisions G2 "클릭 넘김 영역의 배치와 표시".
+ */
+.turn-button__glyph {
+  position: absolute;
+  top: 50%;
+  width: 1rem;
+  height: 1rem;
+  translate: 0 -50%;
+  opacity: var(--chrome-reveal, 1);
+}
+
+.turn-button[data-direction='backward'] .turn-button__glyph {
+  left: max(0.25rem, min(1.5rem, calc((var(--turn-gutter) - 1rem) / 2)));
+}
+
+.turn-button[data-direction='forward'] .turn-button__glyph {
+  right: max(0.25rem, min(1.5rem, calc((var(--turn-gutter) - 1rem) / 2)));
+}
+
+.turn-button[aria-disabled='true'] .turn-button__glyph {
+  opacity: calc(0.2 * var(--chrome-reveal, 1));
+}
+
+/* 버튼 포커스는 기둥 전체가 아니라 화살표 둘레에만 그린다. 모양은 임시(7장 U8). */
+.turn-button:focus-visible {
+  outline: none;
+}
+
+.turn-button:focus-visible .turn-button__glyph {
+  outline: 2px solid var(--foreground);
+  outline-offset: 0.375rem;
+  border-radius: 1px;
+}
+
+/*
+ * 세로 휴대폰은 시안 phone-a처럼 화살표를 그리지 않는다. 키보드 포커스가 오면 기둥 가운데에 화살표와 포커스 표시를 보인다.
+ */
+.book-stage[data-layout='single'] .turn-button__glyph {
+  display: none;
+}
+
+.book-stage[data-layout='single'] .turn-button:focus-visible .turn-button__glyph {
+  display: block;
+  inset: 50% auto auto 50%;
+  translate: -50% -50%;
+}

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="robots" content="noindex" />
+    <title>정지 화면 시안</title>
+    <!-- 임시 서체(G1-05). 불러오지 못하면 still.css의 system-ui로 대체된다. -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+    />
+    <link rel="stylesheet" href="./still.css" />
+    <script type="module" src="./scene.ts"></script>
+  </head>
+  <body class="scene-page">
+    <!-- 러닝 헤드: 책 바깥 상단, 배경 없는 글자 한 줄. 문구는 임시(G4-01). -->
+    <header class="running-head" hidden>
+      <p class="running-head__title">
+        <span>심완</span><span class="running-head__line">, 사진을 찍고 화면을 만든다</span>
+      </p>
+      <div class="running-head__right">
+        <p class="running-head__status">지금 다음 호에 실을 사진을 고르는 중</p>
+        <p class="running-head__folio" data-folio></p>
+      </div>
+    </header>
+
+    <main id="scene-root"></main>
+
+    <!--
+      장면별 템플릿. scene.ts가 해시의 변형에 맞춰 하나를 복제한다.
+      data-variants에 현재 변형 글자(a·b·c)가 없는 요소는 복제본에서 지운다.
+    -->
+
+    <template data-scene="closed">
+      <div class="closed-stage">
+        <div class="closed-shadow" aria-hidden="true"></div>
+        <div class="book">
+          <div class="book__face book__front">
+            <div class="cover">
+              <p>심완</p>
+              <p>사진 찍는 개발자</p>
+              <div class="cover__fursona" data-variants="b" role="img" aria-label="fursona 그림 자리(임시)">
+                fursona
+              </div>
+            </div>
+          </div>
+          <div class="book__face book__back">
+            <div class="cover cover--back">
+              <p>example@mail.com</p>
+              <p>instagram.com/example</p>
+              <p>서울</p>
+            </div>
+          </div>
+          <div class="book__face book__spine" aria-hidden="true"><span class="spine-label">심완</span></div>
+          <div class="book__face book__fore" aria-hidden="true"></div>
+          <div class="book__face book__top" aria-hidden="true"></div>
+          <div class="book__face book__bottom" aria-hidden="true"></div>
+          <div class="book__record" role="img" aria-label="뒤표지 안쪽에 꽂힌 부록 레코드의 가장자리"></div>
+        </div>
+      </div>
+    </template>
+
+    <template data-scene="spread">
+      <div class="spread-stage">
+        <svg class="flip-hint flip-hint--prev" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M14 8H2M6.5 3.5 2 8l4.5 4.5" stroke="currentColor" stroke-width="1" />
+        </svg>
+        <div class="spread">
+          <div class="page page--verso">
+            <img
+              class="page__photo"
+              data-variants="a"
+              src="/photos/forest.jpg"
+              width="1200"
+              height="799"
+              alt="숲속 오솔길(임시 샘플 사진)"
+            />
+          </div>
+          <div class="page page--recto">
+            <img
+              class="page__photo"
+              data-variants="a"
+              src="/photos/lake.jpg"
+              width="1200"
+              height="800"
+              alt="산 아래 호수와 물 위 오두막(임시 샘플 사진)"
+            />
+            <img
+              class="page__photo"
+              data-variants="b"
+              src="/photos/mountain.jpg"
+              width="1200"
+              height="800"
+              alt="산맥과 침엽수 골짜기(임시 샘플 사진)"
+            />
+          </div>
+          <img
+            class="spread__across"
+            data-variants="c"
+            src="/photos/meadow.jpg"
+            width="1200"
+            height="800"
+            alt="능선 너머 해 질 녘(임시 샘플 사진)"
+          />
+          <div class="spread__fold" aria-hidden="true"></div>
+        </div>
+        <svg class="flip-hint flip-hint--next" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M2 8h12M9.5 3.5 14 8l-4.5 4.5" stroke="currentColor" stroke-width="1" />
+        </svg>
+      </div>
+    </template>
+
+    <template data-scene="phone">
+      <div class="phone-stage">
+        <div class="single-page">
+          <img
+            class="page__photo"
+            data-variants="a c"
+            src="/photos/lake.jpg"
+            width="1200"
+            height="800"
+            alt="산 아래 호수와 물 위 오두막(임시 샘플 사진)"
+          />
+          <img
+            class="page__photo"
+            data-variants="b"
+            src="/photos/deer.jpg"
+            width="1200"
+            height="1981"
+            alt="바위산 아래 풀밭의 사슴(임시 샘플 사진)"
+          />
+        </div>
+      </div>
+    </template>
+  </body>
+</html>

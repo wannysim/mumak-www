@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="robots" content="noindex" />
+    <title>정지 화면 시안 · Stickerbook</title>
+    <!-- 임시 서체(G1-05). 불러오지 못하면 still.css의 system-ui로 대체된다. -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+    />
+    <link rel="stylesheet" href="./still.css" />
+    <script type="module" src="./overview.ts"></script>
+  </head>
+  <body>
+    <main class="overview">
+      <header class="overview__intro">
+        <div>
+          <h1>Stickerbook 정지 화면 시안</h1>
+          <p>정지 화면 시안 · 움직임 없음 · 임시 서체·문구 · 2026-11-13</p>
+        </div>
+        <p>
+          장면마다 A·B·C 중 하나를 고른다. 아래 축소본은 나란히 비교하는 용도다. 실제 크기와 글자 크기는 ‘실제 크기로
+          열기’로 확인하고, 폰 장면은 폰에서 연다.
+        </p>
+        <p class="overview__muted">
+          반영한 확정 결정: 닫힌 3D 책에서 펼쳐 사진 잡지처럼 넘긴다, 표지는 fursona 명함 앞면·뒷면(G0-03), 닫힌 책은
+          미니멀하게(G0-05), 색은 blog 컬러셋(G0-06), 세로 휴대폰은 한 쪽씩(G0-09). 책상
+          배경·소품·폴라로이드·테이프·EXIF는 넣지 않았다.
+        </p>
+        <p class="overview__muted">
+          임시값: 서체 Pretendard Variable(CDN, 실패하면 system-ui), 모든 문구, 쪽 비율 3:4, 사진 여백, 넘김 화살표,
+          러닝 헤드 압축 방식. 주황은 러닝 헤드 상태 줄 앞 점, 크림슨은 부록 레코드에만 썼다. 라이트 테마만 있다.
+        </p>
+        <p class="overview__muted">
+          닫힌 책의 임시값: 흰 종이 표지, 책 두께(폭의 5%), 책등·쪽 단면·윗면을 같은 옅은 단색 그늘로 칠한 것, 카메라
+          높이·각도(책보다 조금 위에서 내려다보고, 변형마다 돌린 각도가 다르다), 부록 레코드가 나오는 방향(위쪽
+          가장자리)·크기(책 폭의 84%)·나온 정도(책 높이의 1.6%), 레코드 가장자리를 뒷면 C뿐 아니라 앞면 A·B에서도 보이게
+          둔 것.
+        </p>
+      </header>
+
+      <div id="overview-scenes" class="overview__scenes"></div>
+
+      <section class="scene-section" aria-labelledby="decision-heading">
+        <h2 id="decision-heading">결정 ID</h2>
+        <p class="overview__muted">
+          open-decisions.md(2026-11-13 커밋 6c2e456a 판)의 시점별 행 순서 번호다. 문서가 바뀌면 번호가 밀릴 수 있어
+          제목을 함께 적는다.
+        </p>
+        <dl id="decision-list" class="decision-list"></dl>
+      </section>
+    </main>
+  </body>
+</html>

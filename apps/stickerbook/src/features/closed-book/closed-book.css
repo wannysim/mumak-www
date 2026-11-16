@@ -1,0 +1,221 @@
+/*
+ * 닫힌 책(CSS 3D). 시안 mockups/still closed-a의 면 구성을 옮겼다: 흰 종이 표지, 두께 = 쪽 폭의 5%, 아주 옅은 접지 그림자.
+ * 책은 펼친 뒤의 쪽 크기로 그리고 인라인 transform의 scale로 줄인다. 그래서 표지 글자·여백은 그 배율로 나눠 둔다.
+ * 형태·재질·조명·그림자는 모두 임시, open-decisions G0 "닫힌 책 형태·재질·조명, 그림자, 책 바깥 여백".
+ */
+.closed-stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  /* 카메라를 책보다 조금 위에 둬 윗면 단면이 보이게 한다(제품 사진 같은 시점, 시안 값). */
+  perspective: 2400px;
+  perspective-origin: 50% 20%;
+}
+
+.closed-book__shadow {
+  position: absolute;
+  pointer-events: none;
+  background: radial-gradient(closest-side, var(--shade-soft), transparent);
+}
+
+.closed-book {
+  position: absolute;
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+  pointer-events: none;
+}
+
+/* 키 회전만 시간을 두고 돈다. 드래그는 손을 그대로 따른다. 시간은 임시, open-decisions G3 "닫힌 책 회전 범위와 감각". */
+.closed-book[data-animated='true'] {
+  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.closed-book__face {
+  position: absolute;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* 앞표지 한 장: 바깥 = 명함 앞면, 안쪽 = 1쪽. 책등(왼쪽 가장자리)을 축으로 연다. */
+.closed-book__cover {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform-origin: 0 50%;
+  transform: translateZ(calc(var(--book-d) / 2)) rotateY(var(--cover-angle));
+}
+
+.closed-book__cover-front,
+.closed-book__cover-inside,
+.closed-book__first-page,
+.closed-book__back {
+  inset: 0;
+  background: var(--background);
+}
+
+.closed-book__cover-front,
+.closed-book__back {
+  display: flex;
+  flex-direction: column;
+  /* 닫힌 책 배율로 나눠, 줄어든 화면에서 본문과 같은 1rem으로 보이게 한다. */
+  padding: calc(1.25rem / var(--closed-scale));
+  font-size: calc(1rem / var(--closed-scale));
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.closed-book__cover-inside {
+  transform: rotateY(180deg);
+}
+
+.closed-book__first-page {
+  transform: translateZ(calc(var(--book-d) / 2 - 1px));
+}
+
+/*
+ * 펼침 중 드러나는 앞표지 안쪽(1쪽)과 첫 쪽(2쪽)은 흰 바탕 위 흰 종이라, 펼친 책(book-spread.css)과 같은 테두리·쪽 두께 선·
+ * 그림자·가운데 그늘을 여기서도 그린다. 그래서 펼치는 동안 책 몸이 보이고, 펼친 책 DOM으로 넘겨줄 때 바뀌는 것이 없다.
+ * 두께 선과 그림자는 옮겨 가는 정도(--chrome-reveal = travel)만큼 들인다. 값은 펼친 책과 같은 임시값(open-decisions G0).
+ * 앞표지 안쪽 면은 표지와 함께 -180° 돌아 놓이므로 면 기준 왼쪽이 화면 왼쪽이다.
+ */
+.closed-book__cover-inside,
+.closed-book__first-page {
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.closed-book__page-chrome {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--chrome-reveal);
+}
+
+.closed-book[data-layout='spread'] .closed-book__cover-inside .closed-book__page-chrome {
+  box-shadow:
+    -3px 0 0 0 var(--background),
+    -4px 0 0 0 var(--border),
+    -6px 0 0 0 var(--background),
+    -7px 0 0 0 var(--border),
+    0 28px 56px -36px var(--shade-firm);
+}
+
+.closed-book[data-layout='spread'] .closed-book__first-page .closed-book__page-chrome {
+  box-shadow:
+    3px 0 0 0 var(--background),
+    4px 0 0 0 var(--border),
+    6px 0 0 0 var(--background),
+    7px 0 0 0 var(--border),
+    0 28px 56px -36px var(--shade-firm);
+}
+
+.closed-book[data-layout='single'] .closed-book__first-page .closed-book__page-chrome {
+  box-shadow: 0 24px 48px -32px var(--shade-firm);
+}
+
+/* 가운데 접힘 그늘을 쪽마다 반씩(펼친 책 .book__fold-shade의 43%–57%를 쪽 폭 기준으로 옮긴 값). */
+.closed-book[data-layout='spread'] .closed-book__cover-inside::after,
+.closed-book[data-layout='spread'] .closed-book__first-page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.closed-book[data-layout='spread'] .closed-book__cover-inside::after {
+  background: linear-gradient(
+    to right,
+    transparent 86%,
+    var(--shade-faint) 96%,
+    var(--shade-soft) 99.6%,
+    var(--shade-firm) 100%
+  );
+}
+
+.closed-book[data-layout='spread'] .closed-book__first-page::after {
+  background: linear-gradient(
+    to right,
+    var(--shade-firm) 0%,
+    var(--shade-soft) 0.4%,
+    var(--shade-faint) 4%,
+    transparent 14%
+  );
+}
+
+.closed-book__back {
+  justify-content: flex-end;
+  transform: rotateY(180deg) translateZ(calc(var(--book-d) / 2));
+}
+
+.closed-book__spine,
+.closed-book__fore {
+  top: 0;
+  left: calc(50% - var(--book-d) / 2);
+  width: var(--book-d);
+  height: 100%;
+  opacity: var(--edge-opacity);
+}
+
+.closed-book__spine {
+  display: flex;
+  justify-content: center;
+  padding-top: calc(1.25rem / var(--closed-scale));
+  font-size: calc(1rem / var(--closed-scale));
+  background: linear-gradient(var(--shade-faint) 0 0), var(--background);
+  box-shadow: inset 0 0 0 1px var(--border);
+  transform: rotateY(-90deg) translateZ(calc(var(--book-w) / 2));
+}
+
+.closed-book__spine-label {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  line-height: 1;
+}
+
+/* 앞쪽 종이 단면: 쪽 가장자리를 가는 선으로만 표시한다. */
+.closed-book__fore {
+  background: repeating-linear-gradient(to right, var(--border) 0 1px, var(--background) 1px 3px);
+  box-shadow: inset 0 0 0 1px var(--border);
+  transform: rotateY(90deg) translateZ(calc(var(--book-w) / 2));
+}
+
+.closed-book__top,
+.closed-book__bottom {
+  top: calc(50% - var(--book-d) / 2);
+  left: 0;
+  width: 100%;
+  height: var(--book-d);
+  opacity: var(--edge-opacity);
+  /* 윗면은 화면에서 몇 px로 눌려 보여 줄무늬가 물결처럼 깨진다. 단색 그늘로 둔다. */
+  background: linear-gradient(var(--shade-faint) 0 0), var(--background);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.closed-book__top {
+  transform: rotateX(90deg) translateZ(calc(var(--book-h) / 2));
+}
+
+.closed-book__bottom {
+  transform: rotateX(-90deg) translateZ(calc(var(--book-h) / 2));
+}
+
+/* 판정 버튼: 보이는 책 폭(geometry.ts closedHitBox)을 덮는 투명 버튼. 포커스 표시는 그 둘레에 그린다(모양 임시, 7장 U8). */
+.closed-book__hit {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+
+.closed-book__hit:active {
+  cursor: grabbing;
+}
+
+.closed-stage[data-phase='opening'] .closed-book__hit {
+  pointer-events: none;
+}
+
+/* 펼치는 동안에는 판정 버튼 둘레의 포커스 표시가 움직이는 책과 어긋나므로 그리지 않는다(포커스는 그대로, 끝나면 책 영역으로 옮긴다). */
+.closed-stage[data-phase='opening'] .closed-book__hit:focus-visible {
+  outline: none;
+}

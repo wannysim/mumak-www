@@ -1,13 +1,23 @@
 # Stickerbook 개발 기반
 
-2026-10-29 사용자 요청으로 기존 디자인을 초기화했다. 현재 앱은 빈 흰 화면으로 실행된다. 디자인과 인터랙션을 새로 설계할 수 있게 최소한의 개발 기반만 유지한다.
+2026-10-29 사용자 요청으로 기존 디자인을 초기화했고, 2026-11-13 임시값으로 동작하는 1페이즈를 새로 만들었다.
+
+## 1페이즈 구조 (2026-11-13)
+
+- `src/model/fold/`: 넘김 동작 규칙(반사 접힘, 책등 제한, 진행도, 놓기 판정, 속도, 클릭 넘김 경로, 원통, 쪽 매핑, 입력 우선순위). 순수 TS, node 환경 테스트.
+- `src/model/book/`: 책 상태 기계(closed → opening → open ↔ turning), 회전, 배치 판정(spread·single), 키 매핑, 넘김 세션, 펼침 시간표, 화면 기하 변환. 순수 TS.
+- `src/features/closed-book/`: CSS 3D 닫힌 책과 펼침 전환. `src/features/book-spread/`: 쪽과 평면 DOM 접힘 넘김(clip-path 다각형과 반사 matrix). `src/features/running-head/`: 러닝 헤드.
+- `src/content/`: 쪽 지도(`pages.ts`)와 임시 문구·값(`temporary.ts`). `src/hooks/`: 창 크기, 동작 줄이기, 프레임 루프.
+- 서체는 blog의 Pretendard 서브셋을 `src/assets/fonts/`에 자체 호스팅하고, 색은 blog 토큰을 `src/index.css`에 옮겼다(출처 주석).
+- 렌더는 1페이즈 동안 DOM만 쓴다. WebGL·three는 아직 없다. `src/render/`는 WebGL 코드용으로 coverage에서 빼 두었다.
+- dev 전용 페이지: `mockups/still/`(정지 화면 시안), `spikes/s1/`(글자·사진 래스터 비교 하네스). 프로덕션 빌드에 들어가지 않는다.
 
 ## 유지한 기반
 
 - React + TypeScript + Vite, `@/` alias, Tailwind v4 빌드 연결.
 - Portless 개발 주소 `stickerbook.mumak.localhost:1355`, 빌드/preview 스크립트, Playwright 서버 포트 3009.
 - 공통 TypeScript·Playwright 설정, Oxc lint·format, Vitest·Testing Library와 coverage, Chromium·Firefox·WebKit E2E.
-- 모노레포 앱 매트릭스·Codecov 등록. JPG 6개와 출처 문서는 콘텐츠 자산으로 보존하며 화면에는 렌더링하지 않는다.
+- 모노레포 앱 매트릭스·Codecov 등록. JPG 6개와 출처 문서는 1페이즈의 임시 샘플 사진으로 쓴다.
 
 ## 제거한 구현
 

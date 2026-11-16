@@ -86,6 +86,19 @@ const config: KnipConfig = {
         'vitest',
       ],
     },
+    'apps/stickerbook': {
+      // spikes/·mockups/는 dev 서버에서만 여는 HTML 진입점이다(프로덕션 빌드 제외).
+      entry: [
+        'index.html',
+        'spikes/**/index.html',
+        'spikes/**/main.ts',
+        'mockups/**/*.html',
+        'mockups/**/{scene,overview}.ts',
+      ],
+      project: ['**/*.{ts,tsx}'],
+      // tailwindcss는 src/index.css의 @import로만 쓰여 knip이 따라가지 못한다.
+      ignoreDependencies: ['tailwindcss'],
+    },
     'apps/mumak-native': {
       entry: [
         'app/**/*.{ts,tsx}',

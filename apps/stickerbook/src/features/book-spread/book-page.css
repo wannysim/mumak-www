@@ -1,0 +1,46 @@
+/*
+ * 쪽 안 배치 중 컨테이너 단위(cq)와 그늘 그라디언트만 둔다(글자 쪽 배치는 Tailwind, 글자 크기는 본문과 같은 1rem 하나).
+ * 사진 크기는 쪽 폭·높이의 72%(펼침) 또는 88%(세로 휴대폰) 안에 두고 광학 중심을 조금 위로 올린다.
+ * 모두 임시, open-decisions G0 "사진 쪽 여백·비율과 감상 크기"(시안 spread-a·phone-a).
+ */
+.book-page {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  container-type: size;
+  background: var(--background);
+}
+
+.book-page__photo {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 72cqw;
+  max-height: 72cqh;
+  margin-bottom: 6cqh;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.book-page[data-layout='single'] .book-page__photo {
+  max-width: 88cqw;
+  max-height: 88cqh;
+}
+
+/* 세로 휴대폰 한 쪽: 책등 쪽에 옅은 그늘(시안 phone-a). 오른쪽 쪽은 왼쪽, 왼쪽 쪽은 오른쪽이 책등이다. */
+.book-page[data-layout='single']::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 9%;
+  pointer-events: none;
+  background: linear-gradient(to right, var(--shade-soft), var(--shade-faint) 30%, transparent);
+}
+
+.book-page[data-layout='single'][data-side='left']::after {
+  inset: 0 0 0 auto;
+  background: linear-gradient(to left, var(--shade-soft), var(--shade-faint) 30%, transparent);
+}

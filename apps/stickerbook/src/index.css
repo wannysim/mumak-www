@@ -1,6 +1,92 @@
 @import 'tailwindcss';
 
-html {
-  background: #fff;
-  color: #000;
+/*
+ * 색 토큰 출처: packages/ui/src/styles/globals.css :root (blog 앱 라이트 테마).
+ * 2026-11-13 사용자 결정(blog 컬러셋)으로 같은 이름·같은 값을 옮겼다. mockups/still/still.css의 7개 토큰과 같다.
+ * 다크 모드는 1페이즈 범위 밖이라 두지 않는다(open-decisions G1 "사이트 언어와 다크 모드").
+ * 주황(primary)·크림슨(destructive)은 아주 작은 포인트에만 쓴다. 사진 말고는 새 색을 만들지 않는다.
+ */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --primary: oklch(0.65 0.2 45);
+  --muted-foreground: oklch(0.556 0 0);
+  --border: oklch(0.922 0 0);
+  --accent: oklch(0.93 0.05 50);
+  --destructive: oklch(0.577 0.245 27.325);
+
+  /* 그늘은 새 색이 아니라 foreground를 투명하게 겹친 것이다(시안 still.css). */
+  --shade-faint: color-mix(in oklch, var(--foreground) 4%, transparent);
+  --shade-soft: color-mix(in oklch, var(--foreground) 8%, transparent);
+  --shade-firm: color-mix(in oklch, var(--foreground) 14%, transparent);
+
+  color-scheme: light;
+  /*
+   * 루트 글자 크기 하나로 반응형(기본 16px, 550px 이하 15px). 임시, open-decisions G0 "georgehatton 차용 후보 원칙의 채택 범위".
+   * 퍼센트라 브라우저 기본 글자 크기 설정을 따른다. 책 배치 계산(src/model/book/geometry.ts)은 이 계산값을 읽어 쓴다
+   * (src/hooks/use-viewport-size.ts). 이 파일이 정본이다.
+   */
+  font-size: 100%;
+}
+
+@media (max-width: 550px) {
+  :root {
+    font-size: 93.75%;
+  }
+}
+
+/*
+ * 임시 서체(open-decisions G1 "서체 후보와 라이선스"): Pretendard Variable 서브셋(SIL OFL 1.1)을 자체 호스팅한다.
+ * apps/blog/fonts/PretendardVariableSubset.woff2 사본(Latin + KS X 1001 2,350자 + blog 콘텐츠 글자, 371,680B).
+ * 시스템 폰트에 기대지 않아 OS별 글자 폭 차이를 없앤다(tech-research.md 0장 폰트 통일).
+ */
+@font-face {
+  font-family: 'Stickerbook Pretendard';
+  src: url('./assets/fonts/pretendard-variable-subset.woff2') format('woff2');
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-destructive: var(--destructive);
+  --font-sans: 'Stickerbook Pretendard', system-ui, sans-serif;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  /* 서체 하나, 굵기 하나, 크기 하나(georgehatton 원칙, 임시). 위계는 위치와 묶음으로 만든다. */
+  body {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.4;
+    /* 한국어 낱말 중간에서 줄을 바꾸지 않는다. 긴 주소만 어디서든 끊는다. 임시, open-decisions G0 georgehatton 차용 후보(글자 배치). */
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  /* 포커스 표시. 모양은 임시, tech-research.md 7장 U8(보이는 모습). */
+  :focus-visible {
+    outline: 2px solid var(--foreground);
+    outline-offset: 3px;
+  }
+
+  /* 글자 선택 표시에 accent(옅은 주황)를 쓴다. 임시, open-decisions G0 "색 값과 포인트 색 쓰는 곳". */
+  ::selection {
+    background: var(--accent);
+  }
 }
