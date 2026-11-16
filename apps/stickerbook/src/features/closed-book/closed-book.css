@@ -1,15 +1,15 @@
 /*
  * 닫힌 책(CSS 3D). 시안 mockups/still closed-a의 면 구성을 옮겼다: 흰 종이 표지, 두께 = 쪽 폭의 5%, 아주 옅은 접지 그림자.
  * 책은 펼친 뒤의 쪽 크기로 그리고 인라인 transform의 scale로 줄인다. 그래서 표지 글자·여백은 그 배율로 나눠 둔다.
+ * 자세(matrix3d)와 무대 원근(perspective, perspective-origin)은 src/model/book이 계산해 인라인으로 건다(projection.ts가 정본).
  * 형태·재질·조명·그림자는 모두 임시, open-decisions G0 "닫힌 책 형태·재질·조명, 그림자, 책 바깥 여백".
  */
 .closed-stage {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  /* 카메라를 책보다 조금 위에 둬 윗면 단면이 보이게 한다(제품 사진 같은 시점, 시안 값). */
-  perspective: 2400px;
-  perspective-origin: 50% 20%;
+  /* 무대 자체는 포인터를 받지 않는다. 회전 영역(.closed-surface)과 책 버튼만 받고, 이벤트는 여기로 올라온다. */
+  pointer-events: none;
 }
 
 .closed-book__shadow {
@@ -25,30 +25,37 @@
   pointer-events: none;
 }
 
-/* 키 회전만 시간을 두고 돈다. 드래그는 손을 그대로 따른다. 시간은 임시, open-decisions G3 "닫힌 책 회전 범위와 감각". */
-.closed-book[data-animated='true'] {
-  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
 .closed-book__face {
   position: absolute;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
 
-/* 앞표지 한 장: 바깥 = 명함 앞면, 안쪽 = 1쪽. 책등(왼쪽 가장자리)을 축으로 연다. */
-.closed-book__cover {
+/*
+ * 표지 판 두 장. 둘 다 책등(왼쪽 가장자리)을 축으로 돈다. 앞표지는 바깥 = 명함 앞면, 안쪽 = 펼침면 왼쪽 쪽.
+ * 뒤표지는 바깥 = 명함 뒷면, 안쪽 = 펼침면 오른쪽 쪽. 각도는 rotation.ts coverAngleDeg.
+ */
+.closed-book__cover,
+.closed-book__back-cover {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
   transform-origin: 0 50%;
+}
+
+.closed-book__cover {
   transform: translateZ(calc(var(--book-d) / 2)) rotateY(var(--cover-angle));
+}
+
+.closed-book__back-cover {
+  transform: translateZ(calc(var(--book-d) / -2)) rotateY(var(--back-cover-angle));
 }
 
 .closed-book__cover-front,
 .closed-book__cover-inside,
-.closed-book__first-page,
-.closed-book__back {
+.closed-book__back,
+.closed-book__back-inside,
+.closed-book__under {
   inset: 0;
   background: var(--background);
 }
@@ -63,22 +70,31 @@
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
+.closed-book__back {
+  justify-content: flex-end;
+  transform: rotateY(180deg);
+}
+
 .closed-book__cover-inside {
   transform: rotateY(180deg);
 }
 
-.closed-book__first-page {
+/* 표지가 덮이는 쪽(책 몸 맨 위 쪽). 앞표지 아래는 앞쪽, 뒤표지 아래는 뒤쪽을 본다. */
+.closed-book__under[data-cover='front'] {
   transform: translateZ(calc(var(--book-d) / 2 - 1px));
 }
 
+.closed-book__under[data-cover='back'] {
+  transform: rotateY(180deg) translateZ(calc(var(--book-d) / 2 - 1px));
+}
+
 /*
- * 펼침 중 드러나는 앞표지 안쪽(1쪽)과 첫 쪽(2쪽)은 흰 바탕 위 흰 종이라, 펼친 책(book-spread.css)과 같은 테두리·쪽 두께 선·
- * 그림자·가운데 그늘을 여기서도 그린다. 그래서 펼치는 동안 책 몸이 보이고, 펼친 책 DOM으로 넘겨줄 때 바뀌는 것이 없다.
- * 두께 선과 그림자는 옮겨 가는 정도(--chrome-reveal = travel)만큼 들인다. 값은 펼친 책과 같은 임시값(open-decisions G0).
- * 앞표지 안쪽 면은 표지와 함께 -180° 돌아 놓이므로 면 기준 왼쪽이 화면 왼쪽이다.
+ * 여닫는 중 드러나는 표지 안쪽과 그 아래 쪽은 흰 바탕 위 흰 종이라, 펼친 책(book-spread.css)과 같은 테두리·쪽 두께 선·
+ * 그림자·가운데 그늘을 여기서도 그린다. 그래서 여닫는 동안 책 몸이 보이고, 펼친 책 DOM과 주고받을 때 바뀌는 것이 없다.
+ * 두께 선과 그림자는 옮겨 간 정도(--chrome-reveal = travel)만큼 들인다. 값은 펼친 책과 같은 임시값(open-decisions G0).
+ * data-page-side는 펼친 자리에서 화면 왼쪽(left)·오른쪽(right) 쪽인지다. 면 요소의 오른쪽이 화면 오른쪽이 되게 놓여 있다.
  */
-.closed-book__cover-inside,
-.closed-book__first-page {
+.closed-book__page {
   box-shadow: 0 0 0 1px var(--border);
 }
 
@@ -89,7 +105,7 @@
   opacity: var(--chrome-reveal);
 }
 
-.closed-book[data-layout='spread'] .closed-book__cover-inside .closed-book__page-chrome {
+.closed-book[data-layout='spread'] .closed-book__page[data-page-side='left'] .closed-book__page-chrome {
   box-shadow:
     -3px 0 0 0 var(--background),
     -4px 0 0 0 var(--border),
@@ -98,7 +114,7 @@
     0 28px 56px -36px var(--shade-firm);
 }
 
-.closed-book[data-layout='spread'] .closed-book__first-page .closed-book__page-chrome {
+.closed-book[data-layout='spread'] .closed-book__page[data-page-side='right'] .closed-book__page-chrome {
   box-shadow:
     3px 0 0 0 var(--background),
     4px 0 0 0 var(--border),
@@ -107,20 +123,19 @@
     0 28px 56px -36px var(--shade-firm);
 }
 
-.closed-book[data-layout='single'] .closed-book__first-page .closed-book__page-chrome {
+.closed-book[data-layout='single'] .closed-book__under .closed-book__page-chrome {
   box-shadow: 0 24px 48px -32px var(--shade-firm);
 }
 
 /* 가운데 접힘 그늘을 쪽마다 반씩(펼친 책 .book__fold-shade의 43%–57%를 쪽 폭 기준으로 옮긴 값). */
-.closed-book[data-layout='spread'] .closed-book__cover-inside::after,
-.closed-book[data-layout='spread'] .closed-book__first-page::after {
+.closed-book[data-layout='spread'] .closed-book__page::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
 
-.closed-book[data-layout='spread'] .closed-book__cover-inside::after {
+.closed-book[data-layout='spread'] .closed-book__page[data-page-side='left']::after {
   background: linear-gradient(
     to right,
     transparent 86%,
@@ -130,7 +145,7 @@
   );
 }
 
-.closed-book[data-layout='spread'] .closed-book__first-page::after {
+.closed-book[data-layout='spread'] .closed-book__page[data-page-side='right']::after {
   background: linear-gradient(
     to right,
     var(--shade-firm) 0%,
@@ -138,11 +153,6 @@
     var(--shade-faint) 4%,
     transparent 14%
   );
-}
-
-.closed-book__back {
-  justify-content: flex-end;
-  transform: rotateY(180deg) translateZ(calc(var(--book-d) / 2));
 }
 
 .closed-book__spine,
@@ -177,6 +187,7 @@
   transform: rotateY(90deg) translateZ(calc(var(--book-w) / 2));
 }
 
+/* 윗면(책머리)과 아랫면(책밑). 자유 회전으로 둘 다 정면에 설 수 있다. */
 .closed-book__top,
 .closed-book__bottom {
   top: calc(50% - var(--book-d) / 2);
@@ -197,25 +208,26 @@
   transform: rotateX(-90deg) translateZ(calc(var(--book-h) / 2));
 }
 
-/* 판정 버튼: 보이는 책 폭(geometry.ts closedHitBox)을 덮는 투명 버튼. 포커스 표시는 그 둘레에 그린다(모양 임시, 7장 U8). */
+/* 책 버튼: 투영 다각형을 감싼 투명 버튼(projection.ts outlineBounds). 포커스 표시는 그 둘레에 그린다(모양 임시, 7장 U8). */
 .closed-book__hit {
   position: absolute;
   padding: 0;
   border: 0;
   background: transparent;
-  cursor: grab;
+  pointer-events: none;
   touch-action: none;
+  cursor: grab;
+}
+
+.closed-stage[data-phase='closed'] .closed-book__hit {
+  pointer-events: auto;
 }
 
 .closed-book__hit:active {
   cursor: grabbing;
 }
 
-.closed-stage[data-phase='opening'] .closed-book__hit {
-  pointer-events: none;
-}
-
-/* 펼치는 동안에는 판정 버튼 둘레의 포커스 표시가 움직이는 책과 어긋나므로 그리지 않는다(포커스는 그대로, 끝나면 책 영역으로 옮긴다). */
-.closed-stage[data-phase='opening'] .closed-book__hit:focus-visible {
+/* 여닫는 동안에는 판정 버튼 둘레의 포커스 표시가 움직이는 책과 어긋나므로 그리지 않는다(포커스는 그대로, 끝나면 옮긴다). */
+.closed-stage:not([data-phase='closed']) .closed-book__hit:focus-visible {
   outline: none;
 }

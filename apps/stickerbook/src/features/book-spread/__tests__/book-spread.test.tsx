@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookEvent, BookScene } from '@/model/book/book-state';
+import { beginCoverDrag, coverLens } from '@/model/book/closing';
 import type { OpenGeometry } from '@/model/book/geometry';
 import { computeOpenGeometry, turnFrame } from '@/model/book/geometry';
 import { beginClickTurn, beginDragTurn } from '@/model/book/turn-session';
@@ -9,7 +10,7 @@ import { nextView } from '@/model/fold';
 
 import { BookSpread } from '../book-spread';
 
-type OpenScene = Extract<BookScene, { phase: 'open' | 'turning' }>;
+type OpenScene = Extract<BookScene, { phase: 'open' | 'turning' | 'closing' }>;
 
 const geometry = computeOpenGeometry({ width: 1440, height: 900 }, 'spread');
 const openScene: Extract<BookScene, { phase: 'open' }> = { phase: 'open', view: { layout: 'spread', spread: 1 } };
@@ -228,6 +229,55 @@ describe('BookSpread', () => {
     const region = screen.getByRole('region', { name: '펼친 책' });
     expect(region.querySelector('.book__fold-shade')).toBeNull();
     expect(region).toHaveAttribute('data-motion', 'reduced');
-    expect(screen.getByRole('button', { name: '다음 쪽' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.queryByRole('button', { name: '다음 쪽' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '뒤표지 덮기' })).toHaveAttribute('data-action', 'close');
+  });
+
+  it('should turn the end buttons into cover buttons that send the same turn input', () => {
+    const { onBookEvent } = renderSpread({ phase: 'open', view: { layout: 'spread', spread: 0 } });
+    const closeFront = screen.getByRole('button', { name: '앞표지 덮기' });
+    expect(closeFront).not.toHaveAttribute('aria-disabled');
+    expect(screen.getByRole('button', { name: '다음 쪽' })).toHaveAttribute('data-action', 'turn');
+    fireEvent.click(closeFront);
+    expect(onBookEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'turn-click', direction: 'backward' })
+    );
+  });
+
+  it('should start a cover drag from the outer band of the first spread', () => {
+    const { onBookEvent, region } = renderSpread({ phase: 'open', view: { layout: 'spread', spread: 0 } });
+    fireEvent.pointerDown(region, { pointerId: 12, button: 0, clientX: 250, clientY: 500 });
+    fireEvent.pointerMove(region, { pointerId: 12, buttons: 1, clientX: 270, clientY: 500 });
+    expect(onBookEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'turn-drag-start', direction: 'backward' })
+    );
+  });
+
+  it('should keep the pointer and the drag going while the cover is being closed by hand', () => {
+    const view = { layout: 'spread', spread: 0 } as const;
+    const setup = { frame: turnFrame(geometry, 'backward'), direction: 'backward' as const, page: geometry.page };
+    const drag = beginCoverDrag(
+      { ...setup, lens: coverLens(setup, geometry) },
+      { x: 10, y: 300 },
+      { x: 30, y: 300 },
+      0
+    );
+    const { onBookEvent, region } = renderSpread({
+      phase: 'closing',
+      side: 'front',
+      view,
+      page: geometry.page,
+      stage: { type: 'drag', drag },
+    });
+    expect(region).toHaveAttribute('data-phase', 'closing');
+    expect(region.querySelectorAll('[data-role="rest"]')).toHaveLength(2);
+    // 펼친 책은 보이지 않는 채 포인터만 붙잡고 있으므로 쪽은 접근성 트리·탭 순서에서 뺀다.
+    for (const layer of region.querySelectorAll('[data-role="rest"]')) {
+      expect(layer).toHaveAttribute('inert');
+    }
+    // 끄는 중에는 클릭·키 넘김을 받지 않는다.
+    fireEvent.keyDown(region, { key: 'ArrowLeft' });
+    fireEvent.click(screen.getByRole('button', { name: '앞표지 덮기' }));
+    expect(onBookEvent).not.toHaveBeenCalled();
   });
 });

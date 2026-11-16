@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BOOK_DEPTH_RATIO,
-  closedHitBox,
   computeClosedPlacement,
   computeOpenGeometry,
+  coverLayout,
   isSamePageSize,
   pageBoxes,
   PAGE_ASPECT,
@@ -87,24 +87,22 @@ describe('geometry', () => {
       expect(placement.depth).toBeCloseTo(geometry.page.width * BOOK_DEPTH_RATIO);
     });
 
-    it('should fit the closed book hit box to the visible width at each angle', () => {
-      const placement = computeClosedPlacement(viewport, geometry);
-      const front = closedHitBox(placement, { yaw: 0, pitch: -8 });
-      expect(front).toEqual(placement.frontBox);
-      const spine = closedHitBox(placement, { yaw: 90, pitch: 0 });
-      expect(spine.width).toBeCloseTo(Math.max(placement.depth * placement.scale, 24));
-      expect(spine.x + spine.width / 2).toBeCloseTo(720);
-      const angled = closedHitBox(placement, { yaw: -135, pitch: 0 });
-      expect(angled.width).toBeCloseTo(Math.SQRT1_2 * (geometry.page.width + placement.depth) * placement.scale);
-      expect(
-        closedHitBox(
-          computeClosedPlacement(
-            { width: 100, height: 100 },
-            computeOpenGeometry({ width: 100, height: 100 }, 'spread')
-          ),
-          { yaw: 90, pitch: 0 }
-        ).width
-      ).toBe(24);
+    it('should lay the front cover over the right page and the back cover over the left page', () => {
+      const pageBox = (x: number) => ({ x, y: 112, width: geometry.page.width, height: 676 });
+      expect(coverLayout(geometry, 'front', { layout: 'spread', spread: 0 })).toEqual({
+        inside: 1,
+        under: 2,
+        body: pageBox(213 + geometry.page.width),
+      });
+      expect(coverLayout(geometry, 'front', { layout: 'spread', spread: 2 })).toMatchObject({ inside: 5, under: 6 });
+      expect(coverLayout(geometry, 'back', { layout: 'spread', spread: 3 })).toEqual({
+        inside: 8,
+        under: 7,
+        body: pageBox(213),
+      });
+      const placement = computeClosedPlacement(viewport, geometry, pageBox(213));
+      expect(placement.target).toEqual(pageBox(213));
+      expect(placement.center).toEqual({ x: 720, y: 450 });
     });
 
     it('should expose two page boxes and a spine at the middle', () => {
@@ -157,6 +155,34 @@ describe('geometry', () => {
       const placement = computeClosedPlacement(viewport, geometry);
       expect(placement.target).toBe(geometry.book);
       expect(placement.scale).toBeLessThan(1);
+    });
+
+    it('should keep the book body off screen beyond the spine when the visible page is the board inside', () => {
+      const { book, page } = geometry;
+      const at = (x: number) => ({ x, y: book.y, width: page.width, height: page.height });
+      // 2쪽: 앞표지와 1쪽이 왼쪽 화면 밖에서 넘어와 2쪽을 덮는다(펼침의 거꾸로).
+      expect(coverLayout(geometry, 'front', { layout: 'single', page: 2 })).toEqual({
+        inside: 1,
+        under: 2,
+        body: at(book.x),
+      });
+      // 1쪽: 앞표지 판이 화면의 쪽 상자를 채우고, 책 몸(2쪽)은 오른쪽 화면 밖이다.
+      expect(coverLayout(geometry, 'front', { layout: 'single', page: 1 })).toEqual({
+        inside: 1,
+        under: 2,
+        body: at(book.x + page.width),
+      });
+      // 8쪽: 뒤표지 판이 화면을 채우고, 책 몸(7쪽)은 왼쪽 화면 밖이다.
+      expect(coverLayout(geometry, 'back', { layout: 'single', page: 8 })).toEqual({
+        inside: 8,
+        under: 7,
+        body: at(book.x - page.width),
+      });
+      expect(coverLayout(geometry, 'back', { layout: 'single', page: 7 })).toEqual({
+        inside: 8,
+        under: 7,
+        body: at(book.x),
+      });
     });
 
     it('should fold the visible page around its left edge going forward and its right edge going back', () => {

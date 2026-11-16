@@ -1,15 +1,17 @@
 import * as React from 'react';
 
 import { PAGE_COUNT } from '@/content/pages';
-import { FACE_LABELS, folioReading, landingAnnouncement } from '@/content/temporary';
+import { closedAnnouncement, folioReading, landingAnnouncement } from '@/content/temporary';
 import { BookSpread } from '@/features/book-spread/book-spread';
 import { ClosedBook } from '@/features/closed-book/closed-book';
 import { RunningHead } from '@/features/running-head/running-head';
+import { useDocumentKeyDown } from '@/hooks/use-document-key-down';
 import { useFrameLoop } from '@/hooks/use-frame-loop';
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion';
 import { useViewportSize } from '@/hooks/use-viewport-size';
-import type { BookScene } from '@/model/book/book-state';
+import type { Announcement, BookEvent, BookScene } from '@/model/book/book-state';
 import {
+  canClose,
   createInitialBookState,
   folioPages,
   initialView,
@@ -17,50 +19,88 @@ import {
   needsResync,
   reduceBook,
 } from '@/model/book/book-state';
+import { closingPoseAt, coverDragProgress, coverPose, coverReturnProgress } from '@/model/book/closing';
 import { formatFolio } from '@/model/book/folio';
 import { computeOpenGeometry } from '@/model/book/geometry';
+import { documentKeyAction } from '@/model/book/keyboard';
 import { decideLayout, runningHeadParts } from '@/model/book/layout';
-import type { OpeningPose } from '@/model/book/opening';
+import type { TransitionPose } from '@/model/book/opening';
 import { openingPoseAt } from '@/model/book/opening';
-import { INITIAL_ROTATION, visibleFace } from '@/model/book/rotation';
-import type { PageLayout } from '@/model/fold';
+import { INITIAL_ORIENTATION } from '@/model/book/rotation';
+import type { BookView, PageLayout } from '@/model/fold';
 
-type OpenScene = Extract<BookScene, { phase: 'open' | 'turning' }>;
+type SpreadScene = Extract<BookScene, { phase: 'open' | 'turning' | 'closing' }>;
 
-/** 닫힌 책·펼치는 중이면 지금 보이는 면 이름(펼치며 앞면으로 도는 동안에는 실제 각도), 펼친 책이면 쪽 번호(착지 때 갱신). */
-function folioFor(scene: BookScene, opening: OpeningPose | null): { folio: string; reading: string | null } {
-  const pages = folioPages(scene);
-  if (pages !== null) {
-    return { folio: formatFolio(pages, PAGE_COUNT), reading: folioReading(pages, PAGE_COUNT) };
+type Transition = { readonly pose: TransitionPose; readonly view: BookView };
+
+/** 펼치거나 덮는 중인 3D 책의 자세. 손으로 덮는 중·되돌아가는 중에는 표지 판이 덮인 정도를 따른다(closing.ts coverPose). */
+function transitionFor(scene: BookScene, layout: PageLayout, reducedMotion: boolean): Transition | null {
+  if (scene.phase === 'opening') {
+    return { pose: openingPoseAt(scene.timeline, scene.elapsedMs), view: initialView(layout) };
   }
-  const rotation = opening?.rotation ?? (scene.phase === 'closed' ? scene.rotation : INITIAL_ROTATION);
-  return { folio: FACE_LABELS[visibleFace(rotation)], reading: null };
+  if (scene.phase !== 'closing') {
+    return null;
+  }
+  const { stage } = scene;
+  if (stage.type === 'transition') {
+    return { pose: closingPoseAt(stage.timeline, stage.elapsedMs), view: scene.view };
+  }
+  const progress = stage.type === 'drag' ? coverDragProgress(stage.drag) : coverReturnProgress(stage.cover);
+  return { pose: coverPose(scene.side, progress, reducedMotion), view: scene.view };
 }
 
-/** 펼친 책 DOM에 넘길 장면. 펼침 끝(handoff)에는 3D 책 아래에 첫 화면을 미리 그린다(opening.ts). */
-function spreadSceneFor(scene: BookScene, opening: OpeningPose | null, layout: PageLayout): OpenScene | null {
-  if (scene.phase === 'open' || scene.phase === 'turning') {
-    return scene;
-  }
-  return opening !== null && opening.handoff > 0 ? { phase: 'open', view: initialView(layout) } : null;
-}
+type HeadFolio = { readonly folio: string; readonly reading: string } | null;
 
 /**
- * 넘겨주는 동안 펼친 책 DOM의 모습. 동작 줄이기 교차면 전체 투명도, 아니면 책 바깥 테두리·그림자·화살표만 들인다
- * (쪽은 3D 책이 같은 자리에서 덮고 있다가 사라진다).
+ * 펼친 책이면 쪽 번호(착지 때 갱신). 닫힌 책·여닫는 중에는 없다: 잡지 표지에는 쪽 번호가 없고, 펼치는 순간 쪽 번호가
+ * 나타나 책 안에 들어왔다는 신호가 된다(2026-11-16 사용자 결정, plan.md 러닝 헤드).
  */
-function spreadStyleFor(opening: OpeningPose | null): React.CSSProperties | undefined {
-  if (opening === null) {
-    return undefined;
-  }
-  return opening.crossfade
-    ? { opacity: opening.handoff }
-    : ({ '--chrome-reveal': opening.handoff } as React.CSSProperties);
+function headFolio(scene: BookScene): HeadFolio {
+  const pages = folioPages(scene);
+  return pages === null ? null : { folio: formatFolio(pages, PAGE_COUNT), reading: folioReading(pages, PAGE_COUNT) };
+}
+
+/** 넘겨주는 동안 펼친 책 DOM의 모습. 동작 줄이기 교차면 전체 투명도, 아니면 책 테두리·그림자·화살표만 들이고 낸다. */
+function handoffStyle(pose: TransitionPose): React.CSSProperties {
+  return pose.crossfade ? { opacity: pose.handoff } : ({ '--chrome-reveal': pose.handoff } as React.CSSProperties);
 }
 
 /**
- * 1페이즈 앱: 닫힌 3D 책 → 클릭으로 펼침 → 사진 잡지 넘김. 상태는 순수 모델(src/model/book)이 갖고,
- * 이 컴포넌트는 화면 크기·동작 줄이기 설정·프레임 시각을 모델에 넣고 결과를 그린다.
+ * 펼친 책 DOM에 넘길 장면과 모습. 펼침 끝·덮기 시작의 넘겨주기 동안에는 3D 책 아래에 그린다(opening.ts·closing.ts).
+ * 손으로 덮는 중·되돌아가는 중에는 포인터를 붙잡고 다음 입력을 받도록 남겨 두되, 보이는 것은 3D 책이 맡는다.
+ */
+function spreadFor(
+  scene: BookScene,
+  transition: Transition | null,
+  layout: PageLayout
+): { scene: SpreadScene; style: React.CSSProperties | undefined } | null {
+  if (scene.phase === 'open' || scene.phase === 'turning') {
+    return { scene, style: undefined };
+  }
+  if (transition === null || scene.phase === 'closed') {
+    return null;
+  }
+  const { pose } = transition;
+  if (scene.phase === 'closing' && scene.stage.type !== 'transition') {
+    return { scene, style: pose.crossfade ? { opacity: pose.handoff } : { opacity: 0 } };
+  }
+  if (pose.handoff <= 0) {
+    return null;
+  }
+  const spreadScene: SpreadScene = scene.phase === 'opening' ? { phase: 'open', view: initialView(layout) } : scene;
+  return { scene: spreadScene, style: handoffStyle(pose) };
+}
+
+function announcementText(announcement: Announcement): string {
+  return announcement.kind === 'pages'
+    ? landingAnnouncement(announcement.pages)
+    : closedAnnouncement(announcement.side);
+}
+
+/**
+ * 1페이즈 앱: 닫힌 3D 책 → 클릭으로 펼침 → 사진 잡지 넘김 → 다시 덮기. 상태는 순수 모델(src/model/book)이 갖고,
+ * 이 컴포넌트는 화면 크기·동작 줄이기 설정·프레임 시각·문서 키(Esc)를 모델에 넣고 결과를 그린다.
+ * 덮고 나면 포커스를 닫힌 책 버튼으로 옮기고 상태 영역에 한 번 알린다(tech-research.md 7장 책 닫기 행).
  */
 export function App() {
   const viewport = useViewportSize();
@@ -68,54 +108,79 @@ export function App() {
   const reducedMotion = usePrefersReducedMotion();
   const [state, dispatch] = React.useReducer(reduceBook, PAGE_COUNT, createInitialBookState);
   const geometry = computeOpenGeometry(viewport, layout);
+  const closedButtonRef = React.useRef<HTMLButtonElement | null>(null);
 
   // 화면 크기가 바뀌어 배치·쪽 크기가 달라지면 렌더 중에 상태에 확정한다(React의 "이전 렌더 값으로 상태 맞추기" 패턴).
   // 렌더에서만 맞추면 상태에는 넘기던 장이 남아, 원래 크기로 돌아올 때 되살아난다.
   if (needsResync(state.scene, geometry)) {
     dispatch({ type: 'resize', geometry });
   }
-  const { scene } = state;
+  const { scene, announcement } = state;
 
   useFrameLoop(needsFrames(scene), time => dispatch({ type: 'frame', time, geometry, reducedMotion }));
 
-  const opening = scene.phase === 'opening' ? openingPoseAt(scene.timeline, scene.elapsedMs) : null;
-  const { folio, reading } = folioFor(scene, opening);
+  const closeToFront: BookEvent = { type: 'close', side: 'front', geometry, reducedMotion };
+  useDocumentKeyDown(event => {
+    if (documentKeyAction(event) === 'close' && !event.defaultPrevented && canClose(state.scene)) {
+      event.preventDefault();
+      dispatch(closeToFront);
+    }
+  });
 
-  const spreadScene = spreadSceneFor(scene, opening, layout);
+  // 덮기 전환이 시작되면 사라질 펼친 책(과 덮은 뒤 글자로 바뀌는 러닝 헤드 이름) 대신 닫힌 책 버튼에 포커스를 둔다.
+  // 버튼은 전환 중 aria-disabled로 이미 그려져 있다. 덮은 알림이 새로 쓰일 때(착지) 한 번 더 확인한다. 첫 화면에서는 옮기지 않는다
+  // (tech-research.md 7장 공통 규칙 "포커스된 노드가 사라지기 전에 옮긴다", 책 닫기 행).
+  const closingStarted = scene.phase === 'closing' && scene.stage.type === 'transition';
+  const closedSerial = announcement?.kind === 'closed' ? announcement.serial : null;
+  const closedBookFocusKey = closingStarted ? 'closing' : closedSerial;
+  React.useEffect(() => {
+    if (closedBookFocusKey !== null) {
+      closedButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [closedBookFocusKey]);
+
+  const transition = transitionFor(scene, layout, reducedMotion);
+  const pageFolio = headFolio(scene);
+  const spread = spreadFor(scene, transition, layout);
 
   return (
     <>
-      <RunningHead parts={runningHeadParts(viewport, layout)} folio={folio} folioReading={reading} />
+      <RunningHead
+        parts={runningHeadParts(viewport, layout)}
+        folio={pageFolio?.folio ?? null}
+        folioReading={pageFolio?.reading ?? null}
+        nameAction={
+          scene.phase === 'closed' ? null : { disabled: !canClose(scene), onPress: () => dispatch(closeToFront) }
+        }
+      />
       <main aria-label="Stickerbook" className="min-h-svh">
-        {spreadScene === null ? null : (
+        {spread === null ? null : (
           <BookSpread
-            scene={spreadScene}
+            scene={spread.scene}
             geometry={geometry}
             pageCount={PAGE_COUNT}
             reducedMotion={reducedMotion}
             onBookEvent={dispatch}
-            style={spreadStyleFor(opening)}
+            style={spread.style}
           />
         )}
-        {scene.phase === 'closed' || scene.phase === 'opening' ? (
+        {scene.phase === 'closed' || transition !== null ? (
           <ClosedBook
             viewport={viewport}
             geometry={geometry}
-            rotation={scene.phase === 'closed' ? scene.rotation : scene.timeline.from}
-            rotationAnimated={scene.phase === 'closed' && scene.rotationAnimated}
-            opening={opening}
+            orientation={scene.phase === 'closed' ? scene.orientation : INITIAL_ORIENTATION}
+            transition={transition}
+            phase={scene.phase === 'closed' ? 'closed' : scene.phase === 'opening' ? 'opening' : 'closing'}
+            motion={scene.phase === 'closed' ? scene.motion.type : 'rest'}
             reducedMotion={reducedMotion}
-            onRotate={rotation => dispatch({ type: 'rotate', rotation })}
-            onRotateStep={step => dispatch({ type: 'rotate-step', step })}
-            onOpen={() => dispatch({ type: 'open', reducedMotion })}
+            buttonRef={closedButtonRef}
+            onBookEvent={dispatch}
           />
         ) : null}
       </main>
-      {/* 착지 때 한 번 알린다. 되돌아가면 바뀌지 않는다. 같은 문구로 다시 착지해도 새 노드로 다시 읽힌다. */}
+      {/* 착지·덮기 때 한 번 알린다. 되돌아가면 바뀌지 않는다. 같은 문구로 다시 알려도 새 노드로 다시 읽힌다. */}
       <p role="status" className="sr-only">
-        {state.landing === null ? null : (
-          <span key={state.landing.serial}>{landingAnnouncement(state.landing.pages)}</span>
-        )}
+        {announcement === null ? null : <span key={announcement.serial}>{announcementText(announcement)}</span>}
       </p>
     </>
   );

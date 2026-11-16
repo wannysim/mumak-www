@@ -5,9 +5,44 @@ import { resizeViewport, stubReducedMotion } from '@/test/browser';
 
 import { useFrameLoop } from '../use-frame-loop';
 import { usePrefersReducedMotion } from '../use-reduced-motion';
+import { useSafeAreaInsets } from '../use-safe-area-insets';
 import { useViewportSize } from '../use-viewport-size';
 
 describe('hooks', () => {
+  it('should read the device safe area and follow it when the window changes', () => {
+    const { result, unmount } = renderHook(() => useSafeAreaInsets());
+    // jsdom에는 safe area가 없다(데스크톱과 같다).
+    expect(result.current).toEqual({ top: 0, right: 0, bottom: 0, left: 0 });
+    const first = result.current;
+    const real = window.getComputedStyle.bind(window);
+    const spy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) => {
+      const style = real(element, pseudo);
+      // 훅의 측정 요소(body에 붙인 숨은 요소)만 아이폰 세로 safe area를 돌려준다.
+      if (element.parentElement === document.body && element.getAttribute('aria-hidden') === 'true') {
+        return {
+          ...style,
+          paddingTop: '59px',
+          paddingRight: '0px',
+          paddingBottom: '34px',
+          paddingLeft: 'auto',
+        } as CSSStyleDeclaration;
+      }
+      return style;
+    });
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(result.current).toEqual({ top: 59, right: 0, bottom: 34, left: 0 });
+    expect(result.current).not.toBe(first);
+    const second = result.current;
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(result.current).toBe(second);
+    spy.mockRestore();
+    unmount();
+  });
+
   it('should treat a missing matchMedia as full motion', () => {
     const { result } = renderHook(() => usePrefersReducedMotion());
     expect(result.current).toBe(false);

@@ -25,7 +25,7 @@ export { createClickTurnPath } from './click-turn';
 export type { GestureContext, GestureEvent, GestureState, Rect } from './input-priority';
 export { DEFAULT_DRAG_START_DISTANCE_PX, hasReachedDragStart, IDLE_GESTURE, reduceGesture } from './input-priority';
 export type { BookView, PageLayout, ViewMove } from './pages';
-export { assertPageCount, nextView, previousView, spreadPages, viewOfPage, visiblePages } from './pages';
+export { assertPageCount, nextView, previousView, spreadOfPage, spreadPages, viewOfPage, visiblePages } from './pages';
 export type { Easing, PathTiming, PointerPath } from './pointer-path';
 export { DEFAULT_TURN_TIMING, isPathFinished, samplePointerPath } from './pointer-path';
 export type { FoldLine } from './reflect-fold';

@@ -1,8 +1,9 @@
-import type { BookFrame, PageLayout, PageSize, Rect, TurnDirection, Vec2 } from '@/model/fold';
+import type { BookFrame, BookView, PageLayout, PageSize, Rect, TurnDirection, Vec2 } from '@/model/fold';
+import { spreadOfPage, spreadPages } from '@/model/fold';
 
 import type { Viewport } from './layout';
 import { rootFontPx } from './layout';
-import type { Rotation } from './rotation';
+import type { CoverSide } from './rotation';
 
 /**
  * 화면 크기 → 책의 화면 배치(CSS px). 렌더러와 넘김 모델이 같은 숫자를 쓰도록 CSS calc 대신 여기서 계산한다.
@@ -60,9 +61,6 @@ export const BOOK_DEPTH_RATIO = 0.05;
 /** 닫힌 책 높이 = min(화면 높이 × a, 화면 폭 × b). 임시, G0 "닫힌 책 형태", 시안 closed-a의 min(58svh, 62vw). */
 const CLOSED_BOOK_HEIGHT_OF_VIEWPORT_HEIGHT = 0.58;
 const CLOSED_BOOK_HEIGHT_OF_VIEWPORT_WIDTH = 0.62;
-
-/** 판정 영역 최소 크기(CSS px). WCAG 2.5.8, tech-research.md 7장 공통 규칙. */
-const MIN_TARGET_PX = 24;
 
 /** 계산이 0이나 음수가 되는 아주 작은 화면에서도 쪽 크기를 양수로 둔다. */
 const MIN_PAGE_HEIGHT_PX = 1;
@@ -187,14 +185,25 @@ export function computeOpenGeometry(viewport: Viewport, layout: PageLayout): Ope
   return layout === 'spread' ? spreadGeometry(viewport) : singleGeometry(viewport);
 }
 
+/** 펼침이 시작되는 책 몸 자리: 펼침면이면 오른쪽 쪽, 한 쪽 배치면 그 쪽 상자(펼친 뒤 2쪽이 놓이는 곳). */
+function openingBody(open: OpenGeometry): Rect {
+  const { page, book } = open;
+  return open.layout === 'spread'
+    ? { x: book.x + page.width, y: book.y, width: page.width, height: page.height }
+    : book;
+}
+
 /**
  * 닫힌 책 배치. 3D 책은 펼친 뒤의 쪽 크기로 그리고 scale로 줄여 둔다.
- * 그래서 펼침이 끝날 때 앞표지 안쪽(1쪽)과 그 아래 쪽이 변환 없는 DOM 쪽과 같은 크기·같은 줄바꿈으로 착지한다.
+ * 그래서 펼침이 끝날 때 표지 안쪽과 그 아래 쪽이 변환 없는 DOM 쪽과 같은 크기·같은 줄바꿈으로 착지한다.
+ * target은 펼친 쪽 자리에서 책 몸(표지가 덮이는 쪽)이 놓이는 상자다. 기본은 펼침이 시작되는 자리이고, 덮을 때는 coverLayout의 body다.
  */
-export function computeClosedPlacement(viewport: Viewport, open: OpenGeometry): ClosedPlacement {
-  const { page, book } = open;
-  const target =
-    open.layout === 'spread' ? { x: book.x + page.width, y: book.y, width: page.width, height: page.height } : book;
+export function computeClosedPlacement(
+  viewport: Viewport,
+  open: OpenGeometry,
+  target: Rect = openingBody(open)
+): ClosedPlacement {
+  const { page } = open;
   const closedHeight = Math.min(
     viewport.height * CLOSED_BOOK_HEIGHT_OF_VIEWPORT_HEIGHT,
     viewport.width * CLOSED_BOOK_HEIGHT_OF_VIEWPORT_WIDTH
@@ -217,17 +226,31 @@ export function computeClosedPlacement(viewport: Viewport, open: OpenGeometry): 
 }
 
 /**
- * 닫힌 책 판정 버튼 상자. 돌린 각도(yaw)에서 화면에 보이는 폭(앞면 폭·두께의 투영)에 맞춘다.
- * 책등만 보이도록 돌리면 그 폭으로 줄어 빈 자리를 눌러 펼치지 않게 한다. 기울기(pitch)와 원근은 무시한다.
- * 폭은 24 CSS px 아래로 줄이지 않는다(WCAG 2.5.8). tech-research.md 7장 "책 투영 영역을 덮는 오버레이 버튼"의 근사다.
- * 근사 방식(사각형, 높이는 정면 그대로)은 임시, open-decisions G3 "닫힌 책 회전 범위와 감각".
+ * 표지를 여닫는 동안 3D 책이 보여 줄 쪽과 자리. 화면 view의 펼침을 기준으로 한다(가운데 펼침에서 덮어도 같은 규칙).
+ * - 앞표지: 왼쪽 쪽(과 그 앞 장들)이 표지와 함께 넘어와 오른쪽 쪽을 덮는다. 판 안쪽은 왼쪽 쪽, 덮이는 쪽은 오른쪽 쪽.
+ * - 뒤표지: 오른쪽 쪽이 뒤표지와 함께 넘어와 왼쪽 쪽을 덮는다. 판 안쪽은 오른쪽 쪽, 덮이는 쪽은 왼쪽 쪽.
+ * 책 몸(body)은 덮이는 쪽 자리다. 한 쪽 배치에서 화면에 보이는 쪽이 판 안쪽이면(예: 1쪽에서 앞표지로 덮기) 책 몸은 화면 밖
+ * 책등 건너편(앞표지는 오른쪽, 뒤표지는 왼쪽)에 있고, 판이 화면의 쪽 상자를 채운다.
+ * 펼침은 앞표지·첫 화면(펼침 0 또는 2쪽)으로 이 규칙과 같은 자리·같은 쪽(1쪽 안쪽, 2쪽 아래)이 된다.
  */
-export function closedHitBox(placement: ClosedPlacement, rotation: Rotation): Rect {
-  const { frontBox, scale, depth, target } = placement;
-  const yaw = (rotation.yaw * Math.PI) / 180;
-  const projected = (Math.abs(Math.cos(yaw)) * target.width + Math.abs(Math.sin(yaw)) * depth) * scale;
-  const width = Math.max(projected, MIN_TARGET_PX);
-  return { x: placement.center.x - width / 2, y: frontBox.y, width, height: frontBox.height };
+export type CoverLayout = {
+  readonly inside: number;
+  readonly under: number;
+  readonly body: Rect;
+};
+
+export function coverLayout(open: OpenGeometry, side: CoverSide, view: BookView): CoverLayout {
+  const firstPage = view.layout === 'spread' ? spreadPages(view.spread).left : view.page;
+  const { left, right } = spreadPages(spreadOfPage(firstPage));
+  const inside = side === 'front' ? left : right;
+  const under = side === 'front' ? right : left;
+  const { book, page } = open;
+  const boxAt = (x: number): Rect => ({ x, y: book.y, width: page.width, height: page.height });
+  if (open.layout === 'spread') {
+    return { inside, under, body: boxAt(side === 'front' ? book.x + page.width : book.x) };
+  }
+  const shift = firstPage === under ? 0 : side === 'front' ? page.width : -page.width;
+  return { inside, under, body: boxAt(book.x + shift) };
 }
 
 /** 책 좌표의 쪽 상자. 'spread'는 [왼쪽, 오른쪽], 'single'은 [그 쪽]. */

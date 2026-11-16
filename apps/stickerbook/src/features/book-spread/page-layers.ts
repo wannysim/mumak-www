@@ -36,7 +36,7 @@ export type PageLayer = {
   readonly inert: boolean;
 };
 
-type OpenScene = Extract<BookScene, { phase: 'open' | 'turning' }>;
+type SpreadScene = Extract<BookScene, { phase: 'open' | 'turning' | 'closing' }>;
 type TurningScene = Extract<BookScene, { phase: 'turning' }>;
 
 /** 쌓는 순서. 가운데 접힘 그늘(book-spread.css, z-index 3)은 윗장 위, 날개 아래에 온다. */
@@ -71,7 +71,7 @@ function boxAt(origin: { readonly x: number; readonly y: number }, geometry: Ope
   return { x: origin.x, y: origin.y, width: geometry.page.width, height: geometry.page.height };
 }
 
-function restLayers(scene: OpenScene, geometry: OpenGeometry): PageLayer[] {
+function restLayers(scene: SpreadScene, geometry: OpenGeometry): PageLayer[] {
   const boxes = pageBoxes(geometry);
   return visiblePages(scene.view).map((page, index) => layer(page, 'rest', boxes[index] as Rect));
 }
@@ -136,6 +136,15 @@ function turningLayers(scene: TurningScene, geometry: OpenGeometry, reducedMotio
   return layers;
 }
 
-export function describePageLayers(scene: OpenScene, geometry: OpenGeometry, reducedMotion: boolean): PageLayer[] {
-  return scene.phase === 'open' ? restLayers(scene, geometry) : turningLayers(scene, geometry, reducedMotion);
+/**
+ * 쉬는 펼침과 덮는 중(덮기 전 화면 그대로)은 rest, 넘기는 중은 넘김 층이다.
+ * 덮는 동안 펼친 책은 보이지 않거나(손으로 덮는 중·되돌아가는 중 투명도 0) 사라지는 중이라 쪽을 inert로 둔다
+ * (tech-research.md 7장 공통 규칙: 전환 중 움직이는 쪽 오버레이 inert). 포인터를 붙잡은 책 영역과 넘김 버튼은 그대로다.
+ */
+export function describePageLayers(scene: SpreadScene, geometry: OpenGeometry, reducedMotion: boolean): PageLayer[] {
+  if (scene.phase === 'turning') {
+    return turningLayers(scene, geometry, reducedMotion);
+  }
+  const layers = restLayers(scene, geometry);
+  return scene.phase === 'closing' ? layers.map(layer => ({ ...layer, inert: true })) : layers;
 }

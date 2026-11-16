@@ -111,10 +111,6 @@
   right: max(0.25rem, min(1.5rem, calc((var(--turn-gutter) - 1rem) / 2)));
 }
 
-.turn-button[aria-disabled='true'] .turn-button__glyph {
-  opacity: calc(0.2 * var(--chrome-reveal, 1));
-}
-
 /* 버튼 포커스는 기둥 전체가 아니라 화살표 둘레에만 그린다. 모양은 임시(7장 U8). */
 .turn-button:focus-visible {
   outline: none;

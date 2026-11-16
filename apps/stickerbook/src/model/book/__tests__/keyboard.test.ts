@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { KeyInput } from '../keyboard';
-import { closedBookKeyAction, openBookKeyAction } from '../keyboard';
+import { closedBookKeyAction, documentKeyAction, openBookKeyAction } from '../keyboard';
 
 function key(name: string, modifiers: Partial<KeyInput> = {}): KeyInput {
   return { key: name, altKey: false, ctrlKey: false, metaKey: false, ...modifiers };
@@ -9,13 +9,17 @@ function key(name: string, modifiers: Partial<KeyInput> = {}): KeyInput {
 
 describe('keyboard', () => {
   it.each([
-    ['Enter', 'open'],
-    [' ', 'open'],
-    ['ArrowLeft', 'rotate-left'],
-    ['ArrowRight', 'rotate-right'],
+    ['Enter', { type: 'open' }],
+    [' ', { type: 'open' }],
+    // →는 오른쪽으로, ↓는 아래로 끈 것과 같은 방향이다.
+    ['ArrowLeft', { type: 'rotate', rotation: { axis: 'horizontal', step: -1 } }],
+    ['ArrowRight', { type: 'rotate', rotation: { axis: 'horizontal', step: 1 } }],
+    ['ArrowUp', { type: 'rotate', rotation: { axis: 'vertical', step: -1 } }],
+    ['ArrowDown', { type: 'rotate', rotation: { axis: 'vertical', step: 1 } }],
     ['Tab', null],
-  ])('should map %j on the closed book to %s', (name, action) => {
-    expect(closedBookKeyAction(key(name))).toBe(action);
+    ['constructor', null],
+  ])('should map %j on the closed book to %o', (name, action) => {
+    expect(closedBookKeyAction(key(name))).toEqual(action);
   });
 
   it.each([
@@ -32,6 +36,13 @@ describe('keyboard', () => {
     modifiers => {
       expect(closedBookKeyAction(key('ArrowRight', modifiers))).toBeNull();
       expect(openBookKeyAction(key('ArrowRight', modifiers))).toBeNull();
+      expect(documentKeyAction(key('Escape', modifiers))).toBeNull();
     }
   );
+
+  it('should close with Escape anywhere, but not while composing text', () => {
+    expect(documentKeyAction(key('Escape'))).toBe('close');
+    expect(documentKeyAction({ ...key('Escape'), isComposing: true })).toBeNull();
+    expect(documentKeyAction(key('Enter'))).toBeNull();
+  });
 });

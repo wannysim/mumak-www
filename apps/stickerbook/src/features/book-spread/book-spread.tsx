@@ -5,10 +5,11 @@ import { photoSourceOf } from '@/content/pages';
 import { UI_TEXT } from '@/content/temporary';
 import { joinClassNames } from '@/lib/class-names';
 import type { BookEvent, BookScene } from '@/model/book/book-state';
-import { turnBaseView, turnMove } from '@/model/book/book-state';
+import { closingSideAt, turnBaseView } from '@/model/book/book-state';
 import type { OpenGeometry } from '@/model/book/geometry';
 import { toBookLocal } from '@/model/book/geometry';
 import { openBookKeyAction } from '@/model/book/keyboard';
+import type { CoverSide } from '@/model/book/rotation';
 import type { GestureContext, GestureEvent, GestureState, TurnDirection, Vec2 } from '@/model/fold';
 import {
   DEFAULT_DRAG_START_DISTANCE_PX,
@@ -25,7 +26,7 @@ import { describePageLayers } from './page-layers';
 
 import './book-spread.css';
 
-type OpenScene = Extract<BookScene, { phase: 'open' | 'turning' }>;
+type SpreadScene = Extract<BookScene, { phase: 'open' | 'turning' | 'closing' }>;
 
 const TURN_DIRECTIONS: readonly TurnDirection[] = ['backward', 'forward'];
 
@@ -63,7 +64,7 @@ function PageLayerView({ layer, layout }: { layer: PageLayer; layout: OpenGeomet
 }
 
 /** 이웃 펼침의 사진을 미리 받아 넘기는 순간 빈 쪽이 보이지 않게 한다. */
-function preloadNeighbors(scene: OpenScene, pageCount: number): void {
+function preloadNeighbors(scene: SpreadScene, pageCount: number): void {
   const moves = [nextView(scene.view, pageCount), previousView(scene.view, pageCount)];
   for (const move of moves) {
     if (move === null) {
@@ -83,8 +84,18 @@ function pointOf(event: React.PointerEvent<HTMLElement>): Vec2 {
   return { x: event.clientX, y: event.clientY };
 }
 
+function buttonLabel(direction: TurnDirection, closeSide: CoverSide | null): string {
+  if (closeSide !== null) {
+    return closeSide === 'front' ? UI_TEXT.closeFront : UI_TEXT.closeBack;
+  }
+  return direction === 'forward' ? UI_TEXT.nextPage : UI_TEXT.previousPage;
+}
+
 /**
  * 펼친 책. 쪽 바깥 가장자리 띠에서 화면 가장자리까지가 넘김 버튼 기둥이다(이전 쪽·다음 쪽).
+ * - 양 끝(첫 펼침의 이전, 마지막 펼침의 다음)에서는 넘길 장이 없어 같은 기둥이 표지 덮기 버튼이 된다(앞표지 덮기·뒤표지 덮기).
+ *   드래그·버튼·←/→가 모두 같은 넘김 입력이고, 상태 기계가 끝에서는 덮기로 바꾼다(book-state.ts).
+ * - 손으로 덮는 동안(closing)에도 이 영역이 포인터를 붙잡고 있어야 해서 그대로 남는다. 보이는 것은 3D 책이 맡는다(app.tsx).
  * - 클릭(포인터·키보드·보조 기술)은 버튼의 click 하나로 받는다. 포인터 클릭이면 누른 높이를 잡는다.
  * - 드래그는 책 영역의 Pointer Events와 fold 모델 reduceGesture로 판별한다. 시작 영역은 geometry.dragZones다.
  *   넘김이 입력 주인이 되면 누른 요소에 포인터를 붙잡아, 손을 뗀 곳이 러닝 헤드 위든 창 밖이든 pointerup을 받는다.
@@ -103,7 +114,7 @@ function BookSpread({
   style,
   ...props
 }: React.ComponentProps<'section'> & {
-  scene: OpenScene;
+  scene: SpreadScene;
   geometry: OpenGeometry;
   pageCount: number;
   reducedMotion: boolean;
@@ -120,23 +131,18 @@ function BookSpread({
     node?.focus({ preventScroll: true });
   }, []);
 
+  // 어느 방향이든 넘길 장이 있으면 넘기고, 끝이면 덮는다. 그래서 받을 수 있는지는 방향과 무관하다.
   const baseView = turnBaseView(scene);
+  const canAct = baseView !== null;
   const endView = baseView ?? scene.view;
-  const canTurn: Record<TurnDirection, boolean> = {
-    backward: baseView !== null && turnMove(baseView, 'backward', pageCount) !== null,
-    forward: baseView !== null && turnMove(baseView, 'forward', pageCount) !== null,
-  };
-  const isAtEnd: Record<TurnDirection, boolean> = {
-    backward: previousView(endView, pageCount) === null,
-    forward: nextView(endView, pageCount) === null,
+  const closeSides: Record<TurnDirection, CoverSide | null> = {
+    backward: closingSideAt(endView, 'backward', pageCount),
+    forward: closingSideAt(endView, 'forward', pageCount),
   };
   const gestureContext: GestureContext = {
     surface: {
       interactiveRegions: [],
-      turnRegions: TURN_DIRECTIONS.filter(direction => canTurn[direction]).map(direction => ({
-        direction,
-        rect: geometry.dragZones[direction],
-      })),
+      turnRegions: canAct ? TURN_DIRECTIONS.map(direction => ({ direction, rect: geometry.dragZones[direction] })) : [],
     },
     dragStartDistancePx: DEFAULT_DRAG_START_DISTANCE_PX,
   };
@@ -151,7 +157,7 @@ function BookSpread({
   }
 
   function turnByClick(direction: TurnDirection, press: Vec2 | null) {
-    if (!canTurn[direction]) {
+    if (!canAct) {
       return;
     }
     moveFocusOutOfPages();
@@ -251,7 +257,10 @@ function BookSpread({
       ref={attachSection}
       tabIndex={-1}
       aria-label={UI_TEXT.bookRegion}
-      className={joinClassNames('book-stage fixed inset-0 overflow-hidden data-[phase=turning]:select-none', className)}
+      className={joinClassNames(
+        'book-stage fixed inset-0 overflow-hidden data-[phase=closing]:select-none data-[phase=turning]:select-none',
+        className
+      )}
       data-layout={layout}
       data-phase={scene.phase}
       data-motion={reducedMotion ? 'reduced' : 'full'}
@@ -290,10 +299,10 @@ function BookSpread({
           <button
             key={direction}
             type="button"
-            className="turn-button absolute z-20 cursor-pointer touch-none border-0 bg-transparent p-0 text-foreground select-none aria-disabled:cursor-default"
+            className="turn-button absolute z-20 cursor-pointer touch-none border-0 bg-transparent p-0 text-foreground select-none"
             data-direction={direction}
-            aria-label={direction === 'forward' ? UI_TEXT.nextPage : UI_TEXT.previousPage}
-            aria-disabled={isAtEnd[direction] ? true : undefined}
+            aria-label={buttonLabel(direction, closeSides[direction])}
+            data-action={closeSides[direction] === null ? 'turn' : 'close'}
             style={{ left: zone.x, top: zone.y, width: zone.width, height: zone.height }}
             onClick={event => handleButtonClick(direction, event)}
           >
