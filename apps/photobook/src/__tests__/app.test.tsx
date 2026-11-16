@@ -87,7 +87,7 @@ describe('App', () => {
   it('should show the closed book with its cover described for screen readers and no page number', () => {
     stubReducedMotion(true);
     render(<App />);
-    expect(screen.getByRole('main', { name: 'Stickerbook' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Photobook' })).toBeInTheDocument();
     const button = openBookButton();
     expect(button).toHaveAccessibleDescription(/앞표지: 심완, 사진 찍는 개발자\. 뒤표지: example@mail\.com/);
     // 잡지 표지에는 쪽 번호가 없다. 펼치면 나타난다.

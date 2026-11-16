@@ -1,10 +1,10 @@
 {
-  "name": "stickerbook",
+  "name": "photobook",
   "version": "1.24.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name stickerbook.mumak vite --host 0.0.0.0",
+    "dev": "PORTLESS_PORT=1355 PORTLESS_HTTPS=0 portless run --name photobook.mumak vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",

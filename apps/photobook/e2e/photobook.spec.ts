@@ -243,13 +243,13 @@ async function drag(page: Page, from: { x: number; y: number }, moves: Array<{ x
   await page.mouse.up();
 }
 
-test.describe('Stickerbook', () => {
+test.describe('Photobook', () => {
   test('shows the closed book first', async ({ page }) => {
     const errors = collectPageErrors(page);
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
-    await expect(page).toHaveTitle('Stickerbook');
-    await expect(page.getByRole('main', { name: 'Stickerbook' })).toBeVisible();
+    await expect(page).toHaveTitle('Photobook');
+    await expect(page.getByRole('main', { name: 'Photobook' })).toBeVisible();
     const book = page.getByRole('button', { name: '책 펼치기' });
     await expect(book).toBeVisible();
     await expect(book).toHaveAccessibleDescription(/앞표지: 심완/);

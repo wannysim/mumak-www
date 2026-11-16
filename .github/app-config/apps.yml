@@ -53,6 +53,6 @@ apps:
     type: expo
     hasE2E: true # web export(react-native-web) 기반 Playwright E2E
 
-  - app: stickerbook
+  - app: photobook
     type: vite
     hasE2E: true

@@ -1223,7 +1223,7 @@ function environmentRows(): TableRow[] {
 
 function buildResultJson(): Record<string, unknown> {
   return {
-    harness: 'apps/stickerbook/spikes/s1',
+    harness: 'apps/photobook/spikes/s1',
     recordedAt: new Date().toISOString(),
     note: '회색 플레이스홀더 하네스 측정값이다. 시안 아님. 성능 수치는 실기기 값만 쓴다(spikes.md).',
     config: {

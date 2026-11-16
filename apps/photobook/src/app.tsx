@@ -153,7 +153,7 @@ export function App() {
           scene.phase === 'closed' ? null : { disabled: !canClose(scene), onPress: () => dispatch(closeToFront) }
         }
       />
-      <main aria-label="Stickerbook" className="min-h-svh">
+      <main aria-label="Photobook" className="min-h-svh">
         {spread === null ? null : (
           <BookSpread
             scene={spread.scene}

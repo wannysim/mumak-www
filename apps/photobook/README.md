@@ -1,4 +1,4 @@
-# Stickerbook
+# Photobook
 
 인터랙티브 개인 홈페이지(닫힌 3D 책 → 펼쳐서 탐색)의 컨셉과 개발 기반. 2026-10-29 기존 디자인을 초기화한 뒤, 2026-11-13 임시값으로 동작하는 1페이즈(닫힌 책 → 펼침 → 사진 잡지 넘김)를 새로 만들었다.
 
@@ -17,21 +17,21 @@
 
 ```sh
 pnpm install
-pnpm --filter stickerbook dev
+pnpm --filter photobook dev
 ```
 
-로컬 주소는 `http://stickerbook.mumak.localhost:1355`다. 같은 네트워크의 모바일에서는 Vite 로그의 `Network` 주소를 사용한다. 내부 포트와 IP는 고정하지 않는다.
+로컬 주소는 `http://photobook.mumak.localhost:1355`다. 같은 네트워크의 모바일에서는 Vite 로그의 `Network` 주소를 사용한다. 내부 포트와 IP는 고정하지 않는다.
 
 ## 검증
 
 ```sh
-pnpm --filter stickerbook check-types
-pnpm --filter stickerbook lint
-pnpm --filter stickerbook format:check
-pnpm --filter stickerbook test:ci
-pnpm --filter stickerbook build
-CI=1 pnpm --filter stickerbook exec playwright test --workers=2
-pnpm exec knip --workspace apps/stickerbook
+pnpm --filter photobook check-types
+pnpm --filter photobook lint
+pnpm --filter photobook format:check
+pnpm --filter photobook test:ci
+pnpm --filter photobook build
+CI=1 pnpm --filter photobook exec playwright test --workers=2
+pnpm exec knip --workspace apps/photobook
 ```
 
 Vitest는 순수 모델(node)과 컴포넌트(jsdom), Playwright는 빌드된 앱의 닫힌 책 회전·펼침·넘김·덮기를 데스크톱·세로 폰에서 확인한다. E2E 서버는 `3009`에서 실행하며 dev 서버를 재사용하지 않는다. 기존 책·스티커·사진 확대 기능의 테스트는 해당 구현과 함께 제거했다.

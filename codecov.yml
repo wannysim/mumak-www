@@ -55,9 +55,9 @@ flag_management:
     - name: mumak-react
       paths:
         - apps/mumak-react/src/
-    - name: stickerbook
+    - name: photobook
       paths:
-        - apps/stickerbook/src/
+        - apps/photobook/src/
     - name: mumak-native
       paths:
         - apps/mumak-native/components/
@@ -75,8 +75,8 @@ ignore:
   - 'apps/blog/src/app/analytics/**'
   - 'apps/mumak-next/app/**'
   - 'apps/mumak-next/components/providers.tsx'
-  - 'apps/stickerbook/src/main.tsx'
-  - 'apps/stickerbook/src/test/**'
+  - 'apps/photobook/src/main.tsx'
+  - 'apps/photobook/src/test/**'
   - 'apps/mumak-react/src/main.tsx'
   - 'apps/mumak-react/src/test/**'
   - 'apps/mumak-native/app/**'

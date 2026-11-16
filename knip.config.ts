@@ -86,7 +86,7 @@ const config: KnipConfig = {
         'vitest',
       ],
     },
-    'apps/stickerbook': {
+    'apps/photobook': {
       // spikes/·mockups/는 dev 서버에서만 여는 HTML 진입점이다(프로덕션 빌드 제외).
       entry: [
         'index.html',

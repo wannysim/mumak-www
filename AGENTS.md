@@ -75,7 +75,7 @@ Turborepo 기반 모노레포. 공유 패키지는 `packages/`, 앱은 `apps/`�
 | `apps/mumak-react`  | React + Vite                            |
 | `apps/blog`         | 블로그 (FSD + MDX)                      |
 | `apps/mumak-native` | Expo (React Native + expo-router)       |
-| `apps/stickerbook`  | 인터랙티브 개인 홈페이지 (React + Vite) |
+| `apps/photobook`    | 인터랙티브 개인 홈페이지 (React + Vite) |
 
 각 앱/패키지의 세부 규칙은 해당 디렉터리의 `AGENTS.md`를 참조.
 
@@ -342,7 +342,7 @@ test.describe('Home Page', () => {
 
 ### 이 저장소의 E2E 관점
 
-- `.github/app-config/apps.yml`에서 `hasE2E: true`인 앱이 Playwright E2E 대상이다. 현재는 `apps/admin`, `apps/blog`, `apps/interview`, `apps/karaoke`, `apps/lattice`, `apps/mumak-native`, `apps/mumak-next`, `apps/mumak-react`, `apps/quant`, `apps/stickerbook`이다.
+- `.github/app-config/apps.yml`에서 `hasE2E: true`인 앱이 Playwright E2E 대상이다. 현재는 `apps/admin`, `apps/blog`, `apps/interview`, `apps/karaoke`, `apps/lattice`, `apps/mumak-native`, `apps/mumak-next`, `apps/mumak-react`, `apps/photobook`, `apps/quant`이다.
 - E2E는 빌드 결과 기반 서버 실행을 전제로 한다.
 - `playwright.config.*`, `e2e/**`, 라우팅, 레이아웃, 메타데이터, UI 상호작용 변경 시 E2E 필요성을 적극 검토한다.
 - `apps/blog`는 standalone 기반 경로를 사용하므로, 로컬 실패 시 `apps/blog/.next` 상태도 확인한다.
@@ -385,7 +385,7 @@ import { mockUser } from '@/test/mocks';
 - Next.js 앱을 Portless hostname으로 접근할 때는 해당 hostname을 앱의 `next.config.mjs` `allowedDevOrigins`에 추가한다. 누락되면 dev-only endpoint/HMR cross-origin 차단 때문에 hydration 이후 클라이언트 인터랙션이 깨져 보일 수 있다.
 - Portless 적용 중 클라이언트 기능이 함께 죽어 보이면 dev resource 차단과 앱 코드의 hydration/runtime 오류를 분리해서 본다. Spotify/search/theme/locale 같은 선택적 클라이언트 위젯은 `ClientErrorBoundary` 등으로 실패 단위를 작게 유지한다.
 - `start`, `start:e2e`, `preview:e2e`, Playwright `webServer` 포트는 CI/E2E용 고정 포트로 유지한다. Portless는 로컬 `dev` 전용이고 E2E 서버와 섞지 않는다.
-- 현재 E2E 포트는 `mumak-next: 3000`, `mumak-react: 3001`, `blog: 3002`, `mumak-native: 3003`, `lattice: 3004`, `karaoke: 3005`, `admin: 3006`, `quant: 3007`, `interview: 3008`, `stickerbook: 3009`이다. 새 앱을 추가하면 중복되지 않게 배정한다.
+- 현재 E2E 포트는 `mumak-next: 3000`, `mumak-react: 3001`, `blog: 3002`, `mumak-native: 3003`, `lattice: 3004`, `karaoke: 3005`, `admin: 3006`, `quant: 3007`, `interview: 3008`, `photobook: 3009`이다. 새 앱을 추가하면 중복되지 않게 배정한다.
 - dev proxy 상태가 꼬이면 `pnpm exec portless proxy stop` 후 다시 앱 `dev` 스크립트를 실행한다.
 
 ---

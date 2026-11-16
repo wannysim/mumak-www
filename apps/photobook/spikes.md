@@ -1,4 +1,4 @@
-# Stickerbook 스파이크 측정과 운영
+# Photobook 스파이크 측정과 운영
 
 기준일: 2026-11-13. 이 문서 전체가 엔지니어링 제안이며 확정이 아니다. 스파이크 목록과 범위는 [tech-research.md](./tech-research.md) 9장, 결정 시점 G0–G5는 [open-decisions.md](./open-decisions.md)를 따른다. 이 문서에서 "N장"은 tech-research.md의 장이다.
 
@@ -161,20 +161,20 @@
 
 ### 스파이크 코드 위치
 
-|                     | A. Vite 멀티 페이지 엔트리                                                                                   | B. 쿼리 플래그                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| 형태                | `apps/stickerbook/spikes/s1/index.html`. dev 서버는 등록 없이 `/spikes/s1/`로 연다(Vite 문서 Multi-Page App) | `src/main.tsx`에서 `?spike=s1`이면 동적 import                            |
-| 본 앱과 부팅 테스트 | 건드리지 않는다. `e2e/stickerbook.spec.ts`와 `src/__tests__/app.test.tsx`는 빈 `main`을 단언한다             | `main.tsx`에 분기가 생긴다. `main.tsx`는 coverage 제외라 분기가 안 잡힌다 |
-| 번들 측정           | 스파이크마다 엔트리가 따로라 S3 첫 화면 무게를 따로 잰다                                                     | 같은 그래프의 lazy 청크. 첫 화면에는 안 실리지만 `dist`에 함께 나간다     |
-| 실기기              | dev 스크립트의 `--host 0.0.0.0` LAN 주소. 프로덕션 빌드로 재려면 빌드 입력에 넣어야 한다                     | 배포된 본 앱 URL에 쿼리만 붙인다                                          |
-| 정리                | 디렉터리를 지운다                                                                                            | 분기와 청크를 찾아 지운다. 본선에 남을 위험이 있다                        |
-| 검사 범위           | `src` 밖이라 coverage include에서 자동으로 빠진다. tsconfig include에 `spikes`를 더해야 check-types가 본다   | 기존 설정 그대로                                                          |
+|                     | A. Vite 멀티 페이지 엔트리                                                                                 | B. 쿼리 플래그                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 형태                | `apps/photobook/spikes/s1/index.html`. dev 서버는 등록 없이 `/spikes/s1/`로 연다(Vite 문서 Multi-Page App) | `src/main.tsx`에서 `?spike=s1`이면 동적 import                            |
+| 본 앱과 부팅 테스트 | 건드리지 않는다. `e2e/photobook.spec.ts`와 `src/__tests__/app.test.tsx`는 빈 `main`을 단언한다             | `main.tsx`에 분기가 생긴다. `main.tsx`는 coverage 제외라 분기가 안 잡힌다 |
+| 번들 측정           | 스파이크마다 엔트리가 따로라 S3 첫 화면 무게를 따로 잰다                                                   | 같은 그래프의 lazy 청크. 첫 화면에는 안 실리지만 `dist`에 함께 나간다     |
+| 실기기              | dev 스크립트의 `--host 0.0.0.0` LAN 주소. 프로덕션 빌드로 재려면 빌드 입력에 넣어야 한다                   | 배포된 본 앱 URL에 쿼리만 붙인다                                          |
+| 정리                | 디렉터리를 지운다                                                                                          | 분기와 청크를 찾아 지운다. 본선에 남을 위험이 있다                        |
+| 검사 범위           | `src` 밖이라 coverage include에서 자동으로 빠진다. tsconfig include에 `spikes`를 더해야 check-types가 본다 | 기존 설정 그대로                                                          |
 
 A를 제안한다. 본 앱과 테스트를 건드리지 않고, 스파이크별 무게를 따로 재고, 디렉터리 삭제로 정리된다.
 
 - 프로덕션 빌드로 재야 하는 측정(S3 첫 화면 무게, 프레임 시간)은 환경변수(예: `SPIKE=1`)가 있을 때만 `build.rolldownOptions.input`(Vite 8 문서 표기)에 스파이크 html을 넣는다. 기본 빌드와 E2E의 `preview:e2e`에는 들어가지 않는다.
-- `apps/stickerbook/tsconfig.json` include는 `src`와 설정 파일 세 개뿐이다. lint와 format은 앱 전체(`oxlint .`, `oxfmt --check .`)라 그대로 걸린다.
-- 루트 `knip.config.ts`에 stickerbook 워크스페이스 항목이 없다. knip이 html 엔트리를 인식하는지 미확인이라, 필요하면 `spikes/**`를 엔트리로 등록한다.
+- `apps/photobook/tsconfig.json` include는 `src`와 설정 파일 세 개뿐이다. lint와 format은 앱 전체(`oxlint .`, `oxfmt --check .`)라 그대로 걸린다.
+- 루트 `knip.config.ts`에 photobook 워크스페이스 항목이 없다. knip이 html 엔트리를 인식하는지 미확인이라, 필요하면 `spikes/**`를 엔트리로 등록한다.
 - 스파이크는 `@/` alias로 `src/model/`을 가져다 쓴다.
 
 ### 버릴지 올릴지 (제안)
@@ -191,7 +191,7 @@ A를 제안한다. 본 앱과 테스트를 건드리지 않고, 스파이크별 
 
 저장소 사실:
 
-- `apps/stickerbook/vitest.config.js`: 환경 jsdom, coverage include `src/**/*.{ts,tsx}`, 제외는 `.d.ts`, `__tests__`, `main.tsx`, `src/test`. 임계는 branches 80, functions 90, lines 90, statements 90이다. karaoke, lattice, mumak-react도 같은 값이다.
+- `apps/photobook/vitest.config.js`: 환경 jsdom, coverage include `src/**/*.{ts,tsx}`, 제외는 `.d.ts`, `__tests__`, `main.tsx`, `src/test`. 임계는 branches 80, functions 90, lines 90, statements 90이다. karaoke, lattice, mumak-react도 같은 값이다.
 - 설치된 Vitest는 5.0.5이고 `test.projects`와 glob별 coverage 임계를 지원한다(설치된 타입 정의로 확인). Vitest 문서는 glob 임계에 걸린 파일도 전역 임계에 함께 센다고 적는다. 그래서 렌더러를 glob 임계로는 떼어 낼 수 없고 include에서 빼야 한다.
 - include를 명시했으므로 테스트가 가져오지 않은 파일도 0%로 보고될 것으로 본다(추정, 실행 확인 안 함).
 - 선례: `apps/blog/jest.config.mjs`의 collectCoverageFrom은 배럴, E2E로 덮는 `app/**`, 설정, 외부 서비스 래퍼를 빼고 임계를 실측보다 4–5%pt 낮게 둔다. `apps/quant/vitest.config.js`는 `**/dashboard-client.ts`를 뺀다. blog 그래프 단위 테스트는 WebGL 라이브러리를 `jest.mock`으로 바꿔 배선만 검사한다(`apps/blog/src/features/graph/__tests__/graph-canvas.test.tsx`).
@@ -219,9 +219,9 @@ A를 제안한다. 본 앱과 테스트를 건드리지 않고, 스파이크별 
 
 제안:
 
-1. 설정 변경은 `apps/stickerbook/playwright.config.ts`에서 spread로 한다. 공용 패키지를 고치면 모든 E2E 앱이 영향을 받는다.
+1. 설정 변경은 `apps/photobook/playwright.config.ts`에서 spread로 한다. 공용 패키지를 고치면 모든 E2E 앱이 영향을 받는다.
 2. 앱 루트에 `data-render-path`(webgl 또는 fallback)를 둬서 렌더 경로를 관찰 가능하게 한다. 캔버스 유무로는 포스터 단계와 구분되지 않는다.
-3. chromium 프로젝트에 "webgl 경로여야 한다"를 단언하는 테스트를 하나 둔다. CI가 대체 경로만 검사하고 녹색이 되는 일을 막는다. 실패하면 stickerbook 설정에 launch 인자를 명시한다. Firefox와 WebKit은 blog처럼 분기하고 어느 경로였는지 test annotation으로 남긴다.
+3. chromium 프로젝트에 "webgl 경로여야 한다"를 단언하는 테스트를 하나 둔다. CI가 대체 경로만 검사하고 녹색이 되는 일을 막는다. 실패하면 photobook 설정에 launch 인자를 명시한다. Firefox와 WebKit은 blog처럼 분기하고 어느 경로였는지 test annotation으로 남긴다.
 4. 대체 경로는 `page.addInitScript`로 `getContext('webgl2')`가 null을 돌려주게 해서 강제한다. 같은 상호작용 시나리오를 두 경로에서 돌린다. 운영 코드에 강제 플래그를 두지 않는다.
 5. 컨텍스트 손실은 chromium의 webgl 경로에서 `page.evaluate`로 `WEBGL_lose_context`를 불러 일으킨다. 현재 쪽, 포커스, 복구 뒤 `data-render-path`를 단언한다.
 6. 상호작용 단언은 공통 DOM 오버레이의 역할과 상태로 한다. 현재 쪽 번호, 숨은 쪽의 `inert`, 레코드의 펼침 상태처럼 보조 기술이 읽는 값을 그대로 쓴다. 접근성 대응표의 행마다 E2E 단언을 하나 이상 둔다. 넘김이 끝나기를 쪽 번호 변화로 기다리고 `waitForTimeout`을 쓰지 않는다.
@@ -238,7 +238,7 @@ A를 제안한다. 본 앱과 테스트를 건드리지 않고, 스파이크별 
 
 터치:
 
-- stickerbook 설정에만 CI 전용 `chromium-touch` 프로젝트(`devices['Pixel 7']`)를 더한다. Playwright 터치 문서의 예제가 이 기기 설정을 쓴다.
+- photobook 설정에만 CI 전용 `chromium-touch` 프로젝트(`devices['Pixel 7']`)를 더한다. Playwright 터치 문서의 예제가 이 기기 설정을 쓴다.
 - Playwright에는 내장 터치 드래그가 없다. 문서는 `dispatchEvent`로 TouchEvent를 직접 보내라고 안내하고, 이렇게 보낸 이벤트는 `isTrusted`가 false라고 적는다. 그래서 이 프로젝트는 탭 넘김, 책 영역의 `touch-action: none`, 조작 영역 크기 확인에 쓴다. 드래그 감각은 실기기에서 본다.
 - Chromium CDP `Input.dispatchTouchEvent`로 신뢰된 터치를 보낼 수 있는지는 미검증이다.
 - WebKit 모바일 에뮬레이션은 iOS Safari가 아니므로(0장) 더하지 않는다.
@@ -247,7 +247,7 @@ A를 제안한다. 본 앱과 테스트를 건드리지 않고, 스파이크별 
 
 저장소와 레지스트리 사실:
 
-- stickerbook `package.json`에는 three가 없다. `apps/blog/package.json`은 `"three": "^0.186.1"`이고 `pnpm-lock.yaml`에는 three@0.186.1 하나만 있으며 @types/three는 없다.
+- photobook `package.json`에는 three가 없다. `apps/blog/package.json`은 `"three": "^0.186.1"`이고 `pnpm-lock.yaml`에는 three@0.186.1 하나만 있으며 @types/three는 없다.
 - npm 레지스트리(2026-11-13 조회): three latest는 0.187.0(2026-10-30)이다. three 패키지에는 타입 선언 필드가 없다. @types/three 0.187.0이 같은 날 나왔다.
 - npm semver에서 `^0.187.0`은 0.187.x만 허용한다.
 - @react-three/fiber 9.8.2의 peer는 react와 react-dom `>=19 <19.4`, three `>=0.156`이다. 앱은 react `^19.3.1`이고 lock은 19.3.1, npm latest도 19.3.1이라 지금은 맞는다.

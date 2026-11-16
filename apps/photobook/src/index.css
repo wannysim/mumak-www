@@ -41,7 +41,7 @@
  * 시스템 폰트에 기대지 않아 OS별 글자 폭 차이를 없앤다(tech-research.md 0장 폰트 통일).
  */
 @font-face {
-  font-family: 'Stickerbook Pretendard';
+  font-family: 'Photobook Pretendard';
   src: url('./assets/fonts/pretendard-variable-subset.woff2') format('woff2');
   font-weight: 45 920;
   font-style: normal;
@@ -56,7 +56,7 @@
   --color-border: var(--border);
   --color-accent: var(--accent);
   --color-destructive: var(--destructive);
-  --font-sans: 'Stickerbook Pretendard', system-ui, sans-serif;
+  --font-sans: 'Photobook Pretendard', system-ui, sans-serif;
 }
 
 @layer base {

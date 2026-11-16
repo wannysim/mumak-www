@@ -337,13 +337,13 @@ jobs:
           flags: karaoke
           fail_ci_if_error: false
 
-      - name: Upload stickerbook coverage to Codecov
-        if: hashFiles('coverage-artifacts/coverage-stickerbook/lcov.info') != ''
+      - name: Upload photobook coverage to Codecov
+        if: hashFiles('coverage-artifacts/coverage-photobook/lcov.info') != ''
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage-artifacts/coverage-stickerbook/lcov.info
-          flags: stickerbook
+          files: coverage-artifacts/coverage-photobook/lcov.info
+          flags: photobook
           fail_ci_if_error: false
 
   # Summary job for branch protection. `always()` survives concurrency

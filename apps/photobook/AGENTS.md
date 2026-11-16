@@ -1,4 +1,4 @@
-# apps/stickerbook — AGENTS.md
+# apps/photobook — AGENTS.md
 
 인터랙티브 개인 홈페이지(닫힌 3D 책 → 펼쳐서 탐색) 앱 전용 규칙. 공통 규칙은 루트 `AGENTS.md` 참조. 이 파일은 경계만 요약하고, 내용의 정본은 아래 문서다.
 
