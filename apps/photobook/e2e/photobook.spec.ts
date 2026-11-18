@@ -480,6 +480,44 @@ test.describe('Photobook', () => {
     expect(errors).toEqual([]);
   });
 
+  test.describe('sun light on the closed book', () => {
+    // 해 위치는 기기 현지 시각으로 정한다. 시간대를 고정해 어느 CI에서든 같은 하늘이 되게 한다.
+    test.use({ timezoneId: 'Asia/Seoul' });
+
+    async function shadowCenterX(page: Page): Promise<number> {
+      const box = await page.locator('.closed-book__sun-shadow').first().boundingBox();
+      if (box === null) {
+        throw new Error('해 그림자가 그려지지 않았다');
+      }
+      return box.x + box.width / 2;
+    }
+
+    test('casts the shadow away from the morning and afternoon sun and turns it with the book', async ({ page }) => {
+      const errors = collectPageErrors(page);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      for (const [time, side] of [
+        ['2026-03-20T09:00:00+09:00', 'right'],
+        ['2026-03-20T15:00:00+09:00', 'left'],
+      ] as const) {
+        await page.clock.setFixedTime(new Date(time));
+        await page.goto('/');
+        await expect(page.getByRole('button', { name: '책 펼치기' })).toBeVisible();
+        const bookCenterX = 1440 / 2;
+        if (side === 'right') {
+          expect(await shadowCenterX(page)).toBeGreaterThan(bookCenterX + 50);
+        } else {
+          expect(await shadowCenterX(page)).toBeLessThan(bookCenterX - 50);
+        }
+      }
+      // 책을 돌리면 그림자 모양도 따라 바뀐다.
+      const points = () => page.locator('.closed-book__sun-shadow').first().getAttribute('points');
+      const before = await points();
+      await drag(page, { x: 300, y: 600 }, [{ x: 420, y: 600 }]);
+      await expect.poll(points).not.toBe(before);
+      expect(errors).toEqual([]);
+    });
+  });
+
   test.describe('closed book rotation', () => {
     test('turns the book by dragging empty space, any way, and opens only on a tap on the book', async ({ page }) => {
       const errors = collectPageErrors(page);

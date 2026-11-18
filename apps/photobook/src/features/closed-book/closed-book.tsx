@@ -16,6 +16,8 @@ import type { ClosedPlacement, OpenGeometry } from '@/model/book/geometry';
 import { computeClosedPlacement, coverLayout } from '@/model/book/geometry';
 import { closedBookKeyAction } from '@/model/book/keyboard';
 import type { Viewport } from '@/model/book/layout';
+import type { SceneLight } from '@/model/book/light';
+import { castShadowOutline, contactShadowOutline, faceShade } from '@/model/book/light';
 import type { TransitionPose } from '@/model/book/opening';
 import { bookMotionFrame, closedPerspective, outlineBounds, projectedBookOutline } from '@/model/book/projection';
 import type { Quat, Vec3 } from '@/model/book/quaternion';
@@ -24,7 +26,7 @@ import type { BookFace, CoverSide, Orientation } from '@/model/book/rotation';
 import { coverAngleDeg, faceNormal, facingOf, isTurnedAway } from '@/model/book/rotation';
 import type { SpinGesture, SpinGestureEvent } from '@/model/book/spin';
 import { IDLE_SPIN_GESTURE, reduceSpinGesture, touchGuardInsets } from '@/model/book/spin';
-import type { BookView } from '@/model/fold';
+import type { BookView, Vec2 } from '@/model/fold';
 
 import './closed-book.css';
 
@@ -32,12 +34,24 @@ import './closed-book.css';
 const FIRST_SPREAD_PAGES: readonly number[] = [1, 2];
 
 /**
- * 닫힌 책 아래 접지 그림자: 폭 = 닫힌 책 폭 × 1.3, 높이 = 두께 × 2.6, 중심은 책 아래 가장자리에서 두께 × 0.2 위.
- * 임시, open-decisions G0 "닫힌 책 형태·재질·조명, 그림자"(시안 closed-a).
+ * 바닥 그림자(light.ts castShadowOutline)의 진하기와 번짐. 진한 층과 넓게 번진 층 두 겹으로 부드러운 가장자리를 흉내 낸다.
+ * 진하기는 직접광 세기(밤·해 질 녘이면 옅다)를 곱하고, 번짐은 닫힌 책 높이에 비례한다.
+ * 임시, open-decisions G0 "닫힌 책 형태·재질·조명, 그림자".
  */
-const GROUND_SHADOW_WIDTH_RATIO = 1.3;
-const GROUND_SHADOW_HEIGHT_OF_DEPTH = 2.6;
-const GROUND_SHADOW_LIFT_OF_DEPTH = 0.2;
+const CAST_SHADOW_CORE_OPACITY = 0.3;
+const CAST_SHADOW_SOFT_OPACITY = 0.2;
+const CAST_SHADOW_CORE_BLUR_OF_HEIGHT = 0.012;
+const CAST_SHADOW_SOFT_BLUR_OF_HEIGHT = 0.05;
+
+/** 접지 그림자(light.ts contactShadowOutline): 해와 무관하게 늘 깔리는 바로 아래 발자국. 임시, 위와 같은 행. */
+const CONTACT_SHADOW_OPACITY = 0.28;
+const CONTACT_SHADOW_BLUR_OF_HEIGHT = 0.02;
+
+/** 앞·뒤 판 두께 띠(책배·윗면·아랫면 양 끝의 표지 색) = 쪽 폭의 비율. 임시, open-decisions G0 "닫힌 책 형태·재질". */
+const BOARD_RATIO = 0.012;
+
+/** 면 음영 막 투명도의 소수 자리. 매 프레임 새로 계산하므로 문자열 길이를 줄인다. */
+const SHADE_DIGITS = 3;
 
 /**
  * 책등 이름을 그릴 최소 정도(책등 면 법선의 z). 이보다 비스듬하면 책등이 몇 px 띠로 눌려 세로 글자가 검은 점처럼 보여 숨긴다
@@ -63,18 +77,72 @@ function bookTransform(placement: ClosedPlacement, pose: TransitionPose): string
   ].join(' ');
 }
 
-function groundShadowStyle(placement: ClosedPlacement, travel: number): React.CSSProperties {
-  const { frontBox, scale, depth, center } = placement;
-  const closedDepth = depth * scale;
-  const width = frontBox.width * GROUND_SHADOW_WIDTH_RATIO;
-  const height = closedDepth * GROUND_SHADOW_HEIGHT_OF_DEPTH;
-  return {
-    left: center.x - width / 2,
-    top: frontBox.y + frontBox.height - closedDepth * GROUND_SHADOW_LIFT_OF_DEPTH - height / 2,
-    width,
-    height,
-    opacity: 1 - travel,
-  };
+function polygonPoints(outline: readonly Vec2[]): string {
+  return outline.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+}
+
+/**
+ * 바닥에 떨어진 책 그림자. 해 그림자는 빛(light)과 책 자세를 따라 모양·길이·방향이 바뀌고(2026-11-18 사용자 요청),
+ * 접지 그림자는 책 바로 아래에 늘 깔린다. 펼치거나 덮는 동안에는 옮겨 간 정도만큼 옅어진다.
+ */
+function CastShadow({
+  sunOutline,
+  contactOutline,
+  light,
+  placement,
+  travel,
+}: {
+  sunOutline: readonly Vec2[];
+  contactOutline: readonly Vec2[];
+  light: SceneLight;
+  placement: ClosedPlacement;
+  travel: number;
+}) {
+  // useId 값의 기호(«», :)가 url(#…) 참조를 깨지 않게 영숫자만 남긴다.
+  const filterId = `cast-shadow-${React.useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const height = placement.frontBox.height;
+  const sunPoints = polygonPoints(sunOutline);
+  const sunFade = light.strength * (1 - travel);
+  const filters = [
+    { id: `${filterId}-core`, blur: height * CAST_SHADOW_CORE_BLUR_OF_HEIGHT },
+    { id: `${filterId}-soft`, blur: height * CAST_SHADOW_SOFT_BLUR_OF_HEIGHT },
+    { id: `${filterId}-contact`, blur: height * CONTACT_SHADOW_BLUR_OF_HEIGHT },
+  ];
+  return (
+    <svg className="closed-book__cast-shadow" aria-hidden="true">
+      <defs>
+        {/* 번짐이 다각형 상자 밖으로 퍼져도 잘리지 않게 필터 영역을 넉넉히 잡는다. */}
+        {filters.map(filter => (
+          <filter key={filter.id} id={filter.id} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation={filter.blur} />
+          </filter>
+        ))}
+      </defs>
+      <polygon
+        className="closed-book__sun-shadow"
+        points={sunPoints}
+        filter={`url(#${filterId}-soft)`}
+        opacity={CAST_SHADOW_SOFT_OPACITY * sunFade}
+      />
+      <polygon
+        className="closed-book__sun-shadow"
+        points={sunPoints}
+        filter={`url(#${filterId}-core)`}
+        opacity={CAST_SHADOW_CORE_OPACITY * sunFade}
+      />
+      <polygon
+        className="closed-book__contact-shadow"
+        points={polygonPoints(contactOutline)}
+        filter={`url(#${filterId}-contact)`}
+        opacity={CONTACT_SHADOW_OPACITY * (1 - travel)}
+      />
+    </svg>
+  );
+}
+
+/** 면 위 검은 막. 빛을 등진 만큼 어둡다(light.ts faceShade). */
+function FaceShade({ shade }: { shade: number }) {
+  return <div className="closed-book__shade" style={{ opacity: Number(shade.toFixed(SHADE_DIGITS)) }} />;
 }
 
 const HIDDEN: React.CSSProperties = { visibility: 'hidden' };
@@ -130,6 +198,7 @@ function ClosedBook({
   phase,
   motion,
   reducedMotion,
+  light,
   buttonRef,
   onBookEvent,
   className,
@@ -144,6 +213,8 @@ function ClosedBook({
   phase: 'closed' | 'opening' | 'closing';
   motion: ClosedMotion['type'];
   reducedMotion: boolean;
+  /** 화면 밖 해의 빛(use-scene-light.ts). 면 음영과 바닥 그림자를 정한다. */
+  light: SceneLight;
   buttonRef?: React.Ref<HTMLButtonElement>;
   onBookEvent: (event: BookEvent) => void;
 }) {
@@ -182,6 +253,10 @@ function ClosedBook({
   const backAngle = coverAngleDeg('back', pose.side === 'back' ? pose.coverOpen : 0);
   const frontBoard = multiplyQuat(pose.orientation, quatFromAxisAngle(Y_AXIS, frontAngle));
   const backBoard = multiplyQuat(pose.orientation, quatFromAxisAngle(Y_AXIS, backAngle));
+  const sunShadowOutline = castShadowOutline(viewport, placement, pose.orientation, light, pose.travel);
+  const contactOutline = contactShadowOutline(viewport, placement, pose.orientation, pose.travel);
+  // 펼친 쪽 자리로 옮겨 갈수록 음영을 빼서, 넘겨줄 때 음영 없는 DOM 쪽과 밝기가 어긋나지 않게 한다.
+  const shadeOf = (board: Quat, face: BookFace) => faceShade(board, faceNormal(face), light) * (1 - pose.travel);
 
   function stepGesture(event: React.PointerEvent<HTMLElement>, gestureEvent: SpinGestureEvent) {
     if (!interactive) {
@@ -252,6 +327,9 @@ function ClosedBook({
     '--back-cover-angle': `${backAngle}deg`,
     '--edge-opacity': 1 - pose.travel,
     '--chrome-reveal': pose.travel,
+    '--board': `${target.width * BOARD_RATIO}px`,
+    '--cover-front-color': COVER_ART.front.background,
+    '--cover-back-color': COVER_ART.back.background,
   } as React.CSSProperties;
 
   const stageStyle: React.CSSProperties = {
@@ -286,7 +364,13 @@ function ClosedBook({
       onLostPointerCapture={event => stepGesture(event, { type: 'cancel', pointerId: event.pointerId })}
       {...props}
     >
-      <div className="closed-book__shadow" style={groundShadowStyle(placement, pose.travel)} aria-hidden="true" />
+      <CastShadow
+        sunOutline={sunShadowOutline}
+        contactOutline={contactOutline}
+        light={light}
+        placement={placement}
+        travel={pose.travel}
+      />
       <div className="closed-book" style={bookStyle} data-layout={geometry.layout} aria-hidden="true">
         {showPages ? (
           <div
@@ -305,6 +389,7 @@ function ClosedBook({
             style={{ backgroundColor: COVER_ART.front.background, ...faceStyle(frontBoard, faceNormal('front')) }}
           >
             <CoverArt side="front" />
+            <FaceShade shade={shadeOf(frontBoard, 'front')} />
           </div>
           {showPages && pose.side === 'front' ? (
             <div
@@ -323,6 +408,7 @@ function ClosedBook({
             style={{ backgroundColor: COVER_ART.back.background, ...faceStyle(backBoard, faceNormal('back')) }}
           >
             <CoverArt side="back" />
+            <FaceShade shade={shadeOf(backBoard, 'back')} />
           </div>
           {showPages && pose.side === 'back' ? (
             <div
@@ -347,6 +433,7 @@ function ClosedBook({
                 {PERSON_NAME}
               </span>
             ) : null}
+            <FaceShade shade={shadeOf(pose.orientation, face)} />
           </div>
         ))}
       </div>

@@ -6,6 +6,7 @@ import { resizeViewport, stubReducedMotion } from '@/test/browser';
 import { useFrameLoop } from '../use-frame-loop';
 import { usePrefersReducedMotion } from '../use-reduced-motion';
 import { useSafeAreaInsets } from '../use-safe-area-insets';
+import { useSceneLight } from '../use-scene-light';
 import { useViewportSize } from '../use-viewport-size';
 
 describe('hooks', () => {
@@ -102,5 +103,41 @@ describe('hooks', () => {
     });
     expect(onFrame).toHaveBeenCalledTimes(calls);
     unmount();
+  });
+  it('should light the book from the device clock and follow it minute by minute', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    // 춘분 오전 8시 59분 30초: 해가 왼쪽에 있다.
+    vi.setSystemTime(new Date(2026, 2, 20, 8, 59, 30));
+    const { result, unmount } = renderHook(() => useSceneLight());
+    const morning = result.current;
+    expect(morning.direction.x).toBeLessThan(0);
+    // 같은 분 안에서는 같은 빛(같은 객체)이다.
+    act(() => {
+      vi.advanceTimersByTime(20_000);
+    });
+    expect(result.current).toBe(morning);
+    // 일곱 시간 뒤(오후 4시)에는 해가 오른쪽으로 넘어갔다.
+    act(() => {
+      vi.advanceTimersByTime(7 * 60 * 60_000);
+    });
+    expect(result.current.direction.x).toBeGreaterThan(0);
+    unmount();
+  });
+
+  it('should preview another time of day with ?at= on the dev server', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 2, 20, 9, 0));
+    window.history.replaceState(null, '', '/?at=16:30');
+    try {
+      const { result, unmount } = renderHook(() => useSceneLight());
+      expect(result.current.direction.x).toBeGreaterThan(0);
+      unmount();
+      window.history.replaceState(null, '', '/?at=2026-03-20T07:30');
+      const morning = renderHook(() => useSceneLight());
+      expect(morning.result.current.direction.x).toBeLessThan(0);
+      morning.unmount();
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
   });
 });

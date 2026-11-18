@@ -1,5 +1,7 @@
 /*
- * 닫힌 책(CSS 3D). 시안 mockups/still closed-a의 면 구성을 옮겼다: 흰 종이 표지, 두께 = 쪽 폭의 5%, 아주 옅은 접지 그림자.
+ * 닫힌 책(CSS 3D). 시안 mockups/still closed-a의 면 구성에서 출발했다. 2026-11-18 사용자 판단으로 두께를 늘리고(geometry.ts),
+ * 책등을 앞표지 색으로 감싸고, 종이 단면을 크림색으로, 책배·윗면·아랫면 양 끝에 앞뒤 판 색 띠를 둘렀다.
+ * 면 밝기와 바닥 그림자는 화면 밖 해의 빛을 따른다(src/model/book/light.ts).
  * 책은 펼친 뒤의 쪽 크기로 그리고 인라인 transform의 scale로 줄인다. 그래서 표지 글자·여백은 그 배율로 나눠 둔다.
  * 자세(matrix3d)와 무대 원근(perspective, perspective-origin)은 src/model/book이 계산해 인라인으로 건다(projection.ts가 정본).
  * 형태·재질·조명·그림자는 모두 임시, open-decisions G0 "닫힌 책 형태·재질·조명, 그림자, 책 바깥 여백".
@@ -12,10 +14,15 @@
   pointer-events: none;
 }
 
-.closed-book__shadow {
+/* 바닥 그림자: 화면 좌표 다각형(light.ts castShadowOutline)을 무대 전체 SVG에 그린다. 진하기·번짐은 closed-book.tsx. */
+.closed-book__cast-shadow {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
   pointer-events: none;
-  background: radial-gradient(closest-side, var(--shade-soft), transparent);
+  fill: var(--foreground);
 }
 
 .closed-book {
@@ -23,6 +30,17 @@
   transform-style: preserve-3d;
   transform-origin: 50% 50%;
   pointer-events: none;
+  /* 종이 단면 색. 임시, open-decisions G0 "닫힌 책 형태·재질". */
+  --page-edge: #f6f1e7;
+  --page-edge-line: #ddd3c0;
+}
+
+/* 면 음영 막. 투명도는 빛을 등진 정도(light.ts faceShade)를 인라인으로 건다. */
+.closed-book__shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: #000;
 }
 
 .closed-book__face {
@@ -176,8 +194,9 @@
   justify-content: center;
   padding-top: calc(1.25rem / var(--closed-scale));
   font-size: calc(1rem / var(--closed-scale));
-  background: linear-gradient(var(--shade-faint) 0 0), var(--background);
-  box-shadow: inset 0 0 0 1px var(--border);
+  /* 앞표지 색으로 감싼 책등. 가운데가 살짝 밝아 둥근 등처럼 보인다(재질이라 자세와 무관). */
+  background:
+    linear-gradient(to right, rgb(0 0 0 / 0.1), rgb(255 255 255 / 0.1) 45%, rgb(0 0 0 / 0.14)), var(--cover-front-color);
   transform: rotateY(-90deg) translateZ(calc(var(--book-w) / 2));
 }
 
@@ -187,14 +206,27 @@
   line-height: 1;
 }
 
-/* 앞쪽 종이 단면: 쪽 가장자리를 가는 선으로만 표시한다. */
+/*
+ * 앞쪽 종이 단면: 크림색 쪽 가장자리를 가는 선으로 표시하고, 양 끝에 앞표지(앞쪽)·뒤표지(뒤쪽) 판 두께만큼 표지 색 띠를 둔다.
+ * rotateY(90deg)라 면의 왼쪽 끝이 앞표지 쪽이다.
+ */
 .closed-book__fore {
-  background: repeating-linear-gradient(to right, var(--border) 0 1px, var(--background) 1px 3px);
-  box-shadow: inset 0 0 0 1px var(--border);
+  background:
+    linear-gradient(
+      to right,
+      var(--cover-front-color) 0 var(--board),
+      transparent var(--board) calc(100% - var(--board)),
+      var(--cover-back-color) calc(100% - var(--board))
+    ),
+    repeating-linear-gradient(to right, var(--page-edge-line) 0 1px, var(--page-edge) 1px 3px);
   transform: rotateY(90deg) translateZ(calc(var(--book-w) / 2));
 }
 
-/* 윗면(책머리)과 아랫면(책밑). 자유 회전으로 둘 다 정면에 설 수 있다. */
+/*
+ * 윗면(책머리)과 아랫면(책밑). 자유 회전으로 둘 다 정면에 설 수 있다.
+ * 윗면은 화면에서 몇 px로 눌려 보여 줄무늬가 물결처럼 깨지므로 단색 종이로 두고 판 색 띠만 두른다.
+ * 윗면은 rotateX(90deg)라 면의 아래 끝이, 아랫면은 rotateX(-90deg)라 위 끝이 앞표지 쪽이다.
+ */
 .closed-book__top,
 .closed-book__bottom {
   top: calc(50% - var(--book-d) / 2);
@@ -202,16 +234,23 @@
   width: 100%;
   height: var(--book-d);
   opacity: var(--edge-opacity);
-  /* 윗면은 화면에서 몇 px로 눌려 보여 줄무늬가 물결처럼 깨진다. 단색 그늘로 둔다. */
-  background: linear-gradient(var(--shade-faint) 0 0), var(--background);
-  box-shadow: inset 0 0 0 1px var(--border);
+  background:
+    linear-gradient(
+      var(--board-direction),
+      var(--cover-front-color) 0 var(--board),
+      transparent var(--board) calc(100% - var(--board)),
+      var(--cover-back-color) calc(100% - var(--board))
+    ),
+    var(--page-edge);
 }
 
 .closed-book__top {
+  --board-direction: to top;
   transform: rotateX(90deg) translateZ(calc(var(--book-h) / 2));
 }
 
 .closed-book__bottom {
+  --board-direction: to bottom;
   transform: rotateX(-90deg) translateZ(calc(var(--book-h) / 2));
 }
 

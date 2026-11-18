@@ -8,6 +8,7 @@ import { RunningHead } from '@/features/running-head/running-head';
 import { useDocumentKeyDown } from '@/hooks/use-document-key-down';
 import { useFrameLoop } from '@/hooks/use-frame-loop';
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion';
+import { useSceneLight } from '@/hooks/use-scene-light';
 import { useViewportSize } from '@/hooks/use-viewport-size';
 import { hasFocusedElement } from '@/lib/keyboard-focus';
 import type { Announcement, BookEvent, BookScene } from '@/model/book/book-state';
@@ -107,6 +108,7 @@ export function App() {
   const viewport = useViewportSize();
   const layout = decideLayout(viewport);
   const reducedMotion = usePrefersReducedMotion();
+  const light = useSceneLight();
   const [state, dispatch] = React.useReducer(reduceBook, PAGE_COUNT, createInitialBookState);
   const geometry = computeOpenGeometry(viewport, layout);
   const closedButtonRef = React.useRef<HTMLButtonElement | null>(null);
@@ -188,6 +190,7 @@ export function App() {
             phase={scene.phase === 'closed' ? 'closed' : scene.phase === 'opening' ? 'opening' : 'closing'}
             motion={scene.phase === 'closed' ? scene.motion.type : 'rest'}
             reducedMotion={reducedMotion}
+            light={light}
             buttonRef={closedButtonRef}
             onBookEvent={send}
           />

@@ -3,11 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookEvent } from '@/model/book/book-state';
 import { computeClosedPlacement, computeOpenGeometry, SCREEN_EDGE_DRAG_GUARD_PX } from '@/model/book/geometry';
+import { sceneLightFromSun } from '@/model/book/light';
 import type { TransitionPose } from '@/model/book/opening';
 import { isPointInConvexPolygon, outlineBounds, projectedBookOutline } from '@/model/book/projection';
 import type { Quat } from '@/model/book/quaternion';
 import { IDENTITY_QUAT, multiplyQuat, quatFromAxisAngle, X_AXIS } from '@/model/book/quaternion';
 import { facingOrientation, INITIAL_ORIENTATION, restOrientation } from '@/model/book/rotation';
+import { solarPosition } from '@/model/book/sun';
 import type { Vec2 } from '@/model/fold';
 
 import { ClosedBook } from '../closed-book';
@@ -15,6 +17,8 @@ import { ClosedBook } from '../closed-book';
 const viewport = { width: 1440, height: 900 };
 const geometry = computeOpenGeometry(viewport, 'spread');
 const center = { x: 720, y: 450 };
+/** 춘분 오전 9시(서울 위도): 해가 화면 왼쪽 앞 낮은 하늘에 있다. */
+const morningLight = sceneLightFromSun(solarPosition(new Date(2026, 2, 20, 9, 0)));
 
 function renderClosedBook(overrides: Partial<React.ComponentProps<typeof ClosedBook>> = {}) {
   const onBookEvent = vi.fn<(event: BookEvent) => void>();
@@ -27,6 +31,7 @@ function renderClosedBook(overrides: Partial<React.ComponentProps<typeof ClosedB
       phase="closed"
       motion="rest"
       reducedMotion={false}
+      light={morningLight}
       className="extra"
       onBookEvent={onBookEvent}
       {...overrides}
@@ -345,6 +350,56 @@ describe('ClosedBook', () => {
     // 그림이 오기 전에도 명함 바탕색이 보인다. 돌아선 면을 숨기는 visibility와 함께 건다.
     expect(front).toHaveStyle({ backgroundColor: '#ff9738' });
     expect(back).toHaveStyle({ backgroundColor: '#4614c4', visibility: 'hidden' });
+  });
+
+  describe('lighting', () => {
+    function shadeOpacity(face: string): number {
+      const shade = document.querySelector<HTMLElement>(`.closed-book__${face} > .closed-book__shade`);
+      return Number(shade?.style.opacity);
+    }
+
+    function shadowCentroidX(selector: string): number {
+      const points = (document.querySelector(selector)?.getAttribute('points') ?? '')
+        .split(' ')
+        .map(pair => Number(pair.split(',')[0]));
+      return points.reduce((sum, x) => sum + x, 0) / points.length;
+    }
+
+    it('should shade the faces turned away from the sun and follow the light across the day', () => {
+      renderClosedBook();
+      // 아침 해는 왼쪽에 있다: 책배(오른쪽 면)가 책등보다 어둡다.
+      const morningFore = shadeOpacity('fore');
+      expect(morningFore).toBeGreaterThan(shadeOpacity('spine'));
+      cleanup();
+      renderClosedBook({ light: sceneLightFromSun(solarPosition(new Date(2026, 2, 20, 15, 0))) });
+      expect(shadeOpacity('fore')).toBeLessThan(morningFore);
+      expect(shadeOpacity('fore')).toBeLessThan(shadeOpacity('spine'));
+    });
+
+    it('should cast the sun shadow away from the light and keep a contact shadow under the book', () => {
+      renderClosedBook();
+      const sunShadows = document.querySelectorAll('.closed-book__sun-shadow');
+      expect(sunShadows).toHaveLength(2);
+      expect(shadowCentroidX('.closed-book__sun-shadow')).toBeGreaterThan(center.x + 50);
+      expect(Math.abs(shadowCentroidX('.closed-book__contact-shadow') - center.x)).toBeLessThan(60);
+      for (const shadow of document.querySelectorAll('.closed-book__cast-shadow polygon')) {
+        expect(Number(shadow.getAttribute('opacity'))).toBeGreaterThan(0);
+        // 필터 참조는 같은 SVG 안의 필터를 가리킨다(useId 기호가 url(#…)을 깨지 않는다).
+        const id = /^url\(#([\w-]+)\)$/.exec(shadow.getAttribute('filter') ?? '')?.[1];
+        expect(id).toBeDefined();
+        expect(document.getElementById(id ?? '')?.tagName.toLowerCase()).toBe('filter');
+      }
+    });
+
+    it('should fade the lighting out while the book travels to the open spread', () => {
+      renderClosedBook({ transition: transition({ coverOpen: 1, travel: 1 }), phase: 'opening' });
+      for (const shade of document.querySelectorAll<HTMLElement>('.closed-book__shade')) {
+        expect(Number(shade.style.opacity)).toBe(0);
+      }
+      for (const shadow of document.querySelectorAll('.closed-book__cast-shadow polygon')) {
+        expect(Number(shadow.getAttribute('opacity'))).toBe(0);
+      }
+    });
   });
 
   it('should draw all six faces and show the bottom when the book is tipped toward the viewer', () => {

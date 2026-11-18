@@ -55,8 +55,11 @@ export const TURN_EDGE_BAND_RATIO = 0.12;
  */
 export const SCREEN_EDGE_DRAG_GUARD_PX = 24;
 
-/** 책 두께 = 쪽 폭의 비율. 임시, open-decisions G0 "닫힌 책 형태·재질"(시안 closed-a 5%). */
-export const BOOK_DEPTH_RATIO = 0.05;
+/**
+ * 책 두께 = 쪽 폭의 비율. 시안 closed-a는 5%였고, 닫힌 책이 빈약해 보인다는 2026-11-18 사용자 판단으로 12%로 늘렸다.
+ * 임시, open-decisions G0 "닫힌 책 형태·재질".
+ */
+export const BOOK_DEPTH_RATIO = 0.12;
 
 /** 닫힌 책 높이 = min(화면 높이 × a, 화면 폭 × b). 임시, G0 "닫힌 책 형태", 시안 closed-a의 min(58svh, 62vw). */
 const CLOSED_BOOK_HEIGHT_OF_VIEWPORT_HEIGHT = 0.58;

@@ -91,7 +91,7 @@ export function bookCorners(placement: ClosedPlacement): Vec3[] {
 }
 
 /** 책 좌표 점 → 무대 좌표(원근 전). x·y는 화면 px, z는 보는 사람 쪽이 +다. */
-function toStagePoint(point: Vec3, placement: ClosedPlacement, orientation: Quat, travel: number): Vec3 {
+export function toStagePoint(point: Vec3, placement: ClosedPlacement, orientation: Quat, travel: number): Vec3 {
   const { offset, scale } = bookMotionFrame(placement, travel);
   const rotated = applyMatrix3(quatToMatrix(orientation), point);
   const { target } = placement;
@@ -109,7 +109,11 @@ export function projectBookPoint(
   travel: number,
   perspective: Perspective
 ): Vec2 {
-  const stage = toStagePoint(point, placement, orientation, travel);
+  return projectStagePoint(toStagePoint(point, placement, orientation, travel), perspective);
+}
+
+/** 무대 좌표 점 → 화면 점(무대 CSS perspective). 책 밖의 점(예: 바닥에 떨어진 그림자)에도 쓴다. */
+export function projectStagePoint(stage: Vec3, perspective: Perspective): Vec2 {
   const factor = perspective.distance / Math.max(perspective.distance - stage.z, MIN_PERSPECTIVE_DEPTH_PX);
   return {
     x: perspective.origin.x + (stage.x - perspective.origin.x) * factor,
