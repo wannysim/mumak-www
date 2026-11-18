@@ -332,6 +332,21 @@ describe('ClosedBook', () => {
     expect(document.querySelector('.closed-book__bottom')).not.toHaveStyle({ visibility: 'hidden' });
   });
 
+  it('should draw the name card art on the front and back covers as decoration over the card colour', () => {
+    renderClosedBook();
+    const front = document.querySelector<HTMLElement>('.closed-book__cover-front');
+    const back = document.querySelector<HTMLElement>('.closed-book__back');
+    expect(front?.querySelector('img')).toHaveAttribute('src', '/covers/front.webp');
+    expect(back?.querySelector('img')).toHaveAttribute('src', '/covers/back.svg');
+    for (const image of [front?.querySelector('img'), back?.querySelector('img')]) {
+      expect(image).toHaveAttribute('alt', '');
+    }
+    expect(front?.querySelector('img')).toHaveAttribute('fetchpriority', 'high');
+    // 그림이 오기 전에도 명함 바탕색이 보인다. 돌아선 면을 숨기는 visibility와 함께 건다.
+    expect(front).toHaveStyle({ backgroundColor: '#ff9738' });
+    expect(back).toHaveStyle({ backgroundColor: '#4614c4', visibility: 'hidden' });
+  });
+
   it('should draw all six faces and show the bottom when the book is tipped toward the viewer', () => {
     renderClosedBook({ orientation: quatFromAxisAngle(X_AXIS, 90) });
     for (const face of ['cover-front', 'back', 'spine', 'fore', 'top', 'bottom']) {

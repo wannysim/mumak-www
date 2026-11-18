@@ -5,7 +5,7 @@
 ## 현재 상태
 
 - 작업 브랜치: `feature/photobook-concept`(2026-11-16 `feature/stickerbook-concept`에서 이름을 바꿨다). 재개 시 실제 브랜치·작업 트리·원격 상태를 확인한다. `develop`에 직접 push하지 않는다.
-- 1페이즈(2026-11-13): CSS 3D 닫힌 책(드래그 회전, 클릭·Enter 펼침), 펼침 전환, 사진 잡지 쪽(데스크톱 두 쪽, 세로 폰 한 쪽), 평면 DOM 접힘 넘김(드래그·클릭·키보드), 러닝 헤드, 넘김 버튼·상태 알림·inert·동작 줄이기. 2026-11-16: 덮기(양 끝 넘김·러닝 헤드 이름·Esc)와 닫힌 책 화면 전체 자유 회전·관성을 더했다. 구조는 [implementation.md](./implementation.md), 임시값 목록은 [open-decisions.md](./open-decisions.md) "1페이즈 임시값".
+- 1페이즈(2026-11-13): CSS 3D 닫힌 책(드래그 회전, 클릭·Enter 펼침), 펼침 전환, 사진 잡지 쪽(데스크톱 두 쪽, 세로 폰 한 쪽), 평면 DOM 접힘 넘김(드래그·클릭·키보드), 러닝 헤드, 넘김 버튼·상태 알림·inert·동작 줄이기. 2026-11-16: 덮기(양 끝 넘김·러닝 헤드 이름·Esc)와 닫힌 책 화면 전체 자유 회전·관성을 더했다. 2026-11-18: 앞·뒤표지에 사용자가 준 Meoru 명함 그림을 붙였다(`public/covers/`, 원본·변환은 `public/assets.md`). 명함 5:9를 쪽 3:4에 가운데 맞춰 자르는 것은 임시다(open-decisions G0). 구조는 [implementation.md](./implementation.md), 임시값 목록은 [open-decisions.md](./open-decisions.md) "1페이즈 임시값".
 - 1페이즈에서 뺀 것: WebGL 곡면 넘김·3D 질감, 부록 레코드(Spotify), 부록 스티커 시트, 판권면 실제 값, 폴더블 힌지 정렬, 배포, 다크 모드.
 - 실행: `pnpm --filter photobook dev`. 로컬 `http://photobook.mumak.localhost:1355`, 모바일은 Vite 로그의 Network 주소. 정지 화면 시안은 `/mockups/still/`, S1 비교 하네스는 `/spikes/s1/`(둘 다 dev 전용, 빌드 제외).
 - 이전 작업은 `243b0f7`(2026-11-13 develop rebase 전 해시 `e708e3e`)에 보존돼 있다. [개발 기반과 교훈](./implementation.md)을 참고하되 이전 구현·검증 숫자를 현재 기능으로 취급하지 않는다.

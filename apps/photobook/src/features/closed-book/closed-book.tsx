@@ -1,8 +1,9 @@
 import * as React from 'react';
 import { preload } from 'react-dom';
 
+import { COVER_ART } from '@/content/covers';
 import { photoSourceOf } from '@/content/pages';
-import { COVER_BACK_LINES, COVER_TAGLINE, coverDescription, PERSON_NAME, UI_TEXT } from '@/content/temporary';
+import { coverDescription, PERSON_NAME, UI_TEXT } from '@/content/temporary';
 import { BookPage } from '@/features/book-spread/book-page';
 import { useDocumentKeyDown } from '@/hooks/use-document-key-down';
 import { useHeldArrows } from '@/hooks/use-held-arrows';
@@ -19,7 +20,7 @@ import type { TransitionPose } from '@/model/book/opening';
 import { bookMotionFrame, closedPerspective, outlineBounds, projectedBookOutline } from '@/model/book/projection';
 import type { Quat, Vec3 } from '@/model/book/quaternion';
 import { multiplyQuat, quatFromAxisAngle, toCssMatrix3d, Y_AXIS } from '@/model/book/quaternion';
-import type { BookFace, Orientation } from '@/model/book/rotation';
+import type { BookFace, CoverSide, Orientation } from '@/model/book/rotation';
 import { coverAngleDeg, faceNormal, facingOf, isTurnedAway } from '@/model/book/rotation';
 import type { SpinGesture, SpinGestureEvent } from '@/model/book/spin';
 import { IDLE_SPIN_GESTURE, reduceSpinGesture, touchGuardInsets } from '@/model/book/spin';
@@ -88,6 +89,23 @@ function spineLabelStyle(orientation: Quat): React.CSSProperties | undefined {
 }
 
 const EDGE_FACES: readonly Exclude<BookFace, 'front' | 'back'>[] = ['spine', 'fore', 'top', 'bottom'];
+
+/**
+ * 표지 그림. 내용은 버튼 설명(coverDescription)이 읽으므로 장식으로 둔다.
+ * 앞표지는 첫 화면에 바로 보이는 그림이라 먼저 받는다.
+ */
+function CoverArt({ side }: { side: CoverSide }) {
+  return (
+    <img
+      className="closed-book__cover-art"
+      src={COVER_ART[side].src}
+      alt=""
+      decoding="async"
+      fetchPriority={side === 'front' ? 'high' : 'auto'}
+      draggable={false}
+    />
+  );
+}
 
 /**
  * 닫힌 3D 책(CSS 3D, 시안 closed-a 기준). 앞·뒤표지는 fursona 명함 앞뒷면이다.
@@ -284,10 +302,9 @@ function ClosedBook({
         <div className="closed-book__cover">
           <div
             className="closed-book__face closed-book__cover-front"
-            style={faceStyle(frontBoard, faceNormal('front'))}
+            style={{ backgroundColor: COVER_ART.front.background, ...faceStyle(frontBoard, faceNormal('front')) }}
           >
-            <p>{PERSON_NAME}</p>
-            <p>{COVER_TAGLINE}</p>
+            <CoverArt side="front" />
           </div>
           {showPages && pose.side === 'front' ? (
             <div
@@ -301,10 +318,11 @@ function ClosedBook({
           ) : null}
         </div>
         <div className="closed-book__back-cover">
-          <div className="closed-book__face closed-book__back" style={faceStyle(backBoard, faceNormal('back'))}>
-            {COVER_BACK_LINES.map(line => (
-              <p key={line}>{line}</p>
-            ))}
+          <div
+            className="closed-book__face closed-book__back"
+            style={{ backgroundColor: COVER_ART.back.background, ...faceStyle(backBoard, faceNormal('back')) }}
+          >
+            <CoverArt side="back" />
           </div>
           {showPages && pose.side === 'back' ? (
             <div

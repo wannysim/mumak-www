@@ -5,7 +5,7 @@ import { closedAnnouncement, coverDescription, folioReading, landingAnnouncement
 describe('temporary copy', () => {
   it('should describe both covers regardless of the angle', () => {
     expect(coverDescription()).toBe(
-      '앞표지: 심완, 사진 찍는 개발자. 뒤표지: example@mail.com, instagram.com/example, 사는 곳 · 임시. 화살표 키로 돌려 볼 수 있다.'
+      '앞표지: Meoru 그림. 뒤표지: Meoru Butler, x.com/Meoru_butler로 가는 QR 코드. 화살표 키로 돌려 볼 수 있다.'
     );
   });
 

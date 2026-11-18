@@ -155,25 +155,35 @@ function distanceOutside(point: Point, hull: Point[]): number {
   return outside;
 }
 
+/** 비교할 앞표지 자리: 책등 쪽 위 모서리. 거의 닫힌 판이라도 이 자리는 아래 쪽과 겹친다. */
+const COVER_PROBE_WIDTH_RATIO = 0.3;
+const COVER_PROBE_HEIGHT_RATIO = 0.25;
+
 /**
- * 앞표지 글자 자리(책등 쪽 띠 포함)를 두 번 찍어 비교한다: 그대로 한 번, 표지 아래 쪽(.closed-book__under)을 숨기고 한 번.
+ * 앞표지 책등 쪽 위 모서리를 두 번 찍어 비교한다: 그대로 한 번, 표지 아래 쪽(.closed-book__under)을 숨기고 한 번.
  * 표지 판이 아래 쪽 위에 그려진다면 둘이 같다. 아래 쪽이 판 위로 올라오면(DOM 순서로 칠하는 엔진, 판과 쪽이 1px 간격으로 붙는
- * 순간의 Chromium) 표지 글자가 가려져 달라진다. Chromium은 clip 스크린샷을 따로 래스터해 띠가 사라지므로 화면 전체를 찍고
- * 페이지 안 canvas로 잘라 픽셀을 읽는다(새 의존성 없이).
+ * 순간의 Chromium) 색 있는 표지 그림이 흰 쪽에 가려져 달라진다. Chromium은 clip 스크린샷을 따로 래스터해 띠가 사라지므로
+ * 화면 전체를 찍고 페이지 안 canvas로 잘라 픽셀을 읽는다(새 의존성 없이).
  */
 async function differingPixelsUnderCover(page: Page): Promise<{ differing: number; total: number }> {
-  const area = await page.locator('.closed-book__cover-front').evaluate(cover => {
-    const box = cover.getBoundingClientRect();
-    const lines = Array.from(cover.querySelectorAll('p'), line => line.getBoundingClientRect());
-    const right = Math.max(...lines.map(line => line.right));
-    const bottom = Math.max(...lines.map(line => line.bottom));
-    return {
-      x: Math.round(box.x + 2),
-      y: Math.round(box.y + 2),
-      width: Math.round(right - box.x + 6),
-      height: Math.round(bottom - box.y + 6),
-    };
-  });
+  // 표지 그림이 늦게 오면 두 장 모두 바탕색만 찍혀 아래 쪽이 올라와도 차이를 놓칠 수 있다.
+  await expect
+    .poll(() =>
+      page.locator('.closed-book__cover-front img').evaluate(image => (image as HTMLImageElement).naturalWidth)
+    )
+    .toBeGreaterThan(0);
+  const area = await page.locator('.closed-book__cover-front').evaluate(
+    (cover, [widthRatio, heightRatio]) => {
+      const box = cover.getBoundingClientRect();
+      return {
+        x: Math.round(box.x + 2),
+        y: Math.round(box.y + 2),
+        width: Math.round(box.width * widthRatio),
+        height: Math.round(box.height * heightRatio),
+      };
+    },
+    [COVER_PROBE_WIDTH_RATIO, COVER_PROBE_HEIGHT_RATIO] as const
+  );
   const shown = await page.screenshot({ scale: 'css' });
   const style = await page.addStyleTag({ content: '.closed-book__under { visibility: hidden !important; }' });
   const hidden = await page.screenshot({ scale: 'css' });
@@ -252,7 +262,13 @@ test.describe('Photobook', () => {
     await expect(page.getByRole('main', { name: 'Photobook' })).toBeVisible();
     const book = page.getByRole('button', { name: '책 펼치기' });
     await expect(book).toBeVisible();
-    await expect(book).toHaveAccessibleDescription(/앞표지: 심완/);
+    await expect(book).toHaveAccessibleDescription(/앞표지: Meoru 그림\. 뒤표지: Meoru Butler/);
+    // 빌드 결과의 경로(BASE_URL)로 앞·뒤표지 그림이 실제로 받아져 디코드된다.
+    for (const face of ['.closed-book__cover-front', '.closed-book__back']) {
+      await expect
+        .poll(() => page.locator(`${face} img`).evaluate(image => (image as HTMLImageElement).naturalWidth))
+        .toBeGreaterThan(0);
+    }
     // 잡지 표지에는 쪽 번호가 없다. 펼치면 나타난다.
     await expect(folio(page)).toHaveCount(0);
     const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);

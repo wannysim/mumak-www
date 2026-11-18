@@ -60,19 +60,26 @@
   background: var(--background);
 }
 
+/* 바탕색은 표지 그림의 바탕색을 인라인으로 깐다(src/content/covers.ts). 그림이 오기 전에도 표지 색이 보인다. */
 .closed-book__cover-front,
 .closed-book__back {
-  display: flex;
-  flex-direction: column;
-  /* 닫힌 책 배율로 나눠, 줄어든 화면에서 본문과 같은 1rem으로 보이게 한다. */
-  padding: calc(1.25rem / var(--closed-scale));
-  font-size: calc(1rem / var(--closed-scale));
-  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
 }
 
 .closed-book__back {
-  justify-content: flex-end;
   transform: rotateY(180deg);
+}
+
+/*
+ * 명함 판형(5:9)과 쪽 판형(geometry.ts PAGE_ASPECT)이 다르면 가운데를 맞춰 자른다.
+ * 판형을 어떻게 맞출지는 임시, open-decisions G0 "닫힌 책 형태"·"책 안 화면 구성과 펼침면 비율".
+ */
+.closed-book__cover-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
 }
 
 .closed-book__cover-inside {

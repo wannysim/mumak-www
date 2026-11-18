@@ -1,3 +1,4 @@
+import { COVER_QR_URL } from '@/content/covers';
 import { formatPageSpan } from '@/model/book/folio';
 import type { CoverSide } from '@/model/book/rotation';
 
@@ -8,19 +9,11 @@ import type { CoverSide } from '@/model/book/rotation';
  * 그림만의 값(접지 그림자 배수, 책등 이름을 숨기는 기울기)은 src/features/closed-book/closed-book.tsx 위쪽 상수, 테두리·그늘·포커스 표시·
  * 러닝 헤드 배치는 각 컴포넌트 CSS·주석(closed-book.css, book-spread.css, book-page.css, running-head.tsx, src/index.css)에
  * 같은 형식으로 적었다.
- * 이름 "심완"은 확정된 사용자 결정(표지 = fursona 명함)에 따라 앞표지에 둔다.
+ * 앞·뒤표지는 2026-11-18 사용자가 준 명함 그림이다(src/content/covers.ts). 이름 "심완"은 책등·러닝 헤드·1쪽에 남아 있다.
  */
 
+/** 책등·러닝 헤드·1쪽의 이름. 책등 이름은 임시, open-decisions G0 "책등에 넣을 정보". */
 export const PERSON_NAME = '심완';
-
-/** 앞표지(명함 앞면) 이름 아래 한 줄. 임시, open-decisions G0 "앞표지·뒤표지·책등에 넣을 정보". */
-export const COVER_TAGLINE = '사진 찍는 개발자';
-
-/**
- * 뒤표지(명함 뒷면) 정보. 임시, open-decisions G0 "앞표지·뒤표지·책등에 넣을 정보"·G5 "판권면 실제 값과 공개 범위".
- * 실제 연락처·사는 곳이 아니라 자리표시다.
- */
-export const COVER_BACK_LINES: readonly string[] = ['example@mail.com', 'instagram.com/example', '사는 곳 · 임시'];
 
 /** 러닝 헤드 문구. 임시, open-decisions G4 "러닝 헤드 항목·문구, '지금 상태 한 줄'의 출처"(시안 문구 그대로). */
 export const RUNNING_HEAD_LINE = '사진을 찍고 화면을 만든다';
@@ -52,9 +45,12 @@ export const UI_TEXT = {
   closeByName: '눌러서 앞표지로 덮기',
 } as const;
 
-/** 닫힌 책 버튼 설명. 각도와 무관하게 앞·뒤표지 정보를 DOM 텍스트로 둔다(tech-research.md 7장 닫힌 책 회전 행). */
+/**
+ * 닫힌 책 버튼 설명. 각도와 무관하게 앞·뒤표지 정보를 DOM 텍스트로 둔다(tech-research.md 7장 닫힌 책 회전 행).
+ * 표지 그림은 장식(alt="")이고 내용은 여기서 읽힌다. 문구는 임시, open-decisions G5.
+ */
 export function coverDescription(): string {
-  return `앞표지: ${PERSON_NAME}, ${COVER_TAGLINE}. 뒤표지: ${COVER_BACK_LINES.join(', ')}. ${UI_TEXT.rotateHint}`;
+  return `앞표지: Meoru 그림. 뒤표지: Meoru Butler, ${COVER_QR_URL}로 가는 QR 코드. ${UI_TEXT.rotateHint}`;
 }
 
 /** 덮은 뒤 알림. 예: "책을 덮었다, 뒤표지". 임시, open-decisions G5 문구(tech-research.md 7장 책 닫기 행). */
