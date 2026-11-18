@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 
+import { StorySummary } from '@/components/story-summary';
 import { SectionTitle } from '@/components/ui';
 import { stories, storySections } from '@/lib/curriculum';
 import type { Progress } from '@/lib/progress';
@@ -145,6 +146,7 @@ export function StoryNotes({ progress }: { progress: Progress }) {
           </div>
         ))}
       </div>
+      <StorySummary key={story.id} id={story.id} notes={progress.notes} />
       <section className="mt-8 rounded-2xl border p-5">
         <h2 className="mb-3 text-sm font-bold">한 걸음 더 깊게</h2>
         <ul className="space-y-3">

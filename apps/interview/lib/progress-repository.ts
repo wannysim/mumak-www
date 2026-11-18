@@ -1,5 +1,13 @@
 import { emptyCloudProgress, parseCloudProgress, type ProgressWrite } from '@/lib/cloud-progress';
 
+function usesLocalStore() {
+  return (
+    process.env.INTERVIEW_LOCAL_STORE === 'sqlite' &&
+    !process.env.VERCEL &&
+    /^http:\/\/(?:[a-z0-9.-]+\.)?localhost(?::\d+)?$/.test(process.env.INTERVIEW_ORIGIN ?? '')
+  );
+}
+
 // One atomic primary operation: a stale device can never overwrite a newer revision.
 // The client-generated revision also makes an acknowledgement lost in transit safe to retry.
 const WRITE_SCRIPT = `
@@ -39,10 +47,12 @@ function decode(value: unknown) {
   return parseCloudProgress(JSON.parse(value));
 }
 export async function readCloudProgress() {
+  if (usesLocalStore()) return (await import('@/lib/local-progress')).localProgress('.interview-data').document;
   // EVAL reads the primary, avoiding a replica returning a stale revision after a save.
   return decode(await command(['EVAL', "return redis.call('GET', KEYS[1])", 1, key()]));
 }
 export async function writeCloudProgress(write: ProgressWrite) {
+  if (usesLocalStore()) return (await import('@/lib/local-progress')).localProgress('.interview-data', write);
   const document = { revision: write.revision, progress: write.progress };
   const result = await command([
     'EVAL',

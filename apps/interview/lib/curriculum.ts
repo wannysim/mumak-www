@@ -12,21 +12,21 @@ export type Question = {
   choices: string[];
   answer: number;
   explanation: string;
-  followup: string;
+  followup?: string;
+  format?: 'prediction';
 };
 export const questions: Question[] = [
   {
     id: 'event-loop',
     topic: 'JavaScript',
-    title: '콘솔에는 어떤 순서로 찍힐까?',
+    title: '이벤트 루프의 출력 순서',
+    format: 'prediction',
     minutes: 3,
-    prompt: '동기 코드, microtask, timer의 실행 순서를 설명해 보세요.',
+    prompt: '예상: C가 B보다 먼저 출력된다.',
     code: "console.log('A');\nsetTimeout(() => console.log('B'), 0);\nPromise.resolve().then(() => console.log('C'));\nconsole.log('D');",
-    choices: ['A → B → C → D', 'A → D → C → B', 'A → C → D → B', 'A → D → B → C'],
-    answer: 1,
-    explanation:
-      '동기 코드 A, D가 먼저 실행됩니다. 현재 task가 끝난 뒤 microtask인 C를 처리하고, 이후 timer task인 B를 실행합니다. 0ms는 즉시 실행을 뜻하지 않습니다.',
-    followup: 'microtask가 계속 다른 microtask를 추가한다면 화면 렌더링에 어떤 영향이 있을까요?',
+    choices: ['맞아', '아니야'],
+    answer: 0,
+    explanation: '동기 코드 A와 D가 끝나면 Promise의 C가 마이크로태스크로 먼저 실행되고, 그다음 타이머의 B가 실행돼요.',
   },
   {
     id: 'state-snapshot',

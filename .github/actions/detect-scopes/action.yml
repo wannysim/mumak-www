@@ -21,7 +21,7 @@ outputs:
     description: "Comma-separated list of changed app names"
     value: ${{ steps.detect.outputs.scopes }}
   has_changes:
-    description: "Whether any apps have changes, or lint/format config changed"
+    description: "Whether any apps have changes, or files outside apps/ and packages/ changed (root quality only)"
     value: ${{ steps.detect.outputs.has_changes }}
   lint_config_changed:
     description: "Whether a workspace-wide lint/format config changed (lint every workspace without the app matrix)"
@@ -149,6 +149,15 @@ runs:
           echo "lint/format config changed - will lint every workspace (no app matrix)"
         fi
 
+        # apps/·packages/ 밖 파일(.ai/skills, skills-lock.json, AGENTS.md 등)은 어느 앱에도 속하지 않아
+        # 앱 매트릭스를 띄우지 않는다. 그래도 has_changes를 세워야 root-quality가 root lint/format과
+        # validate:skills로 검증한다. 세우지 않으면 skill만 바꾼 PR이 아무 검사 없이 통과한다.
+        ROOT_FILES_CHANGED=false
+        if echo "$CHANGED_FILES" | grep -qvE "^(apps|packages)/"; then
+          ROOT_FILES_CHANGED=true
+          echo "files outside apps/ and packages/ changed - will run root quality (no app matrix)"
+        fi
+
         # CI-related files affect all apps because they can change detection,
         # setup, cache, or validation behavior.
         CI_CHANGED=false
@@ -208,7 +217,7 @@ runs:
 
         echo "scopes=$AFFECTED" >> "$GITHUB_OUTPUT"
         echo "lint_config_changed=$LINT_CONFIG_CHANGED" >> "$GITHUB_OUTPUT"
-        if [ -n "$AFFECTED" ] || [ "$LINT_CONFIG_CHANGED" = true ]; then
+        if [ -n "$AFFECTED" ] || [ "$LINT_CONFIG_CHANGED" = true ] || [ "$ROOT_FILES_CHANGED" = true ]; then
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
         else
           echo "has_changes=false" >> "$GITHUB_OUTPUT"

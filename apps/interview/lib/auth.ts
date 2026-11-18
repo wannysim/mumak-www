@@ -4,7 +4,19 @@ export const SESSION_SECONDS = 7 * 24 * 60 * 60;
 export type AuthConfig = { origin: string; tokenHash: string; secret: string; cookieName: string; secure: boolean };
 
 export function readAuthConfig(env: Record<string, string | undefined> = process.env): AuthConfig | null {
-  const { INTERVIEW_ORIGIN: origin, INTERVIEW_TOKEN_SHA256: tokenHash, INTERVIEW_SESSION_SECRET: secret } = env;
+  const {
+    INTERVIEW_ORIGIN: configuredOrigin,
+    INTERVIEW_TOKEN_SHA256: tokenHash,
+    INTERVIEW_SESSION_SECRET: secret,
+  } = env;
+  const origin =
+    env.INTERVIEW_LOCAL_STORE === 'sqlite' &&
+    !env.VERCEL &&
+    /^http:\/\/(?:[a-z0-9-]+\.)*localhost(?::\d+)?$/.test(configuredOrigin ?? '') &&
+    env.PORTLESS_URL &&
+    /^http:\/\/(?:[a-z0-9-]+\.)*interview\.mumak\.localhost:\d+$/.test(env.PORTLESS_URL)
+      ? env.PORTLESS_URL
+      : configuredOrigin;
   if (!origin || !/^[a-f0-9]{64}$/.test(tokenHash ?? '') || !/^[a-f0-9]{64}$/.test(secret ?? '')) return null;
   try {
     const url = new URL(origin);

@@ -14,7 +14,7 @@ import { useState } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 
-import { questions, resources } from '@/lib/curriculum';
+import { codeProblems, questions, resources } from '@/lib/curriculum';
 import { localDateKey, resumableCodeProblems, understoodIds, type Progress } from '@/lib/progress';
 
 export function Today({
@@ -37,6 +37,9 @@ export function Today({
   const [todayKey] = useState(() => localDateKey(Date.now()));
   const solved = understoodIds(progress);
   const resumable = resumableCodeProblems(progress);
+  const lastGradedConcept = progress.attempts.findLast(a => questions.some(q => q.id === a.id));
+  const lastId = progress.lastExplanation ?? lastGradedConcept?.id;
+  const last = questions.find(q => q.id === lastId) ?? codeProblems.find(p => p.id === lastId);
   const done = questions.filter(q => solved.has(q.id)).length;
   const today = progress.attempts.filter(a => localDateKey(a.at) === todayKey).length;
   return (
@@ -116,6 +119,37 @@ export function Today({
           </text>
         </svg>
       </section>
+      {last && (
+        <details key={last.id} className="my-5 rounded-xl border bg-white p-5">
+          <summary className="cursor-pointer font-semibold">지난 해설 이어 읽기 · {last.title}</summary>
+          {'choices' in last ? (
+            <>
+              <p className="mt-4">{last.prompt}</p>
+              {last.code && (
+                <pre className="my-3 overflow-x-auto rounded-lg bg-muted p-3">
+                  <code>{last.code}</code>
+                </pre>
+              )}
+              <p className="my-3 font-semibold">정답 · {last.choices[last.answer]}</p>
+              <p>{last.explanation}</p>
+              {last.followup && (
+                <details className="mt-4">
+                  <summary className="cursor-pointer font-semibold">면접관이 한 번 더 묻는다면</summary>
+                  <p className="mt-2">{last.followup}</p>
+                </details>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="mt-4">{last.description}</p>
+              <pre className="my-3 overflow-x-auto rounded-lg bg-muted p-3">
+                <code>{last.solution}</code>
+              </pre>
+              <p>{last.complexity}</p>
+            </>
+          )}
+        </details>
+      )}
       {resumable.length > 0 && (
         <section className="mt-7 rounded-2xl border bg-white p-5 sm:p-6" aria-labelledby="resume-code-title">
           <h2 id="resume-code-title" className="text-lg font-bold">
@@ -270,7 +304,7 @@ export function Today({
         ))}
       </section>
       <p className="mt-6 text-[11px] leading-5 text-muted-foreground">
-        직접 만든 연습 문제입니다. 실제 채용 시험 문제나 합격을 보장하는 자료가 아니에요.
+        문제 탭에서 기업 공개 기출을 재구성한 문제와 프론트엔드 응용 문제의 원문을 확인할 수 있어요.
       </p>
     </div>
   );

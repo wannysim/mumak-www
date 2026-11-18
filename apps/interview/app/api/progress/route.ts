@@ -1,6 +1,4 @@
-import { cookies } from 'next/headers';
-
-import { readAuthConfig, validSession } from '@/lib/auth';
+import { authorizeRequest } from '@/lib/authorize-request';
 import { parseProgressWrite } from '@/lib/cloud-progress';
 import { MAX_BACKUP_BYTES } from '@/lib/progress';
 import { readCloudProgress, writeCloudProgress } from '@/lib/progress-repository';
@@ -10,16 +8,8 @@ export const dynamic = 'force-dynamic';
 function json(value: unknown, status = 200) {
   return Response.json(value, { status, headers: { 'Cache-Control': 'private, no-store' } });
 }
-async function authorize(request: Request) {
-  const config = readAuthConfig();
-  if (!config) return 503;
-  const sessions = (await cookies()).getAll(config.cookieName);
-  if (sessions.length !== 1 || !validSession(sessions[0]?.value, config)) return 401;
-  if (request.method !== 'GET' && request.headers.get('origin') !== config.origin) return 403;
-  return 200;
-}
 export async function GET(request: Request) {
-  const status = await authorize(request);
+  const status = await authorizeRequest(request);
   if (status !== 200) return json({ error: 'unavailable' }, status);
   try {
     return json(await readCloudProgress());
@@ -28,7 +18,7 @@ export async function GET(request: Request) {
   }
 }
 export async function PUT(request: Request) {
-  const status = await authorize(request);
+  const status = await authorizeRequest(request);
   if (status !== 200) return json({ error: 'unavailable' }, status);
   if (!request.headers.get('content-type')?.startsWith('application/json')) return json({ error: 'invalid' }, 415);
   let write;

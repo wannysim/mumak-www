@@ -9,6 +9,7 @@ writeFileSync(
   '.env.local',
   [
     `INTERVIEW_ORIGIN=${process.env.INTERVIEW_ORIGIN || 'http://localhost:3008'}`,
+    'INTERVIEW_LOCAL_STORE=sqlite',
     `INTERVIEW_TOKEN_SHA256=${createHash('sha256').update(token).digest('hex')}`,
     `INTERVIEW_SESSION_SECRET=${randomBytes(32).toString('hex')}`,
     '',

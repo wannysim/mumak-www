@@ -4,6 +4,8 @@ type Attempt = { id: string; correct: boolean; at: number };
 export type Session = { minutes: number; remaining: number; deadline: number | null; questionId: string };
 export type Progress = {
   version: 1;
+  lastExplanation?: string;
+  uncertain?: string[];
   attempts: Attempt[];
   review: string[];
   drafts: Record<string, string>;
@@ -25,6 +27,7 @@ const exerciseIds = new Set([...questionIds, ...codeProblems.map(p => p.id)]);
 const noteIds = new Set([
   ...stories.flatMap(s => Array.from({ length: 5 }, (_, i) => `${s.id}:${i}`)),
   ...codeProblems.map(p => `${p.id}:plan`),
+  ...stories.map(s => `${s.id}:summary`),
 ]);
 function byteLength(text: string) {
   return new TextEncoder().encode(text).byteLength;
@@ -44,6 +47,12 @@ export function parseProgress(raw: string): Progress {
   if (
     !record(value) ||
     value.version !== 1 ||
+    (value.lastExplanation !== undefined &&
+      (typeof value.lastExplanation !== 'string' || !exerciseIds.has(value.lastExplanation))) ||
+    (value.uncertain !== undefined &&
+      (!Array.isArray(value.uncertain) ||
+        value.uncertain.length > exerciseIds.size ||
+        !value.uncertain.every(id => typeof id === 'string' && exerciseIds.has(id)))) ||
     !Array.isArray(value.attempts) ||
     value.attempts.length > 500 ||
     !value.attempts.every(
@@ -82,6 +91,8 @@ export function parseProgress(raw: string): Progress {
   }
   return {
     version: 1,
+    ...(typeof value.lastExplanation === 'string' && { lastExplanation: value.lastExplanation }),
+    ...(Array.isArray(value.uncertain) && { uncertain: [...new Set<string>(value.uncertain)] }),
     attempts: value.attempts as Attempt[],
     review: [...new Set(value.review as string[])],
     drafts: { ...value.drafts },
@@ -89,9 +100,18 @@ export function parseProgress(raw: string): Progress {
     session: value.session as Session | null,
   };
 }
+export function markForReview(progress: Progress, id: string): Progress {
+  return {
+    ...progress,
+    lastExplanation: id,
+    uncertain: [...new Set([...(progress.uncertain ?? []), id])],
+    review: [...new Set([...progress.review, id])],
+  };
+}
 export function recordAttempt(progress: Progress, id: string, correct: boolean, now = Date.now()): Progress {
   return {
     ...progress,
+    ...(progress.uncertain?.includes(id) && { uncertain: progress.uncertain.filter(item => item !== id) }),
     attempts: [...progress.attempts, { id, correct, at: now }].slice(-500),
     review: correct ? progress.review.filter(item => item !== id) : [...new Set([...progress.review, id])],
   };
@@ -106,7 +126,7 @@ export function resumableCodeProblems(progress: Progress) {
 }
 export function understoodIds(progress: Progress) {
   const latest = new Map(progress.attempts.map(attempt => [attempt.id, attempt.correct]));
-  return new Set([...latest].filter(([, correct]) => correct).map(([id]) => id));
+  return new Set([...latest].filter(([id, correct]) => correct && !progress.uncertain?.includes(id)).map(([id]) => id));
 }
 export function remainingSeconds(session: Session, now: number) {
   return session.deadline === null
