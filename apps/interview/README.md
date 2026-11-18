@@ -27,6 +27,8 @@
 
 설정이 없거나 잘못되면 접근을 차단한다. 7일간 HttpOnly 세션을 유지하며 로그아웃하면 쿠키를 삭제한다. 키/비밀값 회전 시 기존 세션은 무효다. 공개 링크를 숨기거나 robots.txt만으로 비공개를 보장하지 않는다. 외부 공개 시 HTTPS 및 호스팅 측 요청 제한을 함께 설정한다. Vercel 프로젝트 `mumak-www-interview`의 Root Directory는 `apps/interview`, Node.js는 24.x다. 설치는 `pnpm install --filter interview... --frozen-lockfile`, 빌드는 `cd ../.. && pnpm turbo run build --filter=interview`를 사용한다. `.vercelignore`로 로컬 비밀 파일을 배포 업로드에서도 제외한다.
 
+한 줄 요약을 사용하려면 서버에 `OPENAI_API_KEY`를 설정한다. ‘내 이야기’에서 요약을 요청할 때 현재 이야기의 작성 내용만 OpenAI에 전달하고, 사용자가 저장을 누른 문장을 학습 기록에 보관한다.
+
 ## 기록과 코드 실행
 
 동일한 개인 접속 키로 로그인한 모든 기기는 하나의 서버 기록을 공유한다. 풀이·코드·메모·타이머를 Upstash Redis에 저장하며 TTL을 두지 않는다. `INTERVIEW_STORE_KEY`는 접속 키와 독립적이라 키를 교체해도 기록이 유지된다. 저장소는 무료 플랜, Tokyo 리전, eviction/autoUpgrade/prodPack 비활성화로 구성했다.

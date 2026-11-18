@@ -2,6 +2,7 @@ import { codeProblems, stories } from '../curriculum';
 import {
   emptyProgress,
   localDateKey,
+  markForReview,
   parseProgress,
   recordAttempt,
   remainingSeconds,
@@ -10,6 +11,16 @@ import {
 } from '../progress';
 
 describe('durable practice records', () => {
+  it('revisits a lucky guess until a later confident answer', () => {
+    const graded = recordAttempt(emptyProgress(), 'event-loop', true);
+    const unsure = parseProgress(JSON.stringify(markForReview(graded, 'event-loop')));
+    expect(unsure.attempts).toEqual(graded.attempts);
+    expect(unsure.review).toEqual(['event-loop']);
+    expect(understoodIds(unsure).has('event-loop')).toBe(false);
+    const learned = recordAttempt(unsure, 'event-loop', true);
+    expect(understoodIds(learned).has('event-loop')).toBe(true);
+    expect(learned.review).toEqual([]);
+  });
   it('round trips notes, drafts and a paused session', () => {
     const p = {
       ...emptyProgress(),

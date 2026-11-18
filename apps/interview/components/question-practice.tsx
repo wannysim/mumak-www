@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@mumak/ui/components/button';
 
 import { ReviewToggle } from '@/components/review-toggle';
+import { UnsureButton } from '@/components/unsure-button';
 import type { Question } from '@/lib/curriculum';
-import { recordAttempt, remainingSeconds, type Progress } from '@/lib/progress';
+import { markForReview, recordAttempt, remainingSeconds, type Progress } from '@/lib/progress';
 import { saveProgress } from '@/lib/progress-store';
 
 export function QuestionPractice({
@@ -35,29 +36,27 @@ export function QuestionPractice({
     };
   }, []);
   const seconds = session ? remainingSeconds(session, now) : 0;
-  function check() {
-    if (selected === null || checked) return;
-    setChecked(true);
-    saveProgress(p => recordAttempt(p, question.id, selected === question.answer));
-  }
   const prediction = question.format === 'prediction';
   const feedback = useRef<HTMLElement>(null);
   useEffect(() => {
-    if (prediction && checked) feedback.current?.focus();
-  }, [prediction, checked]);
+    if (checked) feedback.current?.focus();
+  }, [checked]);
   const codeBlock = question.code && (
     <pre className="mb-7 overflow-x-auto whitespace-pre-wrap break-words rounded-2xl bg-[#172b4d] p-5 font-mono text-[13px] leading-7 text-[#e6edfc] sm:p-7">
       <code>{question.code}</code>
     </pre>
   );
-  function answerPrediction(index: number | null) {
+  function answer(index: number | null) {
     if (checked) return;
     setSelected(index);
     setChecked(true);
     if (index !== null) {
-      saveProgress(p => recordAttempt(p, question.id, index === question.answer));
+      saveProgress(p => ({
+        ...recordAttempt(p, question.id, index === question.answer),
+        lastExplanation: question.id,
+      }));
     } else {
-      saveProgress(p => (p.review.includes(question.id) ? p : { ...p, review: [...p.review, question.id] }));
+      saveProgress(p => markForReview(p, question.id));
     }
   }
   function pause() {
@@ -127,15 +126,15 @@ export function QuestionPractice({
           {!checked && codeBlock}
           <p className="my-4 font-semibold">{question.prompt}</p>
           {!checked && (
-            <div role="group" aria-label="예상 판단" className="flex flex-wrap gap-2">
+            <div role="group" aria-label="예상 판단" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {question.choices.map((choice, index) => (
-                <Button key={choice} variant="outline" onClick={() => answerPrediction(index)}>
+                <Button key={choice} className="h-12 rounded-xl" variant="outline" onClick={() => answer(index)}>
                   {choice}
                 </Button>
               ))}
-              <Button variant="ghost" onClick={() => answerPrediction(null)}>
-                잘 모르겠어
-              </Button>
+              <div className="col-span-2 grid sm:col-span-1">
+                <UnsureButton onClick={() => answer(null)} />
+              </div>
             </div>
           )}
         </>
@@ -168,24 +167,28 @@ export function QuestionPractice({
         </>
       )}
       {checked && (
-        <section
-          ref={feedback}
-          tabIndex={prediction ? -1 : undefined}
-          role="status"
-          className="mt-7 rounded-2xl border bg-white p-6"
-        >
+        <section ref={feedback} tabIndex={-1} role="status" className="mt-7 rounded-2xl border bg-white p-6">
           <p className={`mb-3 text-lg font-bold ${selected === question.answer ? 'text-[#386e54]' : 'text-primary'}`}>
-            {prediction
-              ? selected === null
-                ? '다시 보기에 담았어요.'
-                : selected === question.answer
+            {selected === null
+              ? '다시 보기에 담았어요.'
+              : prediction
+                ? selected === question.answer
                   ? '예상대로예요.'
                   : '예상과 달라요.'
-              : selected === question.answer
-                ? '좋아요, 한 걸음 더.'
-                : '이 문제, 다시 만나봐요.'}
+                : selected === question.answer
+                  ? '좋아요, 한 걸음 더.'
+                  : '이 문제, 다시 만나봐요.'}
           </p>
           <p className="text-sm leading-7">{question.explanation}</p>
+          {selected === question.answer && (
+            <Button
+              variant="outline"
+              disabled={progress.review.includes(question.id)}
+              onClick={() => saveProgress(p => markForReview(p, question.id))}
+            >
+              {progress.review.includes(question.id) ? '다시 보기에 담았어요' : '찍어서 맞혔어요 · 다시 보기'}
+            </Button>
+          )}
           {question.followup && (
             <div className="mt-5 border-t pt-5">
               <h2 className="mb-2 text-xs font-bold text-primary">면접관이 한 번 더 묻는다면</h2>
@@ -208,9 +211,16 @@ export function QuestionPractice({
               <ArrowRight aria-hidden />
             </Button>
           ) : (
-            <Button disabled={selected === null} onClick={check} className="h-13 w-full rounded-xl text-base">
-              답 확인하기
-            </Button>
+            <div role="group" aria-label="답변 선택" className="grid grid-cols-2 items-center gap-2">
+              <UnsureButton onClick={() => answer(null)} />
+              <Button
+                disabled={selected === null}
+                onClick={() => answer(selected)}
+                className="h-12 rounded-xl text-base"
+              >
+                답 확인하기
+              </Button>
+            </div>
           )}
         </div>
       )}

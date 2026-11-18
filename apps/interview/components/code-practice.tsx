@@ -5,9 +5,10 @@ import { Button } from '@mumak/ui/components/button';
 
 import { ExplanationNotes } from '@/components/explanation-notes';
 import { ReviewToggle } from '@/components/review-toggle';
+import { UnsureButton } from '@/components/unsure-button';
 import { runCode, type RunResult } from '@/lib/code-runner';
 import type { CodeProblem } from '@/lib/curriculum';
-import { recordAttempt, type Progress } from '@/lib/progress';
+import { markForReview, recordAttempt, type Progress } from '@/lib/progress';
 import { saveProgress } from '@/lib/progress-store';
 
 export function CodePractice({
@@ -23,6 +24,7 @@ export function CodePractice({
   const [result, setResult] = useState<RunResult | null>(null);
   const [running, setRunning] = useState(false);
   const [executedCode, setExecutedCode] = useState('');
+  const solution = useRef<HTMLDetailsElement>(null);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   async function execute() {
@@ -96,7 +98,22 @@ export function CodePractice({
           className="block min-h-72 w-full resize-y bg-[#172b4d] p-5 font-mono text-base leading-7 sm:text-sm text-[#e6edfc] outline-offset-[-4px]"
         />
       </div>
-      <div className="mt-4 flex flex-wrap justify-between gap-3">
+      <div role="group" aria-label="코드 풀이" className="mt-4 flex flex-wrap items-center gap-2">
+        <Button onClick={execute} disabled={running} className="h-12 rounded-xl px-6">
+          <Play aria-hidden className="size-4" />
+          {running ? '테스트 실행 중…' : '코드 실행하기'}
+        </Button>
+        <UnsureButton
+          showSolution
+          disabled={running}
+          onClick={() => {
+            saveProgress(p => markForReview(p, problem.id));
+            if (solution.current) {
+              solution.current.open = true;
+              solution.current.querySelector('summary')?.focus();
+            }
+          }}
+        />
         <Button
           variant="ghost"
           className="h-12 text-xs"
@@ -109,10 +126,6 @@ export function CodePractice({
         >
           <RotateCcw aria-hidden />
           코드 초기화
-        </Button>
-        <Button onClick={execute} disabled={running} className="h-12 rounded-xl px-6">
-          <Play aria-hidden className="size-4" />
-          {running ? '테스트 실행 중…' : '코드 실행하기'}
         </Button>
       </div>
       <p className="mt-3 text-xs leading-5 text-muted-foreground">
@@ -159,7 +172,14 @@ export function CodePractice({
         <summary className="cursor-pointer text-sm font-semibold">막혔을 때, 작은 힌트</summary>
         <p className="mt-4 text-sm leading-7 text-muted-foreground">{problem.hint}</p>
       </details>
-      <details className="mt-3 rounded-xl border bg-white p-5">
+
+      <details
+        ref={solution}
+        onToggle={e => {
+          if (e.currentTarget.open) saveProgress(p => ({ ...p, lastExplanation: problem.id }));
+        }}
+        className="mt-3 rounded-xl border bg-white p-5"
+      >
         <summary className="cursor-pointer text-sm font-semibold">충분히 생각한 뒤 풀이 보기</summary>
         <pre className="mt-4 overflow-x-auto rounded-xl bg-background p-4 font-mono text-xs leading-6">
           <code>{problem.solution}</code>
