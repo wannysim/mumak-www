@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type { Vec2 } from '@/model/fold';
 
 import { computeClosedPlacement, computeOpenGeometry } from '../geometry';
-import { castShadowOutline, contactShadowOutline, faceShade, floorY, NIGHT_LIGHT, sceneLightFromSun } from '../light';
+import { castShadowOutline, contactShadow, faceShade, floorY, NIGHT_LIGHT, sceneLightFromSun } from '../light';
 import { projectedBookOutline } from '../projection';
-import { IDENTITY_QUAT, quatFromAxisAngle, Y_AXIS } from '../quaternion';
+import { IDENTITY_QUAT, quatFromAxisAngle, X_AXIS, Y_AXIS } from '../quaternion';
 import { faceNormal, INITIAL_ORIENTATION } from '../rotation';
 import { solarPosition } from '../sun';
 
@@ -26,6 +26,14 @@ function centroid(points: readonly Vec2[]): Vec2 {
 
 function lowest(points: readonly Vec2[]): number {
   return Math.max(...points.map(point => point.y));
+}
+
+function width(points: readonly Vec2[]): number {
+  return Math.max(...points.map(point => point.x)) - Math.min(...points.map(point => point.x));
+}
+
+function height(points: readonly Vec2[]): number {
+  return lowest(points) - Math.min(...points.map(point => point.y));
 }
 
 describe('light', () => {
@@ -113,17 +121,32 @@ describe('light', () => {
       const light = equinoxLight(9);
       const facing = castShadowOutline(viewport, placement, IDENTITY_QUAT, light);
       const edgeOn = castShadowOutline(viewport, placement, quatFromAxisAngle(Y_AXIS, 90), light);
-      const width = (points: readonly Vec2[]) =>
-        Math.max(...points.map(point => point.x)) - Math.min(...points.map(point => point.x));
       expect(Math.abs(width(facing) - width(edgeOn))).toBeGreaterThan(20);
     });
 
-    it('should lay the contact shadow on the floor right under the book', () => {
-      const contact = contactShadowOutline(viewport, placement, IDENTITY_QUAT);
-      expect(contact.length).toBeGreaterThanOrEqual(4);
-      expect(Math.abs(centroid(contact).x - bookCenterX)).toBeLessThan(1);
+    it('should lay the contact shadow as a thin strip on the floor where the upright book stands', () => {
+      const contact = contactShadow(viewport, placement, IDENTITY_QUAT);
+      expect(contact.strength).toBe(1);
+      expect(contact.outline.length).toBeGreaterThanOrEqual(4);
+      expect(Math.abs(centroid(contact.outline).x - bookCenterX)).toBeLessThan(1);
       // 바닥은 쉬는 책의 아래 가장자리 높이다. 원근 때문에 앞쪽 가장자리는 조금 아래로 내려온다.
-      expect(Math.abs(centroid(contact).y - floorY(placement))).toBeLessThan(20);
+      expect(Math.abs(centroid(contact.outline).y - floorY(placement))).toBeLessThan(20);
+      expect(height(contact.outline)).toBeLessThan(placement.frontBox.height * 0.1);
+    });
+
+    // 2026-11-18 사용자 관찰: 기울인 책에서 책 전체 발자국이 해 그림자와 어긋나 겹쳐 펼친 책 그림자처럼 보였다.
+    it('should drop the contact shadow when the tipped book floats above the floor', () => {
+      const tipped = quatFromAxisAngle(X_AXIS, 60);
+      expect(contactShadow(viewport, placement, tipped).strength).toBe(0);
+      // 해 그림자는 그대로 하나의 판이다.
+      expect(castShadowOutline(viewport, placement, tipped, NIGHT_LIGHT).length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('should shrink the contact shadow to the corner that dips to the floor', () => {
+      const rolled = quatFromAxisAngle({ x: 0, y: 0, z: 1 }, 30);
+      const contact = contactShadow(viewport, placement, rolled);
+      expect(contact.strength).toBe(1);
+      expect(width(contact.outline)).toBeLessThan(placement.frontBox.width * 0.4);
     });
   });
 });

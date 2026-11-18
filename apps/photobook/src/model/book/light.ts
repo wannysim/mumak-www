@@ -14,8 +14,10 @@ import type { SunPosition } from './sun';
  * - 무대 좌표는 projection.ts와 같다: x 오른쪽, y 아래, z 보는 사람 쪽. 빛 방향은 빛이 오는 쪽을 가리키는 단위 벡터다.
  * - 보는 사람은 남쪽을 보고 있다: 동쪽이 화면 왼쪽, 남쪽이 화면 안쪽(책 뒤), 서쪽이 오른쪽이다. 그래서 해는 아침에 왼쪽에서 떠
  *   한낮에 책 뒤편 하늘을 지나 오른쪽으로 지고, 그림자는 아침에 책 오른쪽, 한낮에 보는 사람 쪽, 오후에 왼쪽으로 진다(사용자 예시).
- * - 해가 어디 있든 책 바로 아래에 접지 그림자(위에서 곧장 내리비춘 발자국)를 따로 둔다. 해가 책 앞쪽에 있어 그림자가 책 뒤로
- *   숨는 자세(여름 이른 아침·늦은 저녁, 밤)에도 책이 떠 보이지 않게 한다.
+ * - 해가 어디 있든 책이 바닥에 닿은 자리에 접지 그림자를 따로 둔다. 해가 책 앞쪽에 있어 그림자가 책 뒤로 숨는 자세
+ *   (여름 이른 아침·늦은 저녁, 밤)에도 책이 떠 보이지 않게 한다. 책 전체가 아니라 가장 낮은 부분의 얇은 띠만 내리비추고,
+ *   책이 바닥에서 뜰수록 옅어진다. 책 전체 발자국을 쓰면 기울인 자세에서 해 그림자와 어긋난 두 판이 겹쳐
+ *   펼친 책의 그림자처럼 보였다(2026-11-18 사용자 관찰).
  * - 바닥은 쉬는 책의 아래 가장자리 높이에 있는 수평면이다. 책은 가운데를 축으로 자유 회전하므로 바닥 아래로 내려간 꼭짓점은
  *   그 자리에 그림자가 붙은 것으로 본다(바닥은 그려지지 않는다).
  * 모든 수치는 임시, open-decisions G0 "닫힌 책 형태·재질·조명, 그림자".
@@ -55,8 +57,10 @@ const AMBIENT_LIGHT = 0.65;
 const KEY_LIGHT = 0.3;
 const VIEW_FILL_LIGHT = 0.3;
 
-/** 접지 그림자를 만드는 빛: 바로 위에서 곧장 내리비춘다. */
-const OVERHEAD: Vec3 = { x: 0, y: -1, z: 0 };
+/** 접지 그림자로 내리비출 띠: 책에서 가장 낮은 점부터 닫힌 책 높이의 이 비율 안의 부분. */
+const CONTACT_BAND_OF_HEIGHT = 0.06;
+/** 가장 낮은 점이 바닥에서 닫힌 책 높이의 이 비율만큼 뜨면 접지 그림자가 사라진다. */
+const CONTACT_FADE_GAP_OF_HEIGHT = 0.08;
 
 const DEGREES_TO_RADIANS = Math.PI / 180;
 
@@ -146,14 +150,50 @@ export function castShadowOutline(
   return shadowAlong(light.direction, viewport, placement, orientation, travel);
 }
 
-/** 접지 그림자: 책을 바로 위에서 바닥에 내리비춘 발자국. 자세를 따라 모양이 바뀐다. */
-export function contactShadowOutline(
+export type ContactShadow = {
+  /** 바닥에 닿은 띠를 내리비춘 볼록 다각형(화면 좌표). */
+  readonly outline: Vec2[];
+  /** 0..1. 가장 낮은 점이 바닥에 닿아 있으면 1, 뜰수록 0으로. */
+  readonly strength: number;
+};
+
+/**
+ * 상자 모서리 12개(bookCorners 순서의 꼭짓점 번호 쌍). 번호는 x·y·z 부호 비트(4·2·1)라 한 비트만 다른 두 꼭짓점이 모서리다.
+ */
+const BOX_EDGES: readonly (readonly [number, number])[] = [0, 1, 2, 3, 4, 5, 6, 7].flatMap(index =>
+  [1, 2, 4].filter(bit => (index & bit) === 0).map(bit => [index, index | bit] as const)
+);
+
+/**
+ * 접지 그림자: 책에서 가장 낮은 부분(띠)을 바로 위에서 바닥에 내리비춘 자리. 자세를 따라 모양이 바뀌고,
+ * 책이 바닥에서 뜰수록 옅어진다.
+ */
+export function contactShadow(
   viewport: Viewport,
   placement: ClosedPlacement,
   orientation: Quat,
   travel = 0
-): Vec2[] {
-  return shadowAlong(OVERHEAD, viewport, placement, orientation, travel);
+): ContactShadow {
+  const perspective = closedPerspective(viewport);
+  const floor = floorY(placement);
+  const height = placement.frontBox.height;
+  const corners = bookCorners(placement).map(corner => toStagePoint(corner, placement, orientation, travel));
+  const lowest = Math.max(...corners.map(point => point.y));
+  const bandTop = lowest - height * CONTACT_BAND_OF_HEIGHT;
+  // 띠 안의 꼭짓점과, 띠 윗선을 가로지르는 모서리의 교점이 띠의 단면이다.
+  const band: Vec3[] = corners.filter(point => point.y >= bandTop);
+  for (const [from, to] of BOX_EDGES) {
+    const a = corners[from] as Vec3;
+    const b = corners[to] as Vec3;
+    if ((a.y - bandTop) * (b.y - bandTop) < 0) {
+      const t = (bandTop - a.y) / (b.y - a.y);
+      band.push({ x: a.x + (b.x - a.x) * t, y: bandTop, z: a.z + (b.z - a.z) * t });
+    }
+  }
+  return {
+    outline: convexHull(band.map(point => projectStagePoint({ x: point.x, y: floor, z: point.z }, perspective))),
+    strength: 1 - smoothstep(0, height * CONTACT_FADE_GAP_OF_HEIGHT, Math.max(floor - lowest, 0)),
+  };
 }
 
 function shadowAlong(

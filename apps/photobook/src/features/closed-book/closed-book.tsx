@@ -16,8 +16,8 @@ import type { ClosedPlacement, OpenGeometry } from '@/model/book/geometry';
 import { computeClosedPlacement, coverLayout } from '@/model/book/geometry';
 import { closedBookKeyAction } from '@/model/book/keyboard';
 import type { Viewport } from '@/model/book/layout';
-import type { SceneLight } from '@/model/book/light';
-import { castShadowOutline, contactShadowOutline, faceShade } from '@/model/book/light';
+import type { ContactShadow, SceneLight } from '@/model/book/light';
+import { castShadowOutline, contactShadow, faceShade } from '@/model/book/light';
 import type { TransitionPose } from '@/model/book/opening';
 import { bookMotionFrame, closedPerspective, outlineBounds, projectedBookOutline } from '@/model/book/projection';
 import type { Quat, Vec3 } from '@/model/book/quaternion';
@@ -43,7 +43,7 @@ const CAST_SHADOW_SOFT_OPACITY = 0.2;
 const CAST_SHADOW_CORE_BLUR_OF_HEIGHT = 0.012;
 const CAST_SHADOW_SOFT_BLUR_OF_HEIGHT = 0.05;
 
-/** 접지 그림자(light.ts contactShadowOutline): 해와 무관하게 늘 깔리는 바로 아래 발자국. 임시, 위와 같은 행. */
+/** 접지 그림자(light.ts contactShadow): 해와 무관하게 책이 바닥에 닿은 자리에 깔린다. 진하기는 닿은 정도를 곱한다. 임시, 위와 같은 행. */
 const CONTACT_SHADOW_OPACITY = 0.28;
 const CONTACT_SHADOW_BLUR_OF_HEIGHT = 0.02;
 
@@ -83,17 +83,17 @@ function polygonPoints(outline: readonly Vec2[]): string {
 
 /**
  * 바닥에 떨어진 책 그림자. 해 그림자는 빛(light)과 책 자세를 따라 모양·길이·방향이 바뀌고(2026-11-18 사용자 요청),
- * 접지 그림자는 책 바로 아래에 늘 깔린다. 펼치거나 덮는 동안에는 옮겨 간 정도만큼 옅어진다.
+ * 접지 그림자는 책이 바닥에 닿은 자리에만 깔린다. 펼치거나 덮는 동안에는 옮겨 간 정도만큼 옅어진다.
  */
 function CastShadow({
   sunOutline,
-  contactOutline,
+  contact,
   light,
   placement,
   travel,
 }: {
   sunOutline: readonly Vec2[];
-  contactOutline: readonly Vec2[];
+  contact: ContactShadow;
   light: SceneLight;
   placement: ClosedPlacement;
   travel: number;
@@ -132,9 +132,9 @@ function CastShadow({
       />
       <polygon
         className="closed-book__contact-shadow"
-        points={polygonPoints(contactOutline)}
+        points={polygonPoints(contact.outline)}
         filter={`url(#${filterId}-contact)`}
-        opacity={CONTACT_SHADOW_OPACITY * (1 - travel)}
+        opacity={CONTACT_SHADOW_OPACITY * contact.strength * (1 - travel)}
       />
     </svg>
   );
@@ -254,7 +254,7 @@ function ClosedBook({
   const frontBoard = multiplyQuat(pose.orientation, quatFromAxisAngle(Y_AXIS, frontAngle));
   const backBoard = multiplyQuat(pose.orientation, quatFromAxisAngle(Y_AXIS, backAngle));
   const sunShadowOutline = castShadowOutline(viewport, placement, pose.orientation, light, pose.travel);
-  const contactOutline = contactShadowOutline(viewport, placement, pose.orientation, pose.travel);
+  const contact = contactShadow(viewport, placement, pose.orientation, pose.travel);
   // 펼친 쪽 자리로 옮겨 갈수록 음영을 빼서, 넘겨줄 때 음영 없는 DOM 쪽과 밝기가 어긋나지 않게 한다.
   const shadeOf = (board: Quat, face: BookFace) => faceShade(board, faceNormal(face), light) * (1 - pose.travel);
 
@@ -366,7 +366,7 @@ function ClosedBook({
     >
       <CastShadow
         sunOutline={sunShadowOutline}
-        contactOutline={contactOutline}
+        contact={contact}
         light={light}
         placement={placement}
         travel={pose.travel}
