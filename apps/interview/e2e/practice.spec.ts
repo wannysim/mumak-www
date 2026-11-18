@@ -51,6 +51,9 @@ test('quiz, review, timer and notes survive reload; layout fits the viewport', a
   await page.reload();
   await page.getByRole('button', { name: '하던 연습 이어가기' }).click();
   await expect(page.getByRole('button', { name: '타이머 계속' })).toBeVisible();
+  await page.getByRole('button', { name: '연습 마치기' }).click();
+  await expect(page.getByRole('status').filter({ hasText: '이번 연습을 마쳤어요' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '5분 연습 출발' })).toBeVisible();
   await tab(page, '문제');
   await page.getByRole('button', { name: '다시 보기', exact: true }).click();
   await expect(page.getByRole('button', { name: /콘솔에는 어떤 순서로/ })).toBeVisible();
@@ -179,4 +182,18 @@ test('corrupt data stays protected; malformed imports do not overwrite records',
   await expect(page.getByLabel('동기화 상태')).toHaveText('서버 저장 완료');
   await page.getByRole('button', { name: '로그아웃', exact: true }).filter({ visible: true }).click();
   await expect(page.getByRole('heading', { name: '다시, 나의 페이스로' })).toBeVisible();
+});
+
+test('first load failure offers a retry and recovers in place', async ({ page }) => {
+  const cloud = cloudFixture();
+  cloud.offline = true;
+  await cloud.attach(page);
+  await page.goto('/');
+  await page.getByLabel('접속 키', { exact: true }).fill(key);
+  await page.getByRole('button', { name: '연습실 들어가기' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: '처음 불러오지 못했어요' })).toBeVisible();
+  await expect(page.getByText('나의 연습실을 준비하고 있어요…')).toHaveCount(0);
+  cloud.offline = false;
+  await page.getByRole('button', { name: '기록 다시 불러오기' }).click();
+  await expect(page.getByRole('button', { name: '5분 연습 출발' })).toBeVisible();
 });

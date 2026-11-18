@@ -23,6 +23,18 @@ describe('private access boundary', () => {
     expect(readAuthConfig({ ...env, INTERVIEW_ORIGIN: 'http://interview.mumak.localhost:1355' })?.secure).toBe(false);
     expect(readAuthConfig({ ...env, INTERVIEW_ORIGIN: 'http://localhost:3008' })?.cookieName).toBe('interview');
   });
+  it('uses the active Portless workspace origin only for local SQLite sessions', () => {
+    const local = {
+      ...env,
+      INTERVIEW_LOCAL_STORE: 'sqlite',
+      INTERVIEW_ORIGIN: 'http://localhost:3008',
+      PORTLESS_URL: 'http://feature.interview.mumak.localhost:1355',
+    };
+    expect(readAuthConfig(local)?.origin).toBe(local.PORTLESS_URL);
+    expect(readAuthConfig({ ...local, VERCEL: '1' })?.origin).toBe(local.INTERVIEW_ORIGIN);
+    expect(readAuthConfig({ ...local, INTERVIEW_ORIGIN: env.INTERVIEW_ORIGIN })?.origin).toBe(env.INTERVIEW_ORIGIN);
+    expect(readAuthConfig({ ...local, PORTLESS_URL: 'https://example.com' })?.origin).toBe(local.INTERVIEW_ORIGIN);
+  });
   it('accepts only the configured key', () => {
     expect(validToken(token, config)).toBe(true);
     expect(validToken(`${token}x`, config)).toBe(false);

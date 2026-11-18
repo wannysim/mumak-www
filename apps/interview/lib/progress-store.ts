@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 import { parseCloudProgress, parseProgressWrite, type CloudProgress, type ProgressWrite } from '@/lib/cloud-progress';
 import { emptyProgress, parseProgress, STORAGE_KEY, type Progress } from '@/lib/progress';
 
-type Snapshot = {
+export type ProgressSnapshot = {
   progress: Progress;
   ready: boolean;
   error: string;
@@ -14,7 +14,7 @@ type Snapshot = {
   status: 'loading' | 'saved' | 'saving' | 'offline' | 'conflict';
   conflict: CloudProgress | null;
 };
-const initial: Snapshot = {
+const initial: ProgressSnapshot = {
   progress: emptyProgress(),
   ready: false,
   error: '',
@@ -39,7 +39,7 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let localError = '';
 const listeners = new Set<() => void>();
 const same = (a: Progress, b: Progress) => JSON.stringify(a) === JSON.stringify(b);
-function publish(change: Partial<Snapshot>) {
+function publish(change: Partial<ProgressSnapshot>) {
   snapshot = { ...snapshot, ...change };
   listeners.forEach(listener => listener());
 }
@@ -73,7 +73,9 @@ function fail(error: unknown) {
       localError ||
       (expired
         ? '로그인이 만료됐어요. 초안을 백업한 뒤 다시 로그인해 주세요.'
-        : '서버에 연결하지 못했어요. 이 기기의 초안을 보관 중이며, 연결되면 다시 저장해요.'),
+        : !initialized && !localReady && !snapshot.blocked
+          ? '연습 기록을 처음 불러오지 못했어요. 네트워크와 서버 저장소 설정을 확인한 뒤 다시 시도해 주세요.'
+          : '서버에 연결하지 못했어요. 이 기기의 초안을 보관 중이며, 연결되면 다시 저장해요.'),
   });
 }
 async function request(method: 'GET' | 'PUT', body?: ProgressWrite) {

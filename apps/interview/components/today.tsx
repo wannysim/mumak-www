@@ -270,7 +270,7 @@ export function Today({
         ))}
       </section>
       <p className="mt-6 text-[11px] leading-5 text-muted-foreground">
-        직접 만든 연습 문제입니다. 실제 채용 시험 문제나 합격을 보장하는 자료가 아니에요.
+        문제 탭에서 기업 공개 기출을 재구성한 문제와 프론트엔드 응용 문제의 원문을 확인할 수 있어요.
       </p>
     </div>
   );

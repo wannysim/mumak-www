@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  allowedDevOrigins: ['interview.mumak.localhost'],
+  allowedDevOrigins: ['interview.mumak.localhost', '*.interview.mumak.localhost'],
   transpilePackages: ['@mumak/ui'],
   experimental: { useTypeScriptCli: true },
   async headers() {
