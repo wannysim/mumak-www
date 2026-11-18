@@ -43,9 +43,8 @@ test('quiz, review, timer and notes survive reload; layout fits the viewport', a
   await login(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('button', { name: '5분 연습 출발' }).click();
-  await page.getByRole('radio', { name: 'A → B → C → D', exact: true }).check();
-  await page.getByRole('button', { name: '답 확인하기' }).click();
-  await expect(page.getByRole('status')).toContainText('다시 만나봐요');
+  await page.getByRole('button', { name: '아니야', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('예상과 달라요');
   await page.getByRole('button', { name: '타이머 일시정지' }).click();
   await expect(page.getByLabel('동기화 상태')).toHaveText('서버 저장 완료');
   await page.reload();
@@ -56,7 +55,7 @@ test('quiz, review, timer and notes survive reload; layout fits the viewport', a
   await expect(page.getByRole('button', { name: '5분 연습 출발' })).toBeVisible();
   await tab(page, '문제');
   await page.getByRole('button', { name: '다시 보기', exact: true }).click();
-  await expect(page.getByRole('button', { name: /콘솔에는 어떤 순서로/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /이벤트 루프의 출력 순서/ })).toBeVisible();
   await tab(page, '내 이야기');
   await page.getByRole('button', { name: /내가 끝까지 책임진 문제/ }).click();
   await page.getByLabel('01문제와 맥락').fill('사용자가 입력한 값이 저장 과정에서 사라졌다.');
@@ -196,4 +195,24 @@ test('first load failure offers a retry and recovers in place', async ({ page })
   cloud.offline = false;
   await page.getByRole('button', { name: '기록 다시 불러오기' }).click();
   await expect(page.getByRole('button', { name: '5분 연습 출발' })).toBeVisible();
+});
+
+test('uncertain prediction can be reread without grading a second attempt', async ({ page }) => {
+  await login(page);
+  await page.getByRole('button', { name: '5분 연습 출발' }).click();
+  await page.getByRole('button', { name: '잘 모르겠어' }).click();
+  await expect(page.getByRole('status')).toContainText('다시 보기에 담았어요');
+  const snippet = page.locator('pre').filter({ hasText: "console.log('A')" });
+  await expect(snippet).toBeHidden();
+  await expect(page.getByRole('status')).toBeFocused();
+  const reread = page.getByText('코드 다시 보기', { exact: true });
+  await reread.press('Enter');
+  await expect(snippet).toBeVisible();
+  await reread.press('Space');
+  await expect(snippet).toBeHidden();
+  await expect(page.getByRole('button', { name: '저장됨' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '다음 문제로' }).click();
+  await expect(page.getByRole('button', { name: '답 확인하기' })).toBeDisabled();
+  await page.getByRole('button', { name: '연습 마치기' }).click();
+  await expect(page.getByText('0회', { exact: true })).toBeVisible();
 });
