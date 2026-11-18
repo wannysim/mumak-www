@@ -25,6 +25,7 @@ export type CodeProblem = {
   minutes: number;
   description: string;
   contract: string;
+  source?: { label: string; url: string };
   starter: string;
   hint: string;
   solution: string;

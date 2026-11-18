@@ -53,6 +53,16 @@ export function CodePractice({
         {problem.category} · {problem.difficulty} · 약 {problem.minutes}분
       </p>
       <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{problem.title}</h1>
+      {problem.source && (
+        <a
+          className="mt-2 inline-block text-sm text-primary underline"
+          href={problem.source.url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {problem.source.label} · 원문
+        </a>
+      )}
       <p className="mt-4 text-sm leading-7 text-muted-foreground">{problem.description}</p>
       <p className="mt-4 rounded-xl border bg-white p-4 text-xs leading-6">{problem.contract}</p>
       <ExplanationNotes problem={problem} progress={progress} />

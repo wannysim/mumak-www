@@ -14,16 +14,22 @@ import { useRef, useState } from 'react';
 
 import { CodePractice } from '@/components/code-practice';
 import { ExerciseLibrary } from '@/components/exercise-library';
+import { ProgressSyncPanel } from '@/components/progress-sync-panel';
 import { QuestionPractice } from '@/components/question-practice';
 import { Records } from '@/components/records';
 import { StoryNotes } from '@/components/story-notes';
 import { Today } from '@/components/today';
 import { Brand } from '@/components/ui';
 import { codeProblems, questions } from '@/lib/curriculum';
+import type { LibraryFilter } from '@/lib/exercise-filters';
 import { understoodIds } from '@/lib/progress';
-import { hasUnsavedProgress, resolveConflict, saveProgress, synchronize, useProgress } from '@/lib/progress-store';
+import { hasUnsavedProgress, saveProgress, useProgress } from '@/lib/progress-store';
 
-type View = { tab: 'today' | 'library' | 'stories' | 'records'; question?: string; code?: string; filter?: string };
+type View =
+  | { tab: 'today'; finished?: boolean }
+  | { tab: 'stories' | 'records' }
+  | { tab: 'library'; filter?: LibraryFilter; exercise?: { kind: 'question' | 'code'; id: string } };
+
 const tabs = [
   { id: 'today', title: '오늘', icon: House },
   { id: 'library', title: '문제', icon: BookOpen },
@@ -32,7 +38,8 @@ const tabs = [
 ] as const;
 
 export function PracticeApp() {
-  const { progress, ready, error, blocked, unreadableLocal, status, conflict } = useProgress();
+  const snapshot = useProgress();
+  const { progress, ready, error, blocked, status } = snapshot;
   const [view, updateView] = useState<View>({ tab: 'today' });
   const [minutes, setMinutes] = useState(5);
   const [logoutError, setLogoutError] = useState('');
@@ -42,10 +49,11 @@ export function PracticeApp() {
     main.current?.focus();
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
-  const question = questions.find(q => q.id === view.question);
-  const code = codeProblems.find(p => p.id === view.code);
+  const exercise = view.tab === 'library' ? view.exercise : undefined;
+  const question = exercise?.kind === 'question' && questions.find(q => q.id === exercise.id);
+  const code = exercise?.kind === 'code' && codeProblems.find(p => p.id === exercise.id);
   function openQuestion(id: string) {
-    setView({ tab: 'library', question: id });
+    setView({ tab: 'library', exercise: { kind: 'question', id } });
     saveProgress(p => (p.session ? { ...p, session: { ...p.session, questionId: id } } : p));
   }
   function start() {
@@ -152,73 +160,18 @@ export function PracticeApp() {
               {error || logoutError}
             </p>
           )}
-          <div className="mb-5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            <span aria-label="동기화 상태">
-              {
-                {
-                  loading: '서버 기록 불러오는 중',
-                  saved: '서버 저장 완료',
-                  saving: '서버에 저장 중…',
-                  offline: '연결 대기 · 기기 초안 보관',
-                  conflict: '기록 선택 필요',
-                }[status]
-              }
-            </span>
-            <button
-              className="min-h-11 text-primary underline"
-              onClick={() => void synchronize()}
-              disabled={status === 'saving' || !!conflict}
-            >
-              지금 동기화
-            </button>
-          </div>
-          {conflict && (
-            <section className="mb-6 rounded-2xl border bg-white p-5">
-              <h2 className="font-bold">어떤 기록으로 이어갈까요?</h2>
-              <p className="mt-2 text-sm leading-6">
-                {unreadableLocal
-                  ? '이 기기의 초안을 읽지 못해 서버 기록을 덮어쓸 수 없어요. 서버 기록으로 이어가 주세요.'
-                  : '먼저 기록 탭에서 이 기기의 초안을 백업해 주세요. 서버 기록을 사용하면 이 기기의 초안이 교체됩니다.'}
-              </p>
-              <details className="my-4 text-xs">
-                <summary className="cursor-pointer py-3">서버 기록 확인</summary>
-                <pre className="max-h-64 overflow-auto whitespace-pre-wrap">
-                  {JSON.stringify(conflict.progress, null, 2)}
-                </pre>
-              </details>
-              <div className="flex flex-wrap gap-3">
-                {!unreadableLocal && (
-                  <button className="min-h-11 text-primary underline" onClick={() => setView({ tab: 'records' })}>
-                    이 기기 초안 백업
-                  </button>
-                )}
-                <button
-                  className="min-h-11 text-primary underline"
-                  onClick={() => {
-                    if (window.confirm('이 기기의 초안을 서버 기록으로 교체할까요? 필요한 초안은 먼저 백업해 주세요.'))
-                      resolveConflict(false);
-                  }}
-                >
-                  서버 기록 사용
-                </button>
-                {!unreadableLocal && (
-                  <button
-                    className="min-h-11 text-primary underline"
-                    onClick={() => {
-                      if (window.confirm('모든 기기에서 사용할 서버 기록을 이 기기의 초안으로 교체할까요?'))
-                        resolveConflict(true);
-                    }}
-                  >
-                    이 기기 기록으로 교체
-                  </button>
-                )}
-              </div>
-            </section>
-          )}
+          <ProgressSyncPanel snapshot={snapshot} openRecords={() => setView({ tab: 'records' })} />
           <main id="main" ref={main} tabIndex={-1} className="outline-none">
+            {view.tab === 'today' && view.finished && (
+              <p role="status" className="mb-4 font-semibold">
+                이번 연습을 마쳤어요.
+              </p>
+            )}
             {!ready ? (
               <p role="status" className="py-20 text-center text-sm text-muted-foreground">
-                나의 연습실을 준비하고 있어요…
+                {status === 'offline'
+                  ? '저장된 기록을 확인한 뒤 연습을 시작할 수 있어요.'
+                  : '나의 연습실을 준비하고 있어요…'}
               </p>
             ) : blocked && view.tab !== 'records' ? (
               <div className="py-10">
@@ -230,6 +183,10 @@ export function PracticeApp() {
             ) : question ? (
               <QuestionPractice
                 key={question.id}
+                finish={() => {
+                  saveProgress(p => ({ ...p, session: null }));
+                  setView({ tab: 'today', finished: true });
+                }}
                 question={question}
                 progress={progress}
                 back={() => setView({ tab: 'library' })}
@@ -248,7 +205,11 @@ export function PracticeApp() {
                 minutes={minutes}
                 setMinutes={setMinutes}
                 start={start}
-                openCode={id => setView(id ? { tab: 'library', code: id } : { tab: 'library', filter: '코드 작성' })}
+                openCode={id =>
+                  setView(
+                    id ? { tab: 'library', exercise: { kind: 'code', id } } : { tab: 'library', filter: '코드 작성' }
+                  )
+                }
                 openStories={() => setView({ tab: 'stories' })}
                 openReview={() => setView({ tab: 'library', filter: '다시 보기' })}
               />
@@ -258,7 +219,7 @@ export function PracticeApp() {
                 progress={progress}
                 initialFilter={view.filter ?? '전체'}
                 onQuestion={openQuestion}
-                onCode={id => setView({ tab: 'library', code: id })}
+                onCode={id => setView({ tab: 'library', exercise: { kind: 'code', id } })}
               />
             ) : view.tab === 'stories' ? (
               <StoryNotes progress={progress} />

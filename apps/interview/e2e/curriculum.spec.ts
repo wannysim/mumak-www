@@ -80,7 +80,10 @@ test('aggregate size guard keeps the last valid record and exports an importable
   page.on('pageerror', e => errors.push(e.message));
   // Fill allowed records close to the shared 2MB boundary without exceeding per-field limits.
   const data = cloud.document.progress;
-  for (const p of codeProblems) data.drafts[p.id] = '가'.repeat(20000);
+  for (const p of codeProblems) {
+    if (Buffer.byteLength(JSON.stringify(data)) + 61000 > 1999000) break;
+    data.drafts[p.id] = '가'.repeat(20000);
+  }
   const storyIds = ['ownership', 'consistency', 'race-story', 'tradeoff', 'measurement', 'disagreement'];
   for (const id of storyIds)
     for (let i = 0; i < 5; i++) {
@@ -186,4 +189,25 @@ test('foundations and bridge windows form an ordered learning path', async ({ pa
   await expect(page.getByRole('heading', { name: titles[1], exact: true })).toBeVisible();
   await page.getByText('막혔다면 예시 그림 보기', { exact: true }).click();
   await expect(page.getByText(/values=\[1,2,3,4\], target=6/)).toBeVisible();
+});
+
+test('finds company practice by source and links to the original material', async ({ page }) => {
+  await cloudFixture().attach(page);
+  await login(page);
+  await page.getByRole('button', { name: '기업 공개 자료', exact: true }).click();
+  await expect(page.getByRole('link', { name: /토스 · Frontend Fundamentals/ })).toBeVisible();
+  await page.getByLabel('문제 검색').fill('카카오');
+  await page.getByRole('combobox', { name: '코드 분야' }).selectOption('배열·해시');
+  await page.getByRole('combobox', { name: '코드 난이도' }).selectOption('실전');
+  await expect(page.getByRole('button', { name: '기업 공개 자료', pressed: true })).toBeVisible();
+  await page.getByRole('button', { name: '코드 작성', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: '코드 분야' })).toHaveValue('전체');
+  await expect(page.getByRole('combobox', { name: '코드 난이도' })).toHaveValue('전체');
+  await expect(page.getByLabel('문제 검색')).toHaveValue('카카오');
+  await expect(page.getByRole('status').filter({ hasText: '1개 표시' })).toBeVisible();
+  await page.getByRole('button', { name: /신고 처리 알림 집계/ }).click();
+  await expect(page.getByRole('link', { name: /카카오.*기출 재구성/ })).toHaveAttribute(
+    'href',
+    'https://tech.kakao.com/posts/488'
+  );
 });

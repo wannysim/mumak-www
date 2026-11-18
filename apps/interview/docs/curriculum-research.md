@@ -2,6 +2,22 @@
 
 조사일: 2026-11-01. 실제 시험 문제를 복제하거나 유출 문제를 수집하지 않았다. 공개 채용 안내가 확인해 주는 준비 범위와 이 앱의 자체 학습 설계를 구분한다.
 
+## 국내 기업 공개 자료 (2026-11-18)
+
+문제 탭의 ‘기업 공개 자료’에서 회사명으로 검색할 수 있다. 아래 문제의 입출력, 테스트, 풀이, 권장 시간은 이 연습실 기준이다.
+
+| 새 연습 문제                 | 참고한 공식 자료                                                                                                          | 원자료 성격                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 신고 처리 알림 집계          | [카카오 2022 신입 공채](https://tech.kakao.com/posts/488)                                                                 | 공채 기출 ‘신고 결과 받기’                                 |
+| 이동하는 마커 따라잡기       | [LINE 2019 인턴 코딩테스트](https://engineering.linecorp.com/ko/blog/2019-firsthalf-line-internship-recruit-coding-test/) | 인턴 기출. 앱에서는 프레임별 상태를 추적하도록 범위를 축소 |
+| 스크롤 목록의 렌더 범위      | [네이버 InfiniteGrid](https://naver.github.io/egjs-infinitegrid/)                                                         | 목록 가상화 라이브러리                                     |
+| 상품 목록의 다음 페이지 추적 | [쿠팡 상품 목록 페이징 조회](https://developers-v1.coupangcorp.com/hc/ko/articles/360033645034)                           | 판매자 API 명세                                            |
+| 영화 검색 결과 합치기        | [우아한테크코스 영화 리뷰](https://github.com/woowacourse/javascript-movie-review)                                        | FE 교육 미션                                               |
+| 가로 탭의 키보드 포커스      | [당근 SEED Design 탭 변경 기록](https://seed-design.io/react/updates/changelog?package=%40seed-design%2Freact-tabs)       | 디자인 시스템 구현 사례                                    |
+| 자동 저장이 실행되는 시각    | [토스 es-toolkit debounce](https://es-toolkit.dev/reference/function/debounce.html)                                       | 함수 라이브러리 문서                                       |
+
+UI 프로젝트 전체를 열어 풀 수 있는 자료로 [토스 Frontend Fundamentals 모의고사 1회](https://github.com/toss-fe-interview/frontend-fundamentals-mock-exam-1)와 [네이버 CAMPUS HACKDAY 스포츠생중계 대기열 과제](https://github.com/NAVER-CAMPUS-HACKDAY/common/issues/22)를 제공한다.
+
 ## 공식 근거
 
 - [토스플레이스 Frontend Developer](https://toss.im/career/job-detail?job_id=5311744003): 1차 직무 인터뷰에 라이브코딩 포함. React·정적 타입·복잡한 요구사항의 추상화를 요구하며 테스트 도구로 Jest/Vitest를 안내한다. 알고리즘/React 출제 비율, 구체 문제, 제한 시간은 이 공고에서 확인되지 않는다. 이전에 공유된 4071101003 공고 URL은 이번 조회에서 본문을 얻지 못했다. 같은 직무의 현재 확인 가능한 공고를 참고했으며 채용 초대의 안내가 우선이다.

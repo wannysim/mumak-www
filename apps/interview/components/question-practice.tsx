@@ -13,11 +13,13 @@ export function QuestionPractice({
   progress,
   back,
   next,
+  finish,
 }: {
   question: Question;
   progress: Progress;
   back: () => void;
   next: () => void;
+  finish: () => void;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [checked, setChecked] = useState(false);
@@ -84,11 +86,7 @@ export function QuestionPractice({
                   {session.deadline ? <Pause /> : <Play />}
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                onClick={() => saveProgress(p => ({ ...p, session: null }))}
-                className="h-11 text-xs"
-              >
+              <Button variant="ghost" onClick={finish} className="h-11 text-xs">
                 연습 마치기
               </Button>
             </div>

@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { EmptyState, SectionTitle } from '@/components/ui';
 import { codeProblems, questions } from '@/lib/curriculum';
+import { filters, filterExercises, type LibraryFilter } from '@/lib/exercise-filters';
 import { categories, difficulties } from '@/lib/problems/types';
 import { understoodIds, type Progress } from '@/lib/progress';
 
@@ -13,30 +14,25 @@ export function ExerciseLibrary({
   onCode,
 }: {
   progress: Progress;
-  initialFilter: string;
+  initialFilter: LibraryFilter;
   onQuestion: (id: string) => void;
   onCode: (id: string) => void;
 }) {
-  const [filter, setFilter] = useState(initialFilter);
+  const [selection, setSelection] = useState({ filter: initialFilter, category: '전체', difficulty: '전체' });
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('전체');
-  const [difficulty, setDifficulty] = useState('전체');
+  const { filter, category, difficulty } = selection;
   const solved = understoodIds(progress);
-  const filters = ['전체', 'JavaScript', 'React', '설계·테스트', '코드 작성', '다시 보기'];
-  const visibleQuestions = questions.filter(
-    q =>
-      category === '전체' &&
-      difficulty === '전체' &&
-      (filter === '전체' || filter === q.topic || (filter === '다시 보기' && progress.review.includes(q.id))) &&
-      `${q.title} ${q.prompt}`.toLowerCase().includes(search.toLowerCase())
-  );
-  const visibleCode = codeProblems.filter(
-    p =>
-      (category === '전체' || category === p.category) &&
-      (difficulty === '전체' || difficulty === p.difficulty) &&
-      (filter === '전체' || filter === '코드 작성' || (filter === '다시 보기' && progress.review.includes(p.id))) &&
-      `${p.title} ${p.description} ${p.category}`.toLowerCase().includes(search.toLowerCase())
-  );
+  const { visibleQuestions, visibleCode } = filterExercises({ ...selection, search }, progress.review);
+  function selectFilter(filter: LibraryFilter) {
+    setSelection({ filter, category: '전체', difficulty: '전체' });
+  }
+  function selectCodeFacet(facet: 'category' | 'difficulty', value: string) {
+    setSelection(current => ({
+      ...current,
+      filter: current.filter === '다시 보기' || current.filter === '기업 공개 자료' ? current.filter : '코드 작성',
+      [facet]: value,
+    }));
+  }
   return (
     <>
       <SectionTitle eyebrow="개념과 코드 연습" title="오늘의 한 문제" />
@@ -97,7 +93,7 @@ export function ExerciseLibrary({
           aria-label="문제 검색"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="검색어로 문제 찾기"
+          placeholder="문제명 또는 회사명으로 검색"
           className="w-full bg-transparent text-base outline-none sm:text-sm"
         />
       </label>
@@ -105,11 +101,7 @@ export function ExerciseLibrary({
         {filters.map(item => (
           <button
             key={item}
-            onClick={() => {
-              setFilter(item);
-              setCategory('전체');
-              setDifficulty('전체');
-            }}
+            onClick={() => selectFilter(item)}
             aria-pressed={filter === item}
             className={`min-h-11 rounded-full border px-4 text-xs font-semibold ${filter === item ? 'border-foreground bg-foreground text-white' : 'bg-white text-muted-foreground hover:border-primary'}`}
           >
@@ -117,15 +109,40 @@ export function ExerciseLibrary({
           </button>
         ))}
       </div>
+      {filter === '기업 공개 자료' && (
+        <section aria-label="공식 프로젝트 과제" className="mb-5 rounded-xl border bg-white p-4">
+          <h2 className="text-sm font-semibold">프로젝트로 풀어보기</h2>
+          <ul className="mt-2 space-y-2 text-sm text-primary">
+            {' '}
+            <li>
+              <a
+                className="underline"
+                href="https://github.com/toss-fe-interview/frontend-fundamentals-mock-exam-1"
+                target="_blank"
+                rel="noreferrer"
+              >
+                토스 · Frontend Fundamentals 모의고사 1회 공식 저장소
+              </a>
+            </li>
+            <li>
+              <a
+                className="underline"
+                href="https://github.com/NAVER-CAMPUS-HACKDAY/common/issues/22"
+                target="_blank"
+                rel="noreferrer"
+              >
+                네이버 · CAMPUS HACKDAY 스포츠 생중계 대기열 과제
+              </a>
+            </li>
+          </ul>
+        </section>
+      )}
       <div className="mb-5 grid grid-cols-2 gap-3">
         <label className="text-xs font-semibold">
           코드 분야
           <select
             value={category}
-            onChange={e => {
-              setCategory(e.target.value);
-              setFilter(current => (current === '다시 보기' ? current : '코드 작성'));
-            }}
+            onChange={e => selectCodeFacet('category', e.target.value)}
             className="mt-2 h-12 w-full rounded-xl border bg-white px-3 text-sm"
           >
             {['전체', ...categories].map(item => (
@@ -137,10 +154,7 @@ export function ExerciseLibrary({
           코드 난이도
           <select
             value={difficulty}
-            onChange={e => {
-              setDifficulty(e.target.value);
-              setFilter(current => (current === '다시 보기' ? current : '코드 작성'));
-            }}
+            onChange={e => selectCodeFacet('difficulty', e.target.value)}
             className="mt-2 h-12 w-full rounded-xl border bg-white px-3 text-sm"
           >
             {['전체', ...difficulties].map(item => (
@@ -191,7 +205,7 @@ export function ExerciseLibrary({
             </span>
             <div className="flex-1">
               <p className="mb-1 text-[11px] text-muted-foreground">
-                {p.category} · {p.difficulty} · {p.minutes}분
+                {p.category} · {p.difficulty} · {p.minutes}분{p.source && ` · ${p.source.label}`}
               </p>
               <h2 className="text-sm font-semibold sm:text-base">{p.title}</h2>
             </div>
@@ -214,18 +228,15 @@ export function ExerciseLibrary({
           action="전체 문제 보기"
           onAction={() => {
             setSearch('');
-            setFilter('전체');
-            setCategory('전체');
-            setDifficulty('전체');
+            selectFilter('전체');
           }}
         />
       )}
       <details className="mt-8 rounded-xl border bg-white p-5 text-xs leading-6 text-muted-foreground">
         <summary className="cursor-pointer font-semibold text-foreground">난이도 기준과 조사 근거</summary>
         <p className="mt-3">
-          2026-11-01 확인. 토스플레이스 공고는 1차에 라이브코딩이 있다고 안내하지만, 개별 문제나 난이도 분포는 공개하지
-          않았어요. 아래는 공식 준비 범위와 개인 학습 목표를 바탕으로 만든 자체 문제입니다. 특정 회사의 기출·빈도 순위가
-          아닙니다.
+          회사명으로 검색하면 공개 기출을 재구성한 문제와 교육·기술 자료를 응용한 문제를 찾을 수 있어요. 각 문제에서
+          원문을 확인하세요. 실제 UI 프로젝트를 열어 연습할 수 있는 공개 과제도 있어요.
         </p>
         <p className="mt-3">
           기본: 한 자료구조와 경계값. 실전: 불변식·복잡도·상태 변화. 심화: 자료구조 조합과 요구사항 확장. 시간은 설명과
