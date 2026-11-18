@@ -43,9 +43,8 @@ test('quiz, review, timer and notes survive reload; layout fits the viewport', a
   await login(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('button', { name: '5분 연습 출발' }).click();
-  await page.getByRole('radio', { name: 'A → B → C → D', exact: true }).check();
-  await page.getByRole('button', { name: '답 확인하기' }).click();
-  await expect(page.getByRole('status')).toContainText('다시 만나봐요');
+  await page.getByRole('button', { name: '아니야', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('예상과 달라요');
   await page.getByRole('button', { name: '타이머 일시정지' }).click();
   await expect(page.getByLabel('동기화 상태')).toHaveText('서버 저장 완료');
   await page.reload();
@@ -56,7 +55,7 @@ test('quiz, review, timer and notes survive reload; layout fits the viewport', a
   await expect(page.getByRole('button', { name: '5분 연습 출발' })).toBeVisible();
   await tab(page, '문제');
   await page.getByRole('button', { name: '다시 보기', exact: true }).click();
-  await expect(page.getByRole('button', { name: /콘솔에는 어떤 순서로/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /이벤트 루프의 출력 순서/ })).toBeVisible();
   await tab(page, '내 이야기');
   await page.getByRole('button', { name: /내가 끝까지 책임진 문제/ }).click();
   await page.getByLabel('01문제와 맥락').fill('사용자가 입력한 값이 저장 과정에서 사라졌다.');
@@ -196,4 +195,81 @@ test('first load failure offers a retry and recovers in place', async ({ page })
   cloud.offline = false;
   await page.getByRole('button', { name: '기록 다시 불러오기' }).click();
   await expect(page.getByRole('button', { name: '5분 연습 출발' })).toBeVisible();
+});
+
+test('uncertain prediction can be reread without grading a second attempt', async ({ page }) => {
+  await login(page);
+  await page.getByRole('button', { name: '5분 연습 출발' }).click();
+  await page.getByRole('button', { name: '잘 모르겠어' }).click();
+  await expect(page.getByRole('status')).toContainText('다시 보기에 담았어요');
+  const snippet = page.locator('pre').filter({ hasText: "console.log('A')" });
+  await expect(snippet).toBeHidden();
+  await expect(page.getByRole('status')).toBeFocused();
+  const reread = page.getByText('코드 다시 보기', { exact: true });
+  await reread.press('Enter');
+  await expect(snippet).toBeVisible();
+  await reread.press('Space');
+  await expect(snippet).toBeHidden();
+  await expect(page.getByRole('button', { name: '저장됨' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '다음 문제로' }).click();
+  await expect(page.getByRole('button', { name: '답 확인하기' })).toBeDisabled();
+  await page.getByRole('button', { name: '연습 마치기' }).click();
+  await expect(page.getByText('0회', { exact: true })).toBeVisible();
+});
+
+test('an unsure answer can be reread from home after reload', async ({ page }) => {
+  await login(page);
+  await tab(page, '문제');
+  await page.getByRole('button', { name: /세 번 눌렀는데/ }).click();
+  await page.getByRole('button', { name: '잘 모르겠어요', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('다시 보기에 담았어요');
+  await expect(page.getByLabel('동기화 상태')).toHaveText('서버 저장 완료');
+  await page.reload();
+  await tab(page, '오늘');
+  await page.getByText(/지난 해설 이어 읽기 · 세 번 눌렀는데/).click();
+  await expect(page.getByText(/^정답 · /)).toBeVisible();
+  await expect(page.getByText('0회', { exact: true })).toBeVisible();
+});
+
+test('story summary is requested on demand, edited and saved', async ({ page }) => {
+  const inputs: string[] = [];
+  await page.route('**/api/story-summary', route => {
+    inputs.push(route.request().postData() ?? '');
+    return route.fulfill({ json: { summary: '재시도 기능을 추가했다.' } });
+  });
+  await login(page);
+  await tab(page, '내 이야기');
+  await page.getByRole('button', { name: /내가 끝까지 책임진 문제/ }).click();
+  await page.getByLabel('01문제와 맥락').fill('동기화 실패 후 재시도 기능을 추가했다.');
+  expect(inputs).toHaveLength(0);
+  await page.getByRole('button', { name: '한 문장으로 줄이기' }).click();
+  await expect(page.getByLabel('요약 초안')).toHaveValue('재시도 기능을 추가했다.');
+  expect(inputs).toHaveLength(1);
+  expect(inputs[0]).toContain('동기화 실패 후 재시도 기능을 추가했다.');
+  await page.getByLabel('요약 초안').fill('실패한 요청을 다시 보낼 수 있게 했다.');
+  await page.getByRole('button', { name: '요약 저장' }).click();
+  await expect(page.getByLabel('동기화 상태')).toHaveText('서버 저장 완료');
+  await page.reload();
+  await tab(page, '내 이야기');
+  await page.getByRole('button', { name: /내가 끝까지 책임진 문제/ }).click();
+  await expect(page.getByText('실패한 요청을 다시 보낼 수 있게 했다.', { exact: true })).toBeVisible();
+});
+
+test('a lucky guess appears in review and code solutions can be reread from home', async ({ page }) => {
+  await login(page);
+  await tab(page, '문제');
+  await page.getByRole('button', { name: /세 번 눌렀는데/ }).click();
+  await page.getByRole('radio', { name: '1', exact: true }).check();
+  await page.getByRole('button', { name: '답 확인하기' }).click();
+  await page.getByRole('button', { name: /찍어서 맞혔어요/ }).click();
+  await page.getByRole('button', { name: '문제 목록' }).click();
+  await page.getByRole('button', { name: '다시 보기', exact: true }).click();
+  await expect(page.getByRole('button', { name: /세 번 눌렀는데/ })).toBeVisible();
+  await page.getByRole('button', { name: '코드 작성', exact: true }).click();
+  await page.getByRole('button', { name: /장바구니 합계 계산/ }).click();
+  await page.getByRole('button', { name: /잘 모르겠어요 · 풀이 보기/ }).click();
+  await expect(page.getByText('충분히 생각한 뒤 풀이 보기')).toBeFocused();
+  await tab(page, '오늘');
+  await page.getByText(/지난 해설 이어 읽기 · 장바구니/).click();
+  await expect(page.locator('details[open] code')).toContainText('function solve');
 });

@@ -1,11 +1,12 @@
 import { ArrowLeft, ArrowRight, Check, Clock3, Pause, Play } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@mumak/ui/components/button';
 
 import { ReviewToggle } from '@/components/review-toggle';
+import { UnsureButton } from '@/components/unsure-button';
 import type { Question } from '@/lib/curriculum';
-import { recordAttempt, remainingSeconds, type Progress } from '@/lib/progress';
+import { markForReview, recordAttempt, remainingSeconds, type Progress } from '@/lib/progress';
 import { saveProgress } from '@/lib/progress-store';
 
 export function QuestionPractice({
@@ -35,10 +36,28 @@ export function QuestionPractice({
     };
   }, []);
   const seconds = session ? remainingSeconds(session, now) : 0;
-  function check() {
-    if (selected === null || checked) return;
+  const prediction = question.format === 'prediction';
+  const feedback = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (checked) feedback.current?.focus();
+  }, [checked]);
+  const codeBlock = question.code && (
+    <pre className="mb-7 overflow-x-auto whitespace-pre-wrap break-words rounded-2xl bg-[#172b4d] p-5 font-mono text-[13px] leading-7 text-[#e6edfc] sm:p-7">
+      <code>{question.code}</code>
+    </pre>
+  );
+  function answer(index: number | null) {
+    if (checked) return;
+    setSelected(index);
     setChecked(true);
-    saveProgress(p => recordAttempt(p, question.id, selected === question.answer));
+    if (index !== null) {
+      saveProgress(p => ({
+        ...recordAttempt(p, question.id, index === question.answer),
+        lastExplanation: question.id,
+      }));
+    } else {
+      saveProgress(p => markForReview(p, question.id));
+    }
   }
   function pause() {
     saveProgress(p =>
@@ -102,58 +121,109 @@ export function QuestionPractice({
         {question.topic} · 코드 읽기 · 약 {question.minutes}분
       </p>
       <h1 className="text-2xl leading-snug font-bold tracking-tight sm:text-3xl">{question.title}</h1>
-      <p className="mt-4 mb-6 text-sm leading-7 text-muted-foreground">{question.prompt}</p>
-      {question.code && (
-        <pre className="mb-7 overflow-x-auto whitespace-pre-wrap break-words rounded-2xl bg-[#172b4d] p-5 font-mono text-[13px] leading-7 text-[#e6edfc] sm:p-7">
-          <code>{question.code}</code>
-        </pre>
+      {prediction ? (
+        <>
+          {!checked && codeBlock}
+          <p className="my-4 font-semibold">{question.prompt}</p>
+          {!checked && (
+            <div role="group" aria-label="예상 판단" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {question.choices.map((choice, index) => (
+                <Button key={choice} className="h-12 rounded-xl" variant="outline" onClick={() => answer(index)}>
+                  {choice}
+                </Button>
+              ))}
+              <div className="col-span-2 grid sm:col-span-1">
+                <UnsureButton onClick={() => answer(null)} />
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="mt-4 mb-6 text-sm leading-7 text-muted-foreground">{question.prompt}</p>
+          {codeBlock}
+          <fieldset disabled={checked}>
+            <legend className="mb-3 text-sm font-semibold">생각한 답을 골라 주세요</legend>
+            <div className="space-y-3">
+              {question.choices.map((choice, i) => (
+                <label
+                  key={choice}
+                  className={`flex min-h-15 cursor-pointer items-center gap-3 rounded-xl border p-4 text-sm leading-6 transition-colors ${checked && i === question.answer ? 'border-[#91b6a2] bg-[#e7f1ec]' : selected === i ? 'border-primary bg-[#e8edff]' : 'bg-white hover:border-primary/40'}`}
+                >
+                  <input
+                    type="radio"
+                    name="answer"
+                    value={i}
+                    checked={selected === i}
+                    onChange={() => setSelected(i)}
+                    className="size-4 shrink-0 accent-[#375beb]"
+                  />
+                  <span className="flex-1">{choice}</span>
+                  {checked && i === question.answer && <Check className="size-4 text-[#386e54]" aria-label="정답" />}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </>
       )}
-      <fieldset disabled={checked}>
-        <legend className="mb-3 text-sm font-semibold">생각한 답을 골라 주세요</legend>
-        <div className="space-y-3">
-          {question.choices.map((choice, i) => (
-            <label
-              key={choice}
-              className={`flex min-h-15 cursor-pointer items-center gap-3 rounded-xl border p-4 text-sm leading-6 transition-colors ${checked && i === question.answer ? 'border-[#91b6a2] bg-[#e7f1ec]' : selected === i ? 'border-primary bg-[#e8edff]' : 'bg-white hover:border-primary/40'}`}
-            >
-              <input
-                type="radio"
-                name="answer"
-                value={i}
-                checked={selected === i}
-                onChange={() => setSelected(i)}
-                className="size-4 shrink-0 accent-[#375beb]"
-              />
-              <span className="flex-1">{choice}</span>
-              {checked && i === question.answer && <Check className="size-4 text-[#386e54]" aria-label="정답" />}
-            </label>
-          ))}
-        </div>
-      </fieldset>
       {checked && (
-        <section role="status" className="mt-7 rounded-2xl border bg-white p-6">
+        <section ref={feedback} tabIndex={-1} role="status" className="mt-7 rounded-2xl border bg-white p-6">
           <p className={`mb-3 text-lg font-bold ${selected === question.answer ? 'text-[#386e54]' : 'text-primary'}`}>
-            {selected === question.answer ? '좋아요, 한 걸음 더.' : '이 문제, 다시 만나봐요.'}
+            {selected === null
+              ? '다시 보기에 담았어요.'
+              : prediction
+                ? selected === question.answer
+                  ? '예상대로예요.'
+                  : '예상과 달라요.'
+                : selected === question.answer
+                  ? '좋아요, 한 걸음 더.'
+                  : '이 문제, 다시 만나봐요.'}
           </p>
           <p className="text-sm leading-7">{question.explanation}</p>
-          <div className="mt-5 border-t pt-5">
-            <h2 className="mb-2 text-xs font-bold text-primary">면접관이 한 번 더 묻는다면</h2>
-            <p className="text-sm leading-6 text-muted-foreground">{question.followup}</p>
-          </div>
+          {selected === question.answer && (
+            <Button
+              variant="outline"
+              disabled={progress.review.includes(question.id)}
+              onClick={() => saveProgress(p => markForReview(p, question.id))}
+            >
+              {progress.review.includes(question.id) ? '다시 보기에 담았어요' : '찍어서 맞혔어요 · 다시 보기'}
+            </Button>
+          )}
+          {question.followup && (
+            <div className="mt-5 border-t pt-5">
+              <h2 className="mb-2 text-xs font-bold text-primary">면접관이 한 번 더 묻는다면</h2>
+              <p className="text-sm leading-6 text-muted-foreground">{question.followup}</p>
+            </div>
+          )}
         </section>
       )}
-      <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] mt-7 border-t bg-background/95 py-4 backdrop-blur-sm lg:bottom-0">
-        {checked ? (
-          <Button onClick={next} className="h-13 w-full rounded-xl text-base">
-            다음 문제로
-            <ArrowRight aria-hidden />
-          </Button>
-        ) : (
-          <Button disabled={selected === null} onClick={check} className="h-13 w-full rounded-xl text-base">
-            답 확인하기
-          </Button>
-        )}
-      </div>
+      {prediction && checked && (
+        <details className="my-4">
+          <summary className="cursor-pointer py-3 text-sm font-semibold">코드 다시 보기</summary>
+          {codeBlock}
+        </details>
+      )}
+      {(!prediction || checked) && (
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] mt-7 border-t bg-background/95 py-4 backdrop-blur-sm lg:bottom-0">
+          {checked ? (
+            <Button onClick={next} className="h-13 w-full rounded-xl text-base">
+              다음 문제로
+              <ArrowRight aria-hidden />
+            </Button>
+          ) : (
+            <div role="group" aria-label="답변 선택" className="grid grid-cols-2 items-center gap-2">
+              <UnsureButton onClick={() => answer(null)} />
+              <Button
+                disabled={selected === null}
+                onClick={() => answer(selected)}
+                className="h-12 rounded-xl text-base"
+              >
+                답 확인하기
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
