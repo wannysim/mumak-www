@@ -475,7 +475,7 @@ three r186은 컨텍스트를 만들기 전에 손실·복구 리스너를 등�
 
 - 확인 방법(제안): 판정 함수는 단위 테스트로 고정한다. E2E는 오버레이 DOM을 `getByRole`로 단언하고 `page.emulateMedia({ reducedMotion: 'reduce' })`로 대체 동작을 본다(선례 `apps/quant/e2e/operations.spec.ts`). 판정 영역 크기는 `boundingBox()`로 잰다(선례 `apps/blog/stories/button-target-size.spec.ts`). 키보드만으로 닫힌 책에서 판권면까지 가는 시나리오를 하나 둔다.
 - 실기기 스크린리더(제안): iOS·macOS VoiceOver, Android TalkBack, Windows NVDA. 0장 매트릭스와 같이 확인한 조합만 기록한다.
-- 자동 검사 통과는 포커스 표시 대비를 보증하지 않는다. 대비는 U8 결정 뒤 실측한다.
+- 자동 검사 통과는 포커스 표시 대비를 보증하지 않는다. 대비는 U8 결정 뒤 실측한다. 2026-11-19 닫힌 책 하이라이트 시안(open-decisions G4)은 Chromium 스크린샷 픽셀로 쟀다: 테두리를 primary 그대로 두면 둘레 빛 위에서 1.99:1이라 모자라, primary를 foreground로 25% 눌러 흰 바탕 5.85·간격 빛 3.35·바깥 빛 4.54:1이 됐다. 책 아래 그림자 위 구간은 재지 않았다.
 
 #### 사용자 판단 대기
 

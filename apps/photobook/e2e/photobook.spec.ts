@@ -53,6 +53,21 @@ async function expectOneLineHeadAboveBook(page: Page) {
   expect(head.y + head.height).toBeLessThanOrEqual(book.y + 0.5);
 }
 
+/**
+ * Tab을 눌러 대상에 포커스를 보낸다. 키보드로 온 포커스라 :focus-visible이 켜진다.
+ * macOS WebKit(Safari 기본 설정)은 Tab이 입력칸에만 가고 버튼은 Option+Tab으로 간다.
+ */
+async function tabTo(page: Page, target: Locator, browserName: string) {
+  const key = browserName === 'webkit' && process.platform === 'darwin' ? 'Alt+Tab' : 'Tab';
+  for (let presses = 0; presses < 5; presses += 1) {
+    await page.keyboard.press(key);
+    if (await target.evaluate(element => element === document.activeElement)) {
+      return;
+    }
+  }
+  throw new Error('Tab으로 대상에 닿지 못했다');
+}
+
 async function openWithEnter(page: Page, firstPages = '01–02쪽') {
   const book = page.getByRole('button', { name: '책 펼치기' });
   await expect(book).toBeVisible();
@@ -633,16 +648,24 @@ test.describe('Photobook', () => {
       );
       // 책 버튼(투영을 감싼 사각형) 안이지만 그려진 책에서 12px 넘게 떨어진 빈 모서리다.
       expect(distanceOutside(emptyCorner, hull)).toBeGreaterThan(12);
-      await page.mouse.click(emptyCorner.x, emptyCorner.y);
-      await nextFrames(page);
-      await expect(closedStage(page)).toHaveAttribute('data-phase', 'closed');
-      await expect(page.getByRole('region', { name: '펼친 책' })).toHaveCount(0);
-
       const middle = {
         x: hull.reduce((sum, point) => sum + point.x, 0) / hull.length,
         y: hull.reduce((sum, point) => sum + point.y, 0) / hull.length,
       };
       expect(distanceOutside(middle, hull)).toBeLessThan(-12);
+
+      // 하이라이트도 그려진 책 위에서만 켜진다(버튼을 실루엣 모양으로 잘랐다).
+      const aura = page.locator('.closed-book__aura');
+      await page.mouse.move(middle.x, middle.y);
+      await expect(aura).toHaveCSS('opacity', '0.85');
+      await page.mouse.move(emptyCorner.x, emptyCorner.y);
+      await expect(aura).toHaveCSS('opacity', '0');
+
+      await page.mouse.click(emptyCorner.x, emptyCorner.y);
+      await nextFrames(page);
+      await expect(closedStage(page)).toHaveAttribute('data-phase', 'closed');
+      await expect(page.getByRole('region', { name: '펼친 책' })).toHaveCount(0);
+
       await page.mouse.click(middle.x, middle.y);
       await expect(page.getByRole('region', { name: '펼친 책' })).toBeVisible();
     });
@@ -667,6 +690,55 @@ test.describe('Photobook', () => {
       expect(await effectiveTouchActionAt(page, { x: book.x + book.width / 2, y: book.y + book.height + 16 })).toBe(
         'auto'
       );
+    });
+  });
+
+  test.describe('closed book highlight', () => {
+    function sheenAnimation(page: Page) {
+      return page
+        .locator('.closed-book__cover-front .closed-book__sheen')
+        .evaluate(sheen => getComputedStyle(sheen, '::before').animationName);
+    }
+
+    test('glows with a sheen under the mouse and rings the book only for keyboard focus', async ({
+      page,
+      browserName,
+    }) => {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto('/');
+      const book = page.getByRole('button', { name: '책 펼치기' });
+      await expect(book).toBeVisible();
+      const aura = page.locator('.closed-book__aura');
+      const ring = page.locator('.closed-book__ring');
+      await expect(aura).toHaveCSS('opacity', '0');
+      expect(await sheenAnimation(page)).toBe('none');
+
+      // 마우스를 책에 올리면 빛 번짐과 빛줄기만 켜지고 테두리는 없다. 빈 곳으로 옮기면 꺼진다.
+      const box = await boxOf(book);
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await expect(aura).toHaveCSS('opacity', '0.85');
+      await expect.poll(() => sheenAnimation(page)).toBe('closed-book-sheen');
+      await expect(ring).toHaveCSS('opacity', '0');
+      await page.mouse.move(box.x - 80, box.y + box.height / 2);
+      await expect(aura).toHaveCSS('opacity', '0');
+      await expect.poll(() => sheenAnimation(page)).toBe('none');
+
+      // 키보드 포커스면 빛이 더 진하고, 사각형 외곽선 대신 실루엣 테두리가 포커스 표시다.
+      await tabTo(page, book, browserName);
+      await expect(ring).toHaveCSS('opacity', '1');
+      await expect(aura).toHaveCSS('opacity', '1');
+      await expect(book).toHaveCSS('outline-style', 'none');
+    });
+
+    test('keeps the glow but drops the moving sheen when reduced motion is requested', async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto('/');
+      const book = page.getByRole('button', { name: '책 펼치기' });
+      const box = await boxOf(book);
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await expect(page.locator('.closed-book__aura')).toHaveCSS('opacity', '0.85');
+      await expect(page.locator('.closed-book__cover-front .closed-book__sheen')).toBeHidden();
     });
   });
 

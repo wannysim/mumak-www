@@ -47,6 +47,20 @@ const CAST_SHADOW_SOFT_BLUR_OF_HEIGHT = 0.05;
 const CONTACT_SHADOW_OPACITY = 0.28;
 const CONTACT_SHADOW_BLUR_OF_HEIGHT = 0.02;
 
+/**
+ * 하이라이트의 빛 번짐 두 겹(실루엣 가까이 진한 층, 넓게 퍼진 층). 번짐은 닫힌 책 높이에 비례한다. 층별 진하기와
+ * 언제 보일지는 closed-book.css. 임시, open-decisions G4 "접근성 대안의 보이는 모습".
+ */
+const AURA_CORE_BLUR_OF_HEIGHT = 0.008;
+const AURA_SOFT_BLUR_OF_HEIGHT = 0.045;
+
+/**
+ * 키보드 포커스 테두리: 실루엣에서 떨어진 간격과 굵기(CSS px, 책 크기와 무관). 굵기 2px은 WCAG 2.4.13의 최소 면적 기준이다.
+ * 임시, 위와 같은 행.
+ */
+const RING_GAP_PX = 4;
+const RING_WIDTH_PX = 2;
+
 /** 앞·뒤 판 두께 띠(책배·윗면·아랫면 양 끝의 표지 색) = 쪽 폭의 비율. 임시, open-decisions G0 "닫힌 책 형태·재질". */
 const BOARD_RATIO = 0.012;
 
@@ -81,9 +95,90 @@ function polygonPoints(outline: readonly Vec2[]): string {
   return outline.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
 }
 
+/** 투영 다각형을 버튼 상자 기준 clip-path로. 버튼 판정(:hover)이 상자 모서리가 아니라 책 위에서만 켜지게 자른다. */
+function hitClipPath(outline: readonly Vec2[], box: { readonly x: number; readonly y: number }): string {
+  const points = outline.map(point => `${(point.x - box.x).toFixed(1)}px ${(point.y - box.y).toFixed(1)}px`);
+  return `polygon(${points.join(', ')})`;
+}
+
+/** useId 값의 기호(«», :)가 url(#…) 참조를 깨지 않게 영숫자만 남긴다. */
+function useSvgId(prefix: string): string {
+  return `${prefix}-${React.useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+}
+
+/**
+ * 흐리게 번진 다각형 한 겹. 번짐은 SVG 필터(feGaussianBlur)가 아니라 이 레이어 전체에 거는 CSS blur다
+ * (closed-book.css .closed-book__blur-layer, will-change: filter). SVG 필터는 Safari(WebKit)가 CPU로 계산해서 책을 돌려
+ * 다각형이 바뀔 때마다 넓은 영역을 다시 흐렸고, 폰 크기 WebKit에서 16–26fps로 끊겼다(2026-11-19 사용자 보고·측정, 아이폰).
+ * 합성 레이어의 CSS blur는 GPU가 처리한다(같은 측정 58fps). CSS blur(r)의 r은 feGaussianBlur stdDeviation과 같은 표준편차라
+ * 모양은 그대로다.
+ */
+function BlurredPolygon({
+  className,
+  points,
+  blur,
+  opacity,
+}: {
+  className: string;
+  points: string;
+  blur: number;
+  opacity?: number;
+}) {
+  return (
+    <svg className="closed-book__blur-layer" style={{ filter: `blur(${blur.toFixed(2)}px)` }}>
+      <polygon className={className} points={points} opacity={opacity} />
+    </svg>
+  );
+}
+
+/**
+ * 책을 가리키면 둘레가 빛나는 하이라이트(2026-11-19 사용자 요청: 게임처럼 책에 마우스를 올리면 얕게 빛나고,
+ * 접근성에 필요한 포커스 표시도 검은 사각형 대신 같은 결로). 책 실루엣(투영 다각형) 둘레에 그린다.
+ * - 빛 번짐(aura): 흐리게 번진 다각형 두 겹(BlurredPolygon). 책 아래에 깔려 실루엣 밖으로만 보인다.
+ * - 테두리(ring): 실루엣에서 RING_GAP_PX 떨어진 RING_WIDTH_PX 선. 모서리는 둥글다(다각형을 원으로 키운 모양).
+ *   굵은 선과 가는 선의 차를 mask로 남겨 그린다.
+ * 언제 보일지는 closed-book.css가 정한다: 마우스가 책 위면 빛 번짐, 키보드 포커스면 빛 번짐과 테두리(포커스 표시).
+ * 꺼져 있으면 display: none이라 그리는 비용이 없다(hover가 없는 폰은 키보드 포커스가 아니면 늘 꺼져 있다).
+ */
+function BookHighlight({ outline, placement }: { outline: readonly Vec2[]; placement: ClosedPlacement }) {
+  const id = useSvgId('book-highlight');
+  const height = placement.frontBox.height;
+  const points = polygonPoints(outline);
+  return (
+    <div className="closed-book__highlight" aria-hidden="true">
+      <div className="closed-book__aura">
+        <BlurredPolygon className="closed-book__aura-soft" points={points} blur={height * AURA_SOFT_BLUR_OF_HEIGHT} />
+        <BlurredPolygon className="closed-book__aura-core" points={points} blur={height * AURA_CORE_BLUR_OF_HEIGHT} />
+      </div>
+      <svg className="closed-book__ring-layer">
+        <defs>
+          <mask id={`${id}-ring`} maskUnits="userSpaceOnUse">
+            <polygon
+              points={points}
+              fill="white"
+              stroke="white"
+              strokeWidth={(RING_GAP_PX + RING_WIDTH_PX) * 2}
+              strokeLinejoin="round"
+            />
+            <polygon points={points} fill="black" stroke="black" strokeWidth={RING_GAP_PX * 2} strokeLinejoin="round" />
+          </mask>
+        </defs>
+        <polygon
+          className="closed-book__ring"
+          points={points}
+          strokeWidth={(RING_GAP_PX + RING_WIDTH_PX) * 2}
+          strokeLinejoin="round"
+          mask={`url(#${id}-ring)`}
+        />
+      </svg>
+    </div>
+  );
+}
+
 /**
  * 바닥에 떨어진 책 그림자. 해 그림자는 빛(light)과 책 자세를 따라 모양·길이·방향이 바뀌고(2026-11-18 사용자 요청),
  * 접지 그림자는 책이 바닥에 닿은 자리에만 깔린다. 펼치거나 덮는 동안에는 옮겨 간 정도만큼 옅어진다.
+ * 세 겹은 번짐이 달라 각각 CSS blur 레이어다(BlurredPolygon).
  */
 function CastShadow({
   sunOutline,
@@ -98,51 +193,41 @@ function CastShadow({
   placement: ClosedPlacement;
   travel: number;
 }) {
-  // useId 값의 기호(«», :)가 url(#…) 참조를 깨지 않게 영숫자만 남긴다.
-  const filterId = `cast-shadow-${React.useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const height = placement.frontBox.height;
   const sunPoints = polygonPoints(sunOutline);
   const sunFade = light.strength * (1 - travel);
-  const filters = [
-    { id: `${filterId}-core`, blur: height * CAST_SHADOW_CORE_BLUR_OF_HEIGHT },
-    { id: `${filterId}-soft`, blur: height * CAST_SHADOW_SOFT_BLUR_OF_HEIGHT },
-    { id: `${filterId}-contact`, blur: height * CONTACT_SHADOW_BLUR_OF_HEIGHT },
-  ];
   return (
-    <svg className="closed-book__cast-shadow" aria-hidden="true">
-      <defs>
-        {/* 번짐이 다각형 상자 밖으로 퍼져도 잘리지 않게 필터 영역을 넉넉히 잡는다. */}
-        {filters.map(filter => (
-          <filter key={filter.id} id={filter.id} x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation={filter.blur} />
-          </filter>
-        ))}
-      </defs>
-      <polygon
+    <div className="closed-book__cast-shadow" aria-hidden="true">
+      <BlurredPolygon
         className="closed-book__sun-shadow"
         points={sunPoints}
-        filter={`url(#${filterId}-soft)`}
+        blur={height * CAST_SHADOW_SOFT_BLUR_OF_HEIGHT}
         opacity={CAST_SHADOW_SOFT_OPACITY * sunFade}
       />
-      <polygon
+      <BlurredPolygon
         className="closed-book__sun-shadow"
         points={sunPoints}
-        filter={`url(#${filterId}-core)`}
+        blur={height * CAST_SHADOW_CORE_BLUR_OF_HEIGHT}
         opacity={CAST_SHADOW_CORE_OPACITY * sunFade}
       />
-      <polygon
+      <BlurredPolygon
         className="closed-book__contact-shadow"
         points={polygonPoints(contact.outline)}
-        filter={`url(#${filterId}-contact)`}
+        blur={height * CONTACT_SHADOW_BLUR_OF_HEIGHT}
         opacity={CONTACT_SHADOW_OPACITY * contact.strength * (1 - travel)}
       />
-    </svg>
+    </div>
   );
 }
 
 /** 면 위 검은 막. 빛을 등진 만큼 어둡다(light.ts faceShade). */
 function FaceShade({ shade }: { shade: number }) {
   return <div className="closed-book__shade" style={{ opacity: Number(shade.toFixed(SHADE_DIGITS)) }} />;
+}
+
+/** 표지 위를 한 번 지나가는 빛줄기. 하이라이트가 켜질 때 closed-book.css가 움직인다(BookHighlight와 같은 요청). */
+function CoverSheen() {
+  return <div className="closed-book__sheen" />;
 }
 
 const HIDDEN: React.CSSProperties = { visibility: 'hidden' };
@@ -183,7 +268,8 @@ function CoverArt({ side }: { side: CoverSide }) {
  *   끌지 않고 뗀 탭이 책을 원근 투영한 다각형 안이면 펼친다(spin.ts가 판정). 빈 곳 탭은 아무 일도 하지 않는다.
  * - 면은 책 안쪽부터 DOM에 둔다: 덮이는 쪽(under)을 표지 판보다 먼저 그려, 3D 정렬 대신 DOM 순서로 칠하는 엔진
  *   (Playwright 헤드리스 Firefox·WebKit에서 관찰)과 판이 거의 닫혀 두 면이 1px 간격으로 붙는 순간(Chromium)에도 판이 위에 온다.
- * - 키보드·보조 기술은 투영 다각형을 감싼 버튼 하나로 받는다: Enter·Space는 펼침.
+ * - 키보드·보조 기술은 투영 다각형을 감싼 버튼 하나로 받는다: Enter·Space는 펼침. 버튼은 실루엣 모양으로 잘라(--hit-clip)
+ *   마우스가 책 위에 있을 때만 :hover가 켜지고, 포커스 표시는 사각형 외곽선 대신 실루엣 둘레 하이라이트(BookHighlight)다.
  * - 닫힌 상태면 포커스가 책에 없어도(body) Enter·Space로 펼치고, 화살표는 누르는 동안 돈다(use-held-arrows.ts, key-spin.ts).
  *   다른 컨트롤에 포커스가 있으면 Enter·Space는 그 컨트롤 몫이다. 2026-11-16 사용자 결정(책에 포커스 표시가 생기지 않게).
  *   포인터 클릭은 위 판별이 맡으므로 버튼의 포인터 click은 쓰지 않는다.
@@ -371,6 +457,7 @@ function ClosedBook({
         placement={placement}
         travel={pose.travel}
       />
+      <BookHighlight outline={outline} placement={placement} />
       <div className="closed-book" style={bookStyle} data-layout={geometry.layout} aria-hidden="true">
         {showPages ? (
           <div
@@ -390,6 +477,7 @@ function ClosedBook({
           >
             <CoverArt side="front" />
             <FaceShade shade={shadeOf(frontBoard, 'front')} />
+            <CoverSheen />
           </div>
           {showPages && pose.side === 'front' ? (
             <div
@@ -409,6 +497,7 @@ function ClosedBook({
           >
             <CoverArt side="back" />
             <FaceShade shade={shadeOf(backBoard, 'back')} />
+            <CoverSheen />
           </div>
           {showPages && pose.side === 'back' ? (
             <div
@@ -464,7 +553,15 @@ function ClosedBook({
         aria-label={UI_TEXT.openBook}
         aria-describedby={descriptionId}
         aria-disabled={interactive ? undefined : true}
-        style={{ left: hitBox.x, top: hitBox.y, width: hitBox.width, height: hitBox.height }}
+        style={
+          {
+            left: hitBox.x,
+            top: hitBox.y,
+            width: hitBox.width,
+            height: hitBox.height,
+            '--hit-clip': hitClipPath(outline, hitBox),
+          } as React.CSSProperties
+        }
         onPointerEnter={warmFirstSpread}
         onFocus={warmFirstSpread}
         onClick={handleClick}

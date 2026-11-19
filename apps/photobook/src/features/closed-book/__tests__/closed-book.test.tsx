@@ -384,11 +384,22 @@ describe('ClosedBook', () => {
       expect(Math.abs(shadowCentroidX('.closed-book__contact-shadow') - center.x)).toBeLessThan(60);
       for (const shadow of document.querySelectorAll('.closed-book__cast-shadow polygon')) {
         expect(Number(shadow.getAttribute('opacity'))).toBeGreaterThan(0);
-        // 필터 참조는 같은 SVG 안의 필터를 가리킨다(useId 기호가 url(#…)을 깨지 않는다).
-        const id = /^url\(#([\w-]+)\)$/.exec(shadow.getAttribute('filter') ?? '')?.[1];
-        expect(id).toBeDefined();
-        expect(document.getElementById(id ?? '')?.tagName.toLowerCase()).toBe('filter');
       }
+    });
+
+    it('should blur each shadow layer with CSS on its own layer instead of an SVG filter that Safari redraws on the CPU', () => {
+      renderClosedBook();
+      const placement = computeClosedPlacement(viewport, geometry);
+      const blurs = Array.from(
+        document.querySelectorAll<SVGElement>('.closed-book__cast-shadow .closed-book__blur-layer'),
+        layer => layer.style.filter
+      );
+      // 넓은 해 그림자(책 높이의 5%), 진한 해 그림자(1.2%), 접지 그림자(2%).
+      expect(blurs).toEqual(
+        [0.05, 0.012, 0.02].map(ratio => `blur(${(placement.frontBox.height * ratio).toFixed(2)}px)`)
+      );
+      expect(document.querySelector('.closed-book__cast-shadow [filter], .closed-book__highlight [filter]')).toBeNull();
+      expect(document.querySelector('filter')).toBeNull();
     });
 
     it('should fade the lighting out while the book travels to the open spread', () => {
@@ -410,6 +421,53 @@ describe('ClosedBook', () => {
     expect(document.querySelector('.closed-book__bottom')).not.toHaveStyle({ visibility: 'hidden' });
     expect(document.querySelector('.closed-book__top')).toHaveStyle({ visibility: 'hidden' });
     expect(screen.getByText('심완', { selector: '.closed-book__spine-label' })).toBeInTheDocument();
+  });
+
+  describe('highlight', () => {
+    function pointsOf(outline: readonly Vec2[]): string {
+      return outline.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+    }
+
+    it('should glow and ring the book silhouette, not the button box, even when the book is tilted', () => {
+      renderClosedBook({ orientation: TILTED });
+      const outline = projectedBookOutline(viewport, computeClosedPlacement(viewport, geometry), TILTED);
+      const highlight = document.querySelector('.closed-book__highlight');
+      expect(highlight).toHaveAttribute('aria-hidden', 'true');
+      const layers = document.querySelectorAll('.closed-book__aura polygon, .closed-book__ring');
+      expect(layers).toHaveLength(3);
+      for (const layer of layers) {
+        expect(layer).toHaveAttribute('points', pointsOf(outline));
+      }
+    });
+
+    it('should draw the focus ring 4px off the silhouette and 2px wide through a mask', () => {
+      renderClosedBook();
+      const ring = document.querySelector('.closed-book__ring');
+      const mask = document.querySelector('.closed-book__highlight mask');
+      expect(ring).toHaveAttribute('mask', `url(#${mask?.id})`);
+      // 바깥 가장자리 = 간격 4 + 굵기 2, 안쪽 가장자리 = 간격 4(둘 다 다각형 양쪽으로 퍼지는 선이라 2배).
+      const widths = Array.from(mask?.querySelectorAll('polygon') ?? [], edge => edge.getAttribute('stroke-width'));
+      expect(widths).toEqual(['12', '8']);
+      expect(ring).toHaveAttribute('stroke-width', '12');
+    });
+
+    it('should cut the book button to the silhouette so hover lights up only over the book', () => {
+      const { button } = renderClosedBook({ orientation: TILTED });
+      const outline = projectedBookOutline(viewport, computeClosedPlacement(viewport, geometry), TILTED);
+      const box = outlineBounds(outline);
+      const clip = outline.map(point => `${(point.x - box.x).toFixed(1)}px ${(point.y - box.y).toFixed(1)}px`);
+      expect(button.style.getPropertyValue('--hit-clip')).toBe(`polygon(${clip.join(', ')})`);
+    });
+
+    it('should lay a sheen over both cover arts, above the shading', () => {
+      renderClosedBook();
+      for (const cover of ['cover-front', 'back']) {
+        const layers = Array.from(document.querySelector(`.closed-book__${cover}`)?.children ?? [], layer =>
+          layer.tagName === 'IMG' ? 'art' : layer.className.replace('closed-book__', '')
+        );
+        expect(layers).toEqual(['art', 'shade', 'sheen']);
+      }
+    });
   });
 
   it('should warm the first spread on hover and focus', () => {

@@ -14,15 +14,26 @@
   pointer-events: none;
 }
 
-/* 바닥 그림자: 화면 좌표 다각형(light.ts castShadowOutline)을 무대 전체 SVG에 그린다. 진하기·번짐은 closed-book.tsx. */
+/* 바닥 그림자: 화면 좌표 다각형(light.ts castShadowOutline)을 무대 전체 레이어에 그린다. 진하기·번짐은 closed-book.tsx. */
 .closed-book__cast-shadow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  fill: var(--foreground);
+}
+
+/*
+ * 흐린 다각형 한 겹(closed-book.tsx BlurredPolygon). 번짐은 인라인 CSS blur이고, will-change로 합성 레이어에 올려 GPU가 흐린다.
+ * SVG 필터로 흐리면 Safari가 매 프레임 CPU로 다시 계산해 책을 돌릴 때 끊겼다(2026-11-19, 아이폰).
+ */
+.closed-book__blur-layer {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   overflow: visible;
   pointer-events: none;
-  fill: var(--foreground);
+  will-change: filter;
 }
 
 .closed-book {
@@ -254,7 +265,176 @@
   transform: rotateX(-90deg) translateZ(calc(var(--book-h) / 2));
 }
 
-/* 책 버튼: 투영 다각형을 감싼 투명 버튼(projection.ts outlineBounds). 포커스 표시는 그 둘레에 그린다(모양 임시, 7장 U8). */
+/*
+ * 하이라이트(closed-book.tsx BookHighlight, 2026-11-19 사용자 요청: 게임처럼 책에 마우스를 올리면 얕게 빛나고 표지에 빛이 한 번 스친다.
+ * 포커스 표시는 접근성상 필요하니 검은 사각형 대신 같은 결로).
+ * - 마우스가 책 위에 있으면(hover가 있는 입력만) 실루엣 둘레가 주황으로 번지고 표지 위로 빛줄기가 한 번 지나간다.
+ * - 키보드 포커스(:focus-visible)면 빛 번짐이 조금 더 진하고, 실루엣을 따라가는 테두리가 포커스 표시다(WCAG 2.4.7).
+ * - 여닫는 동안(data-phase가 closed가 아님)에는 끈다.
+ * 색·진하기·빛줄기 모양과 길이는 임시, open-decisions G4 "접근성 대안의 보이는 모습".
+ */
+/*
+ * 꺼져 있으면 display: none이라 흐린 레이어를 그리지 않는다(hover가 없는 폰은 키보드 포커스가 아니면 늘 꺼져 있다).
+ * 켜질 때는 @starting-style로 투명에서 들어오고, 꺼질 때는 display를 늦게 바꿔(allow-discrete) 빛이 사라질 시간을 둔다.
+ */
+.closed-book__highlight {
+  display: none;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: display 220ms allow-discrete;
+  /* 강제 색 모드가 mask의 흑백을 바꾸지 않게 한다. 테두리 색은 아래 forced-colors에서 시스템 색으로 준다. */
+  forced-color-adjust: none;
+}
+
+.closed-book__aura {
+  fill: var(--primary);
+  opacity: 0;
+  transition: opacity 220ms ease-out;
+}
+
+.closed-book__aura-soft {
+  opacity: 0.7;
+}
+
+.closed-book__aura-core {
+  opacity: 0.8;
+}
+
+/*
+ * 테두리는 primary를 foreground로 25% 눌러, 둘레에 번진 빛 위에서도 3:1을 넘긴다(WCAG 1.4.11. 2026-11-19 스크린샷 픽셀 실측:
+ * 그려진 테두리 rgb(175 64 41)과 흰 바탕 5.85, 실루엣 쪽 간격의 빛 3.35, 바깥 빛 4.54. primary 그대로면 간격 쪽이 1.99라 모자랐다).
+ */
+.closed-book__ring-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.closed-book__ring {
+  --ring-color: color-mix(in oklch, var(--primary) 75%, var(--foreground));
+  fill: var(--ring-color);
+  stroke: var(--ring-color);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+/* 표지 빛줄기: 비스듬한 흰 띠가 왼쪽 밖에서 오른쪽 밖으로 한 번 지나간다. 켜는 규칙은 아래 @supports 안. */
+.closed-book__sheen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.closed-book__sheen::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0) 0%,
+    rgb(255 255 255 / 0.12) 30%,
+    rgb(255 255 255 / 0.42) 50%,
+    rgb(255 255 255 / 0.12) 70%,
+    rgb(255 255 255 / 0) 100%
+  );
+  transform: translateX(-130%) skewX(-18deg);
+}
+
+@keyframes closed-book-sheen {
+  from {
+    transform: translateX(-130%) skewX(-18deg);
+  }
+
+  to {
+    transform: translateX(330%) skewX(-18deg);
+  }
+}
+
+/*
+ * :has()로 책 버튼의 :hover·:focus-visible을 앞쪽 형제(빛·표지)에 건다. 버튼은 실루엣 모양으로 잘라(--hit-clip) 상자 모서리가
+ * 아니라 책 위에서만 :hover가 켜진다. :has()가 없는 엔진은 이 블록을 통째로 건너뛰고 예전 사각형 외곽선을 쓴다(포커스 표시가 사라지지 않게).
+ */
+@supports selector(:has(*)) {
+  .closed-book__hit {
+    clip-path: var(--hit-clip);
+  }
+
+  .closed-book__hit:focus-visible {
+    outline: none;
+  }
+
+  @media (hover: hover) {
+    .closed-stage[data-phase='closed']:has(.closed-book__hit:hover) .closed-book__highlight {
+      display: block;
+    }
+
+    .closed-stage[data-phase='closed']:has(.closed-book__hit:hover) .closed-book__aura {
+      opacity: 0.85;
+    }
+
+    @starting-style {
+      .closed-stage[data-phase='closed']:has(.closed-book__hit:hover) .closed-book__aura {
+        opacity: 0;
+      }
+    }
+
+    .closed-stage[data-phase='closed']:has(.closed-book__hit:hover) .closed-book__sheen::before {
+      animation: closed-book-sheen 950ms cubic-bezier(0.3, 0, 0.2, 1) both;
+    }
+  }
+
+  .closed-stage[data-phase='closed']:has(.closed-book__hit:focus-visible) .closed-book__highlight {
+    display: block;
+  }
+
+  .closed-stage[data-phase='closed']:has(.closed-book__hit:focus-visible) .closed-book__aura {
+    opacity: 1;
+  }
+
+  @starting-style {
+    .closed-stage[data-phase='closed']:has(.closed-book__hit:focus-visible)
+      :is(.closed-book__aura, .closed-book__ring) {
+      opacity: 0;
+    }
+  }
+
+  .closed-stage[data-phase='closed']:has(.closed-book__hit:focus-visible) .closed-book__ring {
+    opacity: 1;
+  }
+
+  .closed-stage[data-phase='closed']:has(.closed-book__hit:focus-visible) .closed-book__sheen::before {
+    animation: closed-book-sheen 950ms cubic-bezier(0.3, 0, 0.2, 1) both;
+  }
+}
+
+/* 빛줄기는 움직임이라 동작 줄이기면 그리지 않는다. 빛 번짐과 테두리는 투명도만 바뀌어 그대로 둔다. */
+@media (prefers-reduced-motion: reduce) {
+  .closed-book__sheen {
+    display: none;
+  }
+}
+
+/* 강제 색 모드(Windows 고대비): 장식 빛은 빼고 테두리는 시스템 강조색으로 그린다. */
+@media (forced-colors: active) {
+  .closed-book__aura,
+  .closed-book__sheen {
+    display: none;
+  }
+
+  .closed-book__ring {
+    fill: Highlight;
+    stroke: Highlight;
+  }
+}
+
+/* 책 버튼: 투영 다각형을 감싼 투명 버튼(projection.ts outlineBounds). 포커스 표시는 위 하이라이트 테두리다. */
 .closed-book__hit {
   position: absolute;
   padding: 0;

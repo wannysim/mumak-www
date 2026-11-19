@@ -6,7 +6,7 @@
 
 - `src/model/fold/`: 넘김 동작 규칙(반사 접힘, 책등 제한, 진행도, 놓기 판정, 속도, 클릭 넘김 경로, 원통, 쪽 매핑, 입력 우선순위). 순수 TS, node 환경 테스트.
 - `src/model/book/`: 책 상태 기계(closed → opening → open ↔ turning, open → closing → closed), 쿼터니언 자유 회전(`quaternion.ts`·`rotation.ts`)과 관성(`spin.ts`), 화살표를 누르는 동안의 회전(`key-spin.ts`), 원근 투영과 책 다각형 탭 판정(`projection.ts`), 덮기 시간표와 끌어 덮기 진행도(`closing.ts`), 배치 판정(spread·single), 키 매핑, 넘김 세션, 펼침 시간표, 화면 기하 변환(`geometry.ts`, 덮기 배치 `coverLayout` 포함). 순수 TS.
-- `src/features/closed-book/`: CSS 3D 닫힌 책(여섯 면, matrix3d), 닫힌 상태의 화면 전체 회전 영역, 펼침·덮기 전환. `src/features/book-spread/`: 쪽과 평면 DOM 접힘 넘김(clip-path 다각형과 반사 matrix). `src/features/running-head/`: 러닝 헤드(펼친 동안 이름이 덮기 버튼).
+- `src/features/closed-book/`: CSS 3D 닫힌 책(여섯 면, matrix3d), 닫힌 상태의 화면 전체 회전 영역, 펼침·덮기 전환, 책을 가리키면 실루엣(투영 다각형) 둘레에 그리는 하이라이트(빛 번짐·포커스 테두리 SVG, 표지 빛줄기. 켜는 조건은 CSS `:has()`로 책 버튼의 `:hover`·`:focus-visible`을 보고, 꺼지면 `display: none`). 바닥 그림자와 빛 번짐의 흐림은 SVG 필터가 아니라 겹마다 합성 레이어(`will-change: filter`)의 CSS `blur()`다. SVG `feGaussianBlur`는 다각형이 바뀔 때마다 Safari가 다시 계산해 아이폰에서 닫힌 책 회전이 끊겼다(2026-11-19 사용자 보고. 폰 크기 WebKit 측정 16–26fps → 59–60fps, 경위는 blog 가든 노트 `svg-filter-blur-on-safari`). `src/features/book-spread/`: 쪽과 평면 DOM 접힘 넘김(clip-path 다각형과 반사 matrix). `src/features/running-head/`: 러닝 헤드(펼친 동안 이름이 덮기 버튼).
 - `src/content/`: 쪽 지도(`pages.ts`)와 임시 문구·값(`temporary.ts`). `src/hooks/`: 창 크기, safe area, 동작 줄이기, 프레임 루프, 문서 단위 키(Esc 덮기), 누르고 있는 화살표(닫힌 책 회전).
 - 서체는 blog의 Pretendard 서브셋을 `src/assets/fonts/`에 자체 호스팅하고, 색은 blog 토큰을 `src/index.css`에 옮겼다(출처 주석).
 - 렌더는 1페이즈 동안 DOM만 쓴다. WebGL·three는 아직 없다. `src/render/`는 WebGL 코드용으로 coverage에서 빼 두었다.
