@@ -1,0 +1,97 @@
+---
+title: 'Why an SVG blur stuttered on iPhone: blurring at paint vs at composite'
+created: '2026-11-19'
+status: 'seedling'
+parent: 'frontend-browser'
+tags: ['browser', 'performance', 'rendering', 'safari', 'svg']
+---
+
+> In one line: **if you blur a polygon whose shape changes every frame with an SVG `feGaussianBlur`, Safari (WebKit) recomputes the blur from scratch each time. Moving the same blur to CSS `filter: blur()` and lifting it onto a compositing layer with `will-change: filter` took the frame rate from 16–26fps to 60fps. The blur amount is the same standard deviation, so the look did not change.**
+
+If you have read [[browser-rendering-pipeline|Browser Rendering Pipeline]] and its rule "animate only `transform` and `opacity`", this note is a real case of how that rule shows up with blurs and shadows.
+
+## What happened
+
+The 3D photobook I am building as a personal homepage opens on a closed book that you can spin freely by dragging or with the arrow keys. Under the book is a floor shadow whose shape follows the current sun position and the book's pose.
+
+- The shadow is a polygon: the book's corners projected onto the floor. When the book spins, **the polygon's points change every frame.**
+- For soft edges, three polygons (a dark sun shadow, a wide soft sun shadow, and a contact shadow where the book touches the floor) were each blurred with an SVG `feGaussianBlur`.
+- A highlight that glows around the book on mouse hover was drawn the same way (two blurred polygons).
+
+It was fine on desktop, but spinning the closed book on an iPhone stuttered visibly.
+
+## How was the cause found?
+
+By **switching things off one at a time and measuring**, not by guessing. In WebKit at phone size (390×844, DPR 3), the book spun continuously for 3 seconds while `requestAnimationFrame` intervals were recorded. This was Playwright WebKit on a desktop Mac, which has more headroom than a real iPhone.
+
+| State                                    | Mean fps | Slow frames (p95) |
+| ---------------------------------------- | -------- | ----------------- |
+| As is                                    | 16–26    | 47–145ms          |
+| SVG blur filters off                     | 58–60    | 18ms              |
+| Highlight off (it was at opacity 0)      | 52–54    | 30–33ms           |
+| Moved to CSS `blur()` (no `will-change`) | 29       | 50ms              |
+| CSS `blur()` + `will-change: filter`     | 58       | 18ms              |
+| After the fix                            | 59–60    | 18ms              |
+| No shadow at all (floor)                 | 60       | 18ms              |
+
+Measuring the same spin in Chromium with the CPU slowed down 4x, JavaScript (React render), style and layout added up to 3–5ms per frame. **Main-thread work was not the culprit.**
+
+## Why was the SVG blur slow?
+
+Seen through the [[browser-rendering-pipeline|rendering pipeline]], the difference is **which stage does the blurring**.
+
+- An SVG filter is part of **painting** the SVG content. The filter output is tied to the source shape, so when the polygon's points change, the old result is thrown away, the shape is rasterized again and blurred again.
+- A standard deviation of 5% of the book's height becomes a kernel tens of device pixels wide on a phone. That runs over the whole shadow area, every frame, three times.
+- Interpretation (consistent with the measurements, not confirmed in engine source): WebKit appears to compute these SVG filters on the CPU. Turning off only the SVG filters brought it straight back to 60fps.
+
+## Why was the CSS blur fast?
+
+- When an element with CSS `filter: blur()` is lifted onto a **compositing layer** with `will-change: filter`, the blur can be applied when layers are combined (Composite). When the polygon changes, only one flat polygon is repainted and the blur becomes the GPU's job.
+- `will-change` was the key. Moving to CSS blur without promoting the layer only reached 29fps.
+- Interpretation: WebKit on Apple platforms is known to hand CSS filters on composited layers to Core Animation filters. That matches the gap above.
+
+The look did not change. In the Filter Effects spec, the `r` in CSS `blur(r)` is the Gaussian's **standard deviation**, the same value as `feGaussianBlur`'s `stdDeviation`. Screenshots before and after differed by at most 5–6 per channel.
+
+```tsx
+// Before: a filter on each polygon inside the SVG (blurred at paint)
+<svg>
+  <filter id="soft"><feGaussianBlur stdDeviation={blur} /></filter>
+  <polygon points={points} filter="url(#soft)" />
+</svg>
+
+// After: one layer per blur amount, CSS blur on the whole layer (blurred at composite)
+<svg className="blur-layer" style={{ filter: `blur(${blur}px)` }}>
+  <polygon points={points} />
+</svg>
+```
+
+```css
+.blur-layer {
+  position: absolute;
+  inset: 0;
+  will-change: filter;
+}
+```
+
+## Does an invisible effect still cost anything?
+
+It does. On a phone the highlight always sat at opacity 0, and turning off just that took 26fps to 52fps. `opacity: 0` means "paint it invisibly", not "do not paint it". It now becomes `display: block` only when it is on, and the fade is kept with `@starting-style` and `transition: display … allow-discrete`.
+
+## Checklist for next time
+
+1. Do not put SVG filters (`feGaussianBlur`, `feDropShadow`) on elements whose shape changes every frame. Blur with a per-layer CSS `filter` and promote the layer with `will-change`.
+2. Split layers for different blur amounts. A CSS `filter` applies to the whole layer.
+3. Keep switched-off effects at `display: none`, not `opacity: 0`.
+4. Find the cause by switching features off one at a time. Headless Chromium rasterizes in software, so GPU-side cost comparisons were noisy there. For paint cost, the WebKit measurement was more honest.
+5. A real device check comes last. The numbers here are WebKit measurements on a desktop; real iPhone results will be added once checked.
+
+## Related notes
+
+- [[browser-rendering-pipeline|Browser Rendering Pipeline]]: where Paint and Composite split
+- [[frontend-browser|How Browsers Work]]
+
+## References
+
+- [Filter Effects Module Level 1: blur()](https://drafts.fxtf.org/filter-effects/#funcdef-filter-blur)
+- [MDN: will-change](https://developer.mozilla.org/en-US/docs/Web/CSS/will-change)
+- [MDN: @starting-style](https://developer.mozilla.org/en-US/docs/Web/CSS/@starting-style)

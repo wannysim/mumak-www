@@ -1,7 +1,7 @@
 ---
 title: '브라우저 렌더링 파이프라인'
 created: '2026-02-06'
-updated: '2026-05-19'
+updated: '2026-11-19'
 status: 'budding'
 parent: 'frontend-browser'
 tags: ['browser', 'performance', 'frontend', 'rendering']
@@ -102,6 +102,7 @@ DOM + CSSOM을 결합하여 **실제로 화면에 그려질 요소**만 포함�
 2. **강제 동기 레이아웃 피하기**: 스타일 변경 후 즉시 레이아웃 속성 읽지 않기
 3. **will-change 활용**: 브라우저에게 변경 예정 힌트 제공
 4. **transform으로 애니메이션**: GPU 가속 활용
+5. **흐림·그림자도 어느 단계인지 본다**: 매 프레임 모양이 바뀌는 요소의 SVG 블러는 Paint에서 다시 계산된다. 흐림을 합성 레이어의 CSS `filter`로 옮기면 Composite 단계 몫이 된다. 아이폰에서 16–26fps가 60fps가 된 실제 사례는 [[svg-filter-blur-on-safari|SVG 블러는 왜 아이폰에서 끊겼나]]
 
 ## 참고
 

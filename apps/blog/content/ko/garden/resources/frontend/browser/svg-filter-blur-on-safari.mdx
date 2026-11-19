@@ -1,0 +1,97 @@
+---
+title: 'SVG 블러는 왜 아이폰에서 끊겼나: 페인트에서 흐리기와 합성에서 흐리기'
+created: '2026-11-19'
+status: 'seedling'
+parent: 'frontend-browser'
+tags: ['browser', 'performance', 'rendering', 'safari', 'svg']
+---
+
+> 한 줄 요약: **매 프레임 모양이 바뀌는 다각형을 SVG `feGaussianBlur`로 흐리면, Safari(WebKit)는 그때마다 흐림을 처음부터 다시 계산한다. 같은 흐림을 CSS `filter: blur()`로 옮기고 `will-change: filter`로 합성 레이어에 올리자 16–26fps가 60fps가 됐다. 흐림 정도는 같은 표준편차라 모양은 그대로였다.**
+
+[[browser-rendering-pipeline|브라우저 렌더링 파이프라인]]에서 "애니메이션에는 `transform`과 `opacity`만"이라는 규칙을 봤다면, 이 노트는 그 규칙이 흐림(blur)과 그림자에서 어떻게 드러나는지에 대한 실제 사례다.
+
+## 무슨 일이 있었나
+
+개인 홈페이지로 만들고 있는 3D 포토북은 첫 화면에 닫힌 책이 있고, 끌거나 화살표 키로 자유롭게 돌린다. 책 아래에는 바닥 그림자가 있는데, 지금 시각의 해 위치와 책 자세를 따라 모양이 바뀐다.
+
+- 그림자는 책 꼭짓점을 바닥에 투영한 다각형이다. 책이 돌면 **매 프레임 다각형 좌표가 바뀐다.**
+- 부드러운 가장자리를 위해 다각형 세 겹(진한 해 그림자, 넓게 번진 해 그림자, 책이 닿은 자리의 접지 그림자)을 각각 SVG `feGaussianBlur`로 흐렸다.
+- 책에 마우스를 올리면 둘레가 빛나는 하이라이트도 같은 방식(흐린 다각형 두 겹)으로 그렸다.
+
+데스크톱에서는 괜찮았는데, 아이폰에서 닫힌 책을 돌리면 눈에 띄게 끊겼다.
+
+## 원인은 어떻게 찾았나
+
+추측 대신 **하나씩 꺼 보며 쟀다.** 폰 크기(390×844, DPR 3)의 WebKit에서 책을 3초 동안 계속 돌리며 `requestAnimationFrame` 간격을 모았다. 측정은 데스크톱 Mac의 Playwright WebKit이라 실제 아이폰보다 여유가 있는 환경이다.
+
+| 상태                                    | 평균 fps | 느린 프레임(p95) |
+| --------------------------------------- | -------- | ---------------- |
+| 그대로                                  | 16–26    | 47–145ms         |
+| SVG 블러 필터만 끔                      | 58–60    | 18ms             |
+| 하이라이트만 끔(투명도 0이던 것)        | 52–54    | 30–33ms          |
+| CSS `blur()`로 옮김(`will-change` 없음) | 29       | 50ms             |
+| CSS `blur()` + `will-change: filter`    | 58       | 18ms             |
+| 고친 뒤                                 | 59–60    | 18ms             |
+| 그림자를 아예 끔(바닥값)                | 60       | 18ms             |
+
+같은 회전을 Chromium에서 CPU를 4배 느리게 해서 재 보니 자바스크립트(React 렌더)·스타일·레이아웃은 프레임당 다 합쳐 3–5ms였다. **메인 스레드 계산은 범인이 아니었다.**
+
+## 왜 SVG 블러는 느렸나
+
+[[browser-rendering-pipeline|렌더링 파이프라인]]으로 보면, 흐림을 **어느 단계에서 하느냐**의 차이다.
+
+- SVG 필터는 SVG 내용을 **그리는(Paint) 단계**의 일부다. 필터 결과는 원본 모양에 묶여 있어서, 다각형 좌표가 바뀌면 이전 결과를 버리고 다시 래스터화한 뒤 흐린다.
+- 표준편차가 책 높이의 5%면 폰에서 수십 기기 픽셀짜리 커널이 된다. 이걸 그림자 영역 전체에, 매 프레임, 세 겹 계산한다.
+- 해석(측정과 부합하지만 엔진 소스로 확인하지는 않았다): WebKit은 이 SVG 필터를 CPU로 계산하는 것으로 보인다. SVG 필터만 끄면 바로 60fps로 돌아왔다.
+
+## 왜 CSS 블러는 빨랐나
+
+- CSS `filter: blur()`가 걸린 요소를 `will-change: filter`로 **합성 레이어**에 올리면, 흐림은 레이어를 합칠 때(Composite) 적용할 수 있다. 다각형이 바뀌어도 다시 그리는 건 단색 다각형 하나뿐이고, 흐림은 GPU 몫이 된다.
+- `will-change`가 핵심이었다. CSS 블러로 옮기기만 하고 레이어로 올리지 않았을 때는 29fps에 그쳤다.
+- 해석: Apple 플랫폼의 WebKit은 합성 레이어의 CSS 필터를 Core Animation 필터로 넘기는 것으로 알려져 있다. 위 측정의 차이와 맞는다.
+
+모양은 바뀌지 않았다. Filter Effects 명세에서 CSS `blur(r)`의 `r`은 가우시안의 **표준편차**라 `feGaussianBlur`의 `stdDeviation`과 같은 값이다. 고치기 전후 스크린샷의 픽셀 차이는 채널당 최대 5–6이었다.
+
+```tsx
+// 전: SVG 안에서 다각형마다 필터를 건다(Paint 단계에서 흐림)
+<svg>
+  <filter id="soft"><feGaussianBlur stdDeviation={blur} /></filter>
+  <polygon points={points} filter="url(#soft)" />
+</svg>
+
+// 후: 흐림마다 레이어 하나, 레이어 전체에 CSS blur(합성 단계에서 흐림)
+<svg className="blur-layer" style={{ filter: `blur(${blur}px)` }}>
+  <polygon points={points} />
+</svg>
+```
+
+```css
+.blur-layer {
+  position: absolute;
+  inset: 0;
+  will-change: filter;
+}
+```
+
+## 안 보이는 효과도 비용이 드나
+
+든다. 하이라이트는 폰에서 늘 투명도 0이었는데, 그것만 꺼도 26fps가 52fps로 올랐다. `opacity: 0`은 "보이지 않게 칠한다"이지 "그리지 않는다"가 아니다. 켜질 때만 `display: block`이 되게 바꾸고, 페이드는 `@starting-style`과 `transition: display … allow-discrete`로 살렸다.
+
+## 다음에 쓸 체크리스트
+
+1. 매 프레임 모양이 바뀌는 요소에 SVG 필터(`feGaussianBlur`, `feDropShadow`)를 걸지 않는다. 흐림은 레이어 단위 CSS `filter`로, 레이어는 `will-change`로 올린다.
+2. 흐림 정도가 다른 겹은 레이어를 나눈다. CSS `filter`는 레이어 전체에 하나만 걸린다.
+3. 꺼진 효과는 `opacity: 0`이 아니라 `display: none`으로 둔다.
+4. 원인은 기능을 하나씩 끄며 잰다. 헤드리스 Chromium은 래스터를 소프트웨어로 해서 GPU 쪽 비용 비교가 흔들렸다. 그리기 비용은 WebKit 쪽 측정이 더 정직했다.
+5. 실기기 확인이 마지막이다. 이 노트의 숫자는 데스크톱의 WebKit 측정이고, 아이폰 실기기 결과는 확인 뒤 덧붙인다.
+
+## 관련 노트
+
+- [[browser-rendering-pipeline|브라우저 렌더링 파이프라인]]: Paint와 Composite가 갈리는 지점
+- [[frontend-browser|브라우저 동작 원리]]
+
+## 참고
+
+- [Filter Effects Module Level 1: blur()](https://drafts.fxtf.org/filter-effects/#funcdef-filter-blur)
+- [MDN: will-change](https://developer.mozilla.org/en-US/docs/Web/CSS/will-change)
+- [MDN: @starting-style](https://developer.mozilla.org/en-US/docs/Web/CSS/@starting-style)
