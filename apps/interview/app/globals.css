@@ -1,4 +1,4 @@
-:root {
+:root:not(.dark) {
   --background: #f4f7fb;
   --foreground: #172b4d;
   --primary: #375beb;
@@ -11,17 +11,64 @@
   --muted: #edf1f8;
   --muted-foreground: #61718a;
   --border: #dce3ef;
-  --input: #cbd5e5;
+  --input: #7b899e;
   --ring: #375beb;
   --accent: #e8edff;
   --accent-foreground: #2446cb;
-  --radius: 0.8rem;
+  --sidebar: #f9fbfe;
+  --sidebar-accent: #e6edfc;
+  --destructive-foreground: #991b1b;
 }
+
+:root {
+  --radius: 0.8rem;
+  --panel: #172b4d;
+  --panel-foreground: #fff;
+  --panel-muted: #c3cee1;
+  --panel-accent: #f3b760;
+  --panel-header: #203655;
+  --panel-ring: #aabaff;
+  --success: #e7f1ec;
+  --success-foreground: #386e54;
+  --warning: #fff2da;
+  --warning-foreground: #845316;
+  --error-surface: #fef2f2;
+}
+
+.dark {
+  --background: #101827;
+  --card: #172235;
+  --primary: #aabaff;
+  --primary-foreground: #14234d;
+  --button-background: var(--primary);
+  --button-foreground: var(--primary-foreground);
+  --button-hover: #c0ccff;
+  --secondary: #202d43;
+  --muted: var(--secondary);
+  --accent: #24345c;
+  --accent-foreground: #c4d1ff;
+  --border: #344158;
+  --input: #7186a4;
+  --ring: var(--primary);
+  --sidebar: #142033;
+  --sidebar-accent: var(--accent);
+  --panel: #0c1422;
+  --panel-header: #1b2840;
+  --success: #18382d;
+  --success-foreground: #a2ddbe;
+  --warning: #392c1a;
+  --warning-foreground: #f3c77e;
+  --destructive-foreground: #ff9b9b;
+  --error-surface: #43252d;
+}
+
 html {
-  scroll-padding-bottom: 7rem;
+  background: var(--background);
+  scroll-padding-bottom: calc(7rem + env(safe-area-inset-bottom));
 }
 body {
   min-width: 320px;
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
 button,
 a,
@@ -33,12 +80,20 @@ select {
 button:not(:disabled) {
   cursor: pointer;
 }
+button,
+summary {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+summary {
+  padding-block: 0.75rem;
+}
 textarea {
   resize: vertical;
 }
 ::selection {
-  background: #c7d2ff;
-  color: #172b4d;
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 @media (prefers-reduced-motion: reduce) {
   *,

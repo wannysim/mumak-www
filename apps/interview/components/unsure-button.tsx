@@ -16,7 +16,7 @@ export function UnsureButton({
       variant="outline"
       onClick={onClick}
       disabled={disabled}
-      className="h-12 rounded-xl border-primary/50 bg-[#e8edff] px-3 font-semibold text-primary hover:bg-[#dce5ff] hover:text-primary"
+      className="h-12 rounded-xl border-primary/50 bg-accent px-3 font-semibold text-primary hover:bg-secondary hover:text-primary"
     >
       <CircleHelp aria-hidden className="size-4" />
       {showSolution ? '잘 모르겠어요 · 풀이 보기' : '잘 모르겠어요'}

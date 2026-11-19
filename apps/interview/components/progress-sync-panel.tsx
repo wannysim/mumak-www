@@ -30,7 +30,7 @@ export function ProgressSyncPanel({
         </button>
       </div>
       {conflict && (
-        <section className="mb-6 rounded-2xl border bg-white p-5">
+        <section className="mb-6 rounded-2xl border bg-card p-5">
           <h2 className="font-bold">어떤 기록으로 이어갈까요?</h2>
           <p className="mt-2 text-sm leading-6">
             {unreadableLocal
