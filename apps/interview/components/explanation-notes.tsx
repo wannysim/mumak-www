@@ -5,7 +5,7 @@ import { saveProgress } from '@/lib/progress-store';
 export function ExplanationNotes({ problem, progress }: { problem: CodeProblem; progress: Progress }) {
   const key = `${problem.id}:plan`;
   return (
-    <section className="mt-7 rounded-2xl border bg-white p-5 sm:p-6" aria-label="설명 연습">
+    <section className="mt-7 rounded-2xl border bg-card p-5 sm:p-6" aria-label="설명 연습">
       <h2 className="text-base font-bold">먼저 설명하고, 그다음 구현하기</h2>
       <p className="mt-2 text-xs leading-6 text-muted-foreground">
         이동 중에는 한 단계만 말로 풀어봐요. 5분: 요구사항 · 10분: 예시 추적 · 15분: 구현 계획. 전체 구현은 약{' '}
@@ -29,7 +29,7 @@ export function ExplanationNotes({ problem, progress }: { problem: CodeProblem; 
         maxLength={6000}
         onChange={event => saveProgress(p => ({ ...p, notes: { ...p.notes, [key]: event.target.value } }))}
         placeholder="먼저 확인할 조건과 그림을 나의 말로…"
-        className="mt-3 min-h-40 w-full resize-y rounded-xl border bg-background p-4 font-mono text-base leading-7 sm:text-sm"
+        className="mt-3 min-h-40 w-full resize-y rounded-xl border border-input bg-background p-4 font-mono text-base leading-7 sm:text-sm"
       />
       {problem.diagram && (
         <details className="mt-4">

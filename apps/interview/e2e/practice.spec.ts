@@ -66,6 +66,61 @@ test('quiz, review, timer and notes survive reload; layout fits the viewport', a
   await expect(page.getByLabel('01문제와 맥락')).toHaveValue('사용자가 입력한 값이 저장 과정에서 사라졌다.');
 });
 
+test('320px layout keeps controls reachable and shows keyboard focus in search', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await login(page);
+  const duration = page.getByRole('group', { name: '오늘은 얼마나 이동하나요?' });
+  const groupBounds = await duration.boundingBox();
+  const availableBounds = await duration.locator('..').boundingBox();
+  expect.soft(groupBounds!.width).toBeLessThanOrEqual(availableBounds!.width);
+  expect.soft(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+
+  await tab(page, '문제');
+  const recommendation = page.getByText('추천 순서 · 윈도우와 연결 리스트 집중 훈련', { exact: true });
+  expect.soft((await recommendation.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  const search = page.getByRole('textbox', { name: '문제 검색' });
+  await search.focus();
+  await expect(search).toBeFocused();
+  await expect.soft(search.locator('..')).toHaveCSS('outline-style', 'solid', { timeout: 1000 });
+});
+
+test('system color scheme updates the app surfaces and matching browser theme color', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 740 });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await login(page);
+
+  const html = page.locator('html');
+  const dock = page.getByRole('navigation', { name: '모바일 주요 메뉴' }).locator('..');
+  await expect(html).toHaveClass('dark');
+  await expect(html).toHaveCSS('background-color', 'rgb(16, 24, 39)');
+  await expect(dock).toHaveCSS('background-color', 'rgb(16, 24, 39)');
+
+  await tab(page, '문제');
+  const search = page.getByRole('textbox', { name: '문제 검색' });
+  await expect(search.locator('..')).toHaveCSS('background-color', 'rgb(23, 34, 53)');
+
+  const activeThemeColor = () =>
+    page
+      .locator('meta[name="theme-color"]')
+      .evaluateAll(tags =>
+        tags.find(tag => matchMedia(tag.getAttribute('media') ?? '').matches)?.getAttribute('content')
+      );
+  expect(await activeThemeColor()).toBe('#101827');
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(html).toHaveClass('light');
+  await expect(html).toHaveCSS('background-color', 'rgb(244, 247, 251)');
+  await expect(dock).toHaveCSS('background-color', 'rgb(244, 247, 251)');
+  await expect(search).toBeVisible();
+  expect(await activeThemeColor()).toBe('#f4f7fb');
+
+  await page.getByRole('button', { name: /장바구니 합계 계산/ }).click();
+  const editor = page.getByRole('textbox', { name: 'JavaScript 코드' });
+  await expect(editor).toHaveCSS('background-color', 'rgb(23, 43, 77)');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(editor).toHaveCSS('background-color', 'rgb(12, 20, 34)');
+});
+
 test('real code execution, timeout, network isolation and subsequent recovery', async ({ page }) => {
   await login(page);
   await tab(page, '문제');

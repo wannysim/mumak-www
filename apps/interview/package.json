@@ -29,6 +29,7 @@
     "@mumak/ui": "workspace:*",
     "lucide-react": "^1.74.0",
     "next": "^16.4.6",
+    "next-themes": "^0.4.6",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
