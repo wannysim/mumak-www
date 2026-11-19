@@ -3,13 +3,11 @@ import * as React from 'react';
 
 import { mdxComponents } from '../mdx-components';
 
-import '@testing-library/jest-dom';
-
-jest.mock('@/src/shared/ui/image-zoom', () => ({
+vi.mock('@/src/shared/ui/image-zoom', () => ({
   ImageZoom: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
     <a data-i18n-link {...props}>
       {children}

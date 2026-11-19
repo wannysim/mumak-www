@@ -2,22 +2,18 @@ import { fireEvent, render, screen } from '@testing-library/react';
 
 import type { NowPlaying } from '@/src/entities/spotify';
 
-import '@testing-library/jest-dom';
-
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock('next/image', () => ({
-  __esModule: true,
+vi.mock('next/image', () => ({
   default: ({ src, alt, priority, fill }: { src: string; alt: string; priority?: boolean; fill?: boolean }) => (
     // oxlint-disable-next-line next/no-img-element
     <img src={src} alt={alt} data-priority={priority ? 'true' : 'false'} data-fill={fill ? 'true' : 'false'} />
   ),
 }));
 
-jest.mock('next/link', () => ({
-  __esModule: true,
+vi.mock('next/link', () => ({
   default: ({
     href,
     children,
@@ -49,7 +45,7 @@ const mockSongData: NowPlaying = {
 
 describe('SpotifyVinyl', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should render song information correctly', async () => {

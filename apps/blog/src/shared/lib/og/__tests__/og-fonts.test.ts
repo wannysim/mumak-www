@@ -2,11 +2,11 @@ import { readFile } from 'node:fs/promises';
 
 import { loadOgFonts } from '../og-fonts';
 
-jest.mock('node:fs/promises', () => ({
-  readFile: jest.fn(),
+vi.mock('node:fs/promises', () => ({
+  readFile: vi.fn(),
 }));
 
-const mockReadFile = jest.mocked(readFile);
+const mockReadFile = vi.mocked(readFile);
 
 describe('loadOgFonts', () => {
   beforeEach(() => {
@@ -14,7 +14,7 @@ describe('loadOgFonts', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('loads Pretendard font buffers for supported OG weights', async () => {

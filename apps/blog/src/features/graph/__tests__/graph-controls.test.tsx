@@ -4,8 +4,6 @@ import userEvent from '@testing-library/user-event';
 import type { GraphData } from '../model/types';
 import { GraphControls } from '../ui/graph-controls';
 
-import '@testing-library/jest-dom';
-
 const mockData: GraphData = {
   nodes: [
     { id: 'note:a', name: 'Note A', type: 'note', status: 'seedling', linkCount: 1, url: '/garden/a' },
@@ -42,10 +40,10 @@ describe('GraphControls', () => {
         data={mockData}
         activeTab="garden"
         searchQuery=""
-        onSearchChange={jest.fn()}
+        onSearchChange={vi.fn()}
         activeFilters={[]}
-        onFilterToggle={jest.fn()}
-        onClearFilters={jest.fn()}
+        onFilterToggle={vi.fn()}
+        onClearFilters={vi.fn()}
         labels={defaultLabels}
         optionLabels={defaultOptionLabels}
       />
@@ -55,7 +53,7 @@ describe('GraphControls', () => {
   });
 
   it('검색 입력 시 onSearchChange 콜백을 호출한다', async () => {
-    const handleSearch = jest.fn();
+    const handleSearch = vi.fn();
     const user = userEvent.setup();
 
     render(
@@ -65,8 +63,8 @@ describe('GraphControls', () => {
         searchQuery=""
         onSearchChange={handleSearch}
         activeFilters={[]}
-        onFilterToggle={jest.fn()}
-        onClearFilters={jest.fn()}
+        onFilterToggle={vi.fn()}
+        onClearFilters={vi.fn()}
         labels={defaultLabels}
         optionLabels={defaultOptionLabels}
       />
@@ -84,10 +82,10 @@ describe('GraphControls', () => {
         data={mockData}
         activeTab="garden"
         searchQuery=""
-        onSearchChange={jest.fn()}
+        onSearchChange={vi.fn()}
         activeFilters={[]}
-        onFilterToggle={jest.fn()}
-        onClearFilters={jest.fn()}
+        onFilterToggle={vi.fn()}
+        onClearFilters={vi.fn()}
         labels={defaultLabels}
         optionLabels={defaultOptionLabels}
       />
@@ -103,10 +101,10 @@ describe('GraphControls', () => {
         data={mockData}
         activeTab="garden"
         searchQuery=""
-        onSearchChange={jest.fn()}
+        onSearchChange={vi.fn()}
         activeFilters={['status:seedling', 'tag:react']}
-        onFilterToggle={jest.fn()}
-        onClearFilters={jest.fn()}
+        onFilterToggle={vi.fn()}
+        onClearFilters={vi.fn()}
         labels={defaultLabels}
         optionLabels={defaultOptionLabels}
       />
@@ -118,7 +116,7 @@ describe('GraphControls', () => {
   });
 
   it('활성 필터 뱃지 클릭 시 onFilterToggle을 호출한다', async () => {
-    const handleToggle = jest.fn();
+    const handleToggle = vi.fn();
     const user = userEvent.setup();
 
     render(
@@ -126,10 +124,10 @@ describe('GraphControls', () => {
         data={mockData}
         activeTab="garden"
         searchQuery=""
-        onSearchChange={jest.fn()}
+        onSearchChange={vi.fn()}
         activeFilters={['status:seedling']}
         onFilterToggle={handleToggle}
-        onClearFilters={jest.fn()}
+        onClearFilters={vi.fn()}
         labels={defaultLabels}
         optionLabels={defaultOptionLabels}
       />
@@ -140,7 +138,7 @@ describe('GraphControls', () => {
   });
 
   it('clear 버튼 클릭 시 onClearFilters를 호출한다 (활성 필터가 있을 때만)', async () => {
-    const handleClear = jest.fn();
+    const handleClear = vi.fn();
     const user = userEvent.setup();
 
     const { rerender } = render(
@@ -148,9 +146,9 @@ describe('GraphControls', () => {
         data={mockData}
         activeTab="garden"
         searchQuery=""
-        onSearchChange={jest.fn()}
+        onSearchChange={vi.fn()}
         activeFilters={[]}
-        onFilterToggle={jest.fn()}
+        onFilterToggle={vi.fn()}
         onClearFilters={handleClear}
         labels={defaultLabels}
         optionLabels={defaultOptionLabels}
@@ -164,9 +162,9 @@ describe('GraphControls', () => {
         data={mockData}
         activeTab="garden"
         searchQuery=""
-        onSearchChange={jest.fn()}
+        onSearchChange={vi.fn()}
         activeFilters={['status:seedling']}
-        onFilterToggle={jest.fn()}
+        onFilterToggle={vi.fn()}
         onClearFilters={handleClear}
         labels={defaultLabels}
         optionLabels={defaultOptionLabels}
@@ -193,7 +191,7 @@ describe('GraphControls', () => {
       ],
       links: [],
     };
-    const handleToggle = jest.fn();
+    const handleToggle = vi.fn();
     const user = userEvent.setup();
 
     render(
@@ -201,10 +199,10 @@ describe('GraphControls', () => {
         data={blogData}
         activeTab="blog"
         searchQuery=""
-        onSearchChange={jest.fn()}
+        onSearchChange={vi.fn()}
         activeFilters={[]}
         onFilterToggle={handleToggle}
-        onClearFilters={jest.fn()}
+        onClearFilters={vi.fn()}
         labels={defaultLabels}
         optionLabels={defaultOptionLabels}
       />
@@ -223,7 +221,7 @@ describe('GraphControls', () => {
   });
 
   it('필터 옵션 선택 시 onFilterToggle을 호출한다', async () => {
-    const handleToggle = jest.fn();
+    const handleToggle = vi.fn();
     const user = userEvent.setup();
 
     render(
@@ -231,10 +229,10 @@ describe('GraphControls', () => {
         data={mockData}
         activeTab="garden"
         searchQuery=""
-        onSearchChange={jest.fn()}
+        onSearchChange={vi.fn()}
         activeFilters={[]}
         onFilterToggle={handleToggle}
-        onClearFilters={jest.fn()}
+        onClearFilters={vi.fn()}
         labels={defaultLabels}
         optionLabels={defaultOptionLabels}
       />
@@ -254,10 +252,10 @@ describe('GraphControls', () => {
         data={mockData}
         activeTab="garden"
         searchQuery=""
-        onSearchChange={jest.fn()}
+        onSearchChange={vi.fn()}
         activeFilters={['tag:react']}
-        onFilterToggle={jest.fn()}
-        onClearFilters={jest.fn()}
+        onFilterToggle={vi.fn()}
+        onClearFilters={vi.fn()}
         labels={defaultLabels}
         optionLabels={defaultOptionLabels}
       />

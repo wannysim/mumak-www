@@ -1,15 +1,15 @@
 import { getBlogNavCounts } from '../lib/get-blog-nav-counts';
 
-const mockGetPosts = jest.fn();
-const mockGetCategories = jest.fn();
-const mockGetAllTags = jest.fn();
+const mockGetPosts = vi.fn();
+const mockGetCategories = vi.fn();
+const mockGetAllTags = vi.fn();
 
-jest.mock('@/src/entities/post', () => ({
+vi.mock('@/src/entities/post', () => ({
   getCategories: () => mockGetCategories(),
   getPosts: (locale: string) => mockGetPosts(locale),
 }));
 
-jest.mock('@/src/entities/tag', () => ({
+vi.mock('@/src/entities/tag', () => ({
   getAllTags: (locale: string) => mockGetAllTags(locale),
 }));
 
@@ -26,7 +26,7 @@ describe('getBlogNavCounts', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('counts all posts, categories, and tags for the locale', () => {

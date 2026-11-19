@@ -3,12 +3,10 @@ import userEvent from '@testing-library/user-event';
 
 import { GraphTabs } from '../ui/graph-tabs';
 
-import '@testing-library/jest-dom';
-
-const mockReplace = jest.fn();
+const mockReplace = vi.fn();
 const mockSearchParams = new URLSearchParams();
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mockReplace }),
   useSearchParams: () => mockSearchParams,
 }));
@@ -17,7 +15,7 @@ const labels = { garden: 'Garden', blog: 'Blog' };
 
 describe('GraphTabs', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('Garden과 Blog 탭을 렌더링한다', () => {

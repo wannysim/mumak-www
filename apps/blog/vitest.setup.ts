@@ -1,24 +1,26 @@
-import '@testing-library/jest-dom';
+import { createElement } from 'react';
+
+import '@testing-library/jest-dom/vitest';
 
 // Mock next/server
-jest.mock('next/server', () => {
-  const actualModule = jest.requireActual('next/server');
+vi.mock('next/server', async importOriginal => {
+  const actualModule = await importOriginal<typeof import('next/server')>();
   return {
     ...actualModule,
-    connection: jest.fn().mockResolvedValue(undefined),
+    connection: vi.fn().mockResolvedValue(undefined),
   };
 });
 
 // Mock Next.js router
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter() {
     return {
-      push: jest.fn(),
-      replace: jest.fn(),
-      prefetch: jest.fn(),
-      back: jest.fn(),
-      forward: jest.fn(),
-      refresh: jest.fn(),
+      push: vi.fn(),
+      replace: vi.fn(),
+      prefetch: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
     };
   },
   useSearchParams() {
@@ -28,24 +30,18 @@ jest.mock('next/navigation', () => ({
     return '/';
   },
   // 실제 구현은 SSR 스트림에서만 콜백을 실행하므로 클라이언트(jsdom)에서는 no-op
-  useServerInsertedHTML: jest.fn(),
+  useServerInsertedHTML: vi.fn(),
 }));
 
 // Mock Next.js image component
-jest.mock('next/image', () => ({
-  __esModule: true,
-  default: (props: React.ComponentPropsWithoutRef<'img'>) => {
-    // Return a simple div instead of JSX
-    return {
-      type: 'div',
-      props: { ...props, 'data-testid': 'next-image' },
-    };
-  },
+vi.mock('next/image', () => ({
+  default: (props: React.ComponentPropsWithoutRef<'img'>) =>
+    createElement('div', { ...props, 'data-testid': 'next-image' }),
 }));
 
 // Mock next-intl/server
-jest.mock('next-intl/server', () => ({
-  getTranslations: jest.fn(({ locale, namespace }: { locale: string; namespace?: string }) => {
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(({ locale, namespace }: { locale: string; namespace?: string }) => {
     const messages: Record<string, Record<string, Record<string, string> | string>> = {
       ko: {
         feed: {
@@ -76,23 +72,27 @@ jest.mock('next-intl/server', () => ({
       return key;
     });
   }),
-  getLocale: jest.fn(() => Promise.resolve('ko')),
-  setRequestLocale: jest.fn(),
+  getLocale: vi.fn(() => Promise.resolve('ko')),
+  setRequestLocale: vi.fn(),
 }));
 
-// Global test utilities
-global.ResizeObserver = jest.fn().mockImplementation(() => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn(),
-}));
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+  }
+);
 
-// Mock IntersectionObserver
-global.IntersectionObserver = jest.fn().mockImplementation(() => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn(),
-}));
+vi.stubGlobal(
+  'IntersectionObserver',
+  class {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+  }
+);
 
 // jsdom does not implement HTMLCanvasElement.getContext, so any code that
 // probes for WebGL/2D context (graph-canvas WebGL detection, etc.) leaks a
@@ -100,11 +100,11 @@ global.IntersectionObserver = jest.fn().mockImplementation(() => ({
 // production fallback path execute cleanly. Some test suites (RSS feed
 // generation, etc.) run in node — guard so we don't ReferenceError there.
 if (typeof HTMLCanvasElement !== 'undefined') {
-  HTMLCanvasElement.prototype.getContext = jest.fn(() => null) as unknown as HTMLCanvasElement['getContext'];
+  HTMLCanvasElement.prototype.getContext = vi.fn(() => null) as unknown as HTMLCanvasElement['getContext'];
 }
 
 // jsdom does not implement Element.scrollIntoView either; cmdk's CommandItem
 // uses it on the highlighted option to keep it visible.
 if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
-  Element.prototype.scrollIntoView = jest.fn();
+  Element.prototype.scrollIntoView = vi.fn();
 }

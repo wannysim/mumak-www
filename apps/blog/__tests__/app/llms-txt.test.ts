@@ -1,5 +1,5 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 import { buildLlmsTxt } from '@/src/app/seo';
 import { getNotes } from '@/src/entities/note';

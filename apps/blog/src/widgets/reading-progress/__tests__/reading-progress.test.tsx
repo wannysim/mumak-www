@@ -2,15 +2,13 @@ import { render, screen } from '@testing-library/react';
 
 import { ReadingProgress } from '../ui/reading-progress';
 
-import '@testing-library/jest-dom';
-
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-const mockUseScrollProgress = jest.fn(() => 0);
+const mockUseScrollProgress = vi.fn(() => 0);
 
-jest.mock('@/src/shared/hooks', () => ({
+vi.mock('@/src/shared/hooks', () => ({
   useScrollProgress: () => mockUseScrollProgress(),
 }));
 

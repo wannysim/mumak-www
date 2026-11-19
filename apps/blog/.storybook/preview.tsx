@@ -38,6 +38,7 @@ const preview: Preview = {
     layout: 'fullscreen',
     options: { storySort: { order: ['Start', 'Foundations', 'Components', 'Learning'] } },
     nextjs: { appDirectory: true, navigation: { pathname: '/ko/blog' } },
+    // 비교 실습의 의도적인 위반도 표시한다. 포커스와 필수 axe 검증은 Playwright 스펙에서 실행한다.
     a11y: { test: 'todo' },
   },
   decorators: [

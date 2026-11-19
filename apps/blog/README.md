@@ -21,7 +21,7 @@ Next.js App Router + TypeScript + next-intl로 구성된 다국어 MDX 블로그
 | Frontmatter | gray-matter                           |
 | Styling     | Tailwind CSS, @tailwindcss/typography |
 | UI          | @mumak/ui (shadcn/ui 기반)            |
-| Unit Test   | Jest + React Testing Library          |
+| Unit Test   | Vitest + React Testing Library        |
 | E2E Test    | Playwright                            |
 
 ## 개발 환경
@@ -64,6 +64,15 @@ pnpm test
 pnpm test:coverage
 pnpm test:ci
 
+# 빌드 산출물 검증
+pnpm build
+pnpm test:static
+
+# Storybook (Chromium 설치 후)
+pnpm exec playwright install chromium
+pnpm test:storybook:vitest
+pnpm test:storybook
+
 # E2E 테스트
 pnpm test:e2e
 pnpm test:e2e:ui
@@ -74,6 +83,8 @@ pnpm test:e2e:debug
 pnpm validate:content
 pnpm validate:garden
 ```
+
+Storybook Vitest는 Chromium에서 스토리를 렌더링하고 접근성 위반을 기록합니다. 기존 Playwright 스펙은 키보드·포커스·대비와 지정한 axe 시나리오를 검증합니다.
 
 루트에서 특정 앱만 검증하려면 filter를 사용합니다.
 

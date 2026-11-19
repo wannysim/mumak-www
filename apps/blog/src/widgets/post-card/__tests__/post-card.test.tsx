@@ -4,11 +4,9 @@ import type { PostMeta } from '@/src/entities/post';
 
 import { PostCard } from '../ui/post-card';
 
-import '@testing-library/jest-dom';
-
 // Mock next-intl/server
-jest.mock('next-intl/server', () => ({
-  getTranslations: jest.fn(async () => (key: string, values?: Record<string, number>) => {
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => (key: string, values?: Record<string, number>) => {
     const translations: Record<string, string> = {
       readingTimeUnit: '분',
       readMore: '더 읽기',
@@ -19,7 +17,7 @@ jest.mock('next-intl/server', () => ({
 }));
 
 // Mock next/link
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className}>
       {children}
@@ -28,7 +26,7 @@ jest.mock('@/src/shared/config/i18n', () => ({
 }));
 
 // Mock date formatting
-jest.mock('@/src/shared/lib/date', () => ({
+vi.mock('@/src/shared/lib/date', () => ({
   formatDateForLocale: (date: string) => ({
     text: '2024년 1월 1일',
     dateTime: date,
@@ -36,7 +34,7 @@ jest.mock('@/src/shared/lib/date', () => ({
 }));
 
 // Mock Badge component
-jest.mock('@mumak/ui/components/badge', () => ({
+vi.mock('@mumak/ui/components/badge', () => ({
   Badge: ({ children, variant }: { children: React.ReactNode; variant?: string }) => (
     <span data-testid="badge" data-variant={variant}>
       {children}

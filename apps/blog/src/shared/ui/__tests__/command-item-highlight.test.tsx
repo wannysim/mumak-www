@@ -2,8 +2,6 @@ import { render } from '@testing-library/react';
 
 import { Command, CommandItem, CommandList } from '@mumak/ui/components/command';
 
-import '@testing-library/jest-dom';
-
 // cmdk 1.1.1은 모든 아이템에 data-selected를 항상 붙인다("true"/"false").
 // 그래서 하이라이트 스타일은 반드시 값 지정 변형(data-[selected=true]:)이어야 한다.
 // presence 변형(data-selected:)을 쓰면 [data-selected]가 "false" 아이템까지 매칭해

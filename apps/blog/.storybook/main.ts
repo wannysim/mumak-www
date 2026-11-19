@@ -6,7 +6,7 @@ const config: StorybookConfig = {
   // Playwright owns axe scans in browser tests; the addon would start a competing run.
   // This flag is supplied by Playwright, outside cached Turbo tasks.
   // oxlint-disable-next-line turbo/no-undeclared-env-vars
-  addons: process.env.STORYBOOK_BROWSER_TEST === '1' ? [] : ['@storybook/addon-a11y'],
+  addons: process.env.STORYBOOK_BROWSER_TEST === '1' ? [] : ['@storybook/addon-a11y', '@storybook/addon-vitest'],
   framework: '@storybook/nextjs-vite',
   core: { disableTelemetry: true },
   viteFinal: config =>

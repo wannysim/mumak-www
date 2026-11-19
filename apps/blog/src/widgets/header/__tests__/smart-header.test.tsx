@@ -2,11 +2,9 @@ import { render, screen } from '@testing-library/react';
 
 import { HeaderSpacer, SmartHeader } from '../ui/smart-header';
 
-import '@testing-library/jest-dom';
-
 // Mock useScrollDirection hook
-const mockUseScrollDirection = jest.fn();
-jest.mock('@/src/shared/hooks', () => ({
+const mockUseScrollDirection = vi.fn();
+vi.mock('@/src/shared/hooks', () => ({
   useScrollDirection: () => mockUseScrollDirection(),
 }));
 
@@ -19,7 +17,7 @@ describe('SmartHeader', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Rendering', () => {

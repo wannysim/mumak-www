@@ -3,21 +3,19 @@ import userEvent from '@testing-library/user-event';
 
 import { ThemeSwitcher } from '../ui/theme-switcher';
 
-import '@testing-library/jest-dom';
-
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-const setTheme = jest.fn();
+const setTheme = vi.fn();
 const mockThemeState = {
   theme: 'system',
   resolvedTheme: 'light',
   setTheme,
 };
 
-jest.mock('next-themes', () => ({
-  useTheme: jest.fn(() => mockThemeState),
+vi.mock('next-themes', () => ({
+  useTheme: vi.fn(() => mockThemeState),
 }));
 
 describe('ThemeSwitcher', () => {

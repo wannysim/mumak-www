@@ -1,11 +1,12 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 import type { NextResponse } from 'next/server';
+import type { MockInstance } from 'vitest';
 
-const mockGet = jest.fn();
+const mockGet = vi.fn();
 
-jest.mock('next/headers', () => ({
+vi.mock('next/headers', () => ({
   cookies: async () => ({ get: mockGet }),
 }));
 
@@ -28,16 +29,16 @@ const STORED_STATE = 'stored-state-token';
 
 describe('GET /api/spotify/callback', () => {
   const originalEnv = process.env;
-  let fetchSpy: jest.SpyInstance;
-  let errorSpy: jest.SpyInstance;
+  let fetchSpy: MockInstance;
+  let errorSpy: MockInstance;
 
   beforeEach(() => {
-    jest.resetModules();
+    vi.resetModules();
     mockGet.mockReset();
     process.env = { ...originalEnv };
-    fetchSpy = jest.spyOn(global, 'fetch');
+    fetchSpy = vi.spyOn(global, 'fetch');
     // 토큰 실패/예외 경로는 의도적으로 console.error를 호출한다 — 테스트 로그를 더럽히지 않도록 stub하고 호출만 검증한다.
-    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {

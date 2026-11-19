@@ -1,24 +1,24 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 import type { NoteMeta } from '@/src/entities/note';
 import type { PostMeta } from '@/src/entities/post';
 import type { SearchIndex } from '@/src/shared/lib/search';
 
-const mockGetPosts = jest.fn<PostMeta[], [string]>();
-const mockGetNotes = jest.fn<NoteMeta[], [string]>();
+const mockGetPosts = vi.fn<(locale: string) => PostMeta[]>();
+const mockGetNotes = vi.fn<(locale: string) => NoteMeta[]>();
 
-jest.mock('@/src/entities/post', () => ({
+vi.mock('@/src/entities/post', () => ({
   getPosts: (locale: string) => mockGetPosts(locale),
 }));
 
-jest.mock('@/src/entities/note', () => ({
+vi.mock('@/src/entities/note', () => ({
   getNotes: (locale: string) => mockGetNotes(locale),
 }));
 
 // i18n 배럴은 next-intl 클라이언트 네비게이션(ESM)을 끌고 와 node 테스트 환경에서 transform되지
 // 않는다. route가 쓰는 값만 가볍게 모킹한다.
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   locales: ['ko', 'en'],
   isValidLocale: (locale: string) => locale === 'ko' || locale === 'en',
 }));

@@ -2,11 +2,9 @@ import { render, screen } from '@testing-library/react';
 
 import { Footer } from '../ui/footer';
 
-import '@testing-library/jest-dom';
-
 // Mock next-intl/server
-jest.mock('next-intl/server', () => ({
-  getTranslations: jest.fn(async () => (key: string) => {
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => (key: string) => {
     const translations: Record<string, string> = {
       about: 'About',
       now: 'Now',
@@ -17,7 +15,7 @@ jest.mock('next-intl/server', () => ({
 }));
 
 // Mock i18n routing
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className}>
       {children}

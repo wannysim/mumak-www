@@ -2,9 +2,7 @@ import { render, screen } from '@testing-library/react';
 
 import { ContentSegmentNav, type ContentSegmentNavItem } from '../content-segment-nav';
 
-import '@testing-library/jest-dom';
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({
     children,
     href,

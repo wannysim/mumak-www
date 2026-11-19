@@ -2,10 +2,8 @@ import { render, screen } from '@testing-library/react';
 
 import { SocialLinks } from '../ui/social-links';
 
-import '@testing-library/jest-dom';
-
 // Mock @mumak/ui components
-jest.mock('@mumak/ui/components/button', () => ({
+vi.mock('@mumak/ui/components/button', () => ({
   Button: ({
     children,
     className,
@@ -26,7 +24,7 @@ jest.mock('@mumak/ui/components/button', () => ({
   },
 }));
 
-jest.mock('@mumak/ui/lib/utils', () => ({
+vi.mock('@mumak/ui/lib/utils', () => ({
   cn: (...classes: (string | undefined)[]) => classes.filter(Boolean).join(' '),
 }));
 

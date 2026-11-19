@@ -2,14 +2,12 @@ import { render, screen } from '@testing-library/react';
 
 import { Navigation } from '../ui/navigation';
 
-import '@testing-library/jest-dom';
-
-const mockThemeSwitcher = jest.fn(() => <div data-testid="theme-switcher">ThemeSwitcher</div>);
-const mockLocaleSwitcher = jest.fn(() => <div data-testid="locale-switcher">LocaleSwitcher</div>);
+const mockThemeSwitcher = vi.fn(() => <div data-testid="theme-switcher">ThemeSwitcher</div>);
+const mockLocaleSwitcher = vi.fn(() => <div data-testid="locale-switcher">LocaleSwitcher</div>);
 
 // Mock next-intl/server
-jest.mock('next-intl/server', () => ({
-  getTranslations: jest.fn(async () => (key: string) => {
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => (key: string) => {
     const translations: Record<string, string> = {
       blog: '블로그',
       homeNavigation: 'Home',
@@ -22,7 +20,7 @@ jest.mock('next-intl/server', () => ({
 }));
 
 // Mock i18n routing
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className}>
       {children}
@@ -31,25 +29,25 @@ jest.mock('@/src/shared/config/i18n', () => ({
 }));
 
 // Mock child components
-jest.mock('@/src/features/switch-locale', () => ({
+vi.mock('@/src/features/switch-locale', () => ({
   LocaleSwitcher: () => mockLocaleSwitcher(),
 }));
 
-jest.mock('@/src/features/switch-theme', () => ({
+vi.mock('@/src/features/switch-theme', () => ({
   ThemeSwitcher: () => mockThemeSwitcher(),
 }));
 
-jest.mock('@/src/features/site-search', () => ({
+vi.mock('@/src/features/site-search', () => ({
   SiteSearch: ({ categoryLabels }: { categoryLabels: Record<string, string> }) => (
     <div data-testid="site-search">{Object.values(categoryLabels).join(',')}</div>
   ),
 }));
 
-jest.mock('@/src/entities/post', () => ({
+vi.mock('@/src/entities/post', () => ({
   getCategories: () => ['essay', 'articles', 'notes'],
 }));
 
-jest.mock('../ui/mobile-menu', () => ({
+vi.mock('../ui/mobile-menu', () => ({
   MobileMenu: ({ items }: { items: { label: string; href: string }[] }) => (
     <div data-testid="mobile-menu">
       {items.map(item => (
@@ -59,7 +57,7 @@ jest.mock('../ui/mobile-menu', () => ({
   ),
 }));
 
-jest.mock('../ui/nav-links', () => ({
+vi.mock('../ui/nav-links', () => ({
   NavLinks: ({ items }: { items: { label: string; href: string }[] }) => (
     <div data-testid="nav-links">
       {items.map(item => (
@@ -123,7 +121,7 @@ describe('Navigation', () => {
   });
 
   it('keeps locale switcher available when theme switcher crashes', async () => {
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockThemeSwitcher.mockImplementation(() => {
       throw new Error('theme failed');
     });

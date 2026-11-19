@@ -2,15 +2,13 @@ import { renderHook } from '@testing-library/react';
 
 import { useSearchPaletteShortcut } from '../use-search-palette-shortcut';
 
-import '@testing-library/jest-dom';
-
 function dispatchKeydown(init: KeyboardEventInit) {
   document.dispatchEvent(new KeyboardEvent('keydown', { ...init, bubbles: true }));
 }
 
 describe('useSearchPaletteShortcut', () => {
   it('toggles state on Cmd+K', () => {
-    const setOpen = jest.fn();
+    const setOpen = vi.fn();
     renderHook(() => useSearchPaletteShortcut(setOpen));
 
     dispatchKeydown({ key: 'k', metaKey: true });
@@ -23,7 +21,7 @@ describe('useSearchPaletteShortcut', () => {
   });
 
   it('toggles state on Ctrl+K', () => {
-    const setOpen = jest.fn();
+    const setOpen = vi.fn();
     renderHook(() => useSearchPaletteShortcut(setOpen));
 
     dispatchKeydown({ key: 'k', ctrlKey: true });
@@ -32,7 +30,7 @@ describe('useSearchPaletteShortcut', () => {
   });
 
   it('ignores k without modifier', () => {
-    const setOpen = jest.fn();
+    const setOpen = vi.fn();
     renderHook(() => useSearchPaletteShortcut(setOpen));
 
     dispatchKeydown({ key: 'k' });
@@ -41,7 +39,7 @@ describe('useSearchPaletteShortcut', () => {
   });
 
   it('ignores other keys with modifier', () => {
-    const setOpen = jest.fn();
+    const setOpen = vi.fn();
     renderHook(() => useSearchPaletteShortcut(setOpen));
 
     dispatchKeydown({ key: 'j', metaKey: true });
@@ -51,7 +49,7 @@ describe('useSearchPaletteShortcut', () => {
   });
 
   it('removes the listener on unmount', () => {
-    const setOpen = jest.fn();
+    const setOpen = vi.fn();
     const { unmount } = renderHook(() => useSearchPaletteShortcut(setOpen));
 
     unmount();

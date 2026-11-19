@@ -2,19 +2,17 @@ import { act, renderHook } from '@testing-library/react';
 
 import { useProgressInterpolation } from '../hooks/use-progress-interpolation';
 
-import '@testing-library/jest-dom';
-
 describe('useProgressInterpolation', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('returns the server progress as-is when paused', () => {
-    const nowSpy = jest.fn(() => 1000);
+    const nowSpy = vi.fn(() => 1000);
     const { result } = renderHook(() =>
       useProgressInterpolation({
         trackId: 'a',
@@ -29,7 +27,7 @@ describe('useProgressInterpolation', () => {
     expect(result.current.progressMs).toBe(30_000);
 
     act(() => {
-      jest.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(5_000);
     });
 
     expect(result.current.progressMs).toBe(30_000);
@@ -52,13 +50,13 @@ describe('useProgressInterpolation', () => {
 
     act(() => {
       currentNow = 11_000;
-      jest.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1_000);
     });
     expect(result.current.progressMs).toBe(6_000);
 
     act(() => {
       currentNow = 13_500;
-      jest.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1_000);
     });
     expect(result.current.progressMs).toBe(8_500);
   });
@@ -78,7 +76,7 @@ describe('useProgressInterpolation', () => {
 
     act(() => {
       currentNow = 5_000;
-      jest.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1_000);
     });
 
     expect(result.current.progressMs).toBe(10_000);
@@ -102,7 +100,7 @@ describe('useProgressInterpolation', () => {
 
     act(() => {
       currentNow = 4_000;
-      jest.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1_000);
     });
     expect(result.current.progressMs).toBe(34_000);
 
@@ -120,7 +118,7 @@ describe('useProgressInterpolation', () => {
 
     act(() => {
       currentNow = 7_000;
-      jest.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1_000);
     });
 
     expect(result.current.progressMs).toBe(2_000);
@@ -159,7 +157,7 @@ describe('useProgressInterpolation', () => {
 
     act(() => {
       currentNow = 4_000;
-      jest.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1_000);
     });
     expect(result.current.progressMs).toBe(5_000);
 
@@ -177,7 +175,7 @@ describe('useProgressInterpolation', () => {
 
     act(() => {
       currentNow = 8_000;
-      jest.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1_000);
     });
     expect(result.current.progressMs).toBe(12_000);
   });
@@ -201,7 +199,7 @@ describe('useProgressInterpolation', () => {
     // 1초 후 보간 tick 진행
     act(() => {
       currentNow = 1_000;
-      jest.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1_000);
     });
     expect(result.current.progressMs).toBe(44_000);
 
@@ -224,7 +222,7 @@ describe('useProgressInterpolation', () => {
     // 다음 tick: 기존 baseline (43000, fetchedAt=0) 기반으로 계속 진행 → 단조 증가
     act(() => {
       currentNow = 3_000;
-      jest.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1_000);
     });
     expect(result.current.progressMs).toBeGreaterThanOrEqual(44_000);
   });
@@ -247,7 +245,7 @@ describe('useProgressInterpolation', () => {
 
     act(() => {
       currentNow = 2_000;
-      jest.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1_000);
     });
 
     // duration 이 없으면 상한이 없고 음수만 0으로 클램프
@@ -287,7 +285,7 @@ describe('useProgressInterpolation', () => {
   });
 
   it('clears the interval on unmount', () => {
-    const clearIntervalSpy = jest.spyOn(globalThis, 'clearInterval');
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
 
     const { unmount } = renderHook(() =>
       useProgressInterpolation({
@@ -307,7 +305,7 @@ describe('useProgressInterpolation', () => {
   });
 
   it('does not start an interval when paused (no interval to clear)', () => {
-    const setIntervalSpy = jest.spyOn(globalThis, 'setInterval');
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
 
     renderHook(() =>
       useProgressInterpolation({
@@ -375,7 +373,7 @@ describe('useProgressInterpolation', () => {
 
     act(() => {
       currentNow = 2_000;
-      jest.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1_000);
     });
     expect(result.current.progressMs).toBe(3_000);
 
@@ -390,7 +388,7 @@ describe('useProgressInterpolation', () => {
 
     act(() => {
       currentNow = 10_000;
-      jest.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(5_000);
     });
 
     expect(result.current.progressMs).toBe(3_000);
