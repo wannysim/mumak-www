@@ -9,6 +9,8 @@ import {
   type PostMeta,
 } from '../api/posts';
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe('Posts Data Access Layer', () => {
   describe('getCategories', () => {
     it('should return all valid categories', () => {
@@ -63,22 +65,11 @@ describe('Posts Data Access Layer', () => {
     });
 
     it('should not include draft posts in production', () => {
-      const originalEnv = process.env.NODE_ENV;
-      Object.defineProperty(process.env, 'NODE_ENV', {
-        value: 'production',
-        writable: true,
-        configurable: true,
-      });
+      vi.stubEnv('NODE_ENV', 'production');
 
       const posts = getPosts('ko');
       posts.forEach(post => {
         expect(post.draft).not.toBe(true);
-      });
-
-      Object.defineProperty(process.env, 'NODE_ENV', {
-        value: originalEnv,
-        writable: true,
-        configurable: true,
       });
     });
 
@@ -151,12 +142,7 @@ describe('Posts Data Access Layer', () => {
     });
 
     it('blocks draft posts in production', () => {
-      const originalEnv = process.env.NODE_ENV;
-      Object.defineProperty(process.env, 'NODE_ENV', {
-        value: 'production',
-        writable: true,
-        configurable: true,
-      });
+      vi.stubEnv('NODE_ENV', 'production');
 
       const posts = getPosts('ko', 'essay');
       const draftPost = posts.find(p => p.draft);
@@ -165,12 +151,6 @@ describe('Posts Data Access Layer', () => {
       if (draftPost) {
         expect(getPost('ko', 'essay', draftPost.slug)).toBeNull();
       }
-
-      Object.defineProperty(process.env, 'NODE_ENV', {
-        value: originalEnv,
-        writable: true,
-        configurable: true,
-      });
     });
 
     it('should include readingTime in post meta', () => {

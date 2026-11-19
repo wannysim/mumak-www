@@ -40,7 +40,7 @@ export function ExerciseLibrary({
         코드 {codeProblems.length}문제 · 개념 {questions.length}문제. 기본부터 실전·심화까지, 설명과 구현을 함께
         연습해요.
       </p>
-      <details className="mb-5 rounded-2xl border bg-white p-5">
+      <details className="mb-5 rounded-2xl border bg-card p-5">
         <summary className="cursor-pointer text-sm font-semibold">추천 순서 · 윈도우와 연결 리스트 집중 훈련</summary>
         <div className="mt-4 space-y-2 text-xs leading-6 text-muted-foreground">
           <p>
@@ -87,7 +87,7 @@ export function ExerciseLibrary({
           ))}
         </div>
       </details>
-      <label className="mb-5 flex h-12 items-center gap-3 rounded-xl border bg-white px-4">
+      <label className="mb-5 flex h-12 items-center gap-3 rounded-xl border border-input bg-card px-4 focus-within:focus-outline">
         <Search aria-hidden className="size-4 text-muted-foreground" />
         <input
           aria-label="문제 검색"
@@ -103,14 +103,14 @@ export function ExerciseLibrary({
             key={item}
             onClick={() => selectFilter(item)}
             aria-pressed={filter === item}
-            className={`min-h-11 rounded-full border px-4 text-xs font-semibold ${filter === item ? 'border-foreground bg-foreground text-white' : 'bg-white text-muted-foreground hover:border-primary'}`}
+            className={`min-h-11 rounded-full border px-4 text-xs font-semibold ${filter === item ? 'border-foreground bg-foreground text-background' : 'bg-card text-muted-foreground hover:border-primary'}`}
           >
             {item}
           </button>
         ))}
       </div>
       {filter === '기업 공개 자료' && (
-        <section aria-label="공식 프로젝트 과제" className="mb-5 rounded-xl border bg-white p-4">
+        <section aria-label="공식 프로젝트 과제" className="mb-5 rounded-xl border bg-card p-4">
           <h2 className="text-sm font-semibold">프로젝트로 풀어보기</h2>
           <ul className="mt-2 space-y-2 text-sm text-primary">
             {' '}
@@ -143,7 +143,7 @@ export function ExerciseLibrary({
           <select
             value={category}
             onChange={e => selectCodeFacet('category', e.target.value)}
-            className="mt-2 h-12 w-full rounded-xl border bg-white px-3 text-sm"
+            className="mt-2 h-12 w-full rounded-xl border border-input bg-card px-3 text-sm"
           >
             {['전체', ...categories].map(item => (
               <option key={item}>{item}</option>
@@ -155,7 +155,7 @@ export function ExerciseLibrary({
           <select
             value={difficulty}
             onChange={e => selectCodeFacet('difficulty', e.target.value)}
-            className="mt-2 h-12 w-full rounded-xl border bg-white px-3 text-sm"
+            className="mt-2 h-12 w-full rounded-xl border border-input bg-card px-3 text-sm"
           >
             {['전체', ...difficulties].map(item => (
               <option key={item}>{item}</option>
@@ -171,10 +171,10 @@ export function ExerciseLibrary({
           <button
             key={q.id}
             onClick={() => onQuestion(q.id)}
-            className="flex w-full items-center gap-4 rounded-2xl border bg-white p-5 text-left hover:border-primary/40"
+            className="flex w-full items-center gap-4 rounded-2xl border bg-card p-5 text-left hover:border-primary/40"
           >
             <span
-              className={`grid size-10 shrink-0 place-items-center rounded-full ${solved.has(q.id) ? 'bg-[#e7f1ec] text-[#386e54]' : 'bg-secondary text-primary'}`}
+              className={`grid size-10 shrink-0 place-items-center rounded-full ${solved.has(q.id) ? 'bg-(--success) text-(color:--success-foreground)' : 'bg-secondary text-primary'}`}
             >
               {solved.has(q.id) ? (
                 <CheckCircle2 className="size-5" aria-label="이해함" />
@@ -198,9 +198,9 @@ export function ExerciseLibrary({
           <button
             key={p.id}
             onClick={() => onCode(p.id)}
-            className="flex w-full items-center gap-4 rounded-2xl border bg-white p-5 text-left hover:border-primary/40"
+            className="flex w-full items-center gap-4 rounded-2xl border bg-card p-5 text-left hover:border-primary/40"
           >
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#fff2da] text-[#95601f]">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-(--warning) text-(color:--warning-foreground)">
               <Code2 className="size-5" aria-hidden />
             </span>
             <div className="flex-1">
@@ -212,7 +212,9 @@ export function ExerciseLibrary({
             {progress.review.includes(p.id) && (
               <Bookmark className="size-4 shrink-0 text-primary" aria-label="다시 보기" />
             )}
-            {solved.has(p.id) && <CheckCircle2 className="size-4 text-[#386e54]" aria-label="통과함" />}
+            {solved.has(p.id) && (
+              <CheckCircle2 className="size-4 text-(color:--success-foreground)" aria-label="통과함" />
+            )}
             <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           </button>
         ))}
@@ -232,7 +234,7 @@ export function ExerciseLibrary({
           }}
         />
       )}
-      <details className="mt-8 rounded-xl border bg-white p-5 text-xs leading-6 text-muted-foreground">
+      <details className="mt-8 rounded-xl border bg-card p-5 text-xs leading-6 text-muted-foreground">
         <summary className="cursor-pointer font-semibold text-foreground">난이도 기준과 조사 근거</summary>
         <p className="mt-3">
           회사명으로 검색하면 공개 기출을 재구성한 문제와 교육·기술 자료를 응용한 문제를 찾을 수 있어요. 각 문제에서

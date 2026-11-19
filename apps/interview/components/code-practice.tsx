@@ -51,7 +51,7 @@ export function CodePractice({
         </Button>
         <ReviewToggle id={problem.id} progress={progress} />
       </div>
-      <p className="mb-4 text-xs font-semibold text-[#95601f]">
+      <p className="mb-4 text-xs font-semibold text-(color:--warning-foreground)">
         {problem.category} · {problem.difficulty} · 약 {problem.minutes}분
       </p>
       <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{problem.title}</h1>
@@ -66,9 +66,9 @@ export function CodePractice({
         </a>
       )}
       <p className="mt-4 text-sm leading-7 text-muted-foreground">{problem.description}</p>
-      <p className="mt-4 rounded-xl border bg-white p-4 text-xs leading-6">{problem.contract}</p>
+      <p className="mt-4 rounded-xl border bg-card p-4 text-xs leading-6">{problem.contract}</p>
       <ExplanationNotes problem={problem} progress={progress} />
-      <details className="mt-5 rounded-xl border bg-white p-5">
+      <details className="mt-5 rounded-xl border bg-card p-5">
         <summary className="cursor-pointer text-sm font-semibold">입출력 예시 · {problem.tests.length}개</summary>
         <div className="mt-4 space-y-4">
           {problem.tests.map(test => (
@@ -79,8 +79,8 @@ export function CodePractice({
           ))}
         </div>
       </details>
-      <div className="mt-7 overflow-hidden rounded-2xl border border-[#172b4d]">
-        <div className="flex items-center justify-between bg-[#203655] px-4 py-3 text-[#c3cee1]">
+      <div className="mt-7 overflow-hidden rounded-2xl border border-(color:--panel) [--ring:var(--panel-ring)]">
+        <div className="flex items-center justify-between bg-(--panel-header) px-4 py-3 text-(color:--panel-muted)">
           <label htmlFor="code-editor" className="font-mono text-xs">
             solution.js
           </label>
@@ -95,7 +95,7 @@ export function CodePractice({
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
-          className="block min-h-72 w-full resize-y bg-[#172b4d] p-5 font-mono text-base leading-7 sm:text-sm text-[#e6edfc] outline-offset-[-4px]"
+          className="block min-h-72 w-full resize-y bg-(--panel) p-5 font-mono text-base leading-7 sm:text-sm text-(color:--panel-foreground) outline-offset-[-4px]"
         />
       </div>
       <div role="group" aria-label="코드 풀이" className="mt-4 flex flex-wrap items-center gap-2">
@@ -143,19 +143,21 @@ export function CodePractice({
         ) : (
           <div className="space-y-2">
             {code !== executedCode && (
-              <p className="text-xs text-[#95601f]">코드가 바뀌었어요. 아래는 이전 실행 결과입니다.</p>
+              <p className="text-xs text-(color:--warning-foreground)">
+                코드가 바뀌었어요. 아래는 이전 실행 결과입니다.
+              </p>
             )}
             {result.error && (
-              <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
+              <p className="rounded-xl border border-destructive-foreground/35 bg-(--error-surface) p-4 text-sm leading-6 text-destructive-foreground">
                 {result.error}
               </p>
             )}
             {result.results.map(r => (
-              <div key={r.label} className="flex gap-3 rounded-xl border bg-white p-4">
+              <div key={r.label} className="flex gap-3 rounded-xl border bg-card p-4">
                 {r.passed ? (
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#386e54]" />
+                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-(color:--success-foreground)" />
                 ) : (
-                  <XCircle className="mt-0.5 size-4 shrink-0 text-red-700" />
+                  <XCircle className="mt-0.5 size-4 shrink-0 text-destructive-foreground" />
                 )}
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">
@@ -168,7 +170,7 @@ export function CodePractice({
           </div>
         )}
       </section>
-      <details className="mt-7 rounded-xl border bg-white p-5">
+      <details className="mt-7 rounded-xl border bg-card p-5">
         <summary className="cursor-pointer text-sm font-semibold">막혔을 때, 작은 힌트</summary>
         <p className="mt-4 text-sm leading-7 text-muted-foreground">{problem.hint}</p>
       </details>
@@ -178,7 +180,7 @@ export function CodePractice({
         onToggle={e => {
           if (e.currentTarget.open) saveProgress(p => ({ ...p, lastExplanation: problem.id }));
         }}
-        className="mt-3 rounded-xl border bg-white p-5"
+        className="mt-3 rounded-xl border bg-card p-5"
       >
         <summary className="cursor-pointer text-sm font-semibold">충분히 생각한 뒤 풀이 보기</summary>
         <pre className="mt-4 overflow-x-auto rounded-xl bg-background p-4 font-mono text-xs leading-6">

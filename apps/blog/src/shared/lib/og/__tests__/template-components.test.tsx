@@ -2,8 +2,6 @@ import { render, screen } from '@testing-library/react';
 
 import { OgClampText, OgEyebrow, OgFooter, OgNotFound, OgShell } from '../template';
 
-import '@testing-library/jest-dom';
-
 describe('OgShell', () => {
   it('renders children', () => {
     render(

@@ -2,15 +2,13 @@ import { render, screen } from '@testing-library/react';
 
 import { MDXContent, MDXContentSkeleton } from '../ui/mdx-content';
 
-import '@testing-library/jest-dom';
+const mockMDXRemote = vi.fn(({ source }: { source: string }) => <div data-testid="mdx-remote">{source}</div>);
 
-const mockMDXRemote = jest.fn(({ source }: { source: string }) => <div data-testid="mdx-remote">{source}</div>);
-
-jest.mock('next-mdx-remote-client/rsc', () => ({
+vi.mock('next-mdx-remote-client/rsc', () => ({
   MDXRemote: (props: { source: string }) => mockMDXRemote(props),
 }));
 
-jest.mock('@mumak/ui/components/skeleton', () => ({
+vi.mock('@mumak/ui/components/skeleton', () => ({
   Skeleton: ({ className }: { className?: string }) => <div data-testid="skeleton" className={className} />,
 }));
 

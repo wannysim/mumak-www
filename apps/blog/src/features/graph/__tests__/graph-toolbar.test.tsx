@@ -3,26 +3,24 @@ import userEvent from '@testing-library/user-event';
 
 import { GraphToolbar } from '../ui/graph-toolbar';
 
-import '@testing-library/jest-dom';
+const mockBack = vi.fn();
+const mockPush = vi.fn();
 
-const mockBack = jest.fn();
-const mockPush = jest.fn();
-
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ back: mockBack, push: mockPush }),
 }));
 
-jest.mock('@/src/features/switch-theme', () => ({
+vi.mock('@/src/features/switch-theme', () => ({
   ThemeSwitcher: () => <button data-testid="theme-switcher">Theme</button>,
 }));
 
-jest.mock('@/src/features/switch-locale', () => ({
+vi.mock('@/src/features/switch-locale', () => ({
   LocaleSwitcher: () => <button data-testid="locale-switcher">Locale</button>,
 }));
 
 describe('GraphToolbar', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('뒤로가기 버튼을 렌더링한다', () => {

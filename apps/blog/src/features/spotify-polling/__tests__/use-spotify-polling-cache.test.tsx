@@ -21,7 +21,7 @@ describe('useSpotifyPolling shared cache', () => {
   it('shows the last track immediately after the widget remounts', async () => {
     const cache = new Map();
     const originalFetch = global.fetch;
-    const fetchSpy = jest.fn().mockResolvedValue({
+    const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ data: song, timestamp: Date.now() }),
     } as Response);

@@ -1,4 +1,4 @@
-/** @jest-environment node */
+/** @vitest-environment node */
 
 import { remarkContentImages } from '../remark-content-images';
 

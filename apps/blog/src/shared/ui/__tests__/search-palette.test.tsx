@@ -4,22 +4,20 @@ import { FileText } from 'lucide-react';
 
 import { SearchPalette, type SearchPaletteGroup } from '../search-palette';
 
-import '@testing-library/jest-dom';
+const mockPush = vi.fn();
 
-const mockPush = jest.fn();
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   useRouter: () => ({
     push: mockPush,
-    replace: jest.fn(),
-    refresh: jest.fn(),
-    back: jest.fn(),
-    forward: jest.fn(),
-    prefetch: jest.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
   }),
 }));
 
-jest.mock('@mumak/ui/components/command', () => ({
+vi.mock('@mumak/ui/components/command', () => ({
   Command: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CommandDialog: ({ children, open }: { children: React.ReactNode; open?: boolean }) => (
     <div data-testid="command-dialog" data-open={open ? 'true' : 'false'}>
@@ -81,7 +79,7 @@ describe('SearchPalette', () => {
     render(
       <SearchPalette
         open={false}
-        onOpenChange={jest.fn()}
+        onOpenChange={vi.fn()}
         groups={groups}
         placeholder="Search"
         emptyText="No results"
@@ -98,7 +96,7 @@ describe('SearchPalette', () => {
     render(
       <SearchPalette
         open
-        onOpenChange={jest.fn()}
+        onOpenChange={vi.fn()}
         groups={groups}
         placeholder="Search"
         emptyText="No results"
@@ -118,7 +116,7 @@ describe('SearchPalette', () => {
     render(
       <SearchPalette
         open
-        onOpenChange={jest.fn()}
+        onOpenChange={vi.fn()}
         groups={groups}
         placeholder="Search"
         emptyText="No results"
@@ -135,7 +133,7 @@ describe('SearchPalette', () => {
     render(
       <SearchPalette
         open
-        onOpenChange={jest.fn()}
+        onOpenChange={vi.fn()}
         groups={groups}
         placeholder="Search"
         emptyText="No results"
@@ -150,7 +148,7 @@ describe('SearchPalette', () => {
 
   it('navigates and closes the dialog when an item is selected', async () => {
     const user = userEvent.setup();
-    const onOpenChange = jest.fn();
+    const onOpenChange = vi.fn();
     render(
       <SearchPalette
         open
@@ -172,8 +170,8 @@ describe('SearchPalette', () => {
 
   it('invokes onSelect callback in addition to navigating', async () => {
     const user = userEvent.setup();
-    const onSelect = jest.fn();
-    const onOpenChange = jest.fn();
+    const onSelect = vi.fn();
+    const onOpenChange = vi.fn();
     render(
       <SearchPalette
         open

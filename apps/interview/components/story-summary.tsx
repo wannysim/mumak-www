@@ -53,7 +53,7 @@ export function StorySummary({ id, notes }: { id: string; notes: Progress['notes
   }
   const stale = proposal && (proposal.source !== input || proposal.previous !== saved);
   return (
-    <section className="mt-8 rounded-xl border bg-white p-5">
+    <section className="mt-8 rounded-xl border bg-card p-5">
       <h2 className="font-semibold">내 답변 한 줄 요약</h2>
       <p className="my-3 text-sm">버튼을 누르면 이 이야기에서 작성한 답변을 OpenAI로 보내요.</p>
       {saved && <p className="mb-3">{saved}</p>}
@@ -66,7 +66,7 @@ export function StorySummary({ id, notes }: { id: string; notes: Progress['notes
           <label htmlFor="summary-draft">요약 초안</label>
           <textarea
             id="summary-draft"
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-input p-3"
             value={proposal.text}
             maxLength={10000}
             onChange={e => setProposal({ ...proposal, text: e.target.value })}

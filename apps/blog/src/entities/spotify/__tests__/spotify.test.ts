@@ -1,7 +1,10 @@
+import type { Mock } from 'vitest';
 // next/server mock
-jest.mock('next/server', () => ({
-  connection: jest.fn().mockResolvedValue(undefined),
+vi.mock('next/server', () => ({
+  connection: vi.fn().mockResolvedValue(undefined),
 }));
+
+import { connection } from 'next/server';
 
 import { getNowPlaying, resetTokenCacheForTesting } from '../api/spotify';
 
@@ -12,19 +15,19 @@ describe('spotify', () => {
   const originalConsoleWarn = console.warn;
 
   beforeEach(() => {
-    jest.resetModules();
+    vi.resetModules();
     process.env = { ...originalEnv };
-    global.fetch = jest.fn();
-    console.error = jest.fn();
-    console.log = jest.fn();
-    console.warn = jest.fn();
+    global.fetch = vi.fn();
+    console.error = vi.fn();
+    console.log = vi.fn();
+    console.warn = vi.fn();
     // 테스트 간 토큰 캐시 초기화
     resetTokenCacheForTesting();
   });
 
   afterEach(() => {
     process.env = originalEnv;
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
     console.error = originalConsoleError;
     console.log = originalConsoleLog;
     console.warn = originalConsoleWarn;
@@ -93,7 +96,7 @@ describe('spotify', () => {
         },
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockTokenResponse,
@@ -151,7 +154,7 @@ describe('spotify', () => {
         ],
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockTokenResponse,
@@ -209,7 +212,7 @@ describe('spotify', () => {
         },
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockTokenResponse,
@@ -229,7 +232,7 @@ describe('spotify', () => {
       process.env.SPOTIFY_CLIENT_SECRET = 'test-client-secret';
       process.env.SPOTIFY_REFRESH_TOKEN = 'test-refresh-token';
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as Mock).mockResolvedValueOnce({
         ok: false,
         status: 400,
         statusText: 'Bad Request',
@@ -252,7 +255,7 @@ describe('spotify', () => {
         expires_in: 3600,
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockTokenResponse,
@@ -304,7 +307,7 @@ describe('spotify', () => {
         },
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockTokenResponse,
@@ -366,7 +369,7 @@ describe('spotify', () => {
         ],
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockTokenResponse,
@@ -431,7 +434,7 @@ describe('spotify', () => {
         },
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         // 첫 번째 토큰 요청 (만료된 토큰 반환)
         .mockResolvedValueOnce({
           ok: true,
@@ -477,7 +480,7 @@ describe('spotify', () => {
       process.env.SPOTIFY_CLIENT_SECRET = 'test-client-secret';
       process.env.SPOTIFY_REFRESH_TOKEN = 'test-refresh-token';
 
-      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('network down'));
+      (global.fetch as Mock).mockRejectedValueOnce(new Error('network down'));
 
       const result = await getNowPlaying();
 
@@ -504,7 +507,7 @@ describe('spotify', () => {
         },
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({ ok: true, json: async () => mockTokenResponse })
         .mockResolvedValueOnce({ status: 200, json: async () => mockSong })
         .mockResolvedValueOnce({ status: 200, json: async () => mockSong });
@@ -514,7 +517,7 @@ describe('spotify', () => {
 
       // 1st call: token + currently-playing. 2nd call: only currently-playing (token cached).
       expect(global.fetch).toHaveBeenCalledTimes(3);
-      const calls = (global.fetch as jest.Mock).mock.calls.map(([url]) => url as string);
+      const calls = (global.fetch as Mock).mock.calls.map(([url]) => url as string);
       expect(calls.filter(url => url.includes('/api/token'))).toHaveLength(1);
     });
 
@@ -540,7 +543,7 @@ describe('spotify', () => {
         ],
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({ ok: true, json: async () => mockTokenResponse })
         .mockResolvedValueOnce({ status: 503, text: async () => 'service unavailable' })
         .mockResolvedValueOnce({ status: 200, json: async () => mockRecent });
@@ -559,7 +562,7 @@ describe('spotify', () => {
       process.env.SPOTIFY_CLIENT_SECRET = 'test-client-secret';
       process.env.SPOTIFY_REFRESH_TOKEN = 'test-refresh-token';
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 't', expires_in: 3600 }) })
         .mockResolvedValueOnce({ status: 204 })
         .mockResolvedValueOnce({ status: 500, text: async () => 'boom' });
@@ -578,7 +581,7 @@ describe('spotify', () => {
       process.env.SPOTIFY_CLIENT_SECRET = 'test-client-secret';
       process.env.SPOTIFY_REFRESH_TOKEN = 'test-refresh-token';
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         // initial token
         .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 't', expires_in: 3600 }) })
         // currently-playing → 204
@@ -602,7 +605,7 @@ describe('spotify', () => {
       process.env.SPOTIFY_CLIENT_SECRET = 'test-client-secret';
       process.env.SPOTIFY_REFRESH_TOKEN = 'test-refresh-token';
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 't', expires_in: 3600 }) })
         .mockResolvedValueOnce({ status: 204 })
         .mockResolvedValueOnce({ status: 200, json: async () => ({ items: [null] }) });
@@ -617,7 +620,7 @@ describe('spotify', () => {
       process.env.SPOTIFY_CLIENT_SECRET = 'test-client-secret';
       process.env.SPOTIFY_REFRESH_TOKEN = 'test-refresh-token';
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         // initial token
         .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 't', expires_in: 3600 }) })
         // 401
@@ -636,7 +639,7 @@ describe('spotify', () => {
       process.env.SPOTIFY_CLIENT_SECRET = 'test-client-secret';
       process.env.SPOTIFY_REFRESH_TOKEN = 'test-refresh-token';
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 't', expires_in: 3600 }) })
         .mockRejectedValueOnce(new Error('boom'));
 
@@ -657,7 +660,7 @@ describe('spotify', () => {
         expires_in: 3600,
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockTokenResponse,
@@ -701,7 +704,7 @@ describe('spotify', () => {
         device: { name: 'Mystery Device', type: 'AlienSpaceship', is_active: true },
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
         .mockResolvedValueOnce({ status: 200, json: async () => mockSong });
 
@@ -731,7 +734,7 @@ describe('spotify', () => {
         },
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
         .mockResolvedValueOnce({ status: 200, json: async () => mockSong });
 
@@ -762,7 +765,7 @@ describe('spotify', () => {
         },
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
         .mockResolvedValueOnce({ status: 200, json: async () => mockSong });
 
@@ -793,7 +796,7 @@ describe('spotify', () => {
         ],
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
         .mockResolvedValueOnce({ status: 204 })
         .mockResolvedValueOnce({ status: 200, json: async () => mockRecent });
@@ -823,7 +826,7 @@ describe('spotify', () => {
         },
       };
 
-      (global.fetch as jest.Mock)
+      (global.fetch as Mock)
         .mockResolvedValueOnce({ ok: true, json: async () => mockToken })
         .mockResolvedValueOnce({ status: 200, json: async () => mockSong });
 
@@ -835,42 +838,22 @@ describe('spotify', () => {
   });
 
   describe('getNowPlaying() — PPR connection() handling', () => {
-    afterEach(() => {
-      jest.resetModules();
-    });
-
     it('returns null when connection() rejects with a prerender-related error', async () => {
-      await jest.isolateModulesAsync(async () => {
-        jest.doMock('next/server', () => ({
-          connection: jest.fn().mockRejectedValue(new Error('Route had a prerender error during build')),
-        }));
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const mod = require('../api/spotify') as typeof import('../api/spotify');
-        const result = await mod.getNowPlaying();
-        expect(result).toBeNull();
-      });
+      vi.mocked(connection).mockRejectedValueOnce(new Error('Route had a prerender error during build'));
+
+      await expect(getNowPlaying()).resolves.toBeNull();
     });
 
     it('rethrows non-prerender errors from connection()', async () => {
-      await jest.isolateModulesAsync(async () => {
-        jest.doMock('next/server', () => ({
-          connection: jest.fn().mockRejectedValue(new Error('database is offline')),
-        }));
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const mod = require('../api/spotify') as typeof import('../api/spotify');
-        await expect(mod.getNowPlaying()).rejects.toThrow('database is offline');
-      });
+      vi.mocked(connection).mockRejectedValueOnce(new Error('database is offline'));
+
+      await expect(getNowPlaying()).rejects.toThrow('database is offline');
     });
 
     it('rethrows non-Error rejections from connection() unchanged', async () => {
-      await jest.isolateModulesAsync(async () => {
-        jest.doMock('next/server', () => ({
-          connection: jest.fn().mockRejectedValue('string rejection'),
-        }));
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const mod = require('../api/spotify') as typeof import('../api/spotify');
-        await expect(mod.getNowPlaying()).rejects.toBe('string rejection');
-      });
+      vi.mocked(connection).mockRejectedValueOnce('string rejection');
+
+      await expect(getNowPlaying()).rejects.toBe('string rejection');
     });
   });
 });

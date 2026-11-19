@@ -1,18 +1,18 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 
+import { captureException } from '@/src/shared/lib/error-tracking';
+
 import RouteError from '../error';
 
-import '@testing-library/jest-dom';
-
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock('@/src/shared/lib/error-tracking', () => ({
-  captureException: jest.fn(),
+vi.mock('@/src/shared/lib/error-tracking', () => ({
+  captureException: vi.fn(),
 }));
 
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => <a {...props}>{children}</a>,
 }));
 
@@ -20,15 +20,15 @@ describe('Error boundary (main)', () => {
   const makeError = () => Object.assign(new Error('boom'), { digest: 'abc123' });
 
   beforeEach(() => {
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('renders the error message and recovery actions', () => {
-    render(<RouteError error={makeError()} reset={jest.fn()} />);
+    render(<RouteError error={makeError()} reset={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'title' })).toBeInTheDocument();
     expect(screen.getByText('description')).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe('Error boundary (main)', () => {
   });
 
   it('calls reset when the retry button is clicked', () => {
-    const reset = jest.fn();
+    const reset = vi.fn();
     render(<RouteError error={makeError()} reset={reset} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'retry' }));
@@ -47,15 +47,14 @@ describe('Error boundary (main)', () => {
 
   it('logs the error so it is observable', () => {
     const error = makeError();
-    render(<RouteError error={error} reset={jest.fn()} />);
+    render(<RouteError error={error} reset={vi.fn()} />);
 
     expect(console.error).toHaveBeenCalledWith(error);
   });
 
   it('reports the error to the error tracker', () => {
-    const { captureException } = jest.requireMock('@/src/shared/lib/error-tracking');
     const error = makeError();
-    render(<RouteError error={error} reset={jest.fn()} />);
+    render(<RouteError error={error} reset={vi.fn()} />);
 
     expect(captureException).toHaveBeenCalledWith(error);
   });

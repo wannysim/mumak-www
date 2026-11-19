@@ -91,7 +91,7 @@ export function PracticeApp() {
           key={tab.id}
           aria-current={view.tab === tab.id ? 'page' : undefined}
           onClick={() => setView({ tab: tab.id })}
-          className={`${mobile ? 'flex min-h-16 flex-col items-center justify-center gap-1 text-[11px]' : 'flex min-h-12 w-full items-center gap-3 rounded-xl px-4 text-sm'} font-semibold transition-colors ${view.tab === tab.id ? (mobile ? 'text-primary' : 'bg-[#e6edfc] text-primary') : 'text-muted-foreground hover:text-foreground'}`}
+          className={`${mobile ? 'flex min-h-16 flex-col items-center justify-center gap-1 text-[11px]' : 'flex min-h-12 w-full items-center gap-3 rounded-xl px-4 text-sm'} font-semibold transition-colors ${view.tab === tab.id ? (mobile ? 'text-primary' : 'bg-sidebar-accent text-primary') : 'text-muted-foreground hover:text-foreground'}`}
         >
           <tab.icon className={mobile ? 'size-5' : 'size-[18px]'} aria-hidden />
           {tab.title}
@@ -101,15 +101,18 @@ export function PracticeApp() {
     </nav>
   );
   return (
-    <div className="min-h-dvh">
-      <a href="#main" className="sr-only fixed top-3 left-3 z-50 rounded-lg bg-white p-3 focus:not-sr-only">
+    <div className="min-h-dvh pt-[env(safe-area-inset-top)]">
+      <a
+        href="#main"
+        className="sr-only fixed top-[calc(0.75rem+env(safe-area-inset-top))] left-[calc(0.75rem+env(safe-area-inset-left))] z-50 rounded-lg bg-card p-3 focus:not-sr-only"
+      >
         본문으로 이동
       </a>
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r bg-[#f9fbfe] px-6 py-9 lg:flex">
+      <aside className="fixed inset-y-0 left-[env(safe-area-inset-left)] z-20 hidden w-64 flex-col border-r bg-sidebar px-6 pt-[calc(2.25rem+env(safe-area-inset-top))] pb-[calc(2.25rem+env(safe-area-inset-bottom))] lg:flex">
         <Brand />
         <div className="mt-12">{navigation(false)}</div>
         <div className="mt-auto">
-          <div className="mb-6 rounded-2xl border bg-white p-4">
+          <div className="mb-6 rounded-2xl border bg-card p-4">
             <span className="text-xs font-medium text-primary">다음 기회를 향해</span>
             <p className="mt-2 text-sm font-bold">Frontend Engineer</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -131,12 +134,12 @@ export function PracticeApp() {
           </button>
         </div>
       </aside>
-      <header className="flex items-center justify-between border-b bg-[#f9fbfe] px-5 py-5 lg:hidden">
+      <header className="flex items-center justify-between border-b bg-sidebar px-5 py-5 lg:hidden">
         <Brand />
         <button
           onClick={logout}
           aria-label="로그아웃"
-          className="grid size-11 place-items-center rounded-full border bg-white"
+          className="grid size-11 place-items-center rounded-full border bg-card"
         >
           <LogOut className="size-4 text-muted-foreground" />
         </button>
@@ -155,7 +158,7 @@ export function PracticeApp() {
           {(error || logoutError) && (
             <p
               role="alert"
-              className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"
+              className="mb-6 rounded-xl border border-(color:--warning-foreground)/35 bg-(--warning) p-4 text-sm leading-6 text-(color:--warning-foreground)"
             >
               {error || logoutError}
             </p>
@@ -236,7 +239,7 @@ export function PracticeApp() {
           )}
         </div>
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-[#f9fbfe]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-md lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background pr-[max(0.5rem,env(safe-area-inset-right))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] lg:hidden">
         {navigation(true)}
       </div>
     </div>

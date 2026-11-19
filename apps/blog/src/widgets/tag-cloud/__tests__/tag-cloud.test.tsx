@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { TagCloud } from '../ui/tag-cloud';
 
 // Mock next-intl Link
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
 }));
 

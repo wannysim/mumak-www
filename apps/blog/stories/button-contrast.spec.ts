@@ -1,7 +1,21 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Locator } from '@playwright/test';
+import { expect as baseExpect, test, type Locator } from '@playwright/test';
 
 import { expectFocusIndicator } from '@/e2e/helpers/focus';
+
+// 대비는 캔버스 픽셀을 샘플링해 잰다. oklch 래스터화가 플랫폼마다 조금 달라 macOS와 Linux(CI) Chromium
+// 사이에 최대 약 0.07 차이가 난다(dark·muted hover 6.06 vs 5.99). 소수 둘째 자리 비교 대신 ±0.1을 허용한다.
+const RATIO_TOLERANCE = 0.1;
+const expect = baseExpect.extend({
+  toBeNearRatio(received: number | undefined, expected: number) {
+    const pass = received !== undefined && Math.abs(received - expected) <= RATIO_TOLERANCE;
+    return {
+      pass,
+      message: () =>
+        `expected contrast ${received} ${pass ? 'not ' : ''}to be within ±${RATIO_TOLERANCE} of ${expected}`,
+    };
+  },
+});
 
 async function ratio(region: Locator) {
   return Number(await region.locator('[data-contrast-ratio]').getAttribute('data-contrast-ratio'));
@@ -23,7 +37,7 @@ test.describe('Touch hover regression', () => {
         );
         await expect(region.getByRole('definition').first()).toHaveText('기본');
         await expect(region.getByRole('status')).toHaveText('실행 횟수: 1');
-        await expect.poll(() => ratio(region)).toBeCloseTo(theme === 'light' ? 4.62 : 8.19, 1);
+        await expect.poll(() => ratio(region)).toBeNearRatio(theme === 'light' ? 4.62 : 8.19);
       }
     });
   }
@@ -40,23 +54,23 @@ for (const theme of ['light', 'dark']) {
         const region = page.getByRole('region', { name: title, exact: true });
         const button = region.getByRole('button', { name: '저장하기', exact: true });
         const rest = theme === 'light' ? 4.62 : 8.19;
-        await expect.poll(() => ratio(region)).toBeCloseTo(rest, 1);
+        await expect.poll(() => ratio(region)).toBeNearRatio(rest);
         await button.hover();
         const hovered = theme === 'light' ? (index === 0 ? 5.0 : 5.9) : surface === 'background' ? 5.63 : 6.06;
-        await expect.poll(() => ratio(region)).toBeCloseTo(hovered, 1);
+        await expect.poll(() => ratio(region)).toBeNearRatio(hovered);
         await page.mouse.down();
         await expect(button).toHaveCSS('translate', '0px 1px');
         await expect(region.getByRole('definition').first()).toHaveText('Pressed · 누르는 중');
-        await expect.poll(() => ratio(region)).toBeCloseTo(hovered, 1);
+        await expect.poll(() => ratio(region)).toBeNearRatio(hovered);
         await page.mouse.up();
         await page.mouse.move(0, 0);
         await page.getByRole('combobox').focus();
         for (let step = 0; step <= index * 2; step += 1) await page.keyboard.press('Tab');
         await expectFocusIndicator(button);
-        await expect.poll(() => ratio(region)).toBeCloseTo(rest, 1);
+        await expect.poll(() => ratio(region)).toBeNearRatio(rest);
         await page.keyboard.down('Space');
         await expect(region.getByRole('definition').first()).toHaveText('Pressed · 누르는 중');
-        await expect.poll(() => ratio(region)).toBeCloseTo(rest, 1);
+        await expect.poll(() => ratio(region)).toBeNearRatio(rest);
         await page.keyboard.up('Space');
         await page.keyboard.press('Enter');
         await expect(region.getByRole('status')).toHaveText('실행 횟수: 3');
@@ -100,7 +114,7 @@ for (const refined of [false, true]) {
             await expect(region.getByRole('definition').first()).toHaveText('기본');
             const rest = await ratio(region);
             if (theme === 'light') {
-              expect(rest).toBeCloseTo([3.34, 4.79, refined ? 4.62 : 5.67][index]!, 1);
+              expect(rest).toBeNearRatio([3.34, 4.79, refined ? 4.62 : 5.67][index]!);
             } else {
               expect(rest).toBeGreaterThan(7);
             }
@@ -112,12 +126,13 @@ for (const refined of [false, true]) {
                   : 3.08
                 : (surface === 'background'
                     ? [1.86, 2.13, refined ? 2.12 : 1.99]
-                    : [1.88, 2.16, refined ? 2.15 : 2.02])[index]!;
+                    : [1.88, 2.16, refined ? 2.15 : 2.02]
+                  )[index]!;
             await expect
               .poll(async () =>
                 Number(await region.locator('[data-disabled-contrast]').getAttribute('data-disabled-contrast'))
               )
-              .toBeCloseTo(expectedDisabled, 1);
+              .toBeNearRatio(expectedDisabled);
             await button.hover();
             await expect(region.getByText('Hover · 마우스 올림', { exact: true })).toBeVisible();
             await expect.poll(() => button.evaluate(element => element.getAnimations().length)).toBe(0);
@@ -128,7 +143,7 @@ for (const refined of [false, true]) {
             await page.mouse.down();
             await expect(region.getByText('Pressed · 누르는 중', { exact: true })).toBeVisible();
             await expect(button).toHaveCSS('translate', '0px 1px');
-            expect(await ratio(region)).toBeCloseTo(hover, 1);
+            expect(await ratio(region)).toBeNearRatio(hover);
             await page.mouse.up();
             await expect(region.getByRole('status')).toHaveText('실행 횟수: 1');
             await page.mouse.move(0, 0);
@@ -138,10 +153,10 @@ for (const refined of [false, true]) {
             for (let step = 0; step <= index * 2; step += 1) await page.keyboard.press('Tab');
             await expectFocusIndicator(button);
             await expect(region.getByText('Focus · 키보드 포커스', { exact: true })).toBeVisible();
-            expect(await ratio(region)).toBeCloseTo(rest, 1);
+            expect(await ratio(region)).toBeNearRatio(rest);
             await page.keyboard.down('Space');
             await expect(region.getByText('Pressed · 누르는 중', { exact: true })).toBeVisible();
-            expect(await ratio(region)).toBeCloseTo(rest, 1);
+            expect(await ratio(region)).toBeNearRatio(rest);
             await page.keyboard.up('Space');
             await page.keyboard.press('Enter');
             await expect(region.getByRole('status')).toHaveText('실행 횟수: 3');
@@ -153,8 +168,8 @@ for (const refined of [false, true]) {
           if (theme === 'dark') {
             expect(readings[1]?.rest).toEqual(readings[0]?.rest);
             expect(readings[2]?.rest).toEqual(readings[0]?.rest);
-            expect(readings[1]?.hover).toBeCloseTo(readings[0]!.hover, 1);
-            expect(readings[2]?.hover).toBeCloseTo(readings[0]!.hover, 1);
+            expect(readings[1]?.hover).toBeNearRatio(readings[0]!.hover);
+            expect(readings[2]?.hover).toBeNearRatio(readings[0]!.hover);
           }
           await test
             .info()
@@ -196,7 +211,7 @@ for (const refined of [false, true]) {
       await expect.poll(() => ratio(candidate)).toBeGreaterThan(7);
       await page.getByRole('button', { name: /^Component theme / }).click();
       await page.getByRole('option', { name: 'Light', exact: true }).click();
-      await expect.poll(() => ratio(candidate)).toBeCloseTo(refined ? 4.62 : 4.79, 1);
+      await expect.poll(() => ratio(candidate)).toBeNearRatio(refined ? 4.62 : 4.79);
       await page.getByRole('link', { name: 'Welcome', exact: true }).click();
       await preview.getByRole('link', { name: /02 버튼/ }).click();
       await page.getByRole('combobox', { name: 'variant', exact: true }).selectOption('default');

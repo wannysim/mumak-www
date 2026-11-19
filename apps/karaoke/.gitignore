@@ -44,3 +44,6 @@ playwright/.cache/
 
 # 가사 데이터 (저작권 문제로 커밋 금지)
 public/lyrics/
+
+# Vitest 5 reports/attachments
+.vitest/

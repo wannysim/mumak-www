@@ -10,12 +10,10 @@ import {
 } from '@mumak/ui/components/dropdown-menu';
 import { IconButton } from '@mumak/ui/components/icon-button';
 
-import '@testing-library/jest-dom';
-
 it('forwards the native ref and preserves Enter/Space without submitting a form by default', async () => {
   const ref = createRef<HTMLButtonElement>();
-  const click = jest.fn();
-  const submit = jest.fn(event => event.preventDefault());
+  const click = vi.fn();
+  const submit = vi.fn(event => event.preventDefault());
   const user = userEvent.setup();
   render(
     <form onSubmit={submit}>
@@ -33,7 +31,7 @@ it('forwards the native ref and preserves Enter/Space without submitting a form 
 });
 
 it('preserves disabled behavior', async () => {
-  const click = jest.fn();
+  const click = vi.fn();
   const user = userEvent.setup();
   render(
     <IconButton disabled aria-label="Search" onClick={click}>

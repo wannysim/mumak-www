@@ -3,10 +3,8 @@ import userEvent from '@testing-library/user-event';
 
 import { LocaleSwitcher } from '../ui/locale-switcher';
 
-import '@testing-library/jest-dom';
-
 // Mock next-intl
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useLocale: () => 'ko',
   useTranslations: () => (key: string) => {
     const translations: Record<string, string> = {
@@ -16,9 +14,9 @@ jest.mock('next-intl', () => ({
   },
 }));
 
-const replace = jest.fn();
+const replace = vi.fn();
 
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   usePathname: () => '/',
   useRouter: () => ({ replace }),
 }));

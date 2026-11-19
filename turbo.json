@@ -185,14 +185,32 @@
     // 빌드 산출물(.next/prerender-manifest.json)을 검증하는 테스트만 blog#test:static으로 떼어 build 뒤에 돈다.
     "blog#test:ci": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "jest.config.*"],
+      "inputs": ["$TURBO_DEFAULT$", "vitest.config.*"],
       "outputs": ["coverage/**"],
       "env": ["GITHUB_ACTIONS"],
       "passThroughEnv": ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"]
     },
+    // Storybook 실습 스토리의 Playwright 검증(포커스·대비·axe). CI(CI=1)에서는 정적 빌드를 서빙한다.
+    "blog#test:storybook": {
+      // 스토리는 @mumak/ui 소스를 직접 쓴다. ^build(공유 패키지엔 build 스크립트가 없어 no-op)를 걸어
+      // 공유 패키지 소스가 해시에 들어가게 한다. 그래야 공유 컴포넌트만 바뀐 경우 캐시된 통과를 재사용하지 않는다.
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": [],
+      "env": ["CI"],
+      // Playwright 컨테이너 이미지의 브라우저 경로(PLAYWRIGHT_BROWSERS_PATH)를 strict env 모드에서 넘긴다.
+      "passThroughEnv": ["PLAYWRIGHT_*"]
+    },
+    // Storybook 스토리를 Playwright Chromium에서 직접 실행한다.
+    "blog#test:storybook:vitest": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "env": ["GITHUB_ACTIONS"],
+      "passThroughEnv": ["PLAYWRIGHT_*"]
+    },
     "blog#test:static": {
       "dependsOn": ["build"],
-      "inputs": ["$TURBO_DEFAULT$", "jest.config.*"],
+      "inputs": ["$TURBO_DEFAULT$", "vitest.config.*"],
       "outputs": [],
       "env": ["GITHUB_ACTIONS"]
     },

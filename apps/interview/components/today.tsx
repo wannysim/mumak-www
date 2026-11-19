@@ -44,7 +44,7 @@ export function Today({
   const today = progress.attempts.filter(a => localDateKey(a.at) === todayKey).length;
   return (
     <div>
-      <section className="relative overflow-hidden rounded-[28px] bg-[#e6edfc] px-7 py-9 sm:p-10 lg:p-12">
+      <section className="relative overflow-hidden rounded-[28px] bg-sidebar-accent px-7 py-9 sm:p-10 lg:p-12">
         <div className="relative z-10 max-w-lg">
           <p className="mb-5 flex items-center gap-2 text-sm font-semibold text-primary">
             <Footprints className="size-4" aria-hidden />
@@ -54,7 +54,7 @@ export function Today({
             이동 중에도,
             <br />한 문제만 더.
           </h1>
-          <p className="mt-5 text-sm leading-7 text-[#526583] sm:text-base">
+          <p className="mt-5 text-sm leading-7 text-foreground/80 sm:text-base">
             완벽한 한 시간 대신, 오늘의 짧은 집중.
             <br />
             지금 갈 수 있는 만큼만 가봐요.
@@ -64,7 +64,7 @@ export function Today({
               오늘은 얼마나 이동하나요?
             </p>
             <div
-              className="inline-flex rounded-xl border border-white/70 bg-white/55 p-1"
+              className="inline-grid max-w-full grid-cols-3 rounded-xl border border-card/70 bg-card/55 p-1"
               role="group"
               aria-labelledby="duration-label"
             >
@@ -73,7 +73,7 @@ export function Today({
                   key={n}
                   aria-pressed={minutes === n}
                   onClick={() => setMinutes(n)}
-                  className={`min-h-11 min-w-18 rounded-lg px-5 text-sm font-semibold transition-colors ${minutes === n ? 'bg-white text-primary shadow-sm' : 'text-[#526583] hover:bg-white/60'}`}
+                  className={`min-h-11 min-w-11 rounded-lg px-3 text-sm font-semibold transition-colors sm:min-w-18 sm:px-5 ${minutes === n ? 'bg-card text-primary shadow-sm' : 'text-foreground/80 hover:bg-card/60'}`}
                 >
                   {n}분
                 </button>
@@ -84,7 +84,7 @@ export function Today({
             {progress.session ? '하던 연습 이어가기' : `${minutes}분 연습 출발`}
             <ArrowRight className="ml-5" aria-hidden />
           </Button>
-          <p className="mt-3 text-xs text-[#526583]">
+          <p className="mt-3 text-xs text-foreground/80">
             {progress.session
               ? '시간을 바꾸려면 연습 화면에서 현재 연습을 마쳐 주세요.'
               : '코드 읽기부터 가볍게 · 중간에 멈춰도 괜찮아요'}
@@ -104,23 +104,23 @@ export function Today({
           <path
             d="M18 25h120a52 52 0 0 1 0 104H98a52 52 0 0 0 0 104h125"
             fill="none"
-            stroke="#fff"
+            className="stroke-card"
             strokeWidth="2"
             strokeDasharray="5 9"
           />
-          <circle cx="35" cy="25" r="15" fill="#375beb" stroke="#e6edfc" strokeWidth="8" />
-          <circle cx="98" cy="129" r="17" fill="#f3b760" stroke="#e6edfc" strokeWidth="8" />
-          <circle cx="223" cy="233" r="17" fill="#172b4d" stroke="#e6edfc" strokeWidth="8" />
-          <text x="35" y="65" fill="#526583" fontSize="12">
+          <circle cx="35" cy="25" r="15" className="fill-primary stroke-sidebar-accent" strokeWidth="8" />
+          <circle cx="98" cy="129" r="17" className="fill-(--panel-accent) stroke-sidebar-accent" strokeWidth="8" />
+          <circle cx="223" cy="233" r="17" className="fill-foreground stroke-sidebar-accent" strokeWidth="8" />
+          <text x="35" y="65" className="fill-foreground/80" fontSize="12">
             출발
           </text>
-          <text x="183" y="278" fill="#526583" fontSize="12">
+          <text x="183" y="278" className="fill-foreground/80" fontSize="12">
             다음 정거장
           </text>
         </svg>
       </section>
       {last && (
-        <details key={last.id} className="my-5 rounded-xl border bg-white p-5">
+        <details key={last.id} className="my-5 rounded-xl border bg-card p-5">
           <summary className="cursor-pointer font-semibold">지난 해설 이어 읽기 · {last.title}</summary>
           {'choices' in last ? (
             <>
@@ -151,7 +151,7 @@ export function Today({
         </details>
       )}
       {resumable.length > 0 && (
-        <section className="mt-7 rounded-2xl border bg-white p-5 sm:p-6" aria-labelledby="resume-code-title">
+        <section className="mt-7 rounded-2xl border bg-card p-5 sm:p-6" aria-labelledby="resume-code-title">
           <h2 id="resume-code-title" className="text-lg font-bold">
             코드·메모 이어가기
           </h2>
@@ -209,9 +209,9 @@ export function Today({
       <div className="grid gap-3 md:grid-cols-2">
         <button
           onClick={start}
-          className="group flex items-start gap-4 rounded-2xl border bg-white p-5 text-left transition-colors hover:border-primary/40"
+          className="group flex items-start gap-4 rounded-2xl border bg-card p-5 text-left transition-colors hover:border-primary/40"
         >
-          <span className="rounded-xl bg-[#e8edff] p-3 text-primary">
+          <span className="rounded-xl bg-accent p-3 text-primary">
             <Headphones aria-hidden className="size-5" />
           </span>
           <div className="flex-1">
@@ -223,13 +223,15 @@ export function Today({
         </button>
         <button
           onClick={() => openCode()}
-          className="group flex items-start gap-4 rounded-2xl border bg-white p-5 text-left transition-colors hover:border-primary/40"
+          className="group flex items-start gap-4 rounded-2xl border bg-card p-5 text-left transition-colors hover:border-primary/40"
         >
-          <span className="rounded-xl bg-[#fff2da] p-3 text-[#95601f]">
+          <span className="rounded-xl bg-(--warning) p-3 text-(color:--warning-foreground)">
             <Code2 aria-hidden className="size-5" />
           </span>
           <div className="flex-1">
-            <span className="text-[11px] font-semibold text-[#95601f]">짧게 설계 · 15–45분 구현</span>
+            <span className="text-[11px] font-semibold text-(color:--warning-foreground)">
+              짧게 설계 · 15–45분 구현
+            </span>
             <h3 className="mt-1 font-bold">설명하며 푸는 라이브 코딩</h3>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">윈도우·연결 리스트부터 비동기 상태 처리까지</p>
           </div>
@@ -238,9 +240,9 @@ export function Today({
       </div>
       <button
         onClick={openStories}
-        className="mt-3 flex w-full items-center gap-4 rounded-2xl border bg-white p-5 text-left hover:border-primary/40"
+        className="mt-3 flex w-full items-center gap-4 rounded-2xl border bg-card p-5 text-left hover:border-primary/40"
       >
-        <span className="rounded-xl bg-[#e7f1ec] p-3 text-[#386e54]">
+        <span className="rounded-xl bg-(--success) p-3 text-(color:--success-foreground)">
           <MessageCircle aria-hidden className="size-5" />
         </span>
         <div className="flex-1">
@@ -263,7 +265,7 @@ export function Today({
             return (
               <div key={topic} className="border-t-2 pt-4">
                 <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="grid size-5 place-items-center rounded-full bg-foreground text-[10px] text-white">
+                  <span className="grid size-5 place-items-center rounded-full bg-foreground text-[10px] text-background">
                     {count === group.length ? <Check className="size-3" /> : `0${i + 1}`}
                   </span>
                   {count} / {group.length} 이해함
@@ -273,7 +275,7 @@ export function Today({
                   {group.map(q => (
                     <span
                       key={q.id}
-                      className={`h-1.5 flex-1 rounded-full ${solved.has(q.id) ? 'bg-primary' : 'bg-[#dce3ef]'}`}
+                      className={`h-1.5 flex-1 rounded-full ${solved.has(q.id) ? 'bg-primary' : 'bg-border'}`}
                     />
                   ))}
                 </div>

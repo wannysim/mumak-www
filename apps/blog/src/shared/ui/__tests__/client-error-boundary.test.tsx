@@ -3,15 +3,13 @@ import type { ReactNode } from 'react';
 
 import { ClientErrorBoundary } from '../client-error-boundary';
 
-import '@testing-library/jest-dom';
-
 function BrokenWidget(): ReactNode {
   throw new Error('widget failed');
 }
 
 describe('ClientErrorBoundary', () => {
   it('renders fallback for the failed subtree only', () => {
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(
       <div>

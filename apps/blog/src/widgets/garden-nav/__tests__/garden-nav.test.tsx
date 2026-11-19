@@ -4,11 +4,9 @@ import type { NoteStatus } from '@/src/entities/note';
 
 import { GardenNav } from '../ui/garden-nav';
 
-import '@testing-library/jest-dom';
+const mockUsePathname = vi.fn(() => '/garden');
 
-const mockUsePathname = jest.fn(() => '/garden');
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className}>
       {children}

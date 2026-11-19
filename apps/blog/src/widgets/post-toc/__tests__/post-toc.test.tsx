@@ -4,8 +4,6 @@ import type { ContentHeading } from '@/src/shared/lib/content';
 
 import { PostToc, shouldShowToc, TOC_MIN_READING_TIME } from '../ui/post-toc';
 
-import '@testing-library/jest-dom';
-
 function heading(text: string, level = 2, index = 0): ContentHeading {
   return { index, level, text, anchor: text };
 }

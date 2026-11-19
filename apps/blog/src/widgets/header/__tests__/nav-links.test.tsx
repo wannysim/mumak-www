@@ -2,11 +2,9 @@ import { render, screen } from '@testing-library/react';
 
 import { NavLinks } from '../ui/nav-links';
 
-import '@testing-library/jest-dom';
+const mockUsePathname = vi.fn(() => '/');
 
-const mockUsePathname = jest.fn(() => '/');
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, ...props }: React.ComponentProps<'a'>) => <a {...props}>{children}</a>,
   usePathname: () => mockUsePathname(),
 }));

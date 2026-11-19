@@ -46,6 +46,8 @@ async function openLab(page: Page, locale = 'ko', theme = 'light', manager = fal
   );
   const content = manager ? page.frameLocator('#storybook-preview-iframe') : page;
   await expect(content.getByRole('heading', { level: 1 })).toBeVisible();
+  // 웹폰트가 붙기 전에 버튼 너비를 재면 fallback 글꼴 기준이 되어 이후 측정과 소수점 단위로 어긋난다.
+  if (!manager) await page.evaluate(() => document.fonts.ready.then(() => undefined));
   await page.clock.pauseAt(new Date('2026-10-19T10:01:00Z'));
   return content;
 }

@@ -160,12 +160,46 @@ jobs:
             apps/${{ matrix.app }}/test-results/
           retention-days: 7
 
+  # Step 4: blog Storybook 실습 스토리 검증(포커스·대비·axe). blog가 영향받을 때만 돈다.
+  # E2E 매트릭스와 달리 Next 빌드가 필요 없어 별도 잡으로 두고 E2E Success에 합산한다.
+  storybook:
+    name: Storybook (blog)
+    needs: [detect-scopes]
+    if: needs.detect-scopes.outputs.has_changes == 'true' && contains(format(',{0},', needs.detect-scopes.outputs.scopes), ',blog,')
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          save-cache: "false"
+
+      - name: Run Storybook Vitest tests
+        run: pnpm turbo run test:storybook:vitest --filter=blog
+
+      - name: Run Storybook Playwright specs
+        run: pnpm turbo run test:storybook --filter=blog
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: storybook-report-blog
+          path: apps/blog/test-results/focus-lab/
+          retention-days: 7
+
   # Summary job for branch protection. `always()` survives concurrency
   # cancellation, so use `!cancelled()` while still aggregating failed needs.
   # Source: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-cancellation
   e2e-success:
     name: E2E Success
-    needs: [detect-scopes, prepare-matrix, e2e]
+    needs: [detect-scopes, prepare-matrix, e2e, storybook]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -180,6 +214,12 @@ jobs:
           if [ "${{ needs.detect-scopes.outputs.has_changes }}" != "true" ]; then
             echo "No relevant changes detected - E2E passed"
             exit 0
+          fi
+
+          # blog가 영향받지 않으면 skipped다. 실행됐다면 성공해야 한다.
+          if [ "${{ needs.storybook.result }}" != "success" ] && [ "${{ needs.storybook.result }}" != "skipped" ]; then
+            echo "Storybook tests failed (result: ${{ needs.storybook.result }})"
+            exit 1
           fi
 
           if [ "${{ needs.prepare-matrix.result }}" != "success" ]; then

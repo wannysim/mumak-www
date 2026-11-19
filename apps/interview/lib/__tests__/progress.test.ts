@@ -10,6 +10,9 @@ import {
   understoodIds,
 } from '../progress';
 
+const UNSUPPORTED_FILE = '지원하는 연습 기록 파일이 아닙니다.';
+const INVALID_SESSION = '연습 세션 정보가 올바르지 않습니다.';
+
 describe('durable practice records', () => {
   it('revisits a lucky guess until a later confident answer', () => {
     const graded = recordAttempt(emptyProgress(), 'event-loop', true);
@@ -32,16 +35,19 @@ describe('durable practice records', () => {
     expect(parseProgress(JSON.stringify(emptyProgress()))).toEqual(emptyProgress());
   });
   it('rejects incompatible, corrupted and oversized data without migration guesses', () => {
-    for (const raw of ['{}', 'null', 'bad', '가'.repeat(700000)]) expect(() => parseProgress(raw)).toThrow();
+    for (const raw of ['{}', 'null']) expect(() => parseProgress(raw)).toThrow(UNSUPPORTED_FILE);
+    expect(() => parseProgress('bad')).toThrow(SyntaxError);
+    expect(() => parseProgress('가'.repeat(700000))).toThrow('백업 파일이 너무 큽니다.');
     for (const patch of [
       { version: 2 },
       { notes: { unknown: 'text' } },
       { drafts: { cart: 'a'.repeat(20001) } },
       { review: ['unknown'] },
       { attempts: [{ id: 'event-loop', at: -1, correct: true }] },
-      { session: { minutes: 5, remaining: 999, deadline: null, questionId: 'event-loop' } },
     ])
-      expect(() => parseProgress(JSON.stringify({ ...emptyProgress(), ...patch }))).toThrow();
+      expect(() => parseProgress(JSON.stringify({ ...emptyProgress(), ...patch }))).toThrow(UNSUPPORTED_FILE);
+    const invalidSession = { session: { minutes: 5, remaining: 999, deadline: null, questionId: 'event-loop' } };
+    expect(() => parseProgress(JSON.stringify({ ...emptyProgress(), ...invalidSession }))).toThrow(INVALID_SESSION);
   });
   it('round trips large Unicode notes and drafts within the aggregate byte budget', () => {
     const progress = {
@@ -80,7 +86,9 @@ describe('durable practice records', () => {
       { deadline: 'now' },
       { questionId: 'missing' },
     ])
-      expect(() => parseProgress(JSON.stringify({ ...emptyProgress(), session: { ...session, ...patch } }))).toThrow();
+      expect(() => parseProgress(JSON.stringify({ ...emptyProgress(), session: { ...session, ...patch } }))).toThrow(
+        INVALID_SESSION
+      );
   });
   it('adds incorrect answers to review once and removes them after success', () => {
     const wrong = recordAttempt(recordAttempt(emptyProgress(), 'event-loop', false, 100), 'event-loop', false, 200);

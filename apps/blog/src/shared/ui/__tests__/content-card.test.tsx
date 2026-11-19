@@ -2,9 +2,7 @@ import { render, screen } from '@testing-library/react';
 
 import { ContentCard } from '../content-card';
 
-import '@testing-library/jest-dom';
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className, ...props }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className} {...props}>
       {children}

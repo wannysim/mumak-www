@@ -2,10 +2,8 @@ import { render, screen } from '@testing-library/react';
 
 import { IntlProvider } from '../intl-provider';
 
-import '@testing-library/jest-dom';
-
 // Mock next-intl
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   NextIntlClientProvider: ({
     children,
     locale,

@@ -4,15 +4,13 @@ import * as React from 'react';
 import type { GraphData, GraphNode } from '../model/types';
 import { GraphCanvas } from '../ui/graph-canvas';
 
-import '@testing-library/jest-dom';
+const mockUseTheme = vi.fn(() => ({ resolvedTheme: 'light' }) as { resolvedTheme: 'light' | 'dark' });
 
-const mockUseTheme = jest.fn(() => ({ resolvedTheme: 'light' }) as { resolvedTheme: 'light' | 'dark' });
-
-jest.mock('next-themes', () => ({
+vi.mock('next-themes', () => ({
   useTheme: () => mockUseTheme(),
 }));
 
-jest.mock('lucide-react', () => ({
+vi.mock('lucide-react', () => ({
   MonitorIcon: (props: Record<string, unknown>) => <svg data-testid="monitor-icon" {...props} />,
 }));
 
@@ -23,14 +21,14 @@ const lastForceGraphProps: { current: CapturedProps | null } = { current: null }
 const lastForceGraphRef: { current: unknown } = { current: null };
 
 const fakeForceGraphInstance = {
-  cameraPosition: jest.fn(),
-  d3Force: jest.fn().mockReturnValue({ strength: jest.fn(), distance: jest.fn() }),
-  controls: jest.fn().mockReturnValue({ dispose: jest.fn(), handleResize: jest.fn() }),
-  renderer: jest.fn().mockReturnValue({ dispose: jest.fn() }),
-  scene: jest.fn().mockReturnValue({ traverse: jest.fn() }),
+  cameraPosition: vi.fn(),
+  d3Force: vi.fn().mockReturnValue({ strength: vi.fn(), distance: vi.fn() }),
+  controls: vi.fn().mockReturnValue({ dispose: vi.fn(), handleResize: vi.fn() }),
+  renderer: vi.fn().mockReturnValue({ dispose: vi.fn() }),
+  scene: vi.fn().mockReturnValue({ traverse: vi.fn() }),
 };
 
-jest.mock('react-force-graph-3d', () => {
+vi.mock('react-force-graph-3d', () => {
   // React 19: ref는 일반 prop으로 전달되므로 forwardRef가 필요 없다.
   const FakeForceGraph = ({ ref, ...props }: CapturedProps & { ref?: React.Ref<unknown> }) => {
     lastForceGraphProps.current = props;
@@ -38,10 +36,10 @@ jest.mock('react-force-graph-3d', () => {
     React.useImperativeHandle(ref, () => fakeForceGraphInstance);
     return <div data-testid="force-graph" />;
   };
-  return { __esModule: true, default: FakeForceGraph };
+  return { default: FakeForceGraph };
 });
 
-jest.mock('three-spritetext', () => {
+vi.mock('three-spritetext', () => {
   class FakeSpriteText {
     text = '';
     color = '';
@@ -50,7 +48,7 @@ jest.mock('three-spritetext', () => {
     padding = 0;
     borderRadius = 0;
   }
-  return { __esModule: true, default: FakeSpriteText };
+  return { default: FakeSpriteText };
 });
 
 const mockData: GraphData = {
@@ -83,7 +81,7 @@ describe('GraphCanvas — fallback paths (WebGL unavailable)', () => {
 
   it('renders fallback when canvas.getContext throws', async () => {
     const original = HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext = jest.fn(() => {
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => {
       throw new Error('getContext blew up');
     }) as unknown as HTMLCanvasElement['getContext'];
 
@@ -113,12 +111,12 @@ describe('GraphCanvas — ForceGraph integration (WebGL available)', () => {
     mockUseTheme.mockReturnValue({ resolvedTheme: 'light' });
 
     // Pretend WebGL is available for these tests.
-    HTMLCanvasElement.prototype.getContext = jest.fn(() => ({})) as unknown as HTMLCanvasElement['getContext'];
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => ({})) as unknown as HTMLCanvasElement['getContext'];
 
     // Capture ResizeObserver callback so we can drive it from tests.
-    window.ResizeObserver = jest.fn().mockImplementation((cb: ResizeObserverCallback) => {
+    window.ResizeObserver = vi.fn().mockImplementation(function (cb: ResizeObserverCallback) {
       resizeObserverCallback = cb;
-      return { observe: jest.fn(), unobserve: jest.fn(), disconnect: jest.fn() };
+      return { observe: vi.fn(), unobserve: vi.fn(), disconnect: vi.fn() };
     }) as unknown as typeof ResizeObserver;
   });
 
@@ -268,7 +266,7 @@ describe('GraphCanvas — ForceGraph integration (WebGL available)', () => {
 
   describe('node click handling', () => {
     it('invokes onNodeClick with the original GraphNode and pans the camera when coords are present', async () => {
-      const onNodeClick = jest.fn();
+      const onNodeClick = vi.fn();
 
       render(<GraphCanvas data={mockData} unsupportedLabels={unsupportedLabels} onNodeClick={onNodeClick} />);
       await waitFor(() => expect(screen.getByTestId('force-graph')).toBeInTheDocument());
@@ -284,7 +282,7 @@ describe('GraphCanvas — ForceGraph integration (WebGL available)', () => {
     });
 
     it('ignores clicks for unknown node ids', async () => {
-      const onNodeClick = jest.fn();
+      const onNodeClick = vi.fn();
 
       render(<GraphCanvas data={mockData} unsupportedLabels={unsupportedLabels} onNodeClick={onNodeClick} />);
       await waitFor(() => expect(screen.getByTestId('force-graph')).toBeInTheDocument());
@@ -299,7 +297,7 @@ describe('GraphCanvas — ForceGraph integration (WebGL available)', () => {
     });
 
     it('does not pan the camera when node coords are missing', async () => {
-      const onNodeClick = jest.fn();
+      const onNodeClick = vi.fn();
 
       render(<GraphCanvas data={mockData} unsupportedLabels={unsupportedLabels} onNodeClick={onNodeClick} />);
       await waitFor(() => expect(screen.getByTestId('force-graph')).toBeInTheDocument());

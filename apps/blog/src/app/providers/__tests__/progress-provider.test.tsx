@@ -2,9 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 
 import { ProgressProvider } from '../progress-provider';
 
-import '@testing-library/jest-dom';
-
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
@@ -13,32 +11,32 @@ type MatchMediaListener = (event: MediaQueryListEvent) => void;
 let mockPathname = '/ko/garden';
 let mockSearchParams = new URLSearchParams();
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname,
   useSearchParams: () => mockSearchParams,
 }));
 
 function mockMatchMedia(matches: boolean) {
   const listeners: MatchMediaListener[] = [];
-  const removeEventListener = jest.fn((_: string, cb: MatchMediaListener) => {
+  const removeEventListener = vi.fn((_: string, cb: MatchMediaListener) => {
     const idx = listeners.indexOf(cb);
     if (idx !== -1) listeners.splice(idx, 1);
   });
-  const addEventListener = jest.fn((_: string, cb: MatchMediaListener) => {
+  const addEventListener = vi.fn((_: string, cb: MatchMediaListener) => {
     listeners.push(cb);
   });
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
-    value: jest.fn().mockImplementation((query: string) => ({
+    value: vi.fn().mockImplementation((query: string) => ({
       matches,
       media: query,
       onchange: null,
       addEventListener,
       removeEventListener,
-      addListener: jest.fn(),
-      removeListener: jest.fn(),
-      dispatchEvent: jest.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     })),
   });
   return { listeners, addEventListener, removeEventListener };
@@ -94,7 +92,7 @@ function dispatchClick(anchor: HTMLAnchorElement, init: MouseEventInit = {}) {
 
 describe('ProgressProvider', () => {
   beforeEach(() => {
-    jest.useFakeTimers({ doNotFake: ['queueMicrotask'] });
+    vi.useFakeTimers();
     mockMatchMedia(false);
     mockPathname = '/ko/garden';
     mockSearchParams = new URLSearchParams();
@@ -104,9 +102,9 @@ describe('ProgressProvider', () => {
 
   afterEach(() => {
     act(() => {
-      jest.runOnlyPendingTimers();
+      vi.runOnlyPendingTimers();
     });
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('should render children', () => {
@@ -130,7 +128,7 @@ describe('ProgressProvider', () => {
   });
 
   it('should never wrap history APIs (no popstate/pushState listeners on window)', () => {
-    const addWindowListenerSpy = jest.spyOn(window, 'addEventListener');
+    const addWindowListenerSpy = vi.spyOn(window, 'addEventListener');
 
     render(
       <ProgressProvider>
@@ -148,7 +146,7 @@ describe('ProgressProvider', () => {
 
   describe('click observer', () => {
     it('should attach a passive capture-phase click listener on document', () => {
-      const addSpy = jest.spyOn(document, 'addEventListener');
+      const addSpy = vi.spyOn(document, 'addEventListener');
 
       render(
         <ProgressProvider>
@@ -165,8 +163,8 @@ describe('ProgressProvider', () => {
     });
 
     it('should remove the click listener on unmount with matching options', () => {
-      const addSpy = jest.spyOn(document, 'addEventListener');
-      const removeSpy = jest.spyOn(document, 'removeEventListener');
+      const addSpy = vi.spyOn(document, 'addEventListener');
+      const removeSpy = vi.spyOn(document, 'removeEventListener');
 
       const { unmount } = render(
         <ProgressProvider>
@@ -299,7 +297,7 @@ describe('ProgressProvider', () => {
 
     it('should not attach a click listener when reduced motion is preferred', () => {
       mockMatchMedia(true);
-      const addSpy = jest.spyOn(document, 'addEventListener');
+      const addSpy = vi.spyOn(document, 'addEventListener');
 
       render(
         <ProgressProvider>
@@ -337,7 +335,7 @@ describe('ProgressProvider', () => {
       expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'true');
 
       act(() => {
-        jest.advanceTimersByTime(200);
+        vi.advanceTimersByTime(200);
       });
       expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
     });
@@ -360,12 +358,12 @@ describe('ProgressProvider', () => {
       expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'false');
 
       act(() => {
-        jest.advanceTimersByTime(80);
+        vi.advanceTimersByTime(80);
       });
       expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'true');
 
       act(() => {
-        jest.advanceTimersByTime(200);
+        vi.advanceTimersByTime(200);
       });
       expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
     });
@@ -383,12 +381,12 @@ describe('ProgressProvider', () => {
       expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'false');
 
       act(() => {
-        jest.advanceTimersByTime(8000);
+        vi.advanceTimersByTime(8000);
       });
       expect(screen.getByTestId('page-transition-progress')).toHaveAttribute('aria-hidden', 'true');
 
       act(() => {
-        jest.advanceTimersByTime(200);
+        vi.advanceTimersByTime(200);
       });
       expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
     });
@@ -416,7 +414,7 @@ describe('ProgressProvider', () => {
       expect(bar.style.transition).toBe('opacity 200ms linear');
 
       act(() => {
-        jest.advanceTimersByTime(200);
+        vi.advanceTimersByTime(200);
       });
       expect(screen.queryByTestId('page-transition-progress')).not.toBeInTheDocument();
     });
@@ -482,10 +480,10 @@ describe('ProgressProvider', () => {
       </ProgressProvider>
     );
 
-    expect(jest.getTimerCount()).toBeGreaterThan(0);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
 
     unmount();
 
-    expect(jest.getTimerCount()).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

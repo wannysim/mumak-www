@@ -1,6 +1,14 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
+// 토큰 표시값은 작성된 CSS 텍스트를 그대로 보여 준다. 정적 빌드는 CSS를 압축해 같은 색을
+// `oklch(45% .15 45)`처럼 다르게 표기하므로 두 표기를 모두 받는다.
+function oklchText(lightness: number, chroma: number, hue: number) {
+  const decimal = (value: number) => String(value).replace(/^0\./, String.raw`0?\.`);
+  const percent = `${Math.round(lightness * 1000) / 10}%`;
+  return new RegExp(String.raw`^oklch\((?:${decimal(lightness)}|${percent}) ${decimal(chroma)} ${hue}\)$`);
+}
+
 async function selectTheme(page: Page, theme: 'Light' | 'Dark') {
   await page.getByRole('button', { name: /^Component theme / }).click();
   await page.getByRole('option', { name: theme, exact: true }).click();
@@ -56,10 +64,10 @@ for (const locale of ['ko', 'en'] as const) {
     await preview.getByRole('link', { name: ko ? /01 포커스 규칙/ : /01 Focus rules/ }).click();
     await expect(preview.getByRole('heading', { level: 1 })).toHaveText(ko ? '포커스 규칙' : 'Focus rules');
     const values = preview.getByRole('definition');
-    await expect(values.first()).toHaveText('oklch(0.45 0.15 45)');
+    await expect(values.first()).toHaveText(oklchText(0.45, 0.15, 45));
     await selectTheme(page, 'Dark');
-    await expect(values.first()).toHaveText('oklch(0.85 0.12 50)');
-    await expect(values.nth(1)).toHaveText('oklch(0.85 0.12 50)');
+    await expect(values.first()).toHaveText(oklchText(0.85, 0.12, 50));
+    await expect(values.nth(1)).toHaveText(oklchText(0.85, 0.12, 50));
     await page.getByRole('link', { name: 'Welcome', exact: true }).click();
     await expect(preview.getByRole('main')).toHaveCSS('background-color', 'oklch(0.145 0 0)');
     await preview.getByRole('link', { name: ko ? /02 버튼/ : /02 Button/ }).click();

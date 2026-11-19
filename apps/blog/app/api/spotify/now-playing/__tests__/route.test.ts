@@ -1,11 +1,11 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 import type { NowPlaying } from '@/src/entities/spotify';
 
-const mockGetNowPlaying = jest.fn();
+const mockGetNowPlaying = vi.fn();
 
-jest.mock('@/src/entities/spotify', () => ({
+vi.mock('@/src/entities/spotify', () => ({
   getNowPlaying: () => mockGetNowPlaying(),
 }));
 

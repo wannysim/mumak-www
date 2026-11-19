@@ -4,8 +4,6 @@ import type { SpotifyDeviceType } from '@/src/entities/spotify';
 
 import { SpotifyDeviceInfoBadge } from '../ui/spotify-device-info';
 
-import '@testing-library/jest-dom';
-
 describe('SpotifyDeviceInfoBadge', () => {
   it.each<SpotifyDeviceType>([
     'Computer',

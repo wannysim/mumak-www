@@ -12,14 +12,14 @@ describe('useScrollDirection', () => {
       configurable: true,
     });
     // requestAnimationFrame을 즉시 실행되도록 모킹
-    jest.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
       cb(0);
       return 1;
     });
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   const simulateScroll = (y: number) => {
@@ -120,7 +120,7 @@ describe('useScrollDirection', () => {
 
   describe('이벤트 리스너', () => {
     it('언마운트 시 이벤트 리스너가 제거됨', () => {
-      const removeEventListenerSpy = jest.spyOn(window, 'removeEventListener');
+      const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
 
       const { unmount } = renderHook(() => useScrollDirection());
       unmount();
@@ -130,7 +130,7 @@ describe('useScrollDirection', () => {
     });
 
     it('scroll 이벤트에 passive 옵션이 적용됨', () => {
-      const addEventListenerSpy = jest.spyOn(window, 'addEventListener');
+      const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
 
       renderHook(() => useScrollDirection());
 

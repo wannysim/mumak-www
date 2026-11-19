@@ -237,6 +237,11 @@ Blog와 Garden은 같은 사이트의 sibling 섹션이다. 두 섹션의 대응
 
 ---
 
+## 테스트
+
+- Vitest 단위 테스트는 `test:ci`에서, Next 빌드 산출물 테스트는 빌드 후 `test:static`에서 실행한다.
+- Storybook Vitest(`test:storybook:vitest`)는 Chromium에서 스토리 렌더링과 접근성 리포트를, Playwright(`test:storybook`)는 키보드·포커스·대비·지정 axe 시나리오를 검증한다.
+
 ## E2E
 
 - 이 앱은 `output: standalone` 기준으로 실행.

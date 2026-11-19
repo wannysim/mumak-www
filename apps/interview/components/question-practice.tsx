@@ -42,7 +42,7 @@ export function QuestionPractice({
     if (checked) feedback.current?.focus();
   }, [checked]);
   const codeBlock = question.code && (
-    <pre className="mb-7 overflow-x-auto whitespace-pre-wrap break-words rounded-2xl bg-[#172b4d] p-5 font-mono text-[13px] leading-7 text-[#e6edfc] sm:p-7">
+    <pre className="mb-7 overflow-x-auto whitespace-pre-wrap break-words rounded-2xl bg-(--panel) p-5 font-mono text-[13px] leading-7 text-(color:--panel-foreground) sm:p-7">
       <code>{question.code}</code>
     </pre>
   );
@@ -84,7 +84,7 @@ export function QuestionPractice({
         <ReviewToggle id={question.id} progress={progress} />
       </div>
       {session && (
-        <div className="mb-7 rounded-xl border bg-white p-4">
+        <div className="mb-7 rounded-xl border bg-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="flex items-center gap-2 text-sm font-semibold">
               <Clock3 className="size-4 text-primary" aria-hidden />
@@ -148,7 +148,7 @@ export function QuestionPractice({
               {question.choices.map((choice, i) => (
                 <label
                   key={choice}
-                  className={`flex min-h-15 cursor-pointer items-center gap-3 rounded-xl border p-4 text-sm leading-6 transition-colors ${checked && i === question.answer ? 'border-[#91b6a2] bg-[#e7f1ec]' : selected === i ? 'border-primary bg-[#e8edff]' : 'bg-white hover:border-primary/40'}`}
+                  className={`flex min-h-15 cursor-pointer items-center gap-3 rounded-xl border p-4 text-sm leading-6 transition-colors ${checked && i === question.answer ? 'border-(color:--success-foreground)/45 bg-(--success)' : selected === i ? 'border-primary bg-accent' : 'bg-card hover:border-primary/40'}`}
                 >
                   <input
                     type="radio"
@@ -156,10 +156,12 @@ export function QuestionPractice({
                     value={i}
                     checked={selected === i}
                     onChange={() => setSelected(i)}
-                    className="size-4 shrink-0 accent-[#375beb]"
+                    className="size-4 shrink-0 accent-primary"
                   />
                   <span className="flex-1">{choice}</span>
-                  {checked && i === question.answer && <Check className="size-4 text-[#386e54]" aria-label="정답" />}
+                  {checked && i === question.answer && (
+                    <Check className="size-4 text-(color:--success-foreground)" aria-label="정답" />
+                  )}
                 </label>
               ))}
             </div>
@@ -167,8 +169,10 @@ export function QuestionPractice({
         </>
       )}
       {checked && (
-        <section ref={feedback} tabIndex={-1} role="status" className="mt-7 rounded-2xl border bg-white p-6">
-          <p className={`mb-3 text-lg font-bold ${selected === question.answer ? 'text-[#386e54]' : 'text-primary'}`}>
+        <section ref={feedback} tabIndex={-1} role="status" className="mt-7 rounded-2xl border bg-card p-6">
+          <p
+            className={`mb-3 text-lg font-bold ${selected === question.answer ? 'text-(color:--success-foreground)' : 'text-primary'}`}
+          >
             {selected === null
               ? '다시 보기에 담았어요.'
               : prediction

@@ -23,10 +23,10 @@ const posts: PostMeta[] = [
   post({ slug: 'standalone' }),
 ];
 
-const getPostsMock = jest.fn(() => posts);
+const getPostsMock = vi.fn(() => posts);
 
-jest.mock('../api/posts', () => ({
-  ...jest.requireActual('../api/posts'),
+vi.mock('../api/posts', async importOriginal => ({
+  ...(await importOriginal<typeof import('../api/posts')>()),
   getPosts: (...args: unknown[]) => getPostsMock(...(args as [])),
 }));
 

@@ -1,8 +1,6 @@
 import { render } from '@testing-library/react';
 
-import '@testing-library/jest-dom';
-
-jest.mock('@mumak/ui/components/skeleton', () => ({
+vi.mock('@mumak/ui/components/skeleton', () => ({
   Skeleton: ({ className }: { className: string }) => (
     <div data-slot="skeleton" className={`animate-pulse ${className}`} />
   ),

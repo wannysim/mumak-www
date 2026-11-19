@@ -1,9 +1,9 @@
 import { getGardenNavCounts } from '../lib/get-garden-nav-counts';
 
-const mockGetNotes = jest.fn();
-const mockGetAllNoteTags = jest.fn();
+const mockGetNotes = vi.fn();
+const mockGetAllNoteTags = vi.fn();
 
-jest.mock('@/src/entities/note', () => ({
+vi.mock('@/src/entities/note', () => ({
   getAllNoteTags: (locale: string) => mockGetAllNoteTags(locale),
   getNotes: (locale: string) => mockGetNotes(locale),
 }));
@@ -20,7 +20,7 @@ describe('getGardenNavCounts', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('counts all notes, statuses, and tags for the locale', () => {

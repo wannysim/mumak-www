@@ -3,9 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { formatTime } from '../lib/format-time';
 import { SpotifyProgressBar } from '../ui/spotify-progress-bar';
 
-import '@testing-library/jest-dom';
-
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 

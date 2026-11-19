@@ -1,20 +1,19 @@
 {
   "$schema": "../../node_modules/oxlint/configuration_schema.json",
   "extends": ["../../.oxlintrc.json"],
-  "plugins": ["eslint", "typescript", "oxc", "unicorn", "react", "nextjs", "jsx-a11y"],
+  "plugins": ["nextjs", "jsx-a11y"],
   "overrides": [
     {
       "files": ["**/*.{test,spec}.{ts,tsx,js,jsx}", "**/__tests__/**/*.{ts,tsx,js,jsx}"],
-      "plugins": ["eslint", "typescript", "oxc", "unicorn", "react", "nextjs", "jest"],
+      "plugins": ["jest"],
       "rules": {
-        "jest/no-conditional-expect": "off",
-        "jest/no-focused-tests": "error"
+        "jest/no-conditional-expect": "off"
       }
     },
     {
       "files": ["src/shared/**/*.{ts,tsx}"],
       "rules": {
-        "eslint/no-restricted-imports": [
+        "no-restricted-imports": [
           "error",
           {
             "patterns": [
@@ -30,7 +29,7 @@
     {
       "files": ["src/shared/lib/admin-session.ts", "src/shared/lib/admin-auth-config.ts"],
       "rules": {
-        "eslint/no-restricted-imports": [
+        "no-restricted-imports": [
           "error",
           {
             "patterns": [

@@ -26,28 +26,28 @@ export function AccessGate({ configured }: { configured: boolean }) {
     setBusy(false);
   }
   return (
-    <main className="grid min-h-dvh lg:grid-cols-2">
-      <section className="relative flex flex-col justify-between overflow-hidden bg-[#172b4d] p-8 text-white lg:p-16">
+    <main className="grid min-h-dvh pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] lg:grid-cols-2">
+      <section className="relative flex flex-col justify-between overflow-hidden bg-(--panel) p-8 text-(color:--panel-foreground) lg:p-16">
         <div className="flex items-center gap-3 text-lg font-bold">
-          <Route aria-hidden className="text-[#f3b760]" /> 다음 정거장
+          <Route aria-hidden className="text-(color:--panel-accent)" /> 다음 정거장
         </div>
         <div className="relative z-10 my-16 max-w-lg">
-          <p className="mb-6 text-sm tracking-[0.18em] text-[#b9c9ee]">나만의 면접 연습실</p>
+          <p className="mb-6 text-sm tracking-[0.18em] text-(color:--panel-muted)">나만의 면접 연습실</p>
           <h1 className="text-4xl leading-tight font-semibold tracking-tight lg:text-6xl">
             이동 중에도,
             <br />한 문제만 더.
           </h1>
-          <p className="mt-6 max-w-sm leading-7 text-[#c3cee1]">
+          <p className="mt-6 max-w-sm leading-7 text-(color:--panel-muted)">
             익숙한 출퇴근길이 다음 기회의 출발점이 되도록.
             <br />
             나만의 속도로 준비하는 면접 연습실.
           </p>
         </div>
-        <div className="flex items-center gap-4 text-sm text-[#b9c9ee]">
-          <span className="h-3 w-3 rounded-full bg-[#f3b760]" />
-          <span className="h-px flex-1 bg-white/25" />
-          오늘의 나<span className="h-px flex-1 bg-white/25" />
-          <span className="h-3 w-3 rounded-full border-2 border-[#f3b760]" />
+        <div className="flex items-center gap-4 text-sm text-(color:--panel-muted)">
+          <span className="h-3 w-3 rounded-full bg-(--panel-accent)" />
+          <span className="h-px flex-1 bg-(--panel-foreground)/25" />
+          오늘의 나<span className="h-px flex-1 bg-(--panel-foreground)/25" />
+          <span className="h-3 w-3 rounded-full border-2 border-(color:--panel-accent)" />
           다음의 나
         </div>
       </section>
@@ -68,7 +68,7 @@ export function AccessGate({ configured }: { configured: boolean }) {
                   type="password"
                   required
                   autoComplete="current-password"
-                  className="h-13 w-full rounded-xl border bg-white px-4"
+                  className="h-13 w-full rounded-xl border border-input bg-card px-4"
                   placeholder="개인 접속 키 입력"
                 />
               </div>
@@ -77,13 +77,13 @@ export function AccessGate({ configured }: { configured: boolean }) {
                 <ArrowUpRight aria-hidden />
               </Button>
               {error && (
-                <p role="alert" className="text-sm text-red-700">
+                <p role="alert" className="text-sm text-destructive-foreground">
                   {error}
                 </p>
               )}
             </form>
           ) : (
-            <p role="status" className="rounded-xl border bg-white p-5 text-sm leading-6">
+            <p role="status" className="rounded-xl border bg-card p-5 text-sm leading-6">
               아직 접속 설정이 준비되지 않았어요. 서버의 개인 접속 키 설정을 마치면 연습실을 열 수 있어요.
             </p>
           )}

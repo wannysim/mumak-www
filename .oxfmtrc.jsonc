@@ -13,7 +13,7 @@
   "singleQuote": true,
   "tabWidth": 2,
   "trailingComma": "es5",
-  // Import 정렬: .cursor/rules/import-patterns.mdc 규칙을 자동 강제
+  // Import 정렬: AGENTS.md "Import 패턴" 절의 순서를 자동 강제
   // 1) 외부 → 2) @mumak/* → 3) @/ 내부 → 4) 상대경로 → 5) CSS/스타일
   "sortImports": {
     "internalPattern": ["@/"],
@@ -32,6 +32,9 @@
       "unknown",
     ],
   },
+  // oxfmt 0.79부터 markdown 코드 펜스에도 sortImports가 적용된다. 문서의 Good/Bad 예시와
+  // import 순서 예시가 정렬로 뒤섞이므로 markdown에서는 import 정렬만 끈다(포맷은 유지).
+  "overrides": [{ "files": ["*.md", "*.mdx"], "options": { "sortImports": false } }],
   // Tailwind v4 + shadcn/ui 사용. class 정렬은 일괄 normalize 후 활성화 권장 (현재 비활성).
   // "sortTailwindcss": true,
   "ignorePatterns": [
