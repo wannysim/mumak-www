@@ -41,3 +41,6 @@ playwright/.cache/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Vitest 5 reports/attachments
+.vitest/
