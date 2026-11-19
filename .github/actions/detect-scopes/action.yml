@@ -46,6 +46,9 @@ runs:
         BASE_REF="${{ inputs.base_ref }}"
 
         # Manual scopes override
+        # 공백을 제거해 "admin, blog"도 "admin,blog"로 맞춘다. 매트릭스(scopes-to-matrix)와
+        # 문자열 포함으로 판정하는 잡 조건(e2e.yml storybook)이 같은 목록을 보게 한다.
+        MANUAL_SCOPES=$(printf "%s" "$MANUAL_SCOPES" | tr -d "[:space:]")
         if [ -n "$MANUAL_SCOPES" ]; then
           echo "Using manual scopes: $MANUAL_SCOPES"
           echo "scopes=$MANUAL_SCOPES" >> "$GITHUB_OUTPUT"
