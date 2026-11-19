@@ -190,6 +190,12 @@
       "env": ["GITHUB_ACTIONS"],
       "passThroughEnv": ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"]
     },
+    // Storybook 실습 스토리의 Playwright 검증(포커스·대비·axe). CI(CI=1)에서는 정적 빌드를 서빙한다.
+    "blog#test:storybook": {
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": [],
+      "env": ["CI"]
+    },
     "blog#test:static": {
       "dependsOn": ["build"],
       "inputs": ["$TURBO_DEFAULT$", "jest.config.*"],
