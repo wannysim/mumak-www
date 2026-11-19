@@ -5,7 +5,7 @@ import { Button } from '@mumak/ui/components/button';
 export function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid size-10 place-items-center rounded-2xl bg-primary text-white">
+      <span className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground">
         <Route className="size-5" aria-hidden />
       </span>
       <div>

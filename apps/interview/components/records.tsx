@@ -71,7 +71,7 @@ export function Records({ progress, start }: { progress: Progress; start: () => 
   return (
     <>
       <SectionTitle eyebrow="하루의 작은 집중" title="쌓여가는 나의 기록" />
-      <div className="mb-8 rounded-2xl border bg-white p-6">
+      <div className="mb-8 rounded-2xl border bg-card p-6">
         <h2 className="mb-6 text-sm font-semibold">최근 7일의 발걸음</h2>
         <div className="grid grid-cols-7 gap-2">
           {days.map(day => {
@@ -82,7 +82,7 @@ export function Records({ progress, start }: { progress: Progress; start: () => 
                   {['일', '월', '화', '수', '목', '금', '토'][day.getDay()]}
                 </span>
                 <span
-                  className={`mx-auto my-2 grid aspect-square max-w-13 place-items-center rounded-xl text-sm font-semibold ${count ? 'bg-primary text-white' : 'bg-background text-muted-foreground'}`}
+                  className={`mx-auto my-2 grid aspect-square max-w-13 place-items-center rounded-xl text-sm font-semibold ${count ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground'}`}
                 >
                   {count}
                 </span>
@@ -127,7 +127,7 @@ export function Records({ progress, start }: { progress: Progress; start: () => 
                     </p>
                   </div>
                   <span
-                    className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold ${a.correct ? 'bg-[#e7f1ec] text-[#386e54]' : 'bg-[#fff2da] text-[#95601f]'}`}
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold ${a.correct ? 'bg-(--success) text-(color:--success-foreground)' : 'bg-(--warning) text-(color:--warning-foreground)'}`}
                   >
                     {a.correct ? '이해함' : '한 번 더'}
                   </span>
@@ -136,7 +136,7 @@ export function Records({ progress, start }: { progress: Progress; start: () => 
           </ol>
         )}
       </section>
-      <section className="rounded-2xl border bg-white p-6">
+      <section className="rounded-2xl border bg-card p-6">
         <HardDrive className="mb-4 size-5 text-primary" aria-hidden />
         <h2 className="font-bold">어느 기기에서든 이어서</h2>
         <p className="mt-2 text-sm leading-7 text-muted-foreground">
@@ -183,7 +183,7 @@ export function Records({ progress, start }: { progress: Progress; start: () => 
                 );
               }
             }}
-            className="min-h-11 text-xs text-red-700 underline underline-offset-4"
+            className="min-h-11 text-xs text-destructive-foreground underline underline-offset-4"
           >
             전체 기록 초기화
           </button>

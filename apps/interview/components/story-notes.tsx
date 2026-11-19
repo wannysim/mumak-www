@@ -23,13 +23,13 @@ function SpeakingTimer() {
     return () => clearInterval(interval);
   }, [deadline]);
   return (
-    <div className="mb-7 rounded-2xl bg-[#172b4d] p-5 text-white">
+    <div className="mb-7 rounded-2xl bg-(--panel) p-5 text-(color:--panel-foreground) [--ring:var(--panel-ring)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Mic aria-hidden className="size-5 text-[#f3b760]" />
+          <Mic aria-hidden className="size-5 text-(color:--panel-accent)" />
           <div>
             <p className="text-sm font-semibold">두 정거장 분량으로 이야기해요</p>
-            <p className="mt-1 text-xs text-[#b9c9ee]">2분 스피치 · 녹음 없이 타이머만 사용</p>
+            <p className="mt-1 text-xs text-(color:--panel-muted)">2분 스피치 · 녹음 없이 타이머만 사용</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -44,7 +44,7 @@ function SpeakingTimer() {
               } else if (remaining) setDeadline(Date.now() + remaining * 1000);
             }}
             disabled={!remaining}
-            className="grid size-11 place-items-center rounded-lg hover:bg-white/10"
+            className="grid size-11 place-items-center rounded-lg hover:bg-(--panel-foreground)/10"
             aria-label={deadline ? '스피치 일시정지' : '스피치 시작'}
           >
             {deadline ? <Pause className="size-4" /> : <Play className="size-4" />}
@@ -54,7 +54,7 @@ function SpeakingTimer() {
               setDeadline(null);
               setRemaining(120);
             }}
-            className="grid size-11 place-items-center rounded-lg hover:bg-white/10"
+            className="grid size-11 place-items-center rounded-lg hover:bg-(--panel-foreground)/10"
             aria-label="스피치 타이머 초기화"
           >
             <RotateCcw className="size-4" />
@@ -62,7 +62,7 @@ function SpeakingTimer() {
         </div>
       </div>
       {!remaining && (
-        <p role="status" className="mt-3 text-sm text-[#f3b760]">
+        <p role="status" className="mt-3 text-sm text-(color:--panel-accent)">
           2분이 지났어요. 핵심 선택과 결과가 잘 전달됐나요?
         </p>
       )}
@@ -88,9 +88,9 @@ export function StoryNotes({ progress }: { progress: Progress }) {
               <button
                 onClick={() => setActive(s.id)}
                 key={s.id}
-                className="flex w-full items-center gap-4 rounded-2xl border bg-white p-5 text-left hover:border-primary/40"
+                className="flex w-full items-center gap-4 rounded-2xl border bg-card p-5 text-left hover:border-primary/40"
               >
-                <span className="text-2xl font-light text-[#aebbd1]">{String(i + 1).padStart(2, '0')}</span>
+                <span className="text-2xl font-light text-muted-foreground">{String(i + 1).padStart(2, '0')}</span>
                 <div className="flex-1">
                   <p className="text-[11px] text-muted-foreground">{s.subtitle}</p>
                   <h2 className="mt-1 font-semibold">{s.title}</h2>
@@ -124,7 +124,7 @@ export function StoryNotes({ progress }: { progress: Progress }) {
                 {section}
               </span>
               {progress.notes[`${story.id}:${i}`]?.trim() && (
-                <Check aria-label="작성됨" className="size-4 text-[#386e54]" />
+                <Check aria-label="작성됨" className="size-4 text-(color:--success-foreground)" />
               )}
             </label>
             <textarea
@@ -141,7 +141,7 @@ export function StoryNotes({ progress }: { progress: Progress }) {
                   '지금 다시 한다면 달라질 판단 한 가지는?',
                 ][i]
               }
-              className="min-h-32 w-full rounded-xl border bg-white p-4 text-base leading-7 sm:text-sm placeholder:text-muted-foreground/70"
+              className="min-h-32 w-full rounded-xl border border-input bg-card p-4 text-base leading-7 sm:text-sm placeholder:text-muted-foreground"
             />
           </div>
         ))}
