@@ -21,7 +21,7 @@
       "sourceType": "npm",
       "vendored": "2026-11-03 (rea-agents@6.8.0 패키지의 skills/ — repo의 .agents/skills 원본이 아니라 CLI 버전이 고정된 배포본)",
       "localChanges": "oxfmt 포맷만 적용(SKILL.md·references/environments.md 공백·따옴표) — 내용 변경 없음",
-      "computedHash": "7e9094c8a0ece20aea173e3d9cde094b66af5753de6d5be2acd97778b84aa6a5"
+      "computedHash": "52784999d85c522447c43bf50502c0c86279390746cdb3e6f1b83df3667c9fb0"
     }
   }
 }

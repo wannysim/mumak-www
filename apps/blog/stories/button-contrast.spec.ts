@@ -112,7 +112,8 @@ for (const refined of [false, true]) {
                   : 3.08
                 : (surface === 'background'
                     ? [1.86, 2.13, refined ? 2.12 : 1.99]
-                    : [1.88, 2.16, refined ? 2.15 : 2.02])[index]!;
+                    : [1.88, 2.16, refined ? 2.15 : 2.02]
+                  )[index]!;
             await expect
               .poll(async () =>
                 Number(await region.locator('[data-disabled-contrast]').getAttribute('data-disabled-contrast'))

@@ -673,10 +673,7 @@ async function runLoopback({
   );
 
   await receiver.getByRole('button', { name: 'QR로 보내고 받기' }).click();
-  await receiver
-    .getByRole('dialog', { name: '기기 간 공유' })
-    .getByRole('button', { name: /받기/ })
-    .click();
+  await receiver.getByRole('dialog', { name: '기기 간 공유' }).getByRole('button', { name: /받기/ }).click();
 
   // 프로파일이 노린 표시 속도 그대로 되돌려 준다. 한 스텝이 레인 수만큼의 심볼을 함께 보여 준다.
   const intervalMs = Math.round(1000 / (profile.targetSymbolsPerSecond / profile.lanes));
