@@ -4,9 +4,7 @@ import type { ParaCategoryKey } from '@/src/entities/note';
 
 import { GardenOverview } from '../ui/garden-overview';
 
-import '@testing-library/jest-dom';
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className}>
       {children}
@@ -14,9 +12,9 @@ jest.mock('@/src/shared/config/i18n', () => ({
   ),
 }));
 
-jest.mock('@/src/shared/ui', () => ({ cardSurfaceClass: 'card-surface' }));
+vi.mock('@/src/shared/ui', () => ({ cardSurfaceClass: 'card-surface' }));
 
-jest.mock('@mumak/ui/components/badge', () => ({
+vi.mock('@mumak/ui/components/badge', () => ({
   Badge: ({ children }: { children: React.ReactNode }) => <span data-testid="badge">{children}</span>,
 }));
 

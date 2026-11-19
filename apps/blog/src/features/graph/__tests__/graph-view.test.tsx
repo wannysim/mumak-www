@@ -1,77 +1,82 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useEffect } from 'react';
+import type { MockInstance } from 'vitest';
 
 import type { GraphData, GraphNode } from '../model/types';
 import { GraphView } from '../ui/graph-view';
 
-import '@testing-library/jest-dom';
-
-const mockUseSearchParams = jest.fn(() => new URLSearchParams());
+const mockUseSearchParams = vi.fn(() => new URLSearchParams());
 let shouldCanvasCrash = false;
 
-jest.mock('next/navigation', () => ({
+vi.mock('next/navigation', () => ({
   useSearchParams: () => mockUseSearchParams(),
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
-// next/dynamic은 SSR 모듈을 비동기로 로드하므로 jest 환경에서는 sync 컴포넌트로 대체.
+// next/dynamic은 SSR 모듈을 비동기로 로드하므로 Vitest 환경에서는 sync 컴포넌트로 대체.
 // shouldCanvasCrash 플래그로 동일 컴포넌트가 ErrorBoundary 검증 시 throw하도록 분기.
 // canvasReady는 실제 GraphCanvas가 WebGL 지원 + 라이브러리 로드 완료일 때 올리는 신호라,
 // 노드를 렌더하는 이 mock은 항상 true를 보고한다(= 범례가 뜨는 조건).
-jest.mock('next/dynamic', () => () => {
-  const Mock = ({
-    data,
-    onNodeClick,
-    selectedNodeId,
-    highlightNodeIds,
-    unsupportedLabels,
-    onReadyChange,
-  }: {
-    data: GraphData;
-    onNodeClick?: (node: GraphNode) => void;
-    selectedNodeId?: string | null;
-    highlightNodeIds?: Set<string>;
-    unsupportedLabels: { title: string; description: string };
-    onReadyChange?: (ready: boolean) => void;
-  }) => {
-    // 훅을 throw보다 먼저 호출한다. 렌더가 throw하면 effect는 flush되지 않으므로
-    // 크래시 분기에서 canvasReady가 올라가는 일도 없다.
-    // jest.mock 팩토리는 호이스팅되므로 모듈 스코프 import를 참조할 수 없다.
-    const React = require('react');
-    React.useEffect(() => onReadyChange?.(true), [onReadyChange]);
+vi.mock('next/dynamic', () => ({
+  default: () => {
+    const Mock = ({
+      data,
+      onNodeClick,
+      selectedNodeId,
+      highlightNodeIds,
+      unsupportedLabels,
+      onReadyChange,
+    }: {
+      data: GraphData;
+      onNodeClick?: (node: GraphNode) => void;
+      selectedNodeId?: string | null;
+      highlightNodeIds?: Set<string>;
+      unsupportedLabels: { title: string; description: string };
+      onReadyChange?: (ready: boolean) => void;
+    }) => {
+      // 훅을 throw보다 먼저 호출한다. 렌더가 throw하면 effect는 flush되지 않으므로
+      // 크래시 분기에서 canvasReady가 올라가는 일도 없다.
+      useEffect(() => onReadyChange?.(true), [onReadyChange]);
 
-    if (shouldCanvasCrash) {
-      throw new Error('GraphCanvas crashed');
-    }
-    return (
-      <div
-        data-testid="graph-canvas"
-        data-node-count={data.nodes.length}
-        data-link-count={data.links.length}
-        data-selected-id={selectedNodeId ?? ''}
-        data-highlight-ids={highlightNodeIds ? [...highlightNodeIds].toSorted().join(',') : ''}
-        data-unsupported-title={unsupportedLabels.title}
-      >
-        {data.nodes.map(node => (
-          <button key={node.id} type="button" data-testid={`graph-node-${node.id}`} onClick={() => onNodeClick?.(node)}>
-            {node.name}
-          </button>
-        ))}
-      </div>
-    );
-  };
-  return Mock;
-});
+      if (shouldCanvasCrash) {
+        throw new Error('GraphCanvas crashed');
+      }
+      return (
+        <div
+          data-testid="graph-canvas"
+          data-node-count={data.nodes.length}
+          data-link-count={data.links.length}
+          data-selected-id={selectedNodeId ?? ''}
+          data-highlight-ids={highlightNodeIds ? [...highlightNodeIds].toSorted().join(',') : ''}
+          data-unsupported-title={unsupportedLabels.title}
+        >
+          {data.nodes.map(node => (
+            <button
+              key={node.id}
+              type="button"
+              data-testid={`graph-node-${node.id}`}
+              onClick={() => onNodeClick?.(node)}
+            >
+              {node.name}
+            </button>
+          ))}
+        </div>
+      );
+    };
+    return Mock;
+  },
+}));
 
-jest.mock('../ui/graph-toolbar', () => ({
+vi.mock('../ui/graph-toolbar', () => ({
   GraphToolbar: ({ locale }: { locale: string }) => <div data-testid="graph-toolbar">{locale}</div>,
 }));
 
-jest.mock('../ui/graph-tabs', () => ({
+vi.mock('../ui/graph-tabs', () => ({
   GraphTabs: ({ activeTab }: { activeTab: string }) => <div data-testid="graph-tabs">{activeTab}</div>,
 }));
 
-jest.mock('../ui/graph-controls', () => ({
+vi.mock('../ui/graph-controls', () => ({
   GraphControls: ({
     activeTab,
     searchQuery,
@@ -103,7 +108,7 @@ jest.mock('../ui/graph-controls', () => ({
   ),
 }));
 
-jest.mock('../ui/graph-detail-panel', () => ({
+vi.mock('../ui/graph-detail-panel', () => ({
   GraphDetailPanel: ({ node, open, onClose }: { node: GraphNode | null; open: boolean; onClose: () => void }) => (
     <div data-testid="graph-detail-panel" data-open={open ? 'true' : 'false'}>
       <span data-testid="panel-node-id">{node?.id ?? ''}</span>
@@ -404,10 +409,10 @@ describe('GraphView', () => {
 });
 
 describe('GraphErrorBoundary (via GraphView)', () => {
-  let consoleErrorSpy: jest.SpyInstance;
+  let consoleErrorSpy: MockInstance;
 
   beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     shouldCanvasCrash = true;
   });
 

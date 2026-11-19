@@ -155,40 +155,17 @@ Body content`
 });
 
 describe('isPublishable', () => {
-  const originalNodeEnv = process.env.NODE_ENV;
-  const originalE2eIncludeDraft = process.env.E2E_INCLUDE_DRAFT;
-
-  afterEach(() => {
-    Object.defineProperty(process.env, 'NODE_ENV', {
-      configurable: true,
-      value: originalNodeEnv,
-      writable: true,
-    });
-
-    if (originalE2eIncludeDraft === undefined) {
-      delete process.env.E2E_INCLUDE_DRAFT;
-    } else {
-      process.env.E2E_INCLUDE_DRAFT = originalE2eIncludeDraft;
-    }
-  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it('blocks drafts in production', () => {
-    Object.defineProperty(process.env, 'NODE_ENV', {
-      configurable: true,
-      value: 'production',
-      writable: true,
-    });
+    vi.stubEnv('NODE_ENV', 'production');
 
     expect(isPublishable({ draft: true })).toBe(false);
   });
 
   it('allows drafts in production when E2E_INCLUDE_DRAFT is enabled', () => {
-    Object.defineProperty(process.env, 'NODE_ENV', {
-      configurable: true,
-      value: 'production',
-      writable: true,
-    });
-    process.env.E2E_INCLUDE_DRAFT = 'true';
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('E2E_INCLUDE_DRAFT', 'true');
 
     expect(isPublishable({ draft: true })).toBe(true);
   });

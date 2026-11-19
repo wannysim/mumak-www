@@ -4,10 +4,8 @@ import type { NoteMeta } from '@/src/entities/note';
 
 import { GardenHighlights } from '../ui/garden-highlights';
 
-import '@testing-library/jest-dom';
-
-jest.mock('next-intl/server', () => ({
-  getTranslations: jest.fn(async () => (key: string, values?: Record<string, unknown>) => {
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => (key: string, values?: Record<string, unknown>) => {
     const translations: Record<string, string> = {
       gardenTitle: '최신 노트',
       gardenCta: `노트 ${values?.count}개 전체 보기`,
@@ -16,7 +14,7 @@ jest.mock('next-intl/server', () => ({
   }),
 }));
 
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className}>
       {children}
@@ -26,9 +24,9 @@ jest.mock('@/src/shared/config/i18n', () => ({
 
 // NoteCard는 async 서버 컴포넌트라 자식으로 두면 RTL이 트리를 못 그린다. 카드 내부는
 // note-card 자체 테스트가 지키고, 여기서는 이 블록이 NoteCard에 넘기는 계약만 검증한다.
-const mockNoteCard = jest.fn();
+const mockNoteCard = vi.fn();
 
-jest.mock('@/src/widgets/note-card', () => ({
+vi.mock('@/src/widgets/note-card', () => ({
   NoteCard: (props: { note: NoteMeta; locale: string; showStatus?: boolean }) => {
     mockNoteCard(props);
     return (

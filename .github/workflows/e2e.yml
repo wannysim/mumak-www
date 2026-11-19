@@ -180,7 +180,10 @@ jobs:
         with:
           save-cache: "false"
 
-      - name: Run Storybook tests
+      - name: Run Storybook Vitest tests
+        run: pnpm turbo run test:storybook:vitest --filter=blog
+
+      - name: Run Storybook Playwright specs
         run: pnpm turbo run test:storybook --filter=blog
 
       - name: Upload test results

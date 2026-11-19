@@ -2,8 +2,6 @@ import { render, screen } from '@testing-library/react';
 
 import { ExternalLink } from '../external-link';
 
-import '@testing-library/jest-dom';
-
 describe('ExternalLink', () => {
   it('always opens in a new tab with a safe rel and the external-link slot', () => {
     render(<ExternalLink href="https://example.com">site</ExternalLink>);

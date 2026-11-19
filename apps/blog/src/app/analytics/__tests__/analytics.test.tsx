@@ -1,16 +1,15 @@
 import { render } from '@testing-library/react';
 
-jest.mock('next/script', () => ({
-  __esModule: true,
+vi.mock('next/script', () => ({
   default: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
     children ? <script {...props}>{children}</script> : <script {...props} />,
 }));
 
-jest.mock('@vercel/analytics/next', () => ({
+vi.mock('@vercel/analytics/next', () => ({
   Analytics: () => null,
 }));
 
-jest.mock('@vercel/speed-insights/next', () => ({
+vi.mock('@vercel/speed-insights/next', () => ({
   SpeedInsights: () => null,
 }));
 

@@ -5,9 +5,10 @@
   "overrides": [
     {
       "files": ["**/*.{test,spec}.{ts,tsx,js,jsx}", "**/__tests__/**/*.{ts,tsx,js,jsx}"],
-      "plugins": ["jest"],
+      "plugins": ["vitest"],
       "rules": {
-        "jest/no-conditional-expect": "off"
+        "vitest/no-conditional-expect": "off",
+        "vitest/require-mock-type-parameters": "off"
       }
     }
   ]

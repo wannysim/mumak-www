@@ -2,8 +2,6 @@ import { render, screen } from '@testing-library/react';
 
 import { PageHeader } from '../page-header';
 
-import '@testing-library/jest-dom';
-
 describe('PageHeader', () => {
   it('renders a page heading', () => {
     const { container } = render(<PageHeader title="Garden" />);

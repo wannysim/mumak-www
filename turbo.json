@@ -185,7 +185,7 @@
     // 빌드 산출물(.next/prerender-manifest.json)을 검증하는 테스트만 blog#test:static으로 떼어 build 뒤에 돈다.
     "blog#test:ci": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "jest.config.*"],
+      "inputs": ["$TURBO_DEFAULT$", "vitest.config.*"],
       "outputs": ["coverage/**"],
       "env": ["GITHUB_ACTIONS"],
       "passThroughEnv": ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"]
@@ -201,9 +201,16 @@
       // Playwright 컨테이너 이미지의 브라우저 경로(PLAYWRIGHT_BROWSERS_PATH)를 strict env 모드에서 넘긴다.
       "passThroughEnv": ["PLAYWRIGHT_*"]
     },
+    // Storybook 스토리를 Playwright Chromium에서 직접 실행한다.
+    "blog#test:storybook:vitest": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "env": ["GITHUB_ACTIONS"],
+      "passThroughEnv": ["PLAYWRIGHT_*"]
+    },
     "blog#test:static": {
       "dependsOn": ["build"],
-      "inputs": ["$TURBO_DEFAULT$", "jest.config.*"],
+      "inputs": ["$TURBO_DEFAULT$", "vitest.config.*"],
       "outputs": [],
       "env": ["GITHUB_ACTIONS"]
     },

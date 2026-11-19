@@ -2,10 +2,8 @@ import { render, screen } from '@testing-library/react';
 
 import { PostTags } from '../ui/post-tags';
 
-import '@testing-library/jest-dom';
-
 // i18n Link → 실제 <a href>로 렌더해 anchor(=키보드 도달 가능) 여부를 검증한다.
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => (
     <a href={href} className={className}>
       {children}

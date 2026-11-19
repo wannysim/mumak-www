@@ -4,11 +4,9 @@ import type { Category } from '@/src/entities/post';
 
 import { BlogNav } from '../ui/blog-nav';
 
-import '@testing-library/jest-dom';
+const mockUsePathname = vi.fn(() => '/blog');
 
-const mockUsePathname = jest.fn(() => '/blog');
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className}>
       {children}

@@ -25,14 +25,14 @@ describe('useScrollProgress', () => {
       configurable: true,
     });
 
-    jest.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
       cb(0);
       return 1;
     });
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   const simulateScroll = (y: number) => {
@@ -95,7 +95,7 @@ describe('useScrollProgress', () => {
   });
 
   it('removes scroll and resize listeners on unmount', () => {
-    const removeEventListenerSpy = jest.spyOn(window, 'removeEventListener');
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
 
     const { unmount } = renderHook(() => useScrollProgress());
     unmount();
@@ -105,7 +105,7 @@ describe('useScrollProgress', () => {
   });
 
   it('uses passive listeners for scroll and resize', () => {
-    const addEventListenerSpy = jest.spyOn(window, 'addEventListener');
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
 
     renderHook(() => useScrollProgress());
 
@@ -114,7 +114,7 @@ describe('useScrollProgress', () => {
   });
 
   it('coalesces concurrent scroll events with rAF (only one frame schedules)', () => {
-    const rafSpy = jest.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
     renderHook(() => useScrollProgress());
     rafSpy.mockClear();
 

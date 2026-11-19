@@ -2,9 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 
 import { Breadcrumbs } from '../breadcrumbs';
 
-import '@testing-library/jest-dom';
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => (
     <a href={href} className={className}>
       {children}

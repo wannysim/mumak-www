@@ -4,16 +4,14 @@ import type { PostMeta, SeriesContext } from '@/src/entities/post';
 
 import { SeriesNav } from '../ui/series-nav';
 
-import '@testing-library/jest-dom';
-
-jest.mock('next-intl/server', () => ({
-  getTranslations: jest.fn(async () => (key: string, values?: Record<string, number>) => {
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => (key: string, values?: Record<string, number>) => {
     if (key === 'seriesProgress') return `${values?.total}편 중 ${values?.current}편`;
     return key;
   }),
 }));
 
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className}>
       {children}

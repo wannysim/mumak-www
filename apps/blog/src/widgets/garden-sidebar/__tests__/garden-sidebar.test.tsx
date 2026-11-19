@@ -3,12 +3,10 @@ import userEvent from '@testing-library/user-event';
 
 import { GardenSidebar } from '../ui/garden-sidebar';
 
-import '@testing-library/jest-dom';
+const mockUsePathname = vi.fn(() => '/garden');
+const mockPush = vi.fn();
 
-const mockUsePathname = jest.fn(() => '/garden');
-const mockPush = jest.fn();
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({
     children,
     href,
@@ -29,23 +27,23 @@ jest.mock('@/src/shared/config/i18n', () => ({
   usePathname: () => mockUsePathname(),
   useRouter: () => ({
     push: mockPush,
-    replace: jest.fn(),
-    refresh: jest.fn(),
-    back: jest.fn(),
-    forward: jest.fn(),
-    prefetch: jest.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
   }),
 }));
 
 // 번역 mock은 키를 그대로 돌려주되, 값이 있으면 실제 t()처럼 함께 노출한다.
 // 덕분에 "번역 키에서 왔는지"와 "노트 제목이 라벨에 들어갔는지"를 둘 다 검증할 수 있다.
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: string, values?: Record<string, string>) =>
     values ? `${key}:${Object.values(values).join(',')}` : key,
 }));
 
 // Mock Sheet to render children directly (avoid radix portal in jsdom).
-jest.mock('@mumak/ui/components/sheet', () => ({
+vi.mock('@mumak/ui/components/sheet', () => ({
   Sheet: ({ children }: { children: React.ReactNode }) => <div data-testid="sheet-root">{children}</div>,
   SheetTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   SheetContent: ({ children }: { children: React.ReactNode }) => <div data-testid="sheet-content">{children}</div>,
@@ -56,7 +54,7 @@ jest.mock('@mumak/ui/components/sheet', () => ({
 
 // Mock CommandDialog/Command primitives — surface `open` via attribute and let
 // children render so we can assert search items.
-jest.mock('@mumak/ui/components/command', () => ({
+vi.mock('@mumak/ui/components/command', () => ({
   Command: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CommandDialog: ({ children, open }: { children: React.ReactNode; open?: boolean }) => (
     <div data-testid="command-dialog" data-open={open ? 'true' : 'false'}>

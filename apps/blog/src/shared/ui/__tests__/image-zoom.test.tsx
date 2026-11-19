@@ -10,7 +10,7 @@ import { ImageZoom } from '../image-zoom';
 
 let mockLocale: 'ko' | 'en' = 'ko';
 
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: keyof typeof ko.imageViewer) => (mockLocale === 'ko' ? ko : en).imageViewer[key],
 }));
 

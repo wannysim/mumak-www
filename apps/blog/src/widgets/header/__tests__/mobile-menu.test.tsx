@@ -2,21 +2,19 @@ import { render, screen } from '@testing-library/react';
 
 import { MobileMenu } from '../ui/mobile-menu';
 
-import '@testing-library/jest-dom';
-
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-const mockUsePathname = jest.fn(() => '/');
+const mockUsePathname = vi.fn(() => '/');
 
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, ...props }: React.ComponentProps<'a'>) => <a {...props}>{children}</a>,
   usePathname: () => mockUsePathname(),
 }));
 
 // Mock Sheet components
-jest.mock('@mumak/ui/components/sheet', () => ({
+vi.mock('@mumak/ui/components/sheet', () => ({
   Sheet: ({ children }: { children: React.ReactNode }) => <div data-testid="sheet">{children}</div>,
   SheetTrigger: ({ children }: { children: React.ReactNode }) => <div data-testid="sheet-trigger">{children}</div>,
   SheetContent: ({ children }: { children: React.ReactNode }) => <div data-testid="sheet-content">{children}</div>,

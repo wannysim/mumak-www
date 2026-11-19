@@ -1,14 +1,13 @@
 import { render } from '@testing-library/react';
 import { useServerInsertedHTML } from 'next/navigation';
 import { isValidElement } from 'react';
+import type { Mock } from 'vitest';
 
 import { themeColors } from '../theme-config';
 import { themeMetaSync, themeMetaSyncInlineScript } from '../theme-meta-sync';
 import { ThemeMetaSyncScript } from '../theme-meta-sync-script';
 
-import '@testing-library/jest-dom';
-
-const mockUseServerInsertedHTML = useServerInsertedHTML as jest.Mock;
+const mockUseServerInsertedHTML = useServerInsertedHTML as Mock;
 
 describe('themeMetaSyncInlineScript', () => {
   it('should include theme colors in the script', () => {
@@ -17,7 +16,7 @@ describe('themeMetaSyncInlineScript', () => {
   });
 
   it('should include theme-color meta tag selector in the script', () => {
-    expect(themeMetaSyncInlineScript).toContain('meta[name="theme-color"]');
+    expect(themeMetaSyncInlineScript).toMatch(/meta\[name=\\?["']theme-color\\?["']\]/);
   });
 
   it('should include dark class detection logic', () => {
@@ -48,7 +47,7 @@ describe('themeMetaSyncInlineScript', () => {
 
 describe('ThemeMetaSyncScript', () => {
   afterEach(() => {
-    // 전역 mock(no-op jest.fn)으로 복원
+    // 전역 mock(no-op vi.fn)으로 복원
     mockUseServerInsertedHTML.mockReset();
   });
 
@@ -105,9 +104,9 @@ describe('themeMetaSync', () => {
         this.callback = callback;
         observers.push(this as unknown as MutationObserver);
       }
-      observe = jest.fn();
-      disconnect = jest.fn();
-      takeRecords = jest.fn(() => []);
+      observe = vi.fn();
+      disconnect = vi.fn();
+      takeRecords = vi.fn(() => []);
     } as unknown as typeof MutationObserver;
   });
 
@@ -152,7 +151,7 @@ describe('themeMetaSync', () => {
 
   it('skips content setAttribute when content already matches and no media attribute exists', () => {
     metaTag.setAttribute('content', '#ffffff');
-    const setAttrSpy = jest.spyOn(metaTag, 'setAttribute');
+    const setAttrSpy = vi.spyOn(metaTag, 'setAttribute');
 
     themeMetaSync(colors);
 

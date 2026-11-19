@@ -1,39 +1,37 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useEffect } from 'react';
 
 import type { SearchIndex } from '@/src/shared/lib/search';
 
 import { SiteSearch } from '../ui/site-search';
 
-import '@testing-library/jest-dom';
+const mockUsePathname = vi.fn(() => '/');
+const mockPush = vi.fn();
 
-const mockUsePathname = jest.fn(() => '/');
-const mockPush = jest.fn();
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   usePathname: () => mockUsePathname(),
   useRouter: () => ({
     push: mockPush,
-    replace: jest.fn(),
-    refresh: jest.fn(),
-    back: jest.fn(),
-    forward: jest.fn(),
-    prefetch: jest.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
   }),
 }));
 
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
   useLocale: () => 'ko',
 }));
 
-const mockUseSearchIndex = jest.fn();
+const mockUseSearchIndex = vi.fn();
 
-jest.mock('@/src/shared/hooks', () => ({
+vi.mock('@/src/shared/hooks', () => ({
   useSearchIndex: (locale: string, enabled: boolean) => mockUseSearchIndex(locale, enabled),
   useSearchPaletteShortcut: (setOpen: React.Dispatch<React.SetStateAction<boolean>>) => {
-    const React = jest.requireActual<typeof import('react')>('react');
-    React.useEffect(() => {
+    useEffect(() => {
       const handler = (event: KeyboardEvent) => {
         if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
           event.preventDefault();
@@ -46,7 +44,7 @@ jest.mock('@/src/shared/hooks', () => ({
   },
 }));
 
-jest.mock('@mumak/ui/components/command', () => ({
+vi.mock('@mumak/ui/components/command', () => ({
   Command: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CommandDialog: ({ children, open }: { children: React.ReactNode; open?: boolean }) => (
     <div data-testid="command-dialog" data-open={open ? 'true' : 'false'}>

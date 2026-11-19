@@ -2,17 +2,15 @@ import { act, render, screen } from '@testing-library/react';
 
 import type { NowPlaying } from '@/src/entities/spotify';
 
-import '@testing-library/jest-dom';
+const mockUseSpotifyPolling = vi.fn();
+const mockUseProgressInterpolation = vi.fn();
 
-const mockUseSpotifyPolling = jest.fn();
-const mockUseProgressInterpolation = jest.fn();
-
-jest.mock('@/src/features/spotify-polling', () => ({
+vi.mock('@/src/features/spotify-polling', () => ({
   useSpotifyPolling: (...args: unknown[]) => mockUseSpotifyPolling(...args),
   useProgressInterpolation: (...args: unknown[]) => mockUseProgressInterpolation(...args),
 }));
 
-jest.mock('../ui/spotify-vinyl', () => ({
+vi.mock('../ui/spotify-vinyl', () => ({
   SpotifyVinyl: ({
     data,
     statusLabel,
@@ -35,7 +33,7 @@ jest.mock('../ui/spotify-vinyl', () => ({
   ),
 }));
 
-jest.mock('../ui/spotify-vinyl-skeleton', () => ({
+vi.mock('../ui/spotify-vinyl-skeleton', () => ({
   SpotifyVinylSkeleton: () => <div data-testid="spotify-vinyl-skeleton" />,
 }));
 
@@ -72,21 +70,21 @@ function defaultHookReturn() {
     error: undefined,
     hasTrackChanged: false,
     hasPlayStateChanged: false,
-    resetChangeState: jest.fn(),
+    resetChangeState: vi.fn(),
     fetchedAt: 0,
   };
 }
 
 describe('SpotifyVinylClient', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockUseSpotifyPolling.mockReset();
     mockUseProgressInterpolation.mockReset();
     mockUseProgressInterpolation.mockReturnValue({ progressMs: null, durationMs: null });
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('renders skeleton when no data and no initial data', async () => {
@@ -130,7 +128,7 @@ describe('SpotifyVinylClient', () => {
   });
 
   it('calls resetChangeState 500ms after a track change', async () => {
-    const resetChangeState = jest.fn();
+    const resetChangeState = vi.fn();
     setupHookReturn({ data: playingData, hasTrackChanged: true, resetChangeState });
     const { SpotifyVinylClient } = await import('../ui/spotify-vinyl-client');
 
@@ -139,35 +137,35 @@ describe('SpotifyVinylClient', () => {
     expect(resetChangeState).not.toHaveBeenCalled();
 
     act(() => {
-      jest.advanceTimersByTime(500);
+      vi.advanceTimersByTime(500);
     });
 
     expect(resetChangeState).toHaveBeenCalledTimes(1);
   });
 
   it('also triggers reset on play state change', async () => {
-    const resetChangeState = jest.fn();
+    const resetChangeState = vi.fn();
     setupHookReturn({ data: playingData, hasPlayStateChanged: true, resetChangeState });
     const { SpotifyVinylClient } = await import('../ui/spotify-vinyl-client');
 
     render(<SpotifyVinylClient initialData={null} listeningToLabel="Listening to" lastPlayedLabel="Last played" />);
 
     act(() => {
-      jest.advanceTimersByTime(500);
+      vi.advanceTimersByTime(500);
     });
 
     expect(resetChangeState).toHaveBeenCalledTimes(1);
   });
 
   it('does not schedule reset when no change is pending', async () => {
-    const resetChangeState = jest.fn();
+    const resetChangeState = vi.fn();
     setupHookReturn({ data: playingData, hasTrackChanged: false, hasPlayStateChanged: false, resetChangeState });
     const { SpotifyVinylClient } = await import('../ui/spotify-vinyl-client');
 
     render(<SpotifyVinylClient initialData={null} listeningToLabel="Listening to" lastPlayedLabel="Last played" />);
 
     act(() => {
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
     });
 
     expect(resetChangeState).not.toHaveBeenCalled();
@@ -205,7 +203,7 @@ describe('SpotifyVinylClient', () => {
   });
 
   it('clears the timer when unmounted before 500ms elapses', async () => {
-    const resetChangeState = jest.fn();
+    const resetChangeState = vi.fn();
     setupHookReturn({ data: playingData, hasTrackChanged: true, resetChangeState });
     const { SpotifyVinylClient } = await import('../ui/spotify-vinyl-client');
 
@@ -216,14 +214,14 @@ describe('SpotifyVinylClient', () => {
     unmount();
 
     act(() => {
-      jest.advanceTimersByTime(500);
+      vi.advanceTimersByTime(500);
     });
 
     expect(resetChangeState).not.toHaveBeenCalled();
   });
 
   it('renders the fallback skeleton when polling render fails', async () => {
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockUseSpotifyPolling.mockImplementation(() => {
       throw new Error('polling failed');
     });

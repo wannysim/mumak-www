@@ -2,6 +2,7 @@
   "extends": "@mumak/typescript-config/nextjs.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
+    "types": ["node", "vitest/globals"],
     "paths": {
       "@/*": ["./*"],
       "@mumak/ui/*": ["../../packages/ui/src/*"]

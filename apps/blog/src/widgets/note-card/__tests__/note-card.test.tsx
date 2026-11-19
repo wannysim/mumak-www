@@ -4,10 +4,8 @@ import type { NoteMeta } from '@/src/entities/note';
 
 import { NoteCard } from '../ui/note-card';
 
-import '@testing-library/jest-dom';
-
-jest.mock('next-intl/server', () => ({
-  getTranslations: jest.fn(async () => (key: string, values?: Record<string, unknown>) => {
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => (key: string, values?: Record<string, unknown>) => {
     const translations: Record<string, string> = {
       'status.seedling': '새싹',
       'status.budding': '성장 중',
@@ -18,7 +16,7 @@ jest.mock('next-intl/server', () => ({
   }),
 }));
 
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className}>
       {children}
@@ -26,14 +24,14 @@ jest.mock('@/src/shared/config/i18n', () => ({
   ),
 }));
 
-jest.mock('@/src/shared/lib/date', () => ({
+vi.mock('@/src/shared/lib/date', () => ({
   formatDateForLocale: (date: string) => ({
     text: '2024년 1월 1일',
     dateTime: date,
   }),
 }));
 
-jest.mock('@mumak/ui/components/badge', () => ({
+vi.mock('@mumak/ui/components/badge', () => ({
   Badge: ({ children, variant }: { children: React.ReactNode; variant?: string }) => (
     <span data-testid="badge" data-variant={variant}>
       {children}
@@ -41,7 +39,7 @@ jest.mock('@mumak/ui/components/badge', () => ({
   ),
 }));
 
-jest.mock('@/src/widgets/post-card/ui/post-tags', () => ({
+vi.mock('@/src/widgets/post-card/ui/post-tags', () => ({
   PostTags: ({ tags, basePath }: { tags: string[]; basePath: string }) => (
     <div data-testid="post-tags" data-base-path={basePath}>
       {tags.join(',')}

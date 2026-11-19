@@ -5,11 +5,9 @@ import { getNoteColor, getTagColor } from '../lib/graph-config';
 import type { GraphNode } from '../model/types';
 import { GraphLegend } from '../ui/graph-legend';
 
-import '@testing-library/jest-dom';
+const mockUseTheme = vi.fn(() => ({ resolvedTheme: 'light' }) as { resolvedTheme: 'light' | 'dark' });
 
-const mockUseTheme = jest.fn(() => ({ resolvedTheme: 'light' }) as { resolvedTheme: 'light' | 'dark' });
-
-jest.mock('next-themes', () => ({
+vi.mock('next-themes', () => ({
   useTheme: () => mockUseTheme(),
 }));
 
@@ -32,7 +30,7 @@ const labels = {
 };
 
 const renderLegend = (overrides: Partial<React.ComponentProps<typeof GraphLegend>> = {}) =>
-  render(<GraphLegend nodes={nodes} showHint={false} onDismissHint={jest.fn()} labels={labels} {...overrides} />);
+  render(<GraphLegend nodes={nodes} showHint={false} onDismissHint={vi.fn()} labels={labels} {...overrides} />);
 
 describe('GraphLegend', () => {
   beforeEach(() => {
@@ -68,7 +66,7 @@ describe('GraphLegend', () => {
     expect(swatches()[1]).toHaveStyle({ backgroundColor: getTagColor(false) });
 
     mockUseTheme.mockReturnValue({ resolvedTheme: 'dark' });
-    rerender(<GraphLegend nodes={nodes} showHint={false} onDismissHint={jest.fn()} labels={labels} />);
+    rerender(<GraphLegend nodes={nodes} showHint={false} onDismissHint={vi.fn()} labels={labels} />);
 
     expect(swatches()[0]).toHaveStyle({ backgroundColor: getNoteColor('seedling', true) });
     expect(swatches()[1]).toHaveStyle({ backgroundColor: getTagColor(true) });
@@ -76,7 +74,7 @@ describe('GraphLegend', () => {
 
   it('showHint일 때 힌트를 보여주고 닫기 버튼이 콜백을 부른다', async () => {
     const user = userEvent.setup();
-    const onDismissHint = jest.fn();
+    const onDismissHint = vi.fn();
 
     renderLegend({ showHint: true, onDismissHint });
 

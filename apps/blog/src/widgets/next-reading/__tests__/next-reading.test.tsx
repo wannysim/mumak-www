@@ -4,10 +4,8 @@ import type { PostMeta } from '@/src/entities/post';
 
 import { NextReading } from '../ui/next-reading';
 
-import '@testing-library/jest-dom';
-
-jest.mock('next-intl/server', () => ({
-  getTranslations: jest.fn(async () => (key: string, values?: Record<string, string>) => {
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => (key: string, values?: Record<string, string>) => {
     const translations: Record<string, string> = {
       nextReading: '다음 읽을거리',
       readingTimeUnit: '분',
@@ -18,7 +16,7 @@ jest.mock('next-intl/server', () => ({
   }),
 }));
 
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className}>
       {children}

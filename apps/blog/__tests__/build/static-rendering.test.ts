@@ -1,6 +1,4 @@
 /**
- * @jest-environment node
- *
  * 정적 렌더링(static prerender) 회귀 가드.
  *
  * 블로그 콘텐츠 페이지는 next.config의 "static-by-default" 의도에 따라 빌드 타임에
@@ -14,8 +12,8 @@
  *  - 콘텐츠 페이지가 동적으로 새면 manifest에서 통째로 사라지므로, presence 검사만으로
  *    회귀가 잡힌다(헤더 추론이 아니라 빌드가 내린 결정을 그대로 단언).
  *
- * 실행 전제: 빌드 산출물이 필요해서 일반 단위 테스트(`test:ci`)에서는 빠지고(jest.config
- * testPathIgnorePatterns), turbo `blog#test:static`(`dependsOn: ["build"]`)으로 build 뒤에 돈다.
+ * 실행 전제: 이 테스트는 Vitest의 static 프로젝트에 속한다. Turbo `blog#test:static`은
+ * `dependsOn: ["build"]`에 따라 빌드 후 실행한다.
  * 덕분에 `test:ci`는 build를 기다리지 않고 병렬로 돈다. 로컬에서 빌드 없이 돌리면 manifest가 없어
  * skip된다(경고 출력). CI(`CI=true`)에서 manifest가 없으면 빌드 파이프라인 문제이므로 hard fail.
  */

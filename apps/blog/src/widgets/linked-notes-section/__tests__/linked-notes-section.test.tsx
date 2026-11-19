@@ -4,9 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { LinkedItem } from '../lib/merge-linked-items';
 import { LinkedNotesSection } from '../ui/linked-notes-section';
 
-import '@testing-library/jest-dom';
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   Link: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
     <a href={href} className={className}>
       {children}

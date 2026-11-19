@@ -3,27 +3,28 @@ import userEvent from '@testing-library/user-event';
 
 import { SiteSearch } from '../ui/site-search';
 
-import '@testing-library/jest-dom';
-
-jest.mock('@/src/shared/config/i18n', () => ({
+vi.mock('@/src/shared/config/i18n', () => ({
   usePathname: () => '/',
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
-jest.mock('next-intl', () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
   useLocale: () => 'ko',
 }));
 
-jest.mock('@/src/shared/hooks', () => ({
+vi.mock('@/src/shared/hooks', async () => ({
   useSearchIndex: () => ({ posts: [], notes: [] }),
-  useSearchPaletteShortcut: jest.requireActual('@/src/shared/hooks/use-search-palette-shortcut')
-    .useSearchPaletteShortcut,
+  useSearchPaletteShortcut: (
+    await vi.importActual<typeof import('@/src/shared/hooks/use-search-palette-shortcut')>(
+      '@/src/shared/hooks/use-search-palette-shortcut'
+    )
+  ).useSearchPaletteShortcut,
 }));
 
 // JSDOM has no layout. Model visibility only; keep the real CommandDialog and its focus lifecycle.
 function mockVisibility(element: HTMLElement) {
-  jest.spyOn(element, 'getClientRects').mockImplementation(() => {
+  vi.spyOn(element, 'getClientRects').mockImplementation(() => {
     const rects = element.hidden ? [] : [new DOMRect(0, 0, 44, 44)];
     return Object.assign(rects, { item: (index: number) => rects[index] ?? null });
   });
@@ -54,7 +55,7 @@ async function closeSearch(user: ReturnType<typeof userEvent.setup>, target: HTM
 }
 
 describe('SiteSearch focus lifecycle', () => {
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
 
   it.each(['mobile', 'desktop'] as const)('returns to the %s opener after clicking and closing', async viewport => {
     const state = setup(viewport);

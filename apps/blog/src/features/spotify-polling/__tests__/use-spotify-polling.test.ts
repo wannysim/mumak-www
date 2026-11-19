@@ -1,12 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import useSWR from 'swr';
+import type { Mock } from 'vitest';
 
 import type { NowPlaying } from '@/src/entities/spotify';
 
-import '@testing-library/jest-dom';
-
 // Mock fetch for fetcher tests
-const mockFetch = jest.fn();
+const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 // SWR 응답 데이터를 제어하기 위한 변수
@@ -14,14 +13,13 @@ let swrReturnValue: {
   data: { data: NowPlaying | null; timestamp: number } | undefined;
   error: Error | undefined;
   isLoading: boolean;
-  mutate: jest.Mock;
+  mutate: Mock;
 };
 
 // Mock SWR
-const mockMutate = jest.fn();
-jest.mock('swr', () => ({
-  __esModule: true,
-  default: jest.fn((key, _fetcher, options) => {
+const mockMutate = vi.fn();
+vi.mock('swr', () => ({
+  default: vi.fn((key, _fetcher, options) => {
     // 외부에서 제어 가능한 값이 있으면 사용
     if (swrReturnValue) {
       return swrReturnValue;
@@ -44,7 +42,7 @@ jest.mock('swr', () => ({
   }),
 }));
 
-const mockUseSWR = jest.mocked(useSWR);
+const mockUseSWR = vi.mocked(useSWR);
 
 const mockSongData: NowPlaying = {
   isPlaying: true,
@@ -61,7 +59,7 @@ const mockSongData: NowPlaying = {
 
 describe('useSpotifyPolling', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     // Reset visibility state
     Object.defineProperty(document, 'visibilityState', {
       value: 'visible',
@@ -88,7 +86,7 @@ describe('useSpotifyPolling', () => {
 
   it('keeps the fallback fetchedAt stable across re-renders until the first fetch lands', async () => {
     const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
 
     try {
       const { result, rerender } = renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
@@ -107,7 +105,7 @@ describe('useSpotifyPolling', () => {
 
   it('keeps the initial fetchedAt when a poll returns no data and initialData is shown', async () => {
     const { useSpotifyPolling } = await import('../hooks/use-spotify-polling');
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
 
     try {
       const { result, rerender } = renderHook(() => useSpotifyPolling({ initialData: mockSongData }));
@@ -286,7 +284,7 @@ describe('useSpotifyPolling', () => {
       const expectedResponse = { data: mockSongData, timestamp: Date.now() };
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(expectedResponse),
+        json: vi.fn().mockResolvedValueOnce(expectedResponse),
       });
 
       // Act
