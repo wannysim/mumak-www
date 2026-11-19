@@ -13,7 +13,7 @@
   "singleQuote": true,
   "tabWidth": 2,
   "trailingComma": "es5",
-  // Import 정렬: .cursor/rules/import-patterns.mdc 규칙을 자동 강제
+  // Import 정렬: AGENTS.md "Import 패턴" 절의 순서를 자동 강제
   // 1) 외부 → 2) @mumak/* → 3) @/ 내부 → 4) 상대경로 → 5) CSS/스타일
   "sortImports": {
     "internalPattern": ["@/"],

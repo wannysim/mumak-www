@@ -1,15 +1,19 @@
 {
   "$schema": "../../node_modules/oxlint/configuration_schema.json",
   "extends": ["../../.oxlintrc.json"],
-  "plugins": ["eslint", "typescript", "oxc", "unicorn", "react"],
   "rules": {
-    "react/no-unstable-nested-components": ["warn", { "allowAsProps": true }],
-    "eslint/no-underscore-dangle": "off"
+    "react/no-unstable-nested-components": [
+      "warn",
+      {
+        "allowAsProps": true
+      }
+    ],
+    "no-underscore-dangle": "off"
   },
   "overrides": [
     {
       "files": ["**/*.{test,spec}.{ts,tsx,js,jsx}", "**/__tests__/**/*.{ts,tsx,js,jsx}"],
-      "plugins": ["eslint", "typescript", "oxc", "unicorn", "react", "jest"],
+      "plugins": ["jest"],
       "rules": {
         "jest/no-conditional-expect": "off"
       }
