@@ -194,7 +194,9 @@
     "blog#test:storybook": {
       "inputs": ["$TURBO_DEFAULT$"],
       "outputs": [],
-      "env": ["CI"]
+      "env": ["CI"],
+      // Playwright 컨테이너 이미지의 브라우저 경로(PLAYWRIGHT_BROWSERS_PATH)를 strict env 모드에서 넘긴다.
+      "passThroughEnv": ["PLAYWRIGHT_*"]
     },
     "blog#test:static": {
       "dependsOn": ["build"],
