@@ -35,7 +35,6 @@ if (!manifestExists && process.env.CI === 'true') {
 }
 
 if (!manifestExists) {
-  // eslint-disable-next-line no-console
   console.warn(
     '[static-rendering] .next/prerender-manifest.json 없음 — 빌드 산출물이 있어야 검증됩니다.\n' +
       '  `pnpm --filter blog build` 후 재실행하세요. (CI는 test:static에서 build를 선행하므로 항상 검증됩니다)'

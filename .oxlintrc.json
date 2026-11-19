@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["eslint", "typescript", "oxc", "unicorn", "react", "nextjs"],
+  "plugins": ["eslint", "typescript", "oxc", "unicorn", "react"],
   "jsPlugins": [
     {
       "name": "turbo",
@@ -11,10 +11,8 @@
     "correctness": "error",
     "suspicious": "warn"
   },
-  "env": {
-    "browser": true,
-    "node": true,
-    "es2024": true
+  "options": {
+    "reportUnusedDisableDirectives": "warn"
   },
   "ignorePatterns": [
     "node_modules/**",
@@ -30,9 +28,9 @@
   ],
   "rules": {
     "react/react-in-jsx-scope": "off",
-    "eslint/no-shadow": "off",
+    "no-shadow": "off",
     "unicorn/consistent-function-scoping": "off",
-    "eslint/no-useless-constructor": "off",
+    "no-useless-constructor": "off",
     "turbo/no-undeclared-env-vars": "warn",
     "jsx-a11y/prefer-tag-over-role": "off",
     "react/set-state-in-effect": "warn",
@@ -43,25 +41,27 @@
   },
   "overrides": [
     {
-      "files": ["**/__tests__/**", "**/*.test.{ts,tsx}"],
+      // 테스트 공통 완화. jest/vitest 규칙은 plugin을 켜는 각 앱 override에 둔다
+      // (루트 override의 규칙은 루트에서 켜진 plugin에만 적용된다).
+      "files": ["**/*.{test,spec}.{ts,tsx,js,jsx}", "**/__tests__/**/*.{ts,tsx,js,jsx}"],
       "rules": {
         "react/set-state-in-effect": "off",
         "react/purity": "off",
         "react/refs": "off",
         "react/immutability": "off",
         "react/use-memo": "off",
-        "react/hooks": "off"
+        "react/hooks": "off",
+        "jsx-a11y/click-events-have-key-events": "off",
+        "jsx-a11y/no-static-element-interactions": "off",
+        "jsx-a11y/no-noninteractive-element-interactions": "off",
+        "jsx-a11y/control-has-associated-label": "off"
       }
-    },
-    {
-      "files": ["**/e2e/**/*.{ts,js}"],
-      "plugins": ["eslint", "typescript", "oxc", "unicorn"]
     },
     {
       "files": ["**/scripts/**/*.{ts,js,mjs,cjs}"],
       "rules": {
         "unicorn/no-process-exit": "off",
-        "eslint/no-underscore-dangle": ["warn", { "allow": ["__dirname", "__filename"] }]
+        "no-underscore-dangle": ["warn", { "allow": ["__dirname", "__filename"] }]
       }
     }
   ]

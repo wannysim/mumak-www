@@ -844,7 +844,6 @@ describe('spotify', () => {
         jest.doMock('next/server', () => ({
           connection: jest.fn().mockRejectedValue(new Error('Route had a prerender error during build')),
         }));
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const mod = require('../api/spotify') as typeof import('../api/spotify');
         const result = await mod.getNowPlaying();
         expect(result).toBeNull();
@@ -856,7 +855,6 @@ describe('spotify', () => {
         jest.doMock('next/server', () => ({
           connection: jest.fn().mockRejectedValue(new Error('database is offline')),
         }));
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const mod = require('../api/spotify') as typeof import('../api/spotify');
         await expect(mod.getNowPlaying()).rejects.toThrow('database is offline');
       });
@@ -867,7 +865,6 @@ describe('spotify', () => {
         jest.doMock('next/server', () => ({
           connection: jest.fn().mockRejectedValue('string rejection'),
         }));
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const mod = require('../api/spotify') as typeof import('../api/spotify');
         await expect(mod.getNowPlaying()).rejects.toBe('string rejection');
       });
