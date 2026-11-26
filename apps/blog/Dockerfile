@@ -7,16 +7,16 @@
 #     --build-arg NEXT_PUBLIC_BASE_URL=https://<host> \
 #     -t ghcr.io/wannysim/mumak-blog:latest .
 
-# ---- base: pin node + pnpm exactly (engines ^24.22.3, devEngines pnpm 12.21.0) ----
+# ---- base: pin node + pnpm exactly (engines ^24.22.3, devEngines pnpm 12.23.0) ----
 FROM node:24.22.3-slim AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
-RUN npm install --global pnpm@12.21.0
+RUN npm install --global pnpm@12.23.0
 WORKDIR /app
 
 # ---- prune: native turbo prune produces a minimal monorepo subset for blog ----
 FROM base AS prune
 COPY . .
-RUN pnpm dlx turbo@2.11.12 prune blog --docker
+RUN pnpm dlx turbo@2.11.13 prune blog --docker
 # -> /app/out/json  (package.json skeletons + pruned pnpm-lock.yaml + workspace file)
 # -> /app/out/full  (pruned source for blog + @mumak/ui and its deps)
 
