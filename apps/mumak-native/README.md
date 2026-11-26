@@ -102,11 +102,9 @@ pnpm --filter mumak-native test:e2e --project=chromium
 - **knip false positive**: knip이 `use-color-scheme.web.ts`, `icon-symbol.ios.tsx`를 unused로 보고하지만 Metro의 platform resolver(`.web.ts`/`.ios.tsx`)가 자동 선택하므로 실 사용 중. **knip 결과를 자동 삭제 도구로 돌리면 안 됨.**
 - `expo-router` typed routes 캐시(`.expo/types/router.d.ts`)는 화면 변경 시 stale 가능 — 화면 교체 후 `pnpm --filter mumak-native clean` 권장.
 
-#### 테스트 인프라 — 근본 원인 (히스토리 보존)
+#### 테스트 인프라
 
-다음 Expo SDK bump 시 jest 30 지원 재평가 단서로 보존한다.
-
-> 과거 `jest-expo` + `jest ^30` + `pnpm` 조합에서 setup 단계가 `Runtime._execModule` / `isInsideTestCode`로 폭발했다. 직접 원인은 winter polyfill이 아니라 **두 jest 런타임 충돌**: `jest-expo`가 자체 트리에 jest 29 런타임을 끌고 들어오는데, 앱 레벨 jest 30 runner와 scope 검사가 어긋났다. **해소**: 앱 jest/@types/jest를 v29로 다운그레이드(mumak-native만 영향, web 앱은 jest 30 유지). 추후 jest-expo가 jest 30을 지원하면 복귀 검토.
+Expo SDK 58의 `jest-expo`에 맞춰 Jest 30을 사용한다. SDK를 올릴 때는 `jest-expo`와 앱의 Jest 런타임 버전을 함께 확인한다.
 
 ### 남은 Follow-up
 

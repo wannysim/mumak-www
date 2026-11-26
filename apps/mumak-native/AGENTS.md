@@ -171,13 +171,9 @@ const styles = StyleSheet.create({
 - **단위 테스트 실행 가능** — `themed-text`/`themed-view`/`use-theme-color` colocate 테스트 + coverage threshold baseline 적용. `test:ci`에서 `--passWithNoTests` 제거됨.
 - 웹 E2E는 Playwright(`expo export --platform web` 정적 export 대상). 실행 순서는 `README.md` 검증 섹션 참조.
 
-### 알려진 이슈 — jest 30 충돌 (해소됨)
+### Jest 버전
 
-`jest-expo` + `jest ^30` + `pnpm` 조합에서 모든 테스트가 setup 단계에서 죽던 문제는 **jest 29 다운그레이드로 해소**되었다(`jest` `^29.7.0`, `@types/jest` `^29.5.14`). mumak-native 워크스페이스만 영향, web 앱(blog/mumak-next/mumak-react)은 jest 30 유지.
-
-근본 원인(히스토리 — 다음 SDK bump 시 jest 30 재평가 단서):
-
-> `ReferenceError: ... import a file outside of the scope of the test code`(winter polyfill 발화)는 증상이고, 직접 원인은 **두 jest 런타임 충돌**. `node_modules/jest-expo/package.json`의 deps(`@jest/globals`, `babel-jest`, `jest-snapshot` 등)가 전부 `^29.2.1`로 핀되어 jest-expo가 자체 트리에 jest 29 런타임을 끌고 들어오는데, 앱 레벨 jest 30 runner는 그 트리 밖이라 `isInsideTestCode` 검사가 깨진다. jest-expo는 SDK 56까지 jest 29 핀 유지 → 당분간 "jest 29 = jest-expo의 정답". jest-expo가 jest 30을 지원하면 복귀 검토.
+Expo SDK 58의 `jest-expo`는 내부 Jest 런타임으로 30을 사용한다. 앱의 `jest`와 `@types/jest`도 30으로 맞춘다. 이전 SDK에서는 내부 Jest 29와 앱의 Jest 30이 섞여 Expo polyfill 초기화가 실패했다.
 
 ### 테스트 작성 컨벤션
 
@@ -236,14 +232,9 @@ CI 검증 대상: `lint` · `format:check` · `check-types` · `test:ci` · `bui
 
 ## Metro 설정
 
-`metro.config.js`는 pnpm 모노레포 호환:
+`metro.config.js`는 Expo 기본 설정을 사용한다. SDK 58이 pnpm 워크스페이스와 심볼릭 링크를 자동으로 해석한다.
 
-- `watchFolders`: workspace 루트.
-- `nodeModulesPaths`: 앱 로컬 + workspace 루트.
-- `unstable_enableSymlinks` + `unstable_enablePackageExports`: pnpm 심볼릭 링크 해석.
-- **`disableHierarchicalLookup`은 켜지 말 것** — Expo 공식 가이드에서 pnpm store 패키지 해석을 막아 phantom dep 에러를 유발한다고 명시. 현재 Expo는 pnpm isolated 모드를 지원하므로 hoist 설정도 불필요.
-
-새 워크스페이스 패키지를 추가했는데 Metro가 못 찾으면 이 파일을 우선 의심한다.
+Expo가 권장하는 React 패치는 19.3.0이지만, `@mumak/shared`와 앱이 같은 React 인스턴스를 사용하도록 워크스페이스의 19.3.1을 유지한다. React Native 0.88.1의 peer 범위는 `^19.3.0`이다. Expo 설치 검사에서는 React와 React DOM의 패치 버전 비교를 제외한다.
 
 ---
 
